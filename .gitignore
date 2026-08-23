@@ -1,0 +1,11 @@
+*.zip
+node_modules/
+__pycache__/
+*.pyc
+venv/
+.venv/
+env/
+.DS_Store
+Thumbs.db
+*.egg-info/
+.ipynb_checkpoints/
