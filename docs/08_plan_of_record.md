@@ -42,20 +42,19 @@ Valve: none; Phase 2 cannot start without this.
 
 Coursework owns these weeks (Test 1, HW2, the midterm window, MP1). Project work is reading-only: leftover gap-list sources, the paper's related-work section drafted from the digest and narrative, at most two hours a week. Nothing lands unreviewed later because nothing lands.
 
-## Phase 2. Build the pipeline (October 19 to November 15, about 32 hours)
+## Phase 2. Build the pipeline (October 19 to November 15, about 35 hours)
 
 Entry: design document QA'd; contracts frozen; Fang has the metric sheet.
 
-Build order is corpus order, one stage per step, each step ending in a QA gate and a pytest suite. Hour boxes are budgets, not estimates of luck.
+Build order follows the five steps of the framework: ingest, organize, retrieve, inject, maintain, with the evaluation spine built alongside. One step per block, each ending in a QA authorship gate and a pytest suite. Hour boxes are budgets, not estimates of luck.
 
-1. Segmentation (4h): boundary detection over the document stream, model-called against the segment contract, with the cheap-tier model as default. Test: boundaries on three known transcripts and one book chapter, compared against one alternative segmenter, differences explained in a note.
-2. Summarization and filing (5h): segment to leaf against the summary contract; filing into the fixed two-level shape by model call with the routing rule in the prompt; rejection rate logged per model tier.
-3. Fold (3h): rollup generation from children only, staleness by content hash ported conceptually from the mock's fold_sig, refold only stale nodes. Test: idempotence, a second run folds nothing.
-4. Entities (4h): extraction against the entity contract, alias resolution by explicit map plus model proposal, pages built as indexes with quote validation, the mock's rule kept.
-5. Facts (4h): dated assertion rows per the Phase 1 schema, subject-predicate collision detection, later-assertion-wins read rule, rejection rate logged. This is the stage the OpenIE and Eywa-style reading directly governs.
-6. Injection arms (5h): the three strategies (top-k chunks as control; tree-routed summaries; tree plus facts hybrid) under one token-budget accountant, ordering per the injection reading, every run emitting the standard run row.
-7. Harness and scorer (5h): question runner, LLM-judge scorer with the bias mitigations from the judge reading, calibration against a small hand-labeled set (the agreement reference from the gap list), per-band reporting. One rule the anatomy makes non-negotiable: the judge model is never the writer model. The mock's refold prose and audit scores are self-graded by the model that produced them, which is exactly the unverifiable-self-report failure the harness exists to close; in the harness, every acceptance check (summary faithfulness, fact support, answer scoring) runs on a different model tier than the one that generated the artifact, and the sensitivity table reports judge-model effects alongside writer-model effects.
-8. Integration pass (2h): corpus in, answers out, one command.
+1. INGEST (5h): the corpus adapters (chat transcripts, plain-text documents) feeding one document stream, then segmentation as a model call against the segment contract, with TextTiling as the deterministic comparison arm. Test: boundaries on three known transcripts and one book chapter, disagreements with the baseline explained in a note.
+2. ORGANIZE (13h), three sub-blocks: summaries (4h), segment to leaf against the summary contract, filed into the fixed two-level tree, rejection rate logged per model tier; entities (4h), extraction against the entity contract with the alias ledger, pronoun resolution as a bought model call, pages as quote-validated indexes; facts (5h), dated assertion rows per the Phase 1 schema with source pointers, the token-to-attribute merge recorded in a ledger rather than silent, rejection rate logged. This is the stage the OpenIE, canonicalization, and coreference reading governs.
+3. RETRIEVE (2h): tree routing (index, rollup, descend), entity and fact lookup, lexical fallback. Deliberately thin; retrieval is not the hard part and the design says so.
+4. INJECT (5h): the token-budget accountant composing context three ways (top-k chunks as control; tree-routed summaries; tree plus facts hybrid), ordering per the injection reading, every run emitting the standard run row.
+5. MAINTAIN (3h): content-hash staleness with refold of stale nodes only (test: idempotence, a second run folds nothing), and supersession by subject-predicate collision with later-assertion-wins reads.
+6. The evaluation spine (5h), built alongside rather than after: question runner, LLM-judge scorer with the bias mitigations from the judge reading, calibrated against a small hand-labeled set (the agreement reference). The judge model is never the writer model: the mock self-grades, which is the unverifiable-self-report failure this project exists to close, so every acceptance check runs on a different tier than the one that generated the artifact, and the sensitivity table reports judge effects alongside writer effects.
+7. Integration (2h): corpus in, answers out, one command.
 
 Exit: the harness runs end to end on a slice of the archive as tenant zero.
 Valves, in cut order: the entity layer reduces to extraction-only (no pages) saving ~2h; injection arms drop from three to two (control plus hybrid) saving ~2h; the sensitivity axis defers the frontier tier and reports cheap-versus-mini only.

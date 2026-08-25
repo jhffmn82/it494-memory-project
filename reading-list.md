@@ -95,6 +95,8 @@ Judging and agreement: 66. Zheng et al. 2023. Judging LLM-as-a-Judge. NeurIPS 20
 
 Narrative ground truth and injection: 71. Kocisky et al. 2018. NarrativeQA. TACL · kocisky2017-narrativeqa / 72. Pang et al. 2022. QuALITY. NAACL 2022 · pang2021-quality / 73. Wang et al. 2024. NovelQA. arXiv:2403.12766 · wang2024-novelqa / 74. Liu et al. 2023. Lost in the Middle. TACL 2024. arXiv:2307.03172 · liu2023-lost-in-the-middle / 75. Jiang et al. 2023. LongLLMLingua. ACL 2024. arXiv:2310.06839 · jiang2023-longllmlingua
 
+Coreference: 76. Lee, He, Lewis, Zettlemoyer 2017. End-to-end Neural Coreference Resolution. EMNLP 2017. arXiv:1707.07045. The canonical treatment of the pronoun problem named in the proposal; in the harness this capability is bought (a model call), not built, and this is the reference for what the task is · lee2017-e2e-coreference
+
 ## Cut from the knowledge-graph survey, available on request
 
 Named Graphs (Carroll et al., WWW 2005); RDF-star foundations (Hartig 2017); OWL 2 Profiles tutorial (Krotzsch 2012); the OneGraph vision paper (Lassila et al. 2023); LLM information-extraction survey; LLM-empowered KG construction survey (Bian 2025); entity-resolution overview (Christophides et al.); Open IE survey; Knowledge Vault (Dong et al. 2014); AutoKnow (Amazon, KDD 2020); GQL and SQL/PGQ pattern matching (SIGMOD 2023); a practitioner piece on why KG projects fail; the PKG ecosystem survey and PKG API tool paper; text-lifelog knowledge-base construction; LifeGraph; PIMO.
