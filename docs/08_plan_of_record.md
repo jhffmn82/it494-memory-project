@@ -75,7 +75,7 @@ Valve: if runs expose a broken stage, the paper narrows to the corpus actually w
 
 ## Phase 4. Spring: the distributable harness
 
-Scoped now, planned in January against the spring syllabus: packaging and installation by someone who is not the author; the cold-corpus protocol repeated on a second unknown work; migration of the full two-year raw archive through the harness as tenant-zero proof, with any answer the mock could give and the harness cannot logged as a named regression; multi-tenant separation; and the second paper if fall's ruling was two. The fall harness rides along as the regression suite. Entry condition: the fall paper exists; this phase never starts early at the cost of Phase 3.
+Scoped now, planned in January against the spring syllabus: packaging and installation by someone who is not the author; the cold-corpus protocol run in full on the primary work and as a lighter replication on at least one more (smaller certified set, entity-coverage scoring), so portability is shown across works; migration of the full two-year raw archive through the harness as tenant-zero proof, with any answer the mock could give and the harness cannot logged as a named regression; multi-tenant separation; and the second paper if fall's ruling was two. The fall harness rides along as the regression suite. Entry condition: the fall paper exists; this phase never starts early at the cost of Phase 3.
 
 ## Standing across all phases
 
