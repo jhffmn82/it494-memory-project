@@ -17,7 +17,7 @@ The semester produces a defended design, a working harness core organized by the
 9. Run: archive slice as tenant zero; the certified question set; the three arms; the stage-wise model-sensitivity table.
 10. Write the paper from artifacts that already exist (design, positions, run tables); arXiv by early December.
 
-Pays: the December artifact, the defensible design, and the system's weakest point (no metrics) converted into the contribution. Risks: a design semester sliding into a reading semester, held off by step 3 starting on schedule regardless.
+Pays: the December artifact, the defensible design, and the system's weakest point (no metrics) converted into the contribution. Risks: a design semester sliding into a reading semester, held off by step 3 starting on schedule regardless; and implementation velocity, since the student's own estimate puts the full five-step build in the hundreds of hours, which is why the paper anchors on the instruments (the miss rate runs on the live mock without the harness) and the build is a full-year deliverable with fall reaching ingest and organize plus one comparison.
 
 ## Proposal 2. Build the full product outright
 
