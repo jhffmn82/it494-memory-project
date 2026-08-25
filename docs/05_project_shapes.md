@@ -4,11 +4,11 @@ Prepared by the assistant from the research package, the design brief, and the c
 
 ## Shape 1. Measure the tree
 
-The semester's product is an evaluation, not a feature. Build the harness that the system has never had: a stratified question set over the archive with four bands (answerable from rollups alone; requiring a specific leaf; requiring synthesis across areas; requiring a fact that was later corrected), scored across delivery arms (summaries preloaded, retrieval as it stands, and both). Add the two measurements the literature does not supply: a counterfactual miss rate, meaning how often the store held the answer and the session never consulted it, and a stale-serve rate, meaning how often a superseded fact was delivered as current. Write the result as a short paper by early December.
+The semester's product is an evaluation, not a feature. Build the harness that the system has never had: a stratified question set over the archive with four bands (answerable from rollups alone; requiring a specific leaf; requiring synthesis across areas; requiring a fact that was later corrected), scored across delivery arms (summaries preloaded, retrieval as it stands, and both). Add the two measurements the package's corpus does not supply: a counterfactual miss rate, which has no published counterpart at all, and a stale-serve rate, measured elsewhere for plain RAG but never on a live personal store. Write the result as a short paper by early December.
 
 What it pays: this is the only shape that produces a December artifact for the applications, and it converts the system's weakest point, no real metrics, into the contribution itself. The fourth band and the miss rate have no published counterpart in the package's corpus. It fits the hour budget because the corpus, the golden-question scaffolding, and the maintenance instrumentation already exist; the work is design, measurement, and writing rather than construction.
 
-What it risks: no new capability ships. The demo at the end is a report and a harness, which is the right artifact for a committee and a thin one for anyone else. The result may also be unflattering to the system, which is a feature academically and still worth saying out loud.
+What it risks: no new capability ships. The demo at the end is a report and a harness, which is the right artifact for a committee and a thin one for anyone else. The result may also be unflattering to the system; academically that is still a result, and it is worth saying in advance.
 
 ## Shape 2. Ship the backend
 
@@ -20,7 +20,7 @@ What it risks: it does not produce a December paper, and the engineering will no
 
 ## Shape 3. One innovation, studied
 
-Pick the single narrowest mechanism the research pass left unclaimed and study it properly: implement, measure against the obvious alternative, write. The two candidates the package supports are content-derived staleness (staleness recomputed from the material itself rather than asserted by whoever wrote it, which stays correct under hand edits, where flag-based schemes silently fail) and outcome-signal capture (recording, at the moment a session uses the memory, whether the answer survived, which the system currently cannot do). Either is a contained experiment on the live archive.
+Pick the single narrowest mechanism the research pass left unclaimed and study it properly: implement, measure against the obvious alternative, write. The two candidates the package supports are content-derived staleness, the hash-versus-dirty-flag demonstration (staleness recomputed from the material itself, which stays correct under hand edits where flag-based schemes silently fail), and outcome-signal mining from correction turns (recovering, from the rephrasings and corrections in past transcripts, the misses nobody logged, which the system currently cannot surface). Either is a contained experiment on the live archive.
 
 What it pays: the strongest research identity per hour. A narrow, true, measured claim is a better writing sample than a broad description of a system.
 

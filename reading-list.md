@@ -1,8 +1,8 @@
 # Reading list
 
-The working list for Phase 1. Each entry names its reference copy in `papers/` and its summary in `summaries/one-pagers/` by slug. Citations were verified against source pages before inclusion; entries marked *library* need a pull through the ISU library, with the DOI in `papers/MANIFEST.md`.
+The Phase 1 working list, assistant-compiled from its survey with citations verified against source pages, for Justin's review. Each entry except the nine marked *library* names its reference copy in `papers/` and its one-pager in `summaries/one-pagers/` by slug; *library* entries have neither yet (the digest covers them from abstracts) and carry DOIs in `papers/MANIFEST.md` for an ISU library pull.
 
-The advisor-meeting record from 2026-08-19 carries the original 44-item list with fuller annotations. This file supersedes it as the working index and adds the knowledge-graph material requested on 2026-08-25, curated to ten items.
+The advisor-meeting record of 2026-08-19 keeps the original 44 items with fuller annotations; this working index supersedes it and adds the ten knowledge-graph items requested on 2026-08-25.
 
 ## Start here
 
@@ -28,19 +28,19 @@ The advisor-meeting record from 2026-08-19 carries the original 44-item list wit
 14. Wang et al. 2024. Searching for Best Practices in RAG. EMNLP 2024. arXiv:2407.01219 · wang2024-rag-best-practices
 15. Douze et al. 2024. The Faiss library. arXiv:2401.08281 · douze2024-faiss
 16. Kuffo, Krippner, Boncz 2025. PDX. SIGMOD 2025. arXiv:2503.04422 · kuffo2025-pdx
-17. Malkov, Yashunin. HNSW graphs. TPAMI. arXiv:1603.09320 · malkov2016-hnsw
+17. Malkov, Yashunin 2016. HNSW graphs. TPAMI. arXiv:1603.09320 · malkov2016-hnsw
 18. Chan et al. 2025. Don't Do RAG: Cache-Augmented Generation. WWW 2025. arXiv:2412.15605 · chan2025-cag
-19. NoLiMa: Long-Context Evaluation Beyond Literal Matching. arXiv:2502.05167 · nolima2025-long-context
+19. Modarressi et al. 2025. NoLiMa. ICML 2025. arXiv:2502.05167 · nolima2025-long-context
 20. Jeong et al. 2024. Adaptive-RAG. NAACL 2024. arXiv:2403.14403 · jeong2024-adaptive-rag
 
 ## Benchmarks and faithfulness
 
 21. Maharana et al. 2024. LoCoMo. ACL 2024. arXiv:2402.17753 · maharana2024-locomo
-22. MemoryAgentBench. arXiv:2507.05257 · wu2025-memoryagentbench
+22. Hu, Wang, McAuley 2025. MemoryAgentBench. arXiv:2507.05257 · wu2025-memoryagentbench
 23. Chang et al. 2024. BooookScore. ICLR 2024. arXiv:2310.00785 · chang2024-booookscore
 24. Kim et al. 2024. FABLES. COLM 2024. arXiv:2404.01261 · kim2024-fables
 
-## Knowledge graphs: foundations already on the list
+## Knowledge graphs: foundations
 
 25. Chen 1976. The Entity-Relationship Model. ACM TODS 1(1). *library* · chen1976-er-model
 26. Angles et al. 2017. Foundations of Modern Query Languages for Graph Databases. ACM CSUR 50(5). arXiv:1610.06264 · angles2017-graph-query-foundations
@@ -52,18 +52,18 @@ The advisor-meeting record from 2026-08-19 carries the original 44-item list wit
 
 ## Knowledge graphs: added 2026-08-25
 
-Curated to ten from a verified 28-item survey; the remainder are listed at the bottom and available on request. Weighted toward representation and current practice. Knowledge graphs are one candidate representation for this project, not a commitment.
+Curated to ten from a verified 28-item survey, weighted toward representation and current practice; the remainder are listed at the bottom. Knowledge graphs are one candidate representation, not a commitment.
 
 32. Angles 2018. The Property Graph Database Model. AMW 2018, CEUR Vol-2100. What a property graph formally is; the model closest to a tree of pages with typed links · angles2018-property-graph-model
 33. Hernandez, Hogan, Krotzsch 2015. Reifying RDF: What Works Well With Wikidata? SSWS at ISWC 2015. The four ways to represent qualified, non-binary facts, compared on real data · hernandez2015-reifying-rdf-wikidata
 34. Cai et al. 2024. A Survey on Temporal Knowledge Graph. arXiv:2403.04782. Where facts-valid-for-an-interval lives; representation chapters, not the embedding chapters · cai2024-temporal-kg-survey
 35. Rost et al. 2021. Bitemporal Property Graphs to Organize Evolving Systems. arXiv:2111.13499. Valid time and transaction time on every node and edge, so corrections never erase history · rost2021-bitemporal-property-graphs
-36. Fowler 2021. Bitemporal History. martinfowler.com. The practitioner bridge to the same idea, readable in twenty minutes. HTML · fowler2021-bitemporal-history
+36. Fowler 2021. Bitemporal History. martinfowler.com. The practitioner bridge to the same idea. HTML · fowler2021-bitemporal-history
 37. Vrandecic, Krotzsch 2014. Wikidata. CACM 57(10). The largest deployed store of time-scoped, source-attributed, supersedable facts · vrandecic2014-wikidata
 38. Zhong et al. 2024. A Comprehensive Survey on Automatic Knowledge Graph Construction. ACM CSUR 56(4). arXiv:2302.05019. The construction pipeline end to end · zhong2023-kg-construction-survey
-39. Noy et al. 2019. Industry-scale Knowledge Graphs: Lessons and Challenges. CACM 62(8). How Google, Amazon, Microsoft, eBay and LinkedIn actually run them. Free HTML at queue.acm.org/detail.cfm?id=3332266 · noy2019-industry-scale-kgs
-40. Xu et al. 2024. RAG with Knowledge Graphs for Customer Service Question Answering. SIGIR 2024 industry track. arXiv:2404.17723. LinkedIn's deployed help-desk graph, directly on use case (a) · xu2024-kg-rag-customer-service
-41. Balog, Kenter 2019. Personal Knowledge Graphs: A Research Agenda. ICTIR 2019. The academic niche closest to what I have built · balog2019-personal-kg-agenda
+39. Noy et al. 2019. Industry-scale Knowledge Graphs: Lessons and Challenges. CACM 62(8). How Google, Microsoft, Facebook, eBay and IBM actually run them. Free HTML at queue.acm.org/detail.cfm?id=3332266 · noy2019-industry-scale-kgs
+40. Xu et al. 2024. RAG with Knowledge Graphs for Customer Service Question Answering. SIGIR 2024 industry track. arXiv:2404.17723. LinkedIn's deployed graph, directly on the help-desk use case · xu2024-kg-rag-customer-service
+41. Balog, Kenter 2019. Personal Knowledge Graphs: A Research Agenda. ICTIR 2019. The academic niche closest to the existing system · balog2019-personal-kg-agenda
 
 ## Conversation mining and outcomes
 
