@@ -9,3 +9,6 @@ env/
 Thumbs.db
 *.egg-info/
 .ipynb_checkpoints/
+build/sections/
+build/preview_*.png
+build/_*.pdf
