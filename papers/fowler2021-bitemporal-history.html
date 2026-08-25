@@ -1,0 +1,940 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+<html>
+<head><meta charset="UTF-8">
+<title>Bitemporal History</title>
+<meta http-equiv="Content-type" content="text/html;charset=UTF-8" /><script defer src="https://cloud.umami.is/script.js" data-website-id="eb12527f-b713-4afa-905a-8a50f8a7f157"></script>
+<meta content = 'summary_large_image' name = 'twitter:card'></meta>
+
+<meta content = '16665197' name = 'twitter:site:id'></meta>
+
+<meta content = '@martinfowler' name = 'twitter:site'></meta>
+
+<meta content = 'Bitemporal History' property = 'og:title'></meta>
+
+<meta content = 'https://martinfowler.com/articles/bitemporal-history.html' property = 'og:url'></meta>
+
+<meta content = 'Bitemporal history has two dimensions: actual and record, allowing us to comprehend retroactive changes.' property = 'og:description'></meta>
+
+<meta content = 'https://martinfowler.com/articles/bitemporal-history/card.png' property = 'og:image'></meta>
+
+<meta content = 'martinfowler.com' property = 'og:site_name'></meta>
+
+<meta content = 'article' property = 'og:type'></meta>
+
+<meta content = '2021-04-07' property = 'og:article:modified_time'></meta>
+
+<meta content = 'width=device-width, initial-scale=1' name = 'viewport'></meta>
+
+<link href = 'bitemporal-history.css' rel = 'stylesheet' type = 'text/css'></link>
+</head>
+
+<body><header id = 'banner' style = 'background-image: url("/img/zakim.png"); background-repeat: no-repeat'>
+
+<div class = 'name-logo'><a href = 'https://martinfowler.com'><img src = '/mf-name-white.png'></img></a></div>
+  <div class = 'search'>
+    <!-- SiteSearch Google -->
+    <form method='GET' action="https://www.google.com/search">
+      <input type='hidden' name='ie' value='UTF-8'/>
+      <input type='hidden' name='oe' value='UTF-8'/>
+      <input class = 'field' type='text' 
+             name='q' size='15' maxlength='255' value=""/>
+      <button class = 'button' type='submit' 
+             name='btnG' value=" " title = "Search"/>
+      <input type='hidden' name='domains' value="martinfowler.com"/>
+      <input type='hidden' name='sitesearch' value=""/> 
+      <input
+          type='hidden' name='sitesearch' value="martinfowler.com"/>
+    </form>
+  </div>
+
+<div class = 'menu-button navmenu-button'><a class = 'icon icon-bars' href = '#navmenu-bottom'></a></div>
+
+<nav class = 'top-menu'>
+<ul>
+<li><a class = '' href = 'https://refactoring.com'>Refactoring</a></li>
+
+<li><a class = '' href = '/agile.html'>Agile</a></li>
+
+<li><a class = '' href = '/architecture'>Architecture</a></li>
+
+<li><a class = '' href = '/aboutMe.html'>About</a></li>
+
+<li><a class = 'tw' href = 'https://www.thoughtworks.com/engineering'>Thoughtworks</a></li>
+
+<li><a class = 'icon icon-rss' href = '/feed.atom' title = 'feed'></a></li>
+
+<li><a class = 'icon icon-twitter' href = 'https://www.twitter.com/martinfowler' title = 'Twitter stream'></a></li>
+
+<li class = 'icon'><a href = 'https://toot.thoughtworks.com/@mfowler' title = 'Mastodon stream'><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M21.2595 13.9898C20.9852 15.4006 18.8033 16.9446 16.2974 17.2439C14.9907 17.3998 13.7041 17.5431 12.3321 17.4802C10.0885 17.3774 8.31809 16.9446 8.31809 16.9446C8.31809 17.163 8.33156 17.371 8.3585 17.5655C8.65019 19.7797 10.5541 19.9124 12.3576 19.9742C14.1779 20.0365 15.7987 19.5254 15.7987 19.5254L15.8735 21.1711C15.8735 21.1711 14.6003 21.8548 12.3321 21.9805C11.0814 22.0493 9.52849 21.9491 7.71973 21.4703C3.79684 20.432 3.12219 16.2504 3.01896 12.0074C2.98749 10.7477 3.00689 9.55981 3.00689 8.56632C3.00689 4.22771 5.84955 2.95599 5.84955 2.95599C7.2829 2.29772 9.74238 2.0209 12.2993 2H12.3621C14.919 2.0209 17.3801 2.29772 18.8133 2.95599C18.8133 2.95599 21.6559 4.22771 21.6559 8.56632C21.6559 8.56632 21.6916 11.7674 21.2595 13.9898ZM18.3029 8.9029C18.3029 7.82924 18.0295 6.97604 17.4805 6.34482C16.9142 5.71359 16.1726 5.39001 15.2522 5.39001C14.187 5.39001 13.3805 5.79937 12.8473 6.61819L12.3288 7.48723L11.8104 6.61819C11.2771 5.79937 10.4706 5.39001 9.40554 5.39001C8.485 5.39001 7.74344 5.71359 7.17719 6.34482C6.62807 6.97604 6.3547 7.82924 6.3547 8.9029V14.1562H8.43597V9.05731C8.43597 7.98246 8.88822 7.4369 9.79281 7.4369C10.793 7.4369 11.2944 8.08408 11.2944 9.36376V12.1547H13.3634V9.36376C13.3634 8.08408 13.8646 7.4369 14.8648 7.4369C15.7694 7.4369 16.2216 7.98246 16.2216 9.05731V14.1562H18.3029V8.9029Z"></path></svg>
+</a></li>
+
+<li class = 'icon'><a href = 'https://www.linkedin.com/in/martin-fowler-com/' title = 'LinkedIn'><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M4.00098 3H20.001C20.5533 3 21.001 3.44772 21.001 4V20C21.001 20.5523 20.5533 21 20.001 21H4.00098C3.44869 21 3.00098 20.5523 3.00098 20V4C3.00098 3.44772 3.44869 3 4.00098 3ZM5.00098 5V19H19.001V5H5.00098ZM7.50098 9C6.67255 9 6.00098 8.32843 6.00098 7.5C6.00098 6.67157 6.67255 6 7.50098 6C8.3294 6 9.00098 6.67157 9.00098 7.5C9.00098 8.32843 8.3294 9 7.50098 9ZM6.50098 10H8.50098V17.5H6.50098V10ZM12.001 10.4295C12.5854 9.86534 13.2665 9.5 14.001 9.5C16.072 9.5 17.501 11.1789 17.501 13.25V17.5H15.501V13.25C15.501 12.2835 14.7175 11.5 13.751 11.5C12.7845 11.5 12.001 12.2835 12.001 13.25V17.5H10.001V10H12.001V10.4295Z"></path></svg>
+</a></li>
+
+<li class = 'icon'><a href = 'https://bsky.app/profile/martinfowler.com' title = 'BlueSky'><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M12 11.3884C11.0942 9.62673 8.62833 6.34423 6.335 4.7259C4.13833 3.17506 3.30083 3.4434 2.75167 3.69256C2.11583 3.9784 2 4.95506 2 5.52839C2 6.10339 2.315 10.2367 2.52 10.9276C3.19917 13.2076 5.61417 13.9776 7.83917 13.7309C4.57917 14.2142 1.68333 15.4017 5.48083 19.6292C9.65833 23.9542 11.2058 18.7017 12 16.0392C12.7942 18.7017 13.7083 23.7651 18.4442 19.6292C22 16.0392 19.4208 14.2142 16.1608 13.7309C18.3858 13.9784 20.8008 13.2076 21.48 10.9276C21.685 10.2376 22 6.10256 22 5.52923C22 4.95423 21.8842 3.97839 21.2483 3.6909C20.6992 3.44256 19.8617 3.17423 17.665 4.72423C15.3717 6.34506 12.9058 9.62756 12 11.3884Z"></path></svg></a></li>
+</ul>
+</nav>
+</header>
+<nav id = 'top-navmenu'>
+<nav class = 'navmenu'>
+<div class = 'nav-head'>  <div class = 'search'>
+    <!-- SiteSearch Google -->
+    <form method='GET' action="https://www.google.com/search">
+      <input type='hidden' name='ie' value='UTF-8'/>
+      <input type='hidden' name='oe' value='UTF-8'/>
+      <input class = 'field' type='text' 
+             name='q' size='15' maxlength='255' value=""/>
+      <button class = 'button' type='submit' 
+             name='btnG' value=" " title = "Search"/>
+      <input type='hidden' name='domains' value="martinfowler.com"/>
+      <input type='hidden' name='sitesearch' value=""/> 
+      <input
+          type='hidden' name='sitesearch' value="martinfowler.com"/>
+    </form>
+  </div>
+
+<div class = 'closediv'>
+<span class = 'close' title = 'close'></span>
+</div>
+</div>
+
+<div class = 'nav-body'>
+<div class = 'topics'>
+<h2>Topics</h2>
+
+<p><a href = '/architecture'>Architecture</a></p>
+
+<p><a href = 'https://refactoring.com'>Refactoring</a></p>
+
+<p><a href = '/agile.html'>Agile</a></p>
+
+<p><a href = '/delivery.html'>Delivery</a></p>
+
+<p><a href = '/microservices'>Microservices</a></p>
+
+<p><a href = '/data'>Data</a></p>
+
+<p><a href = '/testing'>Testing</a></p>
+
+<p><a href = '/dsl.html'>DSL</a></p>
+</div>
+
+<div class = 'about'>
+<h2>about me</h2>
+
+<p><a href = '/aboutMe.html'>About</a></p>
+
+<p><a href = '/books'>Books</a></p>
+
+<p><a href = '/faq.html'>FAQ</a></p>
+</div>
+
+<div class = 'content'>
+<h2>content</h2>
+
+<p><a href = '/videos.html'>Videos</a></p>
+
+<p><a href = '/tags'>Content Index</a></p>
+
+<p><a href = '/fragments'>Fragments</a></p>
+
+<p><a href = '/boardgames'>Board Games</a></p>
+
+<p><a href = '/photos'>Photography</a></p>
+</div>
+
+<div class = 'tw'>
+<h2>Thoughtworks</h2>
+
+<p><a href = 'https://thoughtworks.com'>Home</a></p>
+
+<p><a href = 'https://thoughtworks.com/insights'>Insights</a></p>
+
+<p><a href = 'https://thoughtworks.com/careers'>Careers</a></p>
+
+<p><a href = 'https://thoughtworks.com/radar'>Radar</a></p>
+
+<p><a href = 'https://www.thoughtworks.com/engineering'>Engineering</a></p>
+</div>
+
+<div class = 'feeds'>
+<h2>follow</h2>
+
+<p><a href = '/feed.atom'>RSS</a></p>
+
+<p><a href = 'https://toot.thoughtworks.com/@mfowler'>Mastodon</a></p>
+
+<p><a href = 'https://www.linkedin.com/in/martin-fowler-com/'>LinkedIn</a></p>
+
+<p><a href = 'https://bsky.app/profile/martinfowler.com'>Bluesky</a></p>
+
+<p><a href = 'https://www.twitter.com/martinfowler'>X</a></p>
+
+<p><a href = 'https://boardgamegeek.com/blog/13064/martins-7th-decade'>BGG</a></p>
+</div>
+</div>
+</nav>
+</nav>
+
+<nav id = 'toc-dropdown'>
+<button class = 'dropdown-button'>
+<h2>Table of Contents</h2>
+</button>
+
+<div class = 'hidden' id = 'dropdownLinks'>
+<ul>
+<li><a href = '#top'>Top</a></li>
+
+<li><a href = '#TheTwoDimensions'>The Two Dimensions</a></li>
+
+<li><a href = '#ChangingTheRetroactiveChange'>Changing the Retroactive Change</a></li>
+
+<li><a href = '#UsingBitemporality'>Using Bitemporality</a></li>
+
+<li><a href = '#Append-onlyHistory'>Append-only History</a></li>
+
+<li><a href = '#ConsequencesOfRetroactiveChanges'>Consequences of Retroactive Changes</a></li>
+
+<li><a href = '#PerspectivesForRecordTime'>Perspectives for Record Time</a></li>
+
+<li><a href = '#StoringAndProcessingBitemporalHistories'>Storing and Processing Bitemporal Histories</a></li>
+</ul>
+</div>
+</nav>
+
+<main>
+<h1>Bitemporal History</h1>
+
+<section class = 'frontMatter'>
+<p class = 'abstract'><i>
+    It's often necessary to access the historical values of some property. But
+    sometimes this history itself needs to be modified in response to
+    retroactive updates. Bitemporal history treats time as two dimensions:
+    actual history records what history should be given perfect transmission of
+    information, while record history captures how our knowledge of history changes. 
+  </i></p>
+
+<p class = 'date'>07 April 2021</p>
+
+<hr style = 'clear: both'></hr>
+
+<div class = 'front-grid'>
+<div class = 'author-list'>
+<div class = 'author'>
+<div class = 'photo'><a href = '/'><img alt = 'Photo of Martin Fowler' src = '/mf.jpg' width = '80'></img></a></div>
+
+<address class = 'name'><a href = '/' rel = 'author'>Martin Fowler</a></address>
+</div>
+</div>
+
+<div class = 'tags'>
+<p class = 'tag-link'><a href = /tags/API%20design.html>API design</a></p>
+
+<p class = 'tag-link'><a href = /tags/data%20analytics.html>data analytics</a></p>
+</div>
+
+<div class = 'contents'>
+<h2>Contents</h2>
+
+<ul>
+<li><a href = '#TheTwoDimensions'>The Two Dimensions</a></li>
+
+<li><a href = '#ChangingTheRetroactiveChange'>Changing the Retroactive Change</a></li>
+
+<li><a href = '#UsingBitemporality'>Using Bitemporality</a></li>
+
+<li><a href = '#Append-onlyHistory'>Append-only History</a></li>
+
+<li><a href = '#ConsequencesOfRetroactiveChanges'>Consequences of Retroactive Changes</a></li>
+
+<li><a href = '#PerspectivesForRecordTime'>Perspectives for Record Time</a></li>
+
+<li><a href = '#StoringAndProcessingBitemporalHistories'>Storing and Processing Bitemporal Histories</a></li>
+</ul>
+</div>
+</div>
+<hr></hr></section>
+
+<div class = 'paperBody shallow'>
+<p>When we think of how some property (e.g. your address or
+    salary) changes over time, we usually think of it as a linear sequence of
+    changes. But surprisingly often, it can get rather more tangled than that,
+    in a way that can often confuse computerized records. </p>
+
+<p>I can illustrate all this with a simple example:</p>
+
+<ul>
+<li>We are handling payroll for our company. We run the payroll for our
+      company on February 25, and our employee Sally is paid according to her
+      monthly salary of $6000.</li>
+
+<li>On March 15 we get an apologetic letter from HR telling us that, on
+      February 15th, Sally got a pay raise to $6500.</li>
+</ul>
+
+<p>So what should we answer when we're asked what Sally's salary was on
+    February 25? In one sense we should answer $6500, since we know now that that
+    was the rate. But often we cannot ignore that on Feb 25 we thought the salary
+    was $6000, after all that's when we ran payroll. We printed a check, sent it to
+    her, and she cashed it. These all occurred based on the amount that her salary
+    was. If the tax authorities asked us for her salary on Feb 25, this becomes
+    important.</p>
+
+<section id = 'TheTwoDimensions'>
+<h2>The Two Dimensions</h2>
+
+<p>I find I can make sense of much of this tangle by thinking of time as
+      two dimensions - hence the term &#x201C;bitemporal&#x201D;. One dimension is the
+      actual history of Sally's salary, which I'll illustrate by sampling on the
+      25th of each month, since that's when payroll runs.</p>
+
+<table class = 'dark-head'>
+<thead>
+<tr><th>date</th><th>salary</th></tr>
+</thead>
+
+<tbody>
+<tr><td>Jan 25</td><td>6000</td></tr>
+
+<tr><td>Feb 25</td><td>6500</td></tr>
+
+<tr><td>Mar 25</td><td>6500</td></tr>
+</tbody>
+</table>
+
+<p>The second dimension comes in as we ask what did we think Sally's salary
+      history was on February 25? On February 25th we hadn't got the letter from
+      HR, so we thought her salary was always $6000. There is a difference between
+      the actual history, and our record of the history. We can show this by
+      adding new dates to our table</p>
+
+<table class = 'dark-head'>
+<thead>
+<tr><th>record date</th><th>actual date</th><th>salary</th></tr>
+</thead>
+
+<tbody>
+<tr><td>Jan 25</td><td>Jan 25</td><td>6000</td></tr>
+
+<tr><td>Feb 25</td><td>Jan 25</td><td>6000</td></tr>
+
+<tr><td>Mar 25</td><td>Jan 25</td><td>6000</td></tr>
+
+<tr><td>Feb 25</td><td>Feb 25</td><td>6000</td></tr>
+
+<tr><td>Mar 25</td><td>Feb 25</td><td>6500</td></tr>
+
+<tr><td>Mar 25</td><td>Mar 25</td><td>6500</td></tr>
+</tbody>
+</table>
+
+<p class = 'p-sub'>I'm using the terms <i>actual</i> and <i>record</i> history for the
+      two dimensions. You may also hear people using the terms <i>valid</i>, or
+      <i>effective</i> (for actual) and <i>transaction</i> (for record).<span class = 'foot-ref' data-footnote='footnote-terms'>1</span></p>
+
+<div class = 'post-block-footnote footnote-terms'>
+<p class = 'number'>1: </p>
+
+<p>The terminology of valid time and transaction time comes from <a href="https://www.amazon.com/gp/product/1558604367/ref=as_li_tl?ie=UTF8&camp=1789&creative=9325&creativeASIN=1558604367&linkCode=as2&tag=martinfowlerc-20">Snodgrass</a>, and is also used in the <a href = 'https://en.wikipedia.org/wiki/SQL:2011'>SQL:2011</a> standard.
+      When I first started giving workshops about temporal modeling, back in the
+      early naughts, I used these terms, but people found them confusing. So
+      instead we started to use actual/record instead. Since valid/transaction
+      hasn't become widespread usage, I'm going to follow that lesson and use
+      actual/record here.</p>
+</div>
+
+<p>I read the rows of this table by saying something like “on Mar 25th, we
+      thought Sally's salary on Feb 25th was $6500”.
+        Using this way of thinking, I can look at the earlier table of Sally's actual history,
+      and say that more precisely it's Sally's actual history as known (recorded)
+      on March 25. </p>
+
+<p>In programming terms, If I want to know Sally's
+      salary, and I have no history, then I can get it with something like
+      <code>sally.salary</code>. To add support for (actual) history I need to use
+      <code>sally.salaryAt('2021-02-25')</code>. In a bitemporal world I need
+      another parameter <code>sally.salaryAt('2021-02-25', '2021-03-25')</code></p>
+
+<p>Another way to visualize this is to make a plot where the x axis is
+      actual time and the y axis is record time. I shade the region according to the
+      salary level. (The shape of the plot is triangular since we're not
+      trying to record future values.<span class = 'foot-ref' data-footnote='footnote-future-plot'>2</span>) </p>
+
+<div class = 'post-block-footnote footnote-future-plot'>
+<p class = 'number'>2: </p>
+
+<p>With history actual time is always at or before record time. But
+      the notion of bitemporality can apply to the future. If I'm told on May 5
+      that Sally will get another increase on May 12, then I can record that
+      increase with a record time of May 5 and an actual time of May 12.</p>
+</div>
+
+<div class = 'figure ' id = 'intro-labels.png'><img src = 'bitemporal-history/intro-labels.png'></img>
+<p class = 'photoCaption'></p>
+</div>
+
+<p>With this plot, I can make a table for how actual history changes with
+      each run of payroll on the 25th. We see that the Feb 25 payroll ran at a
+      time when Sally had no raise, but when the Mar 25 payroll ran, the raise was
+      known.</p>
+
+<div class = 'figure ' id = 'sally-mar-25.png'><img src = 'bitemporal-history/sally-mar-25.png'></img>
+<p class = 'photoCaption'></p>
+</div>
+</section>
+
+<section id = 'ChangingTheRetroactiveChange'>
+<h2>Changing the Retroactive Change</h2>
+
+<p>Now consider another communication from HR</p>
+
+<ul>
+<li>April 5: Sorry there was an typo in our previous email. Sally's raise
+        on Feb 15 was to $6400. Sorry for the inconvenience.</li>
+</ul>
+
+<p>This is the kind of change that makes angels weep. But when we think of
+      it terms of bitemporal history, it's not that difficult to understand.
+      Here's the plot with this new bit of information.</p>
+
+<div class = 'figure ' id = 'sally-apr-25.png'><img src = 'bitemporal-history/sally-apr-25.png'></img>
+<p class = 'photoCaption'></p>
+</div>
+
+<p>The horizontal lines, used for the payrols, represent the actual history
+      at a certain point in record time. On April 25 we know Sally's salary
+      increased from $6000 to $6400 on February 15. In that perspective, we never
+      see Sally's $6500 salary because it was never true. </p>
+
+<p>Looking at the diagram, what does a vertical line mean? </p>
+
+<div class = 'figure ' id = 'sally-record-history.png'><img src = 'bitemporal-history/sally-record-history.png'></img>
+<p class = 'photoCaption'></p>
+</div>
+
+<p>This represents our knowledge of the value at a certain date. The table
+      indicates the recorded salary for February 25th, as our knowledge
+      changed over time.</p>
+</section>
+
+<section id = 'UsingBitemporality'>
+<h2>Using Bitemporality</h2>
+
+<p>Bitemporal history is a useful way of framing history when we have to deal with
+      retroactive changes. However we don't see it used that often, partly
+      because many people don't know about the technique, but also because we
+      can often get away without it.</p>
+
+<p>One way to avoid it is to not support retroactive changes. If your
+      insurance company says any changes become in force when they receive your
+      letter - then that's a way of forcing actual time to match record
+      time.</p>
+
+<p>Retroactive changes are a problem when actions are based on a
+      past state that's retroactively changed, such as a salary check being sent
+      out based on a now-updated salary level. If we are merely recording a
+      history, then we don't have to worry about it changing retroactively - we
+      essentially ignore record history and only record actual history. We may
+      do that even when we do have invariant action if the action is recorded in
+      such a way that it records any necessary input data. So the payroll for
+      Sally could record her salary at the time it issues the check, and that's
+      enough for audit purposes. In that situation we can get away with only the
+      actual history of her salary. The record history is then buried inside her
+      payroll statements.</p>
+
+<p>We may also get away with only actual history if any retroactive
+      changes are made before an action occurs. If we had learned of Sally's
+      salary change on February 24th, we could adjust her record without running
+      into before the payroll action relied on the incorrect figure.</p>
+
+<p>If we can avoid using bitemporal history, then that's usually
+      preferable as it does complicate a system quite significantly. However
+      when we have to deal with discrepancies between actual and record history,
+      usually due to retroactive updates, then we need to bite the bullet. One
+      of the hardest parts of this is educating users on how bitemporal history
+      works. Most people don't think of a historical record as something that
+      changes, let alone of the two dimensions of record and actual history.</p>
+</section>
+
+<section id = 'Append-onlyHistory'>
+<h2>Append-only History</h2>
+
+<p>In a simple world a history is append-only. If communication is perfect
+      and instantaneous then all new information is learned immediately by every
+      interested actor. We can then just treat history as something we add to as
+      new events occur in the world.</p>
+
+<p>Bitemporal history is a way of coming to terms that communication is
+      neither perfect nor instantaneous. Actual history is no longer
+      append-only, we go back and make retroactive changes. However record
+      history itself <i>is</i> append only. We don't change what we thought we
+      knew about Sally's salary on Feb 25. We just append the later knowledge we
+      gained. By layering an append-only record history over the actual history, we
+      allow the actual history to be modified while creating a reliable history
+      of its modifications.</p>
+</section>
+
+<section id = 'ConsequencesOfRetroactiveChanges'>
+<h2>Consequences of Retroactive Changes</h2>
+
+<p>Bitemporal history is a mechanism that allows us to track how a value
+      changes, and it can be extremely helpful to be able ask
+      <code>sally.salaryAt(actualDate, recordDate)</code>. But retroactive
+      changes do more than just adjust the historical record. As the expert
+      says: &#x201C;People assume that time is a strict progression of cause to effect,
+      but <i>actually</i> from a non-linear, non-subjective viewpoint - it&#x2019;s
+      more like a big ball of wibbly wobbly timey wimey stuff.&#x201D; <span class = 'foot-ref' data-footnote='footnote-timey-wimey'>3</span> If we've paid Sally $6000 when we should have paid her
+      $6400, then we need to make it right. At the very least that means getting
+      more in a later paycheck, but it may also lead to other consequences.
+      Maybe the higher payment means she should have crossed some important
+      threshold a month earlier, maybe there are tax implications.</p>
+
+<div class = 'post-block-footnote footnote-timey-wimey'>
+<p><span class = 'num'>3: </span>
+      If you don't recognize this quote, you should put <a href = 'https://en.wikipedia.org/wiki/Blink_(Doctor_Who)'>Blink</a> on your watchlist. One of the finest time-travel
+      stories ever filmed.
+    </p>
+</div>
+
+<p>Bitemporal history alone isn't enough to figure out these dependent
+      effects are, that demands a set of additional mechanisms, which are beyond
+      the scope of this pattern. One measure is to create a parallel model,
+      which captures the state of the world as it should have been with the
+      correct salary, and use this to figure out the compensating changes.
+      <span class = 'foot-ref' data-footnote='footnote-consequences'>4</span> Bitemporal history can be useful element
+      for these kinds of measures, but only unravels part of that big ball.</p>
+
+<div class = 'post-block-footnote footnote-consequences'>
+<p><span class = 'num'>4: </span>
+      I started to explore this topic in my earlier writing on <a href = '/eaaDev/ParallelModel.html'>parallel models</a> in the mid 2000s. I didn't
+      continue down that path then, and I'm not sure when or if I'll revisit
+      that trail in the future.
+    </p>
+</div>
+</section>
+
+<section id = 'PerspectivesForRecordTime'>
+<h2>Perspectives for Record Time</h2>
+
+<p>My example above for record time uses dates to capture our changing
+      understanding of actual history. But the way we capture record history can
+      be more involved than that.</p>
+
+<p>To make everything easier to follow above, I sampled the history on the
+      payroll dates. But a better representation of a history is to use date
+      ranges, Here's a table to cover 2021</p>
+
+<table class = 'dark-head'>
+<thead>
+<tr><th>record dates</th><th>actual dates</th><th>salary</th></tr>
+</thead>
+
+<tbody>
+<tr><td>Jan 1 - Mar 14</td><td>Jan 1 - Dec 31</td><td>6000</td></tr>
+
+<tr><td>Mar 15 - Apr 4</td><td>Jan 1 - Feb 14</td><td>6000</td></tr>
+
+<tr><td>Mar 15 - Apr 4</td><td>Feb 15 -  Dec 31</td><td>6500</td></tr>
+
+<tr><td>Apr 5 - Dec 31</td><td>Jan 1 - Feb 14</td><td>6000</td></tr>
+
+<tr><td>Apr 5 - Dec 31</td><td>Feb 15 -  Dec 31</td><td>6400</td></tr>
+</tbody>
+</table>
+
+<p>We can think of Sally's salary being recorded with a combination of two
+      keys, the actual key (a date range) and the record key (also a date
+      range). But our notion of record key can be more complicated than that.</p>
+
+<p>One obvious case is that different agents can have different record
+      histories. This is clearly the case for Sally, it took time to get
+      messages from the HR department to the Payroll department, so the record
+      times for those modifications to actual history will differ between the
+      two. </p>
+
+<table class = 'dark-head'>
+<thead>
+<tr><th>department</th><th>record dates</th><th>actual dates</th><th>salary</th></tr>
+</thead>
+
+<tbody>
+<tr><td>HR</td><td>Jan 1 - Feb 14</td><td>Jan 1 - Dec 31</td><td>6000</td></tr>
+
+<tr><td>HR</td><td>Feb 15 -  Dec 31</td><td>Jan 1 - Feb 14</td><td>6000</td></tr>
+
+<tr><td>HR</td><td>Feb 15 - Dec 31</td><td>Feb 15 - Dec 31</td><td>6400</td></tr>
+
+<tr><td>Payroll</td><td>Jan 1 - Mar 14</td><td>Jan 1 - Dec 31</td><td>6000</td></tr>
+
+<tr><td>Payroll</td><td>Mar 15 - Apr 4</td><td>Jan 1 - Feb 14</td><td>6000</td></tr>
+
+<tr><td>Payroll</td><td>Mar 15 - Apr 4</td><td>Feb 15 -  Dec 31</td><td>6500</td></tr>
+
+<tr><td>Payroll</td><td>Apr 5 - Dec 31</td><td>Jan 1 - Feb 14</td><td>6000</td></tr>
+
+<tr><td>Payroll</td><td>Apr 5 - Dec 31</td><td>Feb 15 -  Dec 31</td><td>6400</td></tr>
+</tbody>
+</table>
+
+<p>Anything that can record a history will have its own record
+      timestamps for when it learns information. Depending on that data we may
+      say that an enterprise will choose a certain agent to be the defining
+      agent for recording certain kinds of data. But agents will cross lines of
+      authority - however big the company, it won't change the recording dates of
+      the tax authorities it deals with. A lot of effort goes into sorting out
+      problems caused by different agents learning the same facts at different
+      times.</p>
+
+<p>We can generalize what's happening here by combining the notion of the
+      department and record date range into a single concept of a perspective.
+      Thus we'd say something like “according to HR's perspective on Feb 25,
+      Sally's salary was $6400”. In a table form, we might visualize it like
+      this.</p>
+
+<table class = 'dark-head'>
+<thead>
+<tr><th>perspective</th><th>actual dates</th><th>salary</th></tr>
+</thead>
+
+<tbody>
+<tr><td>HR, Jan 1 - Feb 14</td><td>Jan 1 - Dec 31</td><td>6000</td></tr>
+
+<tr><td>HR, Feb 15 -  Dec 31</td><td>Jan 1 - Feb 14</td><td>6000</td></tr>
+
+<tr><td>HR, Feb 15 - Dec 31</td><td>Feb 15 -  Dec 31</td><td>6400</td></tr>
+
+<tr><td>Payroll, Jan 1 - Mar 14</td><td>Jan 1 - Dec 31</td><td>6000</td></tr>
+
+<tr><td>Payroll, Mar 15 - Apr 4</td><td>Jan 1 - Feb 14</td><td>6000</td></tr>
+
+<tr><td>Payroll, Mar 15 - Apr 4</td><td>Feb 15 -  Dec 31</td><td>6500</td></tr>
+
+<tr><td>Payroll, Apr 5 - Dec 31</td><td>Jan 1 - Feb 14</td><td>6000</td></tr>
+
+<tr><td>Payroll, Apr 5 - Dec 31</td><td>Feb 15 -  Dec 31</td><td>6400</td></tr>
+</tbody>
+</table>
+
+<p>What does this collapse into a single perspective concept give us? It
+      allows us to think about what other perspectives might be. One example is
+      to consider alternative perspectives. We could create a perspective where
+      we remove individual raises (such as Sally's on Feb 15) and give
+      every employee a salary raise of 10% on March 1st. That would lead to a new
+      record-time dimension for Sally's salary.</p>
+
+<table class = 'dark-head'>
+<thead>
+<tr><th>perspective</th><th>actual dates</th><th>salary</th></tr>
+</thead>
+
+<tbody>
+<tr><td>real world</td><td>Jan 1 - Feb 14</td><td>6000</td></tr>
+
+<tr><td>real world</td><td>Feb 15 -  Dec 31</td><td>6400</td></tr>
+
+<tr><td>with global raise</td><td>Jan 1 - Feb 28</td><td>6000</td></tr>
+
+<tr><td>with global-raise</td><td>Mar 1 - Dec 31</td><td>6600</td></tr>
+</tbody>
+</table>
+
+<p>This generalization of the notion of record time says that we can layer
+      multiple perspectives over an actual history, using essentially the same
+      mechanism to reason about retroactive changes and alternative histories.</p>
+
+<p>Putting many perspective dimensions over a history isn't something
+      that's widely useful, even compared to bitemporal history. But I find it a
+      helpful way to think about these kinds of situations: reasoning about
+      alternative scenarios, either historically, or in the future. An example
+      of this is budgeting, where different budgets are made in various
+      plans, each with its own forecast, and later compared with actual results.</p>
+</section>
+
+<section id = 'StoringAndProcessingBitemporalHistories'>
+<h2>Storing and Processing Bitemporal Histories</h2>
+
+<p>Adding history to data increases complexity. In a bitemporal world I
+      need two date parameters to access Sally's salary -
+      <code>sally.salaryAt('2021-02-25', '2021-03-25')</code>. We can simplify
+      access by defaults, if we treat the default for record time as today, then
+      processing that only needs current record time can ignore the bitemporal
+      complications.</p>
+
+<p>Simplifying access, however, doesn't necessarily simplify storage. If
+      any client needs bitemporal data, we have to store it somehow. While there
+      are some databases that have built-in support for for some level of
+      temporality, they are relatively niche. And wisely, folks tend to be
+      extra-wary of niche technologies when it comes to long lived data.</p>
+
+<p>Given that, often the best way is to come up with our own scheme. There
+      are two broad approaches.</p>
+
+<p>The first is to use a bitemporal data structure: encoding the necessary date
+      information into the data structure used to store the data. This could
+      work by using nested date range objects, or a pair of start/end dates in a
+      relational table.</p>
+
+<table class = 'dark-head'>
+<thead>
+<tr><th>record start</th><th>record end</th><th>actual start</th><th>actual end</th><th>salary</th></tr>
+</thead>
+
+<tbody>
+<tr><td>Jan 1</td><td>Mar 14</td><td>Jan 1</td><td>Dec 31</td><td>6000</td></tr>
+
+<tr><td>Mar 15</td><td>Apr 4</td><td>Jan 1</td><td>Feb 14</td><td>6000</td></tr>
+
+<tr><td>Mar 15</td><td>Apr 4</td><td>Feb 15</td><td>Dec 31</td><td>6500</td></tr>
+
+<tr><td>Apr 5</td><td>Dec 31</td><td>Jan 1</td><td>Feb 14</td><td>6000</td></tr>
+
+<tr><td>Apr 5</td><td>Dec 31</td><td>Feb 15</td><td>Dec 31</td><td>6400</td></tr>
+</tbody>
+</table>
+
+<p>This allows access to all the bitemporal history, but is awkward to
+      update and query - although that can be made easier by making a library
+      handle access to bitemporal information.</p>
+
+<p>The alternative is to use <a href = '/eaaDev/EventSourcing.html'>event
+      sourcing</a>. Here we don't store the state of Sally's salary as our
+      primary store, instead we store all the changes as events. Such events
+      might look like this</p>
+
+<table class = 'dark-head'>
+<thead>
+<tr><th>record date</th><th>actual date</th><th>action</th><th>value</th></tr>
+</thead>
+
+<tbody>
+<tr><td>Jan 1</td><td>Jan 1</td><td>sally.salary</td><td>6000</td></tr>
+
+<tr><td>Mar 15</td><td>Feb 15</td><td>sally.salary</td><td>6500</td></tr>
+
+<tr><td>Apr 5</td><td>Feb 15</td><td>sally.salary</td><td>6400</td></tr>
+</tbody>
+</table>
+
+<p>Pay attention to the fact that if events need to support bitemporal
+      history, they need to be bitemporal themselves. This means each event
+      needs an actual date (or time) for when the event occurred in the world,
+      and a record date (or time) for when we learned about it.</p>
+
+<p>Storing the events is conceptually more straightforward, but requires
+      more processing to answer a query. However much that processing can cached
+      by building a snapshot of the application's state. So if most users of
+      this data only required current actual history, then we could build a data
+      structure that only supports actual history, populate it from
+      the events, and keep it up to date as new events trickle in. Those users
+      who wanted bitemporal data could create a more complex structure and
+      populate it from the same events, but their complexity wouldn't make
+      things harder for those who wanted the simpler model. (And if some people
+      wanted to look at actual history on a different record date, they could
+      use almost all the same code for working with current actual history.)</p>
+</section>
+
+<hr class = 'bodySep'></hr>
+</div>
+
+<div class = 'appendix'>
+<section id = 'FurtherReading'>
+<h2>Further Reading</h2>
+
+<p>I ran into the issues of bitemporal history working with various
+      software systems in the 1980's and 90's. I started to <a href = '/eaaDev/timeNarrative.html'>write down the patterns</a> I'd observed, but never got past
+      early drafts before other writing projects took over. There's a discussion
+      of bitemporal history in there, I wrote this article to highlight the
+      concept and hopefully explain it a bit more clearly.</p>
+
+<p>Around that time Richard Snodgrass wrote a book: <a href="https://www.amazon.com/gp/product/1558604367/ref=as_li_tl?ie=UTF8&camp=1789&creative=9325&creativeASIN=1558604367&linkCode=as2&tag=martinfowlerc-20">Developing Time-Oriented Database Applications in SQL</a>.
+      It goes into great detail about how to work with this kind of problem in
+      SQL systems, and its approach influenced the <a href = 'https://en.wikipedia.org/wiki/SQL:2011'>SQL:2011</a> standard.</p>
+
+<p>I took the notion of perspective from <a href = 'http://www.manfred-lange.com/publications/TimeTravel.pdf'>Time
+      Travel: A Pattern Language for Values That Change</a></p>
+</section>
+
+<div class = 'footnote-list' id = 'footnote-list'>
+<h2>Footnotes</h2>
+
+<div class = 'footnote-list-item' id = 'footnote-terms'>
+<h3 class = 'head-text'><span class = 'num'>1: </span>Actual/record versus valid/transaction</h3>
+
+<p>The terminology of valid time and transaction time comes from <a href="https://www.amazon.com/gp/product/1558604367/ref=as_li_tl?ie=UTF8&camp=1789&creative=9325&creativeASIN=1558604367&linkCode=as2&tag=martinfowlerc-20">Snodgrass</a>, and is also used in the <a href = 'https://en.wikipedia.org/wiki/SQL:2011'>SQL:2011</a> standard.
+      When I first started giving workshops about temporal modeling, back in the
+      early naughts, I used these terms, but people found them confusing. So
+      instead we started to use actual/record instead. Since valid/transaction
+      hasn't become widespread usage, I'm going to follow that lesson and use
+      actual/record here.</p>
+</div>
+
+<div class = 'footnote-list-item' id = 'footnote-future-plot'>
+<h3 class = 'head-text'><span class = 'num'>2: </span>Bitemporal Future</h3>
+
+<p>With history actual time is always at or before record time. But
+      the notion of bitemporality can apply to the future. If I'm told on May 5
+      that Sally will get another increase on May 12, then I can record that
+      increase with a record time of May 5 and an actual time of May 12.</p>
+</div>
+
+<div class = 'footnote-list-item' id = 'footnote-timey-wimey'>
+<p><span class = 'num'>3: </span>
+      If you don't recognize this quote, you should put <a href = 'https://en.wikipedia.org/wiki/Blink_(Doctor_Who)'>Blink</a> on your watchlist. One of the finest time-travel
+      stories ever filmed.
+    </p>
+</div>
+
+<div class = 'footnote-list-item' id = 'footnote-consequences'>
+<p><span class = 'num'>4: </span>
+      I started to explore this topic in my earlier writing on <a href = '/eaaDev/ParallelModel.html'>parallel models</a> in the mid 2000s. I didn't
+      continue down that path then, and I'm not sure when or if I'll revisit
+      that trail in the future.
+    </p>
+</div>
+</div>
+
+<section id = 'Acknowledgements'>
+<h2>Acknowledgements</h2>
+
+<p>Alexandre Klaser, Dave Elliman, Joshua Taylor, Martha Rohte, Mauro Vilasi, Pavlo Kerestey, Pramod Sadalge, Rebecca
+      Parsons, Saager Mhatre, and Wolf Schlegel
+      contributed to a useful discussion of this article on our internal mailing
+      list.</p>
+
+<p>Heikki Heinonen alerted me to some errors in the perspectives tables.</p>
+</section>
+</div>
+
+<div class = 'appendix'>
+<details id = 'SignificantRevisions'>
+<summary>Significant Revisions</summary>
+
+<p><i>07 April 2021: </i>Published</p>
+
+<p><i>17 March 2021: </i>Sent for internal review</p>
+
+<p><i>02 March 2021: </i>Started drafting</p>
+</details>
+</div>
+</main>
+
+<nav id = 'bottom-navmenu'>
+<nav class = 'navmenu'>
+<div class = 'nav-head'>  <div class = 'search'>
+    <!-- SiteSearch Google -->
+    <form method='GET' action="https://www.google.com/search">
+      <input type='hidden' name='ie' value='UTF-8'/>
+      <input type='hidden' name='oe' value='UTF-8'/>
+      <input class = 'field' type='text' 
+             name='q' size='15' maxlength='255' value=""/>
+      <button class = 'button' type='submit' 
+             name='btnG' value=" " title = "Search"/>
+      <input type='hidden' name='domains' value="martinfowler.com"/>
+      <input type='hidden' name='sitesearch' value=""/> 
+      <input
+          type='hidden' name='sitesearch' value="martinfowler.com"/>
+    </form>
+  </div>
+
+<div class = 'closediv'>
+<span class = 'close' title = 'close'></span>
+</div>
+</div>
+
+<div class = 'nav-body'>
+<div class = 'topics'>
+<h2>Topics</h2>
+
+<p><a href = '/architecture'>Architecture</a></p>
+
+<p><a href = 'https://refactoring.com'>Refactoring</a></p>
+
+<p><a href = '/agile.html'>Agile</a></p>
+
+<p><a href = '/delivery.html'>Delivery</a></p>
+
+<p><a href = '/microservices'>Microservices</a></p>
+
+<p><a href = '/data'>Data</a></p>
+
+<p><a href = '/testing'>Testing</a></p>
+
+<p><a href = '/dsl.html'>DSL</a></p>
+</div>
+
+<div class = 'about'>
+<h2>about me</h2>
+
+<p><a href = '/aboutMe.html'>About</a></p>
+
+<p><a href = '/books'>Books</a></p>
+
+<p><a href = '/faq.html'>FAQ</a></p>
+</div>
+
+<div class = 'content'>
+<h2>content</h2>
+
+<p><a href = '/videos.html'>Videos</a></p>
+
+<p><a href = '/tags'>Content Index</a></p>
+
+<p><a href = '/fragments'>Fragments</a></p>
+
+<p><a href = '/boardgames'>Board Games</a></p>
+
+<p><a href = '/photos'>Photography</a></p>
+</div>
+
+<div class = 'tw'>
+<h2>Thoughtworks</h2>
+
+<p><a href = 'https://thoughtworks.com'>Home</a></p>
+
+<p><a href = 'https://thoughtworks.com/insights'>Insights</a></p>
+
+<p><a href = 'https://thoughtworks.com/careers'>Careers</a></p>
+
+<p><a href = 'https://thoughtworks.com/radar'>Radar</a></p>
+
+<p><a href = 'https://www.thoughtworks.com/engineering'>Engineering</a></p>
+</div>
+
+<div class = 'feeds'>
+<h2>follow</h2>
+
+<p><a href = '/feed.atom'>RSS</a></p>
+
+<p><a href = 'https://toot.thoughtworks.com/@mfowler'>Mastodon</a></p>
+
+<p><a href = 'https://www.linkedin.com/in/martin-fowler-com/'>LinkedIn</a></p>
+
+<p><a href = 'https://bsky.app/profile/martinfowler.com'>Bluesky</a></p>
+
+<p><a href = 'https://www.twitter.com/martinfowler'>X</a></p>
+
+<p><a href = 'https://boardgamegeek.com/blog/13064/martins-7th-decade'>BGG</a></p>
+</div>
+</div>
+</nav>
+</nav>
+<footer id='page-footer'>
+<div class='tw-logo'>
+<a href='https://www.thoughtworks.com/engineering'>
+<img src='/thoughtworks_white.png'>
+</a>
+</div>
+<div class='menu-button'>
+<div class='icon-bars navmenu-button'></div>
+</div>
+<div class='copyright'>
+<p>© Martin Fowler | <a href="/aboutMe.html#disclosures">Disclosures</a></p>
+</div>
+</footer>
+
+<script src = '/jquery-1.11.3.min.js' type = 'text/javascript'></script>
+
+<script src = '/mfcom.js' type = 'text/javascript'></script>
+</body>
+</html>

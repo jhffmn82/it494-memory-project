@@ -1,0 +1,505 @@
+{
+ "entries": [
+  {
+   "title": "The Property Graph Database Model",
+   "authors": "Renzo Angles",
+   "venue": "Alberto Mendelzon Workshop on Foundations of Data Management (AMW), 2018",
+   "id": "CEUR-WS Vol-2100, paper 26",
+   "pdf_url": "https://ceur-ws.org/Vol-2100/paper26.pdf",
+   "one_line": "Formal definition of the property graph data model: the data structure, basic integrity constraints, and a core graph query language.",
+   "relevance": "The canonical formalization of the model his entity-page-plus-typed-links memory system implicitly uses, giving him precise vocabulary for nodes, edge labels, and properties.",
+   "flavor": "academic",
+   "verified": true,
+   "lens": "representation"
+  },
+  {
+   "title": "Foundations of RDF* and SPARQL* (An Alternative Approach to Statement-Level Metadata in RDF)",
+   "authors": "Olaf Hartig",
+   "venue": "Alberto Mendelzon Workshop on Foundations of Data Management and the Web (AMW), 2017",
+   "id": "CEUR-WS Vol-1912, paper 12",
+   "pdf_url": "https://ceur-ws.org/Vol-1912/paper12.pdf",
+   "one_line": "Introduces RDF* and SPARQL*, a nested-triple extension of RDF for attaching metadata to statements, with formal semantics and mappings to plain RDF reification.",
+   "relevance": "The foundational paper behind the RDF-star standard, and the cleanest academic treatment of statements-about-statements, which is exactly what provenance-stamped memory assertions need.",
+   "flavor": "academic",
+   "verified": true,
+   "lens": "representation"
+  },
+  {
+   "title": "Named Graphs, Provenance and Trust",
+   "authors": "Jeremy J. Carroll, Christian Bizer, Patrick Hayes, Patrick Stickler",
+   "venue": "WWW 2005 (14th International World Wide Web Conference)",
+   "id": "DOI 10.1145/1060745.1060835",
+   "pdf_url": "https://lists.w3.org/Archives/Public/www-archive/2004Apr/att-0081/PID-FAFPGYHS-1081860211.pdf",
+   "one_line": "Extends RDF syntax and semantics with named graphs, quads that let statements describe whole graphs, applied to provenance tracking and trust policies.",
+   "relevance": "The canonical named-graphs paper: the standard mechanism for scoping facts by source or session, directly analogous to attributing memory assertions to the transcript they came from (PDF is the authors' 2004 preprint hosted at w3.org; the DOI is the WWW 2005 published version).",
+   "flavor": "academic",
+   "verified": true,
+   "lens": "representation"
+  },
+  {
+   "title": "Reifying RDF: What Works Well With Wikidata?",
+   "authors": "Daniel Hern\u00e1ndez, Aidan Hogan, Markus Kr\u00f6tzsch",
+   "venue": "SSWS Workshop at ISWC 2015",
+   "id": "CEUR-WS Vol-1457, SSWS2015 paper 3",
+   "pdf_url": "https://aidanhogan.com/docs/reification-wikidata-rdf-sparql.pdf",
+   "one_line": "Empirically compares the four main patterns for representing qualified, non-binary facts in RDF (standard reification, n-ary relations, singleton properties, named graphs) using Wikidata as the testbed.",
+   "relevance": "The one paper that lays the reification and n-ary-relation design options side by side with real data, the decision framework for how his typed wikilinks and qualified facts should be modeled.",
+   "flavor": "academic",
+   "verified": true,
+   "lens": "representation"
+  },
+  {
+   "title": "OWL 2 Profiles: An Introduction to Lightweight Ontology Languages",
+   "authors": "Markus Kr\u00f6tzsch",
+   "venue": "Reasoning Web Summer School 2012, Springer LNCS 7487, pp. 112-183",
+   "id": "DOI 10.1007/978-3-642-33158-9_4",
+   "pdf_url": "https://iccl.inf.tu-dresden.de/w/images/1/1a/Kroetzsch_OWL_2_Profiles_Reasoning_Web_2012.pdf",
+   "one_line": "Tutorial-length introduction to RDFS and the tractable OWL profiles (EL, QL, RL): what each language can express and how reasoning works in each.",
+   "relevance": "The one readable practitioner-level entry into schema and ontology languages, covering the RDFS/OWL layer without requiring the W3C spec stack (SHACL postdates it and is not covered).",
+   "flavor": "academic",
+   "verified": true,
+   "lens": "representation"
+  },
+  {
+   "title": "The OneGraph Vision: Challenges of Breaking the Graph Model Lock-In",
+   "authors": "Ora Lassila, Michael Schmidt, Olaf Hartig, Brad Bebee, Dave Bechberger, Willem Broekema, Ankesh Khandelwal, Kelvin Lawrence, Carlos Manuel Lopez Enriquez, Ronak Sharda, Bryan Thompson",
+   "venue": "Semantic Web journal (IOS Press), accepted 2022, published 2023",
+   "id": "DOI 10.3233/SW-223273",
+   "pdf_url": "https://www.semantic-web-journal.net/system/files/swj3273.pdf",
+   "one_line": "Position paper from the Amazon Neptune team proposing a single unified data model that embraces both RDF and labeled property graphs, cataloguing the concrete interoperability obstacles.",
+   "relevance": "The named centerpiece of the current property-graph-versus-RDF unification effort, and the clearest articulation of where the two models actually diverge in practice.",
+   "flavor": "academic",
+   "verified": true,
+   "lens": "representation"
+  },
+  {
+   "title": "A Survey on Temporal Knowledge Graph: Representation Learning and Applications",
+   "authors": "Li Cai, Xin Mao, Yuhao Zhou, Zhaoguang Long, Changxu Wu, Man Lan",
+   "venue": "arXiv preprint, 2024",
+   "id": "arXiv:2403.04782",
+   "pdf_url": "https://arxiv.org/pdf/2403.04782",
+   "one_line": "Survey of temporal knowledge graph research covering how facts valid only within time intervals are represented, a taxonomy of temporal representation methods, and downstream applications.",
+   "relevance": "The standard entry point to the temporal-KG subfield where his fact-expiry and interval-validity problems live; read the representation and taxonomy chapters, skip the embedding-method chapters (link-prediction territory).",
+   "flavor": "academic",
+   "verified": true,
+   "lens": "temporal-construction"
+  },
+  {
+   "title": "Bitemporal Property Graphs to Organize Evolving Systems",
+   "authors": "Christopher Rost, Philip Fritzsche, Lucas Schons, Maximilian Zimmer, Dieter Gawlick, Erhard Rahm",
+   "venue": "arXiv preprint (Leipzig/Gradoop group technical report), 2021; the journal treatment is Rost et al., \"Distributed temporal graph analytics with GRADOOP\", VLDB Journal 31(2), 2022, DOI 10.1007/s00778-021-00667-4",
+   "id": "arXiv:2111.13499",
+   "pdf_url": "https://arxiv.org/pdf/2111.13499",
+   "one_line": "Defines a property graph model where every vertex, edge, and graph carries both valid-time and transaction-time intervals, with operators for querying and analyzing the resulting bitemporal graph.",
+   "relevance": "The direct academic template for his supersession requirement: valid time captures when a fact was true, transaction time captures when the system believed it, so corrections never erase history.",
+   "flavor": "academic",
+   "verified": true,
+   "lens": "temporal-construction"
+  },
+  {
+   "title": "Bitemporal History",
+   "authors": "Martin Fowler",
+   "venue": "martinfowler.com, April 7, 2021",
+   "id": "https://martinfowler.com/articles/bitemporal-history.html",
+   "pdf_url": "https://martinfowler.com/articles/bitemporal-history.html (HTML article, no PDF; freely readable)",
+   "one_line": "Practitioner explanation of modeling time as two dimensions, actual history versus record history, with worked examples of retroactive corrections to past values.",
+   "relevance": "The clearest practice-side statement of the exact correction-without-erasure pattern his memory system needs, useful as the conceptual bridge before the heavier database literature.",
+   "flavor": "practice",
+   "verified": true,
+   "lens": "temporal-construction"
+  },
+  {
+   "title": "Wikidata: A Free Collaborative Knowledgebase",
+   "authors": "Denny Vrande\u010di\u0107, Markus Kr\u00f6tzsch",
+   "venue": "Communications of the ACM 57(10), pp. 78-85, 2014, DOI 10.1145/2629489",
+   "id": "doi:10.1145/2629489",
+   "pdf_url": "https://iccl.inf.tu-dresden.de/w/images/8/89/Wikidata-CACM-2014.pdf",
+   "one_line": "Describes Wikidata's data model of statements with qualifiers, references, and rank, in which claims carry temporal qualifiers and competing or superseded values coexist rather than overwriting each other.",
+   "relevance": "The largest deployed example of representation in practice for time-scoped, source-attributed, supersedable facts; its qualifier-and-rank mechanism is a field-tested answer to his expiry and correction problems.",
+   "flavor": "practice",
+   "verified": true,
+   "lens": "temporal-construction"
+  },
+  {
+   "title": "A Comprehensive Survey on Automatic Knowledge Graph Construction",
+   "authors": "Lingfeng Zhong, Jia Wu, Qian Li, Hao Peng, Xindong Wu",
+   "venue": "ACM Computing Surveys 56(4), 2023, DOI 10.1145/3618295",
+   "id": "arXiv:2302.05019",
+   "pdf_url": "https://arxiv.org/pdf/2302.05019",
+   "one_line": "Surveys over 300 knowledge graph construction methods organized into knowledge acquisition, knowledge refinement, and knowledge evolution, including dynamic updates and temporal change.",
+   "relevance": "The reference map of the whole KG-construction pipeline his transcript-to-tree process is an instance of, and its knowledge-evolution stage ties construction back to his temporal problems.",
+   "flavor": "academic",
+   "verified": true,
+   "lens": "temporal-construction"
+  },
+  {
+   "title": "Large Language Models for Generative Information Extraction: A Survey",
+   "authors": "Derong Xu, Wei Chen, Wenjun Peng, and 7 others",
+   "venue": "Frontiers of Computer Science 18(6), 2024, DOI 10.1007/s11704-024-40555-y",
+   "id": "arXiv:2312.17617",
+   "pdf_url": "https://arxiv.org/pdf/2312.17617",
+   "one_line": "Surveys LLM-based information extraction by subtask (entity, relation, event) and technique (prompting, fine-tuning, data generation), with empirical comparison of leading methods and a maintained paper repository.",
+   "relevance": "The citable peer-reviewed survey of the extraction layer of LLM-era KG construction, covering exactly the structure-from-text step his leaf and entity-page generation performs.",
+   "flavor": "academic",
+   "verified": true,
+   "lens": "temporal-construction"
+  },
+  {
+   "title": "LLM-empowered knowledge graph construction: A survey",
+   "authors": "Haonan Bian",
+   "venue": "arXiv preprint, October 2025 (single-author preprint, not yet peer reviewed)",
+   "id": "arXiv:2510.20345",
+   "pdf_url": "https://arxiv.org/pdf/2510.20345",
+   "one_line": "Recent survey of LLM-driven KG construction across ontology engineering, extraction, and fusion, contrasting schema-based and schema-free paradigms and noting dynamic agent memory as an emerging direction.",
+   "relevance": "The most current map of the fast-moving LLM-KGC space, and its schema-based versus schema-free framing names the central design choice in his own construction pipeline; treat as a preprint and cite accordingly.",
+   "flavor": "academic",
+   "verified": true,
+   "lens": "temporal-construction"
+  },
+  {
+   "title": "An Overview of End-to-End Entity Resolution for Big Data (arXiv version: End-to-End Entity Resolution for Big Data: A Survey)",
+   "authors": "Vassilis Christophides, Vasilis Efthymiou, Themis Palpanas, George Papadakis, Kostas Stefanidis",
+   "venue": "ACM Computing Surveys 53(6), Article 127, 2020, DOI 10.1145/3418896",
+   "id": "arXiv:1905.06397",
+   "pdf_url": "https://arxiv.org/pdf/1905.06397",
+   "one_line": "End-to-end survey of entity resolution covering blocking, matching, and clustering across database, semantic web, and machine learning traditions.",
+   "relevance": "The standard citable ER survey for the canonicalization problem of deciding when two mentions across a thousand leaves are the same entity page.",
+   "flavor": "academic",
+   "verified": true,
+   "lens": "temporal-construction"
+  },
+  {
+   "title": "A Survey on Open Information Extraction",
+   "authors": "Christina Niklaus, Matthias Cetto, Andr\u00e9 Freitas, Siegfried Handschuh",
+   "venue": "COLING 2018, pp. 3866-3878 (Best Survey Paper award), ACL Anthology C18-1326",
+   "id": "https://aclanthology.org/C18-1326/",
+   "pdf_url": "https://aclanthology.org/C18-1326.pdf",
+   "one_line": "Survey of open information extraction systems that extract relational tuples without a predefined schema, tracing their evolution and critiquing evaluation practice.",
+   "relevance": "Supplies the open-versus-closed extraction framing he needs to position his system, which extracts from conversation without a fixed relation vocabulary, against schema-first KG construction.",
+   "flavor": "academic",
+   "verified": true,
+   "lens": "temporal-construction"
+  },
+  {
+   "title": "How to convert unstructured text to knowledge graphs using LLMs",
+   "authors": "Noah Mayerhofer (Neo4j)",
+   "venue": "Neo4j developer blog, July 30, 2025",
+   "id": "https://neo4j.com/blog/developer/unstructured-text-to-knowledge-graph/",
+   "pdf_url": "https://neo4j.com/blog/developer/unstructured-text-to-knowledge-graph/ (HTML article, no PDF; freely readable)",
+   "one_line": "Walkthrough of the current mainstream industry pipeline for text-to-KG: LLM extraction of entities and relationships, deduplication, and import into a property graph, as implemented in Neo4j's LLM Knowledge Graph Builder.",
+   "relevance": "Shows what KG construction from text looks like in shipping tooling right now, the practice baseline his hand-rolled transcript pipeline should be compared against in the project writeup.",
+   "flavor": "practice",
+   "verified": true,
+   "lens": "temporal-construction"
+  },
+  {
+   "title": "Industry-scale Knowledge Graphs: Lessons and Challenges",
+   "authors": "Natasha Noy, Yuqing Gao, Anshu Jain, Anant Narayanan, Alan Patterson, Jamie Taylor",
+   "venue": "ACM Queue 17(2) / Communications of the ACM 62(8), 2019",
+   "id": "DOI 10.1145/3331166",
+   "pdf_url": "paywalled at ACM DL; DOI landing https://dl.acm.org/doi/10.1145/3331166 (free HTML version exists at https://queue.acm.org/detail.cfm?id=3332266 but ACM blocked automated verification this run)",
+   "one_line": "Practitioners from Google, Microsoft, Facebook, eBay, and IBM compare how their five production knowledge graphs are modeled, built, and operated, and what open challenges they share.",
+   "relevance": "The single best primary account of how large companies actually represent and run KGs in production, written by the people who run them; the anchor citation for the industry-practice half of the package.",
+   "flavor": "practice",
+   "verified": true,
+   "lens": "industry-practice"
+  },
+  {
+   "title": "Knowledge Vault: A Web-Scale Approach to Probabilistic Knowledge Fusion",
+   "authors": "Xin Luna Dong, Evgeniy Gabrilovich, Geremy Heitz, Wilko Horn, Ni Lao, Kevin Murphy, Thomas Strohmann, Shaohua Sun, Wei Zhang (Google)",
+   "venue": "KDD 2014 (Proceedings of the 20th ACM SIGKDD Conference)",
+   "id": "DOI 10.1145/2623330.2623623",
+   "pdf_url": "https://www.cs.ubc.ca/~murphyk/Papers/kv-kdd14.pdf",
+   "one_line": "Describes Google's Knowledge Vault system, which fuses web extractions with priors from existing knowledge bases to build a probabilistic knowledge base with calibrated fact-confidence scores.",
+   "relevance": "The canonical technical paper in the Google Knowledge Graph lineage, showing how a web-scale KG is actually populated and why facts carry confidence values rather than being simply true.",
+   "flavor": "academic",
+   "verified": true,
+   "lens": "industry-practice"
+  },
+  {
+   "title": "AutoKnow: Self-Driving Knowledge Collection for Products of Thousands of Types",
+   "authors": "Xin Luna Dong, Xiang He, Andrey Kan, Xian Li, Yan Liang, Jun Ma, et al. (Amazon)",
+   "venue": "KDD 2020; arXiv:2006.13473",
+   "id": "arXiv:2006.13473",
+   "pdf_url": "https://arxiv.org/pdf/2006.13473",
+   "one_line": "Details Amazon's self-driving pipeline for building its product knowledge graph: taxonomy enrichment, attribute discovery, data cleaning, and entity resolution across thousands of product types.",
+   "relevance": "The primary published account of the Amazon product graph, and a concrete example of an industry KG whose schema is deliberately loose and automatically evolved rather than hand-ontologized.",
+   "flavor": "practice",
+   "verified": true,
+   "lens": "industry-practice"
+  },
+  {
+   "title": "Graph Pattern Matching in GQL and SQL/PGQ",
+   "authors": "Alin Deutsch, Nadime Francis, Alastair Green, Keith Hare, Bei Li, Leonid Libkin, et al.",
+   "venue": "SIGMOD 2022; arXiv:2112.06217",
+   "id": "arXiv:2112.06217",
+   "pdf_url": "https://arxiv.org/pdf/2112.06217",
+   "one_line": "Authors from the ISO working group (Neo4j, Oracle, TigerGraph, academia) describe GPML, the shared graph pattern matching language at the core of the ISO GQL standard and the SQL/PGQ extension.",
+   "relevance": "The citable bridge from Cypher-era practice to the ISO GQL standard (published 2024), documenting how the property-graph model and its query language are being standardized across the industry.",
+   "flavor": "academic",
+   "verified": true,
+   "lens": "industry-practice"
+  },
+  {
+   "title": "Retrieval-Augmented Generation with Knowledge Graphs for Customer Service Question Answering",
+   "authors": "Zhentao Xu, Mark Jerome Cruz, Matthew Guevara, Tie Wang, Manasi Deshpande, Xiaofeng Wang, Zheng Li (LinkedIn)",
+   "venue": "SIGIR 2024 (short paper); arXiv:2404.17723; DOI 10.1145/3626772.3661370",
+   "id": "arXiv:2404.17723",
+   "pdf_url": "https://arxiv.org/pdf/2404.17723",
+   "one_line": "LinkedIn engineers build a KG from customer support tickets, retrieve subgraphs to ground LLM answers, and report results from roughly six months of production deployment in their support team.",
+   "relevance": "A GraphRAG-style KG+LLM system beyond the Microsoft paper he already has, valuable specifically because it is a deployed industrial system with measured production impact rather than a benchmark study.",
+   "flavor": "practice",
+   "verified": true,
+   "lens": "industry-practice"
+  },
+  {
+   "title": "Why Knowledge Graph Projects Fail \u2014 and How to Make Them Succeed",
+   "authors": "Kurt Cagle and Chloe Shannon",
+   "venue": "The Ontologist (Substack), August 9, 2026",
+   "id": "https://ontologist.substack.com/p/why-knowledge-graph-projects-fail",
+   "pdf_url": "no PDF (blog post); live URL https://ontologist.substack.com/p/why-knowledge-graph-projects-fail",
+   "one_line": "A veteran semantic-web practitioner's account of common enterprise KG failure modes: naive relational-to-graph translation, weak deduplication, unclear business objectives, and underestimated long-term maintenance.",
+   "relevance": "The requested honest practitioner account of where KGs fail or get abandoned in industry, and its failure modes (dedup, maintenance debt, scoping) map directly onto risks in his own memory-tree design.",
+   "flavor": "practice",
+   "verified": true,
+   "lens": "industry-practice"
+  },
+  {
+   "title": "Personal Knowledge Graphs: A Research Agenda",
+   "authors": "Krisztian Balog, Tom Kenter",
+   "venue": "ICTIR 2019 (ACM SIGIR International Conference on Theory of Information Retrieval), pp. 217-220",
+   "id": "DOI 10.1145/3341981.3344241",
+   "pdf_url": "https://www.tomkenter.nl/pdf/Personal%20Knowledge%20Graphs%20-%20ICTIR%202019.pdf",
+   "one_line": "Short position paper that defines the personal knowledge graph (structured information about entities personally related to one user, including globally unimportant ones) and lays out the construction, maintenance, and utilization challenges as a research agenda.",
+   "relevance": "The founding paper of the PKG academic thread; it names and frames exactly the artifact Justin has built, and the whole later PKG literature (workshop, survey, tools) cites it as the origin point.",
+   "flavor": "academic",
+   "verified": true,
+   "lens": "personal-kg"
+  },
+  {
+   "title": "An Ecosystem for Personal Knowledge Graphs: A Survey and Research Roadmap",
+   "authors": "Martin G. Skj\u00e6veland, Krisztian Balog, Nolwenn Bernard, Weronika \u0141ajewska, Trond Linjordet",
+   "venue": "AI Open, vol. 5, pp. 55-69, 2024",
+   "id": "arXiv:2304.09572; DOI 10.1016/j.aiopen.2024.01.003",
+   "pdf_url": "https://arxiv.org/pdf/2304.09572",
+   "one_line": "Survey of the PKG literature that proposes a definition centered on single-user data ownership, and a unified ecosystem framework placing the PKG between data sources, data services, and interfaces, with population, representation, privacy, and interoperability as open problems.",
+   "relevance": "The definitive PKG survey and the natural map of the subfield for the related-work section; its ecosystem framing (PKG plus services plus sources) parallels his tree-plus-maintenance-plus-recall architecture.",
+   "flavor": "academic",
+   "verified": true,
+   "lens": "personal-kg"
+  },
+  {
+   "title": "PKG API: A Tool for Personal Knowledge Graph Management",
+   "authors": "Nolwenn Bernard, Ivica Kostric, Weronika \u0141ajewska, Krisztian Balog, Petra Galu\u0161\u010d\u00e1kov\u00e1, Vinay Setty, Martin G. Skj\u00e6veland",
+   "venue": "Companion Proceedings of the ACM Web Conference 2024 (WWW '24 Companion)",
+   "id": "arXiv:2402.07540; DOI 10.1145/3589335.3651247",
+   "pdf_url": "https://arxiv.org/pdf/2402.07540",
+   "one_line": "Open-source implementation of the PKG ecosystem: an RDF-based PKG vocabulary with statement-level provenance and access rights, plus a natural-language API through which users and services add, query, and manage personal facts.",
+   "relevance": "The closest thing to a reference implementation of a PKG, showing how the group that wrote the survey actually represents personal statements (RDF reification, provenance, access control) in a working system he can compare his own schema against.",
+   "flavor": "practice",
+   "verified": true,
+   "lens": "personal-kg"
+  },
+  {
+   "title": "Personal Knowledge Base Construction from Text-based Lifelogs",
+   "authors": "An-Zi Yen, Hen-Hsen Huang, Hsin-Hsi Chen",
+   "venue": "SIGIR 2019 (42nd International ACM SIGIR Conference), pp. 185-194",
+   "id": "DOI 10.1145/3331184.3331209",
+   "pdf_url": "https://www.cs.nccu.edu.tw/~hhhuang/docs/sigir2019a.pdf",
+   "one_line": "Joint-learning pipeline that detects life events in users' tweets, extracts subject/predicate/object/time tuples, and assembles them into per-person knowledge bases evaluated on 18 Twitter users, aimed at memory-recall applications.",
+   "relevance": "The canonical example of building a personal KG from a person's own text stream with explicit temporal facts, which is structurally the same extraction problem as his transcript-to-leaf-to-entity pipeline.",
+   "flavor": "academic",
+   "verified": true,
+   "lens": "personal-kg"
+  },
+  {
+   "title": "LifeGraph: A Knowledge Graph for Lifelogs",
+   "authors": "Luca Rossetto, Matthias Baumgartner, Narges Ashena, Florian Ruosch, Romana Pernischov\u00e1, Abraham Bernstein",
+   "venue": "LSC '20 (Third Annual Workshop on the Lifelog Search Challenge, at ACM ICMR 2020)",
+   "id": "DOI 10.1145/3379172.3391717",
+   "pdf_url": "https://romana.pernisch.ch/assets/pdf/2020_LSC_Lifegraph.pdf",
+   "one_line": "First knowledge-graph representation of a multimodal lifelog: structures a person's continuous capture data as a graph, links it to external static knowledge (Wikidata) and an everyday-activity taxonomy, and retrieves events over it; extended through LifeGraph 4 and 5 at later LSC workshops.",
+   "relevance": "Covers the lifelogging-as-graph corner of the lens and demonstrates the pattern of joining a personal graph to public knowledge bases, a design question his entity pages will eventually face.",
+   "flavor": "academic",
+   "verified": true,
+   "lens": "personal-kg"
+  },
+  {
+   "title": "PIMO - a Framework for Representing Personal Information Models",
+   "authors": "Leo Sauermann, Ludger van Elst, Andreas Dengel",
+   "venue": "I-Semantics 2007 (Proceedings of I-MEDIA '07 and I-SEMANTICS '07), Graz; DFKI Semantic Desktop line of work",
+   "id": "stable URL https://www.dfki.uni-kl.de/~elst/papers/sauermann+2007b.pdf (no DOI; DFKI publication record dfki.de/en/web/research/projects-and-publications/publications-overview/publication/2675)",
+   "pdf_url": "https://www.dfki.uni-kl.de/~elst/papers/sauermann+2007b.pdf",
+   "one_line": "Defines the Personal Information Model Ontology from the Semantic Desktop / NEPOMUK effort: a layered RDF/S framework where one user's mental model (projects, tasks, people, organizations) categorizes their files, emails, and resources.",
+   "relevance": "The PIM-meets-KG ancestor of the whole PKG thread, showing that a personal ontology over one's own documents was worked out in detail 15 years before LLM memory systems, with layered-ontology decisions directly comparable to his era/topic/leaf hierarchy.",
+   "flavor": "academic",
+   "verified": true,
+   "lens": "personal-kg"
+  }
+ ],
+ "citationCheck": {
+  "verdicts": [
+   {
+    "title": "The Property Graph Database Model",
+    "status": "confirmed",
+    "note": "CEUR Vol-2100 index (AMW 2018) lists paper26 with this exact title; PDF serves 200 application/pdf and its first page reads 'The Property Graph Database Model, Renzo Angles, Universidad de Talca'."
+   },
+   {
+    "title": "Foundations of RDF* and SPARQL* (An Alternative Approach to Statement-Level Metadata in RDF)",
+    "status": "confirmed",
+    "note": "CEUR Vol-1912 index (AMW 2017) lists paper12 with this title by Olaf Hartig; PDF verified. Minor: the CEUR volume title reads 'Alberto Mendelzon Workshop on Foundations of Data Management' without 'and the Web'; harmless either way."
+   },
+   {
+    "title": "Named Graphs, Provenance and Trust",
+    "status": "confirmed",
+    "note": "Crossref: WWW '05 proceedings, p. 613, 2005, Carroll/Bizer/Hayes/Stickler. The w3.org PDF serves the paper (same title and authors) but it is the authors' April 2004 preprint, not the ACM camera-ready; content matches the cited work."
+   },
+   {
+    "title": "Reifying RDF: What Works Well With Wikidata?",
+    "status": "confirmed",
+    "note": "CEUR Vol-1457 (SSWS 2015, co-located with ISWC) lists SSWS2015_paper3, pp. 32-47, Hernandez/Hogan/Krotzsch. The aidanhogan.com PDF serves the paper. Canonical volume copy also available at https://ceur-ws.org/Vol-1457/SSWS2015_paper3.pdf."
+   },
+   {
+    "title": "OWL 2 Profiles: An Introduction to Lightweight Ontology Languages",
+    "status": "confirmed",
+    "note": "Crossref: LNCS, pp. 112-183, 2012, Markus Krotzsch; DOI resolves to this chapter. TU Dresden PDF serves the correct document."
+   },
+   {
+    "title": "The OneGraph Vision: Challenges of Breaking the Graph Model Lock-In",
+    "status": "confirmed",
+    "note": "DOI 10.3233/SW-223273 resolves to Semantic Web 14(1), pp. 125-134 (accepted 2022; issue 2023), Lassila et al. swj3273.pdf serves the paper. Optionally add 'Semantic Web 14(1):125-134' for precision."
+   },
+   {
+    "title": "A Survey on Temporal Knowledge Graph: Representation Learning and Applications",
+    "status": "confirmed",
+    "note": "arXiv API: 2403.04782, submitted 2024-03-02, authors Li Cai, Xin Mao, Yuhao Zhou, Zhaoguang Long, Changxu Wu, Man Lan; PDF matches."
+   },
+   {
+    "title": "Bitemporal Property Graphs to Organize Evolving Systems",
+    "status": "confirmed",
+    "note": "arXiv 2111.13499 (Nov 2021) verified, authors match (Rost, Fritzsche, Schons, Zimmer, Gawlick, Rahm). The cross-referenced VLDB Journal DOI 10.1007/s00778-021-00667-4 also verified: 'Distributed temporal graph analytics with GRADOOP', VLDB J 31(2):375-401, 2022."
+   },
+   {
+    "title": "Bitemporal History",
+    "status": "confirmed",
+    "note": "martinfowler.com page live (200, HTML as declared); title 'Bitemporal History', author Martin Fowler, dated 07 April 2021."
+   },
+   {
+    "title": "Wikidata: A Free Collaborative Knowledgebase",
+    "status": "confirmed",
+    "note": "Crossref: CACM 57(10):78-85, 2014, Vrandecic and Krotzsch. The TU Dresden PDF is the actual CACM article (header shows CACM Oct 2014, Vol 57 No 10, DOI 10.1145/2629489)."
+   },
+   {
+    "title": "A Comprehensive Survey on Automatic Knowledge Graph Construction",
+    "status": "corrected",
+    "corrected_venue": "ACM Computing Surveys 56(4), April 2024 (online 30 Nov 2023), DOI 10.1145/3618295",
+    "note": "Title, authors, DOI, and pdf_url all check out (arXiv 2302.05019 is the preprint of the CSUR article). One fix: CSUR issue 56(4) is dated April 2024, not 2023; the article went online Nov 2023. Cite the year as 2024 (or 2023 online-first, but say so)."
+   },
+   {
+    "title": "Large Language Models for Generative Information Extraction: A Survey",
+    "status": "confirmed",
+    "note": "Crossref: Frontiers of Computer Science 18(6), 2024, DOI 10.1007/s11704-024-40555-y, Xu/Chen/Peng et al. (10 authors, so 'and 7 others' is exact). arXiv 2312.17617 comment confirms FCS acceptance with this DOI; PDF matches."
+   },
+   {
+    "title": "LLM-empowered knowledge graph construction: A survey",
+    "status": "corrected",
+    "corrected_venue": "arXiv preprint, October 2025 (arXiv:2510.20345, single author); the paper's own header states 'Published as a conference paper at ICAIS 2025'",
+    "note": "arXiv record verified: sole author Haonan Bian (Xidian University), submitted 2025-10-23; pdf_url serves the paper. However the venue's claim 'not yet peer reviewed' is contradicted by the PDF header, which says it was published as a conference paper at ICAIS 2025. Adjust the characterization or verify the ICAIS claim before asserting non-review."
+   },
+   {
+    "title": "An Overview of End-to-End Entity Resolution for Big Data (arXiv version: End-to-End Entity Resolution for Big Data: A Survey)",
+    "status": "confirmed",
+    "note": "Crossref: ACM CSUR 53(6), pp. 1-42, DOI 10.1145/3418896, all five authors match; arXiv 1905.06397 PDF carries the arXiv title as the entry says. Nuance: the article went online 6 Dec 2020 but the 53(6) issue is print-dated November 2021, so some styles cite it as 2021; the 2020 online date in the entry is defensible."
+   },
+   {
+    "title": "A Survey on Open Information Extraction",
+    "status": "confirmed",
+    "note": "PDF is the ACL Anthology camera-ready: COLING 2018 proceedings, pp. 3866-3878, Santa Fe, Niklaus/Cetto/Freitas/Handschuh. The Best Survey Paper award claim is confirmed by COLING 2018 award coverage."
+   },
+   {
+    "title": "How to convert unstructured text to knowledge graphs using LLMs",
+    "status": "confirmed",
+    "note": "Neo4j blog page live (200, HTML as declared); title matches exactly, author Noah Mayerhofer, datePublished 2025-07-30."
+   },
+   {
+    "title": "Industry-scale Knowledge Graphs: Lessons and Challenges",
+    "status": "corrected",
+    "corrected_pdf_url": "https://queue.acm.org/detail.cfm?id=3332266",
+    "note": "Metadata verified: DOI 10.1145/3331166 resolves to the CACM 62(8):36-43 (2019) version, authors Noy, Gao, Jain, Narayanan, Patterson, Taylor. The free ACM Queue HTML version at queue.acm.org/detail.cfm?id=3332266 fetched successfully this run (200, correct title and authors), so use it as the open link; the ACM DL PDF (dl.acm.org/doi/pdf/10.1145/3331166) returns 403 to non-browser clients."
+   },
+   {
+    "title": "Knowledge Vault: A Web-Scale Approach to Probabilistic Knowledge Fusion",
+    "status": "confirmed",
+    "note": "Crossref: KDD 2014 proceedings, pp. 601-610, DOI 10.1145/2623330.2623623. The UBC PDF is the paper (Google author list matches, including all nine authors)."
+   },
+   {
+    "title": "AutoKnow: Self-Driving Knowledge Collection for Products of Thousands of Types",
+    "status": "confirmed",
+    "note": "arXiv 2006.13473 verified; the arXiv comment field itself says 'KDD 2020'. PDF matches (Dong, He, Kan, Li, Liang, Ma, et al., Amazon)."
+   },
+   {
+    "title": "Graph Pattern Matching in GQL and SQL/PGQ",
+    "status": "confirmed",
+    "note": "arXiv 2112.06217 PDF matches (Deutsch, Francis, Green, Hare, Li, Libkin, et al.). SIGMOD 2022 publication independently confirmed via Crossref DOI 10.1145/3514221.3526057, pp. 2246-2258."
+   },
+   {
+    "title": "Retrieval-Augmented Generation with Knowledge Graphs for Customer Service Question Answering",
+    "status": "confirmed",
+    "note": "Crossref: SIGIR 2024 proceedings, pp. 2905-2909 (short paper length), DOI 10.1145/3626772.3661370, LinkedIn author list matches; arXiv 2404.17723 PDF matches."
+   },
+   {
+    "title": "Why Knowledge Graph Projects Fail \u2014 and How to Make Them Succeed",
+    "status": "confirmed",
+    "note": "Substack page live (200); og:title matches exactly, authors Kurt Cagle and Chloe Shannon both present on the page, datePublished 2026-08-09. Blog post, no PDF, as the entry states."
+   },
+   {
+    "title": "Personal Knowledge Graphs: A Research Agenda",
+    "status": "confirmed",
+    "note": "Crossref: ICTIR 2019 proceedings, pp. 217-220, DOI 10.1145/3341981.3344241, Balog and Kenter. The tomkenter.nl PDF is the paper (Google London affiliations)."
+   },
+   {
+    "title": "An Ecosystem for Personal Knowledge Graphs: A Survey and Research Roadmap",
+    "status": "confirmed",
+    "note": "Crossref: AI Open vol 5, pp. 55-69, 2024, DOI 10.1016/j.aiopen.2024.01.003, all five authors match; arXiv 2304.09572 comment says 'Published in AI Open, 2024' and the PDF matches."
+   },
+   {
+    "title": "PKG API: A Tool for Personal Knowledge Graph Management",
+    "status": "confirmed",
+    "note": "Crossref: WWW '24 Companion, pp. 1051-1054, DOI 10.1145/3589335.3651247, seven-author list matches; arXiv 2402.07540 PDF matches."
+   },
+   {
+    "title": "Personal Knowledge Base Construction from Text-based Lifelogs",
+    "status": "confirmed",
+    "note": "Crossref: SIGIR 2019 proceedings, pp. 185-194, DOI 10.1145/3331184.3331209, Yen/Huang/Chen. The NCCU PDF is the paper."
+   },
+   {
+    "title": "LifeGraph: A Knowledge Graph for Lifelogs",
+    "status": "confirmed",
+    "note": "Crossref: Proceedings of the Third Annual Workshop on Lifelog Search Challenge (LSC '20), pp. 13-17, DOI 10.1145/3379172.3391717, all six Zurich authors match; the pernisch.ch PDF is the paper."
+   },
+   {
+    "title": "PIMO - a Framework for Representing Personal Information Models",
+    "status": "confirmed",
+    "note": "DFKI PDF live and serves the paper (Sauermann, van Elst, Dengel, DFKI). Venue confirmed via the DFKI publication record (dfki.de publication 2675): Proceedings of I-Semantics 2007, Graz, pp. 270-277, September 2007. No DOI, as the entry states."
+   }
+  ]
+ },
+ "lensSummaries": [
+  {
+   "lens": "representation",
+   "summary": "Six foundational, newcomer-readable papers covering the representation-model core: Angles 2018 formalizes the property graph model; Hartig 2017 (RDF*/SPARQL*) and Carroll et al. 2005 (named graphs) cover the two main RDF mechanisms for statement-level metadata and fact scoping; Hern\u00e1ndez/Hogan/Kr\u00f6tzsch 2015 empirically compares all four reification and n-ary-relation patterns on Wikidata (this doubles as the n-ary/hypergraph coverage, since the dedicated knowledge-hypergraph literature is almost entirely link-prediction work, which was excluded); Kr\u00f6tzsch 2012 is the practitioner tutorial on RDFS/OWL profiles; and Lassila et al.'s OneGraph Vision anchors the current PG+RDF unification debate. Known gap: no SHACL-specific survey made the cut at this quality bar; the free online book \"Validating RDF Data\" (Labra Gayo et al.) is the standard pointer if he needs one. Every citation and PDF link was fetched and confirmed to serve the named paper during this run; the Named Graphs pdf_url is the authors' preprint on w3.org because the ACM version is paywalled (DOI given)."
+  },
+  {
+   "lens": "temporal-construction",
+   "summary": "Temporal KGs and KG construction lens, 10 entries, every citation verified against a live page this run. Temporal side (4): the 2024 temporal-KG survey (Cai et al.) as the subfield map; the Leipzig bitemporal property graph model (Rost et al., with the GRADOOP VLDB Journal version noted; the Springer PDF sits behind a cookie wall so the arXiv report is the free copy) as the academic template for valid-time plus transaction-time on graph elements; Fowler's Bitemporal History as the practice explanation of correction-without-erasure; and the Wikidata CACM paper as deployed practice for time-qualified, rank-based, supersedable statements. Construction side (6): Zhong et al. (CSUR 2023) for the full pipeline including knowledge evolution; Xu et al. (FCS 2024) for peer-reviewed LLM-based extraction; Bian 2025 (flagged single-author preprint) for the newest schema-based versus schema-free framing; Christophides et al. (CSUR 2020) for entity resolution/canonicalization; Niklaus et al. (COLING 2018) for the open-versus-closed IE framing; and the Neo4j LLM Graph Builder blog as the current industry baseline pipeline. Link prediction excluded throughout; the temporal survey is included for its representation taxonomy, not its completion methods. Two practice items are HTML-only (Fowler, Neo4j blog) with no PDF form; all other pdf_urls serve real PDFs from arXiv, ACL Anthology, or an author-institution page (Wikidata PDF confirmed by download, 4.3MB)."
+  },
+  {
+   "lens": "industry-practice",
+   "summary": "Six verified items covering how KGs are represented and used in industry right now: the five-company production survey by Noy et al. (the anchor), the Google Knowledge Vault paper for the Google KG lineage, Amazon's AutoKnow for a production product graph with an automatically evolved schema, the GQL/SQL-PGQ paper documenting the ISO standardization of property-graph querying (the Neo4j/Cypher lineage), LinkedIn's deployed KG-grounded RAG system for customer service (GraphRAG in production beyond Microsoft's paper), and a 2026 practitioner postmortem on why enterprise KG projects fail. All citations were checked against live pages this run; every pdf_url listed was confirmed to serve a real PDF except the Noy article, where ACM's bot-blocking prevented confirming the free Queue HTML/PDF, so it is marked paywalled with the DOI landing page. Coverage gap acknowledged: no dedicated financial-industry KG entry made the cut at the 6-entry depth limit; the Noy survey partially compensates with its cross-industry breadth."
+  },
+  {
+   "lens": "personal-kg",
+   "summary": "Personal knowledge graphs turn out to have a small but coherent academic lineage that maps almost one-to-one onto what Justin built. The thread runs: Semantic Desktop/PIMO (2007, a personal ontology categorizing one user's files and mail) to Balog & Kenter's 2019 naming of the PKG and its research agenda, to the PKG 2021 workshop at AKBC, to the 2024 AI Open survey (Skj\u00e6veland/Balog group) that defines PKGs by single-user data ownership and proposes a full ecosystem architecture, to that same group's open-source PKG API (WWW '24) with statement-level provenance and access rights, which doubles as the privacy/access-control representative. Construction-from-personal-text is covered by Yen et al. (SIGIR 2019, personal KBs from tweets with temporal facts) and lifelogging-as-graph by LifeGraph (LSC 2020, multimodal lifelog graph linked to Wikidata). One deliberate omission: I found no citable non-marketing article treating Obsidian/Zettelkasten vaults as knowledge graphs (only blog posts and product pages), so that slot went unfilled rather than padded. All six PDFs were fetched and their title pages confirmed this run; four are author-hosted, two are arXiv."
+  }
+ ]
+}
