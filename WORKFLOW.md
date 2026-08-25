@@ -12,6 +12,13 @@
 - Each deliverable is committed and pushed as it finishes, so partial progress is readable from anywhere.
 - Repo is private; paper PDFs are personal reference copies. Paywalled works get a stub with DOI and library link, never a pirated copy.
 
+**Scope of record, revised 2026-08-25 evening (supersedes the softer framing above where they differ).** The prototype is a MOCK of the end state, not the subject. The build target is a bottom-to-top HARNESS: corpus in, memory tree + entity knowledge base + dated facts out, with efficient budgeted injection for RAG at query time. Fall: read, then build the harness at the toned-down spec (fixed shape, induced content; two corpora; simple supersession; three injection arms compared). Spring: distributable version others install, tested on a certified-unknown literature corpus, plus migration of Justin's raw data into the harness as tenant-zero proof.
+
+**Design constraints of record (Justin, 2026-08-25):**
+- Depth band: the model is the only accepted black box. No reimplementing inference, tokenizers, or index internals; every pipeline decision (segment boundaries, summary contracts, fact schema, staleness, injection budgeting, scoring) is his code, reviewable line by line.
+- MODEL-AGNOSTIC BY CONSTRUCTION: every LLM-touching stage goes through two thin interfaces, embed(texts) and generate(prompt, schema), so embedders and generation models slot in and out, including low-powered cheap ones (local via Ollama, mini/haiku-class APIs). Every run row records the model id per stage. This is both the dev-loop economics (build and iterate on cheap models, final numbers on strong ones) and a first-class experiment: stage-wise model sensitivity, i.e. which pipeline stages actually need a frontier model and which run fine on a 7B, measured per question band. Schema-validated outputs make cheap-model failure detectable rather than silent.
+- Anatomy first: docs/07_pipeline_anatomy.md (in progress) inventories every by-hand stage of the mock with code receipts; its by-hand table is the harness component backlog.
+
 ## Deliverables, in build order
 
 | # | Ask | Output | Depends on |
