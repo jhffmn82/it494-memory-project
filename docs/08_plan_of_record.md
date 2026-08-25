@@ -9,7 +9,7 @@ Entry: the advisor meeting.
 1. Resolve the five [CHECK] flags in the proposal and hand the corrected proposal to Dr. Fang.
 2. Take three outcomes from the meeting: agreement on the harness scope, a reaction to the December paper target, and a ruling on the GAO EES preprint question (one paper or two this fall).
 3. Pick the model tiers for the sensitivity axis: one local 7B via Ollama, one mini-class API model, one frontier model. Install Ollama and confirm the local model runs.
-4. Nominate three candidate novels for the cold-corpus test (obscure or recent enough to be unknown; long enough to have entity structure and reveals). No commitment yet; certification happens in Phase 3.
+4. Nominate three candidate works for the cold-corpus test. Criteria, revised: long (a serial of several hundred thousand words is fine and better than a doorstopper standalone), fiction with entity structure and reveals, and carrying an ACTIVE COMMUNITY WIKI to score induced structure against. Popularity is acceptable because certification is per-question (bare tiers must fail each kept question closed-book), not per-work. No commitment yet; certification happens in Phase 3.
 5. Scaffold the build repo inside the project repo: `harness/` with the two interfaces stubbed (`embed(texts)`, `generate(prompt, schema)`), the run-row schema from the testing outline as a dataclass, and pytest wired. QA gate: the interfaces, about two pages, walked through.
 
 Exit: decisions logged in the repo, empty harness that imports and passes a trivial test.
@@ -64,7 +64,7 @@ Valves, in cut order: the entity layer reduces to extraction-only (no pages) sav
 
 Entry: harness end-to-end. This window contains Test 2, Thanksgiving, HW4, and the application deadlines; everything here is runs and prose, no construction.
 
-1. Certify the novel: bare model fails the question set; then ingest and run all arms (runs are cheap once built; evenings suffice).
+1. Certify the question set per question: every bare tier runs the candidate set closed-book, and only questions all tiers fail survive; then ingest and run all arms (runs are cheap once built; evenings suffice). Score induced entities and timelines against the community wiki, adjudicating disagreements by the text.
 2. Run the archive slice with the corrected-facts band and the miss-rate instrument.
 3. Stage-wise sensitivity table: swap tiers per stage on the fixed question set.
 4. Write the paper from the design document, the synthesis memo, and the run tables; the related-work section already exists from the dead window. Target: arXiv by December 5, cited in the applications.
