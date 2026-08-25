@@ -1,0 +1,358 @@
+{
+ "entries": [
+  {
+   "title": "Efficient Guided Generation for Large Language Models",
+   "authors": "Brandon T. Willard, R\u00e9mi Louf",
+   "venue": "arXiv (cs.CL), 2023; implemented as the Outlines library",
+   "id": "arXiv:2307.09702",
+   "pdf_url": "https://arxiv.org/pdf/2307.09702",
+   "why": "The canonical formulation of decode-time constraint enforcement: regex/CFG guidance as finite-state machine transitions over the vocabulary, model-agnostic with near-zero overhead. This is the mechanism behind guaranteeing that every harness stage output (tree nodes, entity records, dated fact rows) validates against its schema when the local 7B is served via Ollama/Outlines, making 'schema-invalid output' a property you can turn off at decode time rather than merely count.",
+   "verified": true,
+   "lens": "contracts-cheap"
+  },
+  {
+   "title": "Grammar-Constrained Decoding for Structured NLP Tasks without Finetuning",
+   "authors": "Saibo Geng, Martin Josifoski, Maxime Peyrard, Robert West",
+   "venue": "EMNLP 2023",
+   "id": "DOI: 10.18653/v1/2023.emnlp-main.674",
+   "pdf_url": "https://aclanthology.org/2023.emnlp-main.674.pdf",
+   "why": "The empirical case that grammar-constrained decoding lets unfinetuned models do information extraction and entity disambiguation competitively with task-specific finetuned models: exactly the extraction-shaped work the entity-KB and fact-row stages ask of cheap models, and prior art for the claim that a constrained weak model can substitute for a stronger unconstrained one in the sensitivity experiment.",
+   "verified": true,
+   "lens": "contracts-cheap"
+  },
+  {
+   "title": "Let Me Speak Freely? A Study on the Impact of Format Restrictions on Performance of Large Language Models",
+   "authors": "Zhi Rui Tam, Cheng-Kuang Wu, Yi-Lin Tsai, Chieh-Yen Lin, Hung-yi Lee, Yun-Nung Chen",
+   "venue": "arXiv (cs.CL), 2024; appeared at EMNLP 2024",
+   "id": "arXiv:2408.02442",
+   "pdf_url": "https://arxiv.org/pdf/2408.02442",
+   "why": "The best-known empirical study of the format-constraint quality debate: forced JSON/XML output measurably degrades reasoning-heavy task performance, with stricter constraints hurting more. Directly threatens a confound in the stage-wise model-sensitivity experiment: a stage failure under schema-validated output may be caused by the schema, not the model, so the harness evaluation needs a constrained-vs-prompted ablation per stage, which this paper motivates and gives a design for.",
+   "verified": true,
+   "lens": "contracts-cheap"
+  },
+  {
+   "title": "FrugalGPT: How to Use Large Language Models While Reducing Cost and Improving Performance",
+   "authors": "Lingjiao Chen, Matei Zaharia, James Zou",
+   "venue": "arXiv (cs.LG), 2023 (later TMLR)",
+   "id": "arXiv:2305.05176",
+   "pdf_url": "https://arxiv.org/pdf/2305.05176",
+   "why": "The canonical LLM-cascade paper (prompt adaptation, LLM approximation, cascade with a learned scorer; GPT-4-level quality at up to 98% cost reduction). Prior art for the harness's cheap-model economics: it frames the exact question the sensitivity experiment answers per stage, which stages a mini-class model can own and where escalation to a strong model buys accuracy per dollar.",
+   "verified": true,
+   "lens": "contracts-cheap"
+  },
+  {
+   "title": "RouteLLM: Learning to Route LLMs with Preference Data",
+   "authors": "Isaac Ong, Amjad Almahairi, Vincent Wu, Wei-Lin Chiang, Tianhao Wu, Joseph E. Gonzalez, M Waleed Kadous, Ion Stoica",
+   "venue": "arXiv (cs.LG), 2024 (v4 Feb 2025); ICLR 2025",
+   "id": "arXiv:2406.18665",
+   "pdf_url": "https://arxiv.org/pdf/2406.18665",
+   "why": "The strongest FrugalGPT successor: routers trained on preference data pick strong vs weak model per query with 2x+ cost cuts and, critically, transfer when the underlying model pair changes, which matches the harness's model-agnostic two-interface constraint. Gives the natural extension of the sensitivity experiment: per-stage routing instead of a fixed model assignment.",
+   "verified": true,
+   "lens": "contracts-cheap"
+  },
+  {
+   "title": "UniversalNER: Targeted Distillation from Large Language Models for Open Named Entity Recognition",
+   "authors": "Wenxuan Zhou, Sheng Zhang, Yu Gu, Muhao Chen, Hoifung Poon",
+   "venue": "ICLR 2024",
+   "id": "arXiv:2308.03279",
+   "pdf_url": "https://arxiv.org/pdf/2308.03279",
+   "why": "The strongest empirical evidence on what 7B-class models can do on extraction-shaped tasks: a targeted-distilled 7B/13B beats ChatGPT itself on open NER across 43 datasets. Directly calibrates expectations for the entity-KB extraction stage under cheap models and supplies a named failure mode for the alternative (generalist small models like Alpaca lag by ~30 F1, so 'small model' is not one condition; specialization matters).",
+   "verified": true,
+   "lens": "contracts-cheap"
+  },
+  {
+   "title": "TextTiling: Segmenting Text into Multi-paragraph Subtopic Passages",
+   "authors": "Marti A. Hearst",
+   "venue": "Computational Linguistics 23(1), 1997",
+   "id": "ACL Anthology J97-1003",
+   "pdf_url": "https://aclanthology.org/J97-1003.pdf",
+   "why": "The canonical lexical-cohesion segmentation algorithm: a cheap, fully deterministic baseline for the harness's corpus-chunking stage, and the natural non-LLM alternative arm his rigor bar demands (named failure mode: cohesion troughs miss topic shifts that share vocabulary).",
+   "verified": true,
+   "lens": "segmentation-openie"
+  },
+  {
+   "title": "Text Segmentation as a Supervised Learning Task",
+   "authors": "Omri Koshorek, Adir Cohen, Noam Mor, Michael Rotman, Jonathan Berant",
+   "venue": "NAACL 2018",
+   "id": "arXiv:1803.09337",
+   "pdf_url": "https://arxiv.org/pdf/1803.09337",
+   "why": "The reference modern neural treatment (Wiki-727K dataset, supervised boundary prediction): supplies the ground-truth-based segmentation metrics (Pk/WindowDiff framing) he needs so the segmentation stage has a metric with ground truth rather than eyeballed chunk quality.",
+   "verified": true,
+   "lens": "segmentation-openie"
+  },
+  {
+   "title": "Improving Unsupervised Dialogue Topic Segmentation with Utterance-Pair Coherence Scoring",
+   "authors": "Linzi Xing, Giuseppe Carenini",
+   "venue": "SIGDIAL 2021",
+   "id": "arXiv:2106.06719",
+   "pdf_url": "https://arxiv.org/pdf/2106.06719",
+   "why": "Directly on his corpus type: unsupervised topic segmentation of conversations via utterance-pair coherence, showing why document-tuned segmenters fail on chat turns; the published company for segmenting his conversation logs before tree ingestion.",
+   "verified": true,
+   "lens": "segmentation-openie"
+  },
+  {
+   "title": "A Survey on Open Information Extraction",
+   "authors": "Christina Niklaus, Matthias Cetto, Andr\u00e9 Freitas, Siegfried Handschuh",
+   "venue": "COLING 2018",
+   "id": "arXiv:1806.05599",
+   "pdf_url": "https://arxiv.org/pdf/1806.05599",
+   "why": "The standard OpenIE survey covering the TextRunner/Banko lineage through Stanford OpenIE, including its critique of OpenIE evaluation practice: positions his fact-row generator inside a 15-year lineage and warns off the known evaluation traps before he designs the fact-band metrics.",
+   "verified": true,
+   "lens": "segmentation-openie"
+  },
+  {
+   "title": "Extract, Define, Canonicalize: An LLM-based Framework for Knowledge Graph Construction",
+   "authors": "Bowen Zhang, Harold Soh",
+   "venue": "EMNLP 2024",
+   "id": "arXiv:2404.03868",
+   "pdf_url": "https://arxiv.org/pdf/2404.03868",
+   "why": "The closest published shape to his pipeline: LLM triple extraction followed by schema definition and canonicalization, benchmarked for triplet quality; direct company for the entity-knowledge-base stage where raw fact rows must be merged into canonical entities.",
+   "verified": true,
+   "lens": "segmentation-openie"
+  },
+  {
+   "title": "Structured Prompt Interrogation and Recursive Extraction of Semantics (SPIRES): a method for populating knowledge bases using zero-shot learning",
+   "authors": "J. Harry Caufield, Harshad Hegde, et al.",
+   "venue": "Bioinformatics 40(3), 2024",
+   "id": "DOI 10.1093/bioinformatics/btae104 (arXiv:2304.02711)",
+   "pdf_url": "https://arxiv.org/pdf/2304.02711",
+   "why": "Model-agnostic, schema-constrained LLM extraction where every output must conform to a user-defined schema and ground to an ontology, so failures are countable: the published precedent for his schema-validated, measured-rejection (Eywa-style) fact extraction and for the weak-vs-strong model sensitivity experiment.",
+   "verified": true,
+   "lens": "segmentation-openie"
+  },
+  {
+   "title": "Judging LLM-as-a-Judge with MT-Bench and Chatbot Arena",
+   "authors": "Lianmin Zheng et al.",
+   "venue": "NeurIPS 2023 Datasets and Benchmarks Track",
+   "id": "arXiv:2306.05685",
+   "pdf_url": "https://arxiv.org/pdf/2306.05685",
+   "why": "The canonical LLM-as-judge paper: names the exact bias taxonomy (position, verbosity, self-enhancement, limited reasoning) his scorer must be audited against before any number from the corrected-facts band or counterfactual miss rate is trusted. Its ~80% judge-human agreement figure is the baseline his calibration set should beat or match.",
+   "verified": true,
+   "lens": "judge-eval"
+  },
+  {
+   "title": "Large Language Models are not Fair Evaluators",
+   "authors": "Peiyi Wang et al.",
+   "venue": "ACL 2024 (long paper)",
+   "id": "arXiv:2305.17926 / aclanthology.org/2024.acl-long.511",
+   "pdf_url": "https://aclanthology.org/2024.acl-long.511.pdf",
+   "why": "The strongest position-bias demonstration plus concrete mitigations: balanced position calibration (aggregate over answer orderings), multiple-evidence calibration (reason before scoring), and entropy-based human escalation. The last maps directly onto his small hand-labeled calibration set: escalate low-agreement items to Justin rather than hand-labeling uniformly.",
+   "verified": true,
+   "lens": "judge-eval"
+  },
+  {
+   "title": "LLM Evaluators Recognize and Favor Their Own Generations",
+   "authors": "Arjun Panickssery et al.",
+   "venue": "arXiv 2024 (page lists no venue; widely cited from the NeurIPS 2024 cycle)",
+   "id": "arXiv:2404.13076",
+   "pdf_url": "https://arxiv.org/pdf/2404.13076",
+   "why": "Self-preference is the specific confounder in his stage-wise model-sensitivity experiment: if the judge model is from the same family as the answering model, scores inflate for that arm. This paper justifies pinning one fixed strong judge across all model arms (7B local through frontier) rather than letting the judge vary with the system under test.",
+   "verified": true,
+   "lens": "judge-eval"
+  },
+  {
+   "title": "Evaluating Open-Domain Question Answering in the Era of Large Language Models",
+   "authors": "Ehsan Kamalloo et al.",
+   "venue": "ACL 2023",
+   "id": "arXiv:2305.06984",
+   "pdf_url": "https://aclanthology.org/2023.acl-long.307.pdf",
+   "why": "The best-fit agreement study for his setting: judging free-form answers against fixed gold answers (QA-style, not open-ended chat). Documents where lexical match and automated judges diverge from human judgment on correct-but-nonmatching and hallucinated answers, which is exactly the failure surface of scoring the certified-unknown novel's question set.",
+   "verified": true,
+   "lens": "judge-eval"
+  },
+  {
+   "title": "Survey Article: Inter-Coder Agreement for Computational Linguistics",
+   "authors": "Ron Artstein and Massimo Poesio",
+   "venue": "Computational Linguistics 34(4), 2008; DOI 10.1162/coli.07-034-R2",
+   "id": "ACL Anthology J08-4004",
+   "pdf_url": "https://aclanthology.org/J08-4004.pdf",
+   "why": "The standard practical treatment of chance-corrected agreement (Cohen's kappa, Krippendorff's alpha, and when each is appropriate) written for annotation tasks. The right single citation for reporting judge-vs-Justin agreement on the small hand-labeled calibration set, including what alpha threshold counts as reliable.",
+   "verified": true,
+   "lens": "judge-eval"
+  },
+  {
+   "title": "The NarrativeQA Reading Comprehension Challenge",
+   "authors": "Tom\u00e1\u0161 Ko\u010disk\u00fd, Jonathan Schwarz, Phil Blunsom, Chris Dyer, Karl Moritz Hermann, G\u00e1bor Melis, Edward Grefenstette",
+   "venue": "TACL 2018 (arXiv Dec 2017)",
+   "id": "arXiv:1712.07040",
+   "pdf_url": "https://arxiv.org/pdf/1712.07040",
+   "why": "Canonical question-set-over-books benchmark: questions written from summaries so answers require narrative comprehension of the full text, not span lookup. Direct template for the certified-unknown-novel question set and its bare-model-must-fail spot check.",
+   "verified": true,
+   "lens": "narrativeqa-injection"
+  },
+  {
+   "title": "QuALITY: Question Answering with Long Input Texts, Yes!",
+   "authors": "Richard Yuanzhe Pang et al.",
+   "venue": "NAACL 2022",
+   "id": "arXiv:2112.08608",
+   "pdf_url": "https://arxiv.org/pdf/2112.08608",
+   "why": "Multiple-choice long-document QA where questions are validated as unanswerable under skimming/time limits; gives the harness a cited method for certifying that questions require full-narrative memory, useful for the counterfactual-miss and corrected-facts bands where answer options must discriminate.",
+   "verified": true,
+   "lens": "narrativeqa-injection"
+  },
+  {
+   "title": "NovelQA: Benchmarking Question Answering on Documents Exceeding 200K Tokens",
+   "authors": "Cunxiang Wang et al.",
+   "venue": "ICLR 2025 (arXiv 2024)",
+   "id": "arXiv:2403.12766",
+   "pdf_url": "https://arxiv.org/pdf/2403.12766",
+   "why": "Recent long-narrative QA over whole novels with each question manually paired with a golden answer plus textual evidences from the book; its question-type taxonomy and per-question evidence annotation are the closest existing template for the certified-unknown novel's evidence-located question design.",
+   "verified": true,
+   "lens": "narrativeqa-injection"
+  },
+  {
+   "title": "Lost in the Middle: How Language Models Use Long Contexts",
+   "authors": "Nelson F. Liu et al.",
+   "venue": "TACL 2024 (arXiv 2023)",
+   "id": "arXiv:2307.03172",
+   "pdf_url": "https://arxiv.org/pdf/2307.03172",
+   "why": "Canonical positional-degradation result: relevant items placed mid-context are used worst. Directly motivates the injection arm's ordering policy (put highest-scored memory rows at the edges of the budgeted context) and is the cited baseline the ordering experiment must beat or replicate.",
+   "verified": true,
+   "lens": "narrativeqa-injection"
+  },
+  {
+   "title": "LongLLMLingua: Accelerating and Enhancing LLMs in Long Context Scenarios via Prompt Compression",
+   "authors": "Huiqiang Jiang et al.",
+   "venue": "ACL 2024 (arXiv Oct 2023)",
+   "id": "arXiv:2310.06839",
+   "pdf_url": "https://arxiv.org/pdf/2310.06839",
+   "why": "The RAG-specific compression-plus-reordering method: question-aware coarse-to-fine compression and document reordering of retrieved context under an explicit token budget. Gives the budgeted-injection stage a cited design choice for what goes in and in what order, and a compression baseline for the model-sensitivity experiment.",
+   "verified": true,
+   "lens": "narrativeqa-injection"
+  }
+ ],
+ "citationCheck": {
+  "verdicts": [
+   {
+    "title": "Efficient Guided Generation for Large Language Models",
+    "status": "confirmed",
+    "note": "arXiv abs page confirms title, authors Willard & Louf (Normal Computing), cs.CL 2023, v4 Aug 2023; pdf_url serves the paper (spot-checked first page). Outlines library claim matches the abstract."
+   },
+   {
+    "title": "Grammar-Constrained Decoding for Structured NLP Tasks without Finetuning",
+    "status": "confirmed",
+    "note": "ACL Anthology 2023.emnlp-main.674 confirms title, Geng/Josifoski/Peyrard/West, EMNLP 2023 main, DOI 10.18653/v1/2023.emnlp-main.674, pp. 10932-10952; PDF spot-checked and matches."
+   },
+   {
+    "title": "Let Me Speak Freely? A Study on the Impact of Format Restrictions on Performance of Large Language Models",
+    "status": "corrected",
+    "corrected_venue": "arXiv (cs.CL), 2024; EMNLP 2024 Industry Track (aclanthology.org/2024.emnlp-industry.91, pp. 1218-1236)",
+    "note": "Title, authors, arXiv:2408.02442, and pdf_url all check out (PDF spot-checked). But it appeared in the EMNLP 2024 Industry Track, not the main conference; the camera-ready title also reads '...On Large Language Model Performance'. 'Appeared at EMNLP 2024' without the track qualifier is imprecise."
+   },
+   {
+    "title": "FrugalGPT: How to Use Large Language Models While Reducing Cost and Improving Performance",
+    "status": "confirmed",
+    "note": "arXiv abs confirms title/authors (Chen, Zaharia, Zou), cs.LG May 2023; TMLR 2024 publication confirmed via dblp (journals/tmlr/ChenZ024). pdf_url serves the paper."
+   },
+   {
+    "title": "RouteLLM: Learning to Route LLMs with Preference Data",
+    "status": "confirmed",
+    "note": "arXiv abs confirms title, all 8 authors, v4 Feb 2025; PDF spot-checked, first page reads 'Published as a conference paper at ICLR 2025'. Minor nuance: the ICLR/OpenReview camera-ready title uses 'from Preference Data', while the cited arXiv version uses 'with' as listed."
+   },
+   {
+    "title": "UniversalNER: Targeted Distillation from Large Language Models for Open Named Entity Recognition",
+    "status": "confirmed",
+    "note": "arXiv abs confirms title, authors (Zhou, Zhang, Gu, Chen, Poon), and comment 'Accepted at ICLR 2024'."
+   },
+   {
+    "title": "TextTiling: Segmenting Text into Multi-paragraph Subtopic Passages",
+    "status": "confirmed",
+    "note": "J97-1003 resolves to Hearst, Computational Linguistics 23(1), 1997, pp. 33-64; PDF spot-checked, first page is the TextTiling paper by Marti A. Hearst (Xerox PARC)."
+   },
+   {
+    "title": "Text Segmentation as a Supervised Learning Task",
+    "status": "confirmed",
+    "note": "arXiv abs confirms title, authors (Koshorek, Cohen, Mor, Rotman, Berant), and comment 'NAACL 2018' (it is a NAACL 2018 short paper, anthology N18-2075)."
+   },
+   {
+    "title": "Improving Unsupervised Dialogue Topic Segmentation with Utterance-Pair Coherence Scoring",
+    "status": "confirmed",
+    "note": "arXiv abs confirms title, Xing & Carenini, comment 'Long paper accepted at SIGDIAL 2021'."
+   },
+   {
+    "title": "A Survey on Open Information Extraction",
+    "status": "confirmed",
+    "note": "arXiv abs confirms title, authors (Niklaus, Cetto, Freitas, Handschuh), and venue note COLING 2018."
+   },
+   {
+    "title": "Extract, Define, Canonicalize: An LLM-based Framework for Knowledge Graph Construction",
+    "status": "confirmed",
+    "note": "arXiv abs confirms title/authors; EMNLP 2024 main conference confirmed (aclanthology.org/2024.emnlp-main.548, pp. 9820-9836)."
+   },
+   {
+    "title": "Structured Prompt Interrogation and Recursive Extraction of Semantics (SPIRES): a method for populating knowledge bases using zero-shot learning",
+    "status": "confirmed",
+    "note": "arXiv abs (2304.02711) confirms title, first authors Caufield and Hegde (12 authors total, Mungall last), and journal ref Bioinformatics 40(3), March 2024, DOI 10.1093/bioinformatics/btae104. All ids resolve to this work."
+   },
+   {
+    "title": "Judging LLM-as-a-Judge with MT-Bench and Chatbot Arena",
+    "status": "confirmed",
+    "note": "arXiv abs confirms title, Lianmin Zheng first author (13 authors), and comment 'NeurIPS 2023 Datasets and Benchmarks Track'."
+   },
+   {
+    "title": "Large Language Models are not Fair Evaluators",
+    "status": "confirmed",
+    "note": "Both ids resolve to this work: arXiv:2305.17926 (Peiyi Wang first author) and ACL Anthology 2024.acl-long.511 (ACL 2024 long paper, DOI 10.18653/v1/2024.acl-long.511). PDF spot-checked, pp. 9440-9450 of ACL 2024 Volume 1: Long Papers."
+   },
+   {
+    "title": "LLM Evaluators Recognize and Favor Their Own Generations",
+    "status": "corrected",
+    "corrected_venue": "NeurIPS 2024 (oral), Advances in Neural Information Processing Systems 37; arXiv:2404.13076",
+    "note": "Title, authors (Panickssery, Bowman, Feng), and id confirmed. The venue claim undersells it: the arXiv page indeed lists no venue, but the paper was published in the NeurIPS 2024 main-track proceedings (proceedings.neurips.cc 2024, hash 7f1f0218...) with an oral presentation, so cite NeurIPS 2024, not just arXiv."
+   },
+   {
+    "title": "Evaluating Open-Domain Question Answering in the Era of Large Language Models",
+    "status": "confirmed",
+    "note": "Anthology 2023.acl-long.307 confirms title, Kamalloo/Dziri/Clarke/Rafiei, ACL 2023 long paper; PDF spot-checked (pp. 5591-5606). arXiv:2305.06984 is the same work."
+   },
+   {
+    "title": "Survey Article: Inter-Coder Agreement for Computational Linguistics",
+    "status": "confirmed",
+    "note": "J08-4004 confirms Artstein & Poesio, Computational Linguistics 34(4), 2008, DOI 10.1162/coli.07-034-R2; PDF spot-checked, first page matches."
+   },
+   {
+    "title": "The NarrativeQA Reading Comprehension Challenge",
+    "status": "confirmed",
+    "note": "arXiv:1712.07040 (Dec 2017) confirms title and all 7 authors in the listed order; anthology Q18-1023 confirms TACL Volume 6, 2018, pp. 317-328. PDF spot-checked."
+   },
+   {
+    "title": "QuALITY: Question Answering with Long Input Texts, Yes!",
+    "status": "confirmed",
+    "note": "arXiv abs confirms title, Richard Yuanzhe Pang first author, comment 'NAACL 2022'; PDF spot-checked."
+   },
+   {
+    "title": "NovelQA: Benchmarking Question Answering on Documents Exceeding 200K Tokens",
+    "status": "confirmed",
+    "note": "arXiv abs confirms title, Cunxiang Wang first author, comment 'Accepted by ICLR-2025'; PDF spot-checked, first page reads 'Published as a conference paper at ICLR 2025'."
+   },
+   {
+    "title": "Lost in the Middle: How Language Models Use Long Contexts",
+    "status": "confirmed",
+    "note": "arXiv abs confirms title, Nelson F. Liu first author, and TACL acceptance; the journal publication is TACL Volume 12 (2024), so 'TACL 2024 (arXiv 2023)' is accurate."
+   },
+   {
+    "title": "LongLLMLingua: Accelerating and Enhancing LLMs in Long Context Scenarios via Prompt Compression",
+    "status": "confirmed",
+    "note": "arXiv abs confirms title, Huiqiang Jiang first author, v1 Oct 2023, comment 'Accepted at ACL 2024'."
+   }
+  ]
+ },
+ "lensNotes": [
+  {
+   "lens": "contracts-cheap",
+   "note": "All six entries verified this run against arXiv abstract pages or the ACL Anthology. Half 1 (schema-constrained generation): Willard & Louf 2307.09702 is the canonical decode-time enforcement work (Outlines), Geng et al. EMNLP 2023 is the structured-NLP empirical companion, and Tam et al. 2408.02442 is the best-known quality-cost study on the constrained-vs-free-form debate (note its counterpoint, the .txt/dottxt 'Say What You Mean' rebuttal arguing the effect reverses with proper constrained decoding, is a blog post, not a citable paper, but worth reading before designing the per-stage ablation). Half 2 (cheap-model economics): FrugalGPT 2305.05176 is the canonical cascade paper and RouteLLM 2406.18665 its strongest successor with test-time model-swap transfer; UniversalNER 2308.03279 covers the 7B-vs-frontier capability question for extraction. Venue caveats: Tam et al.'s EMNLP 2024 appearance and RouteLLM's ICLR 2025 acceptance are from my background knowledge, not the fetched pages, which confirm only the arXiv metadata; titles, authors, and ids are page-confirmed. No overlap with the 53 existing works."
+  },
+  {
+   "lens": "segmentation-openie",
+   "note": "Lens B covered both halves: segmentation (Hearst's TextTiling as the deterministic baseline, Koshorek 2018 as the supervised neural treatment with ground-truth metrics, Xing & Carenini 2021 for dialogue specifically) and OpenIE (Niklaus 2018 as the single survey carrying the Banko/TextRunner-to-Stanford lineage plus its evaluation critique, EDC and SPIRES as the two LLM-era extraction frameworks with schema conformance and quality measurement). All six confirmed against ACL Anthology, arXiv, or Oxford Bioinformatics pages this run. Note: no strong paper reporting extraction REJECTION RATES per se surfaced; SPIRES's ontology-grounding failure accounting is the nearest published analogue, so his measured-rejection band is a genuine gap his preprint can claim."
+  },
+  {
+   "lens": "judge-eval",
+   "note": "Lens C resolved as: canonical judge paper (Zheng, which itself covers position/verbosity/self-enhancement biases), the sharpest bias+mitigation paper (Wang, ACL 2024), the self-preference confounder for multi-model experiments (Panickssery), the QA-specific judge-vs-human agreement study (Kamalloo, deliberately chosen over open-ended-chat agreement work), and one measurement classic (Artstein & Poesio) for the calibration set. No survey used; the one caveat is Panickssery's formal venue, which its arXiv page does not state, so it is cited as arXiv. All ids and pdf links checked against live pages this run."
+  },
+  {
+   "lens": "narrativeqa-injection",
+   "note": "Lens D, both halves covered and all 5 verified against arXiv abstract pages this run. Narrative QA: NarrativeQA (canonical), QuALITY (skim-proof question validation), NovelQA as the best recent evidence-located long-novel benchmark (per-question golden answer + textual evidences, confirmed via paper/OpenReview text; note NoCha (Karpinska 2024) was the runner-up but lacks per-question evidence spans). Context construction: Lost in the Middle (canonical ordering result) plus LongLLMLingua, chosen over base LLMLingua because it adds question-aware reordering of retrieved documents under budget, which is exactly the injection-arm decision Justin needs to cite; if he wants the compression-only canonical, base LLMLingua is EMNLP 2023, arXiv:2310.05736 (not independently verified this run). No survey included."
+  }
+ ]
+}

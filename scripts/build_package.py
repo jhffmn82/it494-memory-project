@@ -32,6 +32,8 @@ SECTIONS = [
     ("Ways the research could elevate the project", ROOT / "docs" / "04_elevation_options.md"),
     ("Three shapes the project could take", ROOT / "docs" / "05_project_shapes.md"),
     ("End product, test data, and records", ROOT / "docs" / "06_end_product_and_testing.md"),
+    ("Anatomy of the mock", ROOT / "docs" / "07_pipeline_anatomy.md"),
+    ("The plan, in phases", ROOT / "docs" / "08_plan_of_record.md"),
 ]
 
 CSS = """
