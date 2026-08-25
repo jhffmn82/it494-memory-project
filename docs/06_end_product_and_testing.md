@@ -1,6 +1,6 @@
 # End product, test data, and what gets recorded
 
-Prepared by the assistant. This outline assumes the recommendation in the project-shapes document: the goal is a rigorous, defensible general system; fall produces the defended design, a working core with its evaluation harness, and a short paper; spring builds the system out. The existing prototype is evidence, corpus, and first tenant throughout, never the deliverable. If a different shape is chosen, the testing section still applies, since every shape answers to the same measurements.
+Prepared by the assistant. This outline assumes the framing the student set: the existing prototype is a mock of the intended end state, and the end state is a general workflow built into a product and then tested on data the workflow did not grow up on. Fall produces the defended design, a working core with its evaluation harness, and a short paper; spring builds the product out. If a different shape is chosen, the testing section still applies, since every shape answers to the same measurements.
 
 ## The end product, concretely
 
@@ -16,9 +16,9 @@ The prototype's archive is tenant zero: two years, roughly a thousand distilled 
 
 A public benchmark is the generality check, not just an anchor. One suite from the package, run in its published configuration, shows the design is not shaped to one man's archive. Scoped as a week.
 
-A second, disjoint corpus is the honest test of the design's portability, and the cheapest version need not be synthetic: any project corpus the system did not grow up on, ingested cold through the same pipeline. This is a spring gate for the distributable claim, stated in the paper as future work if fall runs out of hours.
+A second, disjoint corpus is the honest test of the design's portability, ingested cold through the same pipeline. The student's own proposal for this is a work of literature, and it is a strong one: a novel is a life in miniature, events arriving in order, entities accumulating relationships, and facts superseded by later reveals, which instantiates the corrected-facts band with ground truth obtainable by reading the book. One constraint governs the choice of work, and it is the student's own prior insight: a famous work proves nothing, because the model already knows it. The work must be one the model cannot answer from its training, meaning obscure, very recent, or long-tail, and a spot check that the bare model fails the question set before ingestion is the cheap way to certify that. This is a spring gate for the distributable claim, stated in the paper as future work if fall runs out of hours.
 
-The deliberate choice this outline assumes: design measured on tenant zero with the contamination caveat open, one public suite for generality, a cold second corpus gating the spring release.
+The deliberate choice this outline assumes: design measured on tenant zero with the contamination caveat open, one public suite for generality, and a cold literature corpus, certified unknown to the model, gating the spring release.
 
 ## What gets recorded
 
