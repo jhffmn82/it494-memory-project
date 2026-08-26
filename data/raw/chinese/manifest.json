@@ -1,0 +1,29 @@
+{
+  "corpus_id": "chinese",
+  "title": "Chinese classical novels (partial: see SOURCES.md)",
+  "source": "Project Gutenberg (US, public domain)",
+  "works": [
+    {
+      "ordinal": 1,
+      "ebook_id": 77416,
+      "expected_title": "three kingdoms",
+      "title_verified": true,
+      "source_url": "cached",
+      "file": "01_77416.txt",
+      "bytes": 1658359,
+      "sha256": "bc8ca79746fe1b7b2ad3bdc2bcb0f4b979b7ff10194201cfb4fb3ed2940e3953",
+      "words_est": 291792
+    },
+    {
+      "ordinal": 2,
+      "ebook_id": 23950,
+      "expected_title": "\u4e09\u570b",
+      "title_verified": true,
+      "source_url": "cached",
+      "file": "02_23950.txt",
+      "bytes": 1863656,
+      "sha256": "ed422e10c16c19af7ca7b09ca0320012e60776b3d7cb054769b8f7d9a19aea7d",
+      "words_est": 20640
+    }
+  ]
+}

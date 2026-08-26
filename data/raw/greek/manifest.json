@@ -1,0 +1,106 @@
+{
+  "corpus_id": "greek",
+  "title": "Greek and Roman mythological sources",
+  "source": "Project Gutenberg (US, public domain)",
+  "works": [
+    {
+      "ordinal": 1,
+      "ebook_id": 2199,
+      "expected_title": "Iliad",
+      "title_verified": true,
+      "source_url": "https://www.gutenberg.org/cache/epub/2199/pg2199.txt",
+      "file": "01_2199.txt",
+      "bytes": 928957,
+      "sha256": "72673dcefeaa5d302b4ac1cc9ce6fd0b236831e816de41391e5cfe138ab5b077",
+      "words_est": 155795
+    },
+    {
+      "ordinal": 2,
+      "ebook_id": 1727,
+      "expected_title": "Odyssey",
+      "title_verified": true,
+      "source_url": "https://www.gutenberg.org/cache/epub/1727/pg1727.txt",
+      "file": "02_1727.txt",
+      "bytes": 717784,
+      "sha256": "ffbdb29c3dda284b65c11243db1a98167826a70c81bca2ed4b6232f86c905fb9",
+      "words_est": 132609
+    },
+    {
+      "ordinal": 3,
+      "ebook_id": 348,
+      "expected_title": "Homeric Hymns",
+      "title_verified": true,
+      "source_url": "https://www.gutenberg.org/cache/epub/348/pg348.txt",
+      "file": "03_348.txt",
+      "bytes": 547932,
+      "sha256": "ba394b58b5c57fd137af888a20abf3d1c3515c273b0f29da4778484bb15349f2",
+      "words_est": 93873
+    },
+    {
+      "ordinal": 4,
+      "ebook_id": 31,
+      "expected_title": "Sophocles",
+      "title_verified": true,
+      "source_url": "https://www.gutenberg.org/cache/epub/31/pg31.txt",
+      "file": "04_31.txt",
+      "bytes": 245162,
+      "sha256": "be8419a2713178f45584eb7421760ff3e5b1a1af4a002cb5c53483ed37041794",
+      "words_est": 40510
+    },
+    {
+      "ordinal": 5,
+      "ebook_id": 14484,
+      "expected_title": "Seven Plays",
+      "title_verified": true,
+      "source_url": "https://www.gutenberg.org/cache/epub/14484/pg14484.txt",
+      "file": "05_14484.txt",
+      "bytes": 567010,
+      "sha256": "8899d0c146c0d15a77e491d7e695601f2a46cde304cac6ad3af1315b90e4e56b",
+      "words_est": 95940
+    },
+    {
+      "ordinal": 6,
+      "ebook_id": 8604,
+      "expected_title": "House of Atreus",
+      "title_verified": true,
+      "source_url": "https://www.gutenberg.org/cache/epub/8604/pg8604.txt",
+      "file": "06_8604.txt",
+      "bytes": 224101,
+      "sha256": "45a053562a54a4cd710a045029189de7e8d785d394064ffa048c26e509a5abaf",
+      "words_est": 37800
+    },
+    {
+      "ordinal": 7,
+      "ebook_id": 15081,
+      "expected_title": "Euripides",
+      "title_verified": true,
+      "source_url": "https://www.gutenberg.org/cache/epub/15081/pg15081.txt",
+      "file": "07_15081.txt",
+      "bytes": 896195,
+      "sha256": "7fd92e66679342d9214ee6861977c3ca1d89da92ddb0d83f32be22b523b56683",
+      "words_est": 156933
+    },
+    {
+      "ordinal": 8,
+      "ebook_id": 21765,
+      "expected_title": "Metamorphoses",
+      "title_verified": true,
+      "source_url": "https://www.gutenberg.org/cache/epub/21765/pg21765.txt",
+      "file": "08_21765.txt",
+      "bytes": 779972,
+      "sha256": "aa2ddc510fb57f7b5fffcb166144928422d28605e8273ca2ddd4c906df2e172c",
+      "words_est": 128393
+    },
+    {
+      "ordinal": 9,
+      "ebook_id": 26073,
+      "expected_title": "Metamorphoses",
+      "title_verified": true,
+      "source_url": "https://www.gutenberg.org/cache/epub/26073/pg26073.txt",
+      "file": "09_26073.txt",
+      "bytes": 853821,
+      "sha256": "6eb477505c6e19bbefbe0d78ba5a9642f661d5cbbbc5f754bfb3e45bc611ba35",
+      "words_est": 142520
+    }
+  ]
+}

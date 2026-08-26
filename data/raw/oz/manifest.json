@@ -1,0 +1,161 @@
+{
+  "corpus_id": "oz",
+  "title": "The Oz books (L. Frank Baum, 1900-1920)",
+  "source": "Project Gutenberg (US, public domain)",
+  "works": [
+    {
+      "ordinal": 1,
+      "ebook_id": 55,
+      "expected_title": "Wonderful Wizard of Oz",
+      "title_verified": true,
+      "source_url": "https://www.gutenberg.org/cache/epub/55/pg55.txt",
+      "file": "01_55.txt",
+      "bytes": 237232,
+      "sha256": "969bffab7740d4d8a0bac332d78bd0152ad4a40a2efc52f06c74a9bb6120be75",
+      "words_est": 42692
+    },
+    {
+      "ordinal": 2,
+      "ebook_id": 54,
+      "expected_title": "Marvelous Land of Oz",
+      "title_verified": true,
+      "source_url": "https://www.gutenberg.org/cache/epub/54/pg54.txt",
+      "file": "02_54.txt",
+      "bytes": 269667,
+      "sha256": "48e4dd66643ab160d986562d635b18aa4b8f3dc6d7d47d2796c108c2c8b60759",
+      "words_est": 44925
+    },
+    {
+      "ordinal": 3,
+      "ebook_id": 486,
+      "expected_title": "Ozma of Oz",
+      "title_verified": true,
+      "source_url": "https://www.gutenberg.org/cache/epub/486/pg486.txt",
+      "file": "03_486.txt",
+      "bytes": 239986,
+      "sha256": "a080860b4208ddf202930bb8ddfd52b37107b4f9689161c337483158cbb2dac4",
+      "words_est": 41762
+    },
+    {
+      "ordinal": 4,
+      "ebook_id": 420,
+      "expected_title": "Dorothy and the Wizard in Oz",
+      "title_verified": true,
+      "source_url": "https://www.gutenberg.org/cache/epub/420/pg420.txt",
+      "file": "04_420.txt",
+      "bytes": 255595,
+      "sha256": "3772b95e863dfeed32e8cb79d07494314e9ce12da99ee0f16a6e455e04628ffe",
+      "words_est": 45059
+    },
+    {
+      "ordinal": 5,
+      "ebook_id": 485,
+      "expected_title": "Road to Oz",
+      "title_verified": true,
+      "source_url": "https://www.gutenberg.org/cache/epub/485/pg485.txt",
+      "file": "05_485.txt",
+      "bytes": 244504,
+      "sha256": "57e6340f9708dc70fd151cc721c6493d482de63a47c27372dfe71409f8614664",
+      "words_est": 42361
+    },
+    {
+      "ordinal": 6,
+      "ebook_id": 517,
+      "expected_title": "Emerald City of Oz",
+      "title_verified": true,
+      "source_url": "https://www.gutenberg.org/cache/epub/517/pg517.txt",
+      "file": "06_517.txt",
+      "bytes": 324979,
+      "sha256": "15b6a0bc1a994f4ddb72326ac2900c4441192b15dd2e44145f3b7728bdb8a25c",
+      "words_est": 56766
+    },
+    {
+      "ordinal": 7,
+      "ebook_id": 955,
+      "expected_title": "Patchwork Girl of Oz",
+      "title_verified": true,
+      "source_url": "https://www.gutenberg.org/cache/epub/955/pg955.txt",
+      "file": "07_955.txt",
+      "bytes": 340089,
+      "sha256": "3afbd3ebb7b210cd6ac54943dc3b3f31a35a876fd10dbf0eb4891ff19b35937d",
+      "words_est": 60431
+    },
+    {
+      "ordinal": 8,
+      "ebook_id": 956,
+      "expected_title": "Tik-Tok of Oz",
+      "title_verified": true,
+      "source_url": "https://www.gutenberg.org/cache/epub/956/pg956.txt",
+      "file": "08_956.txt",
+      "bytes": 292933,
+      "sha256": "7c1fb05dd99b686ccb48b22af0ac4f7f630a692c2f5a332b56bdaf00d54931fe",
+      "words_est": 51246
+    },
+    {
+      "ordinal": 9,
+      "ebook_id": 957,
+      "expected_title": "Scarecrow of Oz",
+      "title_verified": true,
+      "source_url": "https://www.gutenberg.org/cache/epub/957/pg957.txt",
+      "file": "09_957.txt",
+      "bytes": 274787,
+      "sha256": "b74fa592636311c6e4aaf39b220e9125d953a5c67830db4117ea42e5dcaf3d24",
+      "words_est": 48805
+    },
+    {
+      "ordinal": 10,
+      "ebook_id": 958,
+      "expected_title": "Rinkitink in Oz",
+      "title_verified": true,
+      "source_url": "https://www.gutenberg.org/cache/epub/958/pg958.txt",
+      "file": "10_958.txt",
+      "bytes": 294417,
+      "sha256": "208a8c5ca5bc4866e2733386cf8a6ab6bf164e819d1e5c7272ca6076d4258063",
+      "words_est": 52244
+    },
+    {
+      "ordinal": 11,
+      "ebook_id": 959,
+      "expected_title": "Lost Princess of Oz",
+      "title_verified": true,
+      "source_url": "https://www.gutenberg.org/cache/epub/959/pg959.txt",
+      "file": "11_959.txt",
+      "bytes": 290342,
+      "sha256": "8ab421d6a150f40cf4d3f27ae0a3f008ad6ec067a211ef6b7606ab7a66ff9637",
+      "words_est": 50270
+    },
+    {
+      "ordinal": 12,
+      "ebook_id": 960,
+      "expected_title": "Tin Woodman of Oz",
+      "title_verified": true,
+      "source_url": "https://www.gutenberg.org/cache/epub/960/pg960.txt",
+      "file": "12_960.txt",
+      "bytes": 266524,
+      "sha256": "ca314bbcaf8203380550b5231caf397d67b1416b4f1bd55f3988e473d4eaa042",
+      "words_est": 47363
+    },
+    {
+      "ordinal": 13,
+      "ebook_id": 419,
+      "expected_title": "Magic of Oz",
+      "title_verified": true,
+      "source_url": "https://www.gutenberg.org/cache/epub/419/pg419.txt",
+      "file": "13_419.txt",
+      "bytes": 238583,
+      "sha256": "3d094e5d7269cd33545b44e7258bdb53aab277929c30c4c0cadd259a1c680ab6",
+      "words_est": 42388
+    },
+    {
+      "ordinal": 14,
+      "ebook_id": 961,
+      "expected_title": "Glinda of Oz",
+      "title_verified": true,
+      "source_url": "https://www.gutenberg.org/cache/epub/961/pg961.txt",
+      "file": "14_961.txt",
+      "bytes": 242710,
+      "sha256": "3ef2e564fe4f859d37518b2d6c7cf721ca7c918a420b3d70d2b388c2aa81cbf9",
+      "words_est": 42665
+    }
+  ]
+}

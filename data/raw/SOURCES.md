@@ -1,0 +1,167 @@
+# Raw corpora: where each text came from, and why it is here
+
+Everything in this directory is a verbatim download from Project Gutenberg. Nothing has been
+cleaned, split, or normalised. That is deliberate: the raw layer is the write-ahead log for
+everything downstream, so it stays byte-identical to what the source served and every later
+artifact can be rebuilt from it. Preprocessing into homogeneous datasets is a separate step
+and does not belong in this folder.
+
+Each corpus directory carries a `manifest.json` recording, per work, the source URL, byte
+count, sha256, and whether the title in the Gutenberg header matched what we expected. The
+manifest is what makes a work removable later: excluding it is a filter, not a rebuild.
+
+## Why these three corpora
+
+The project needs a test corpus where the right answers are knowable and the material is
+outside any model's training data in the parts that matter. Literature supplies both kinds of
+information the system stores: the story as it happened, and the facts about people and places
+that the story changes over time. Each corpus below was chosen to stress one specific part of
+the design, and they are ordered so that each adds exactly one new hard problem.
+
+**Oz is the control.** One author, one continuous canon, one narrator, no conflicting sources.
+Entity resolution across works is real but never adversarial, because Baum is not arguing with
+anyone. This is where the pipeline gets built.
+
+**Greek adds disagreement.** The same figures appear across independent sources written
+centuries apart, in two languages, that contradict each other on matters of fact. It also
+breaks the single time axis: source position and story time come apart, which forces the
+bitemporal distinction rather than allowing it to be optional.
+
+**Chinese adds a sourcing problem, honestly recorded.** It is last because it is the corpus we
+cannot currently assemble, and saying so is more useful than quietly substituting something else.
+
+## Oz (14 works, roughly 669,000 words)
+
+L. Frank Baum's fourteen canonical Oz novels, 1900 to 1920, all public domain in the United
+States by expiry of term. Files are numbered by publication order, which is also narrative
+order, so the file ordinal is directly usable as the `asserted_at` position.
+
+| # | Work | Gutenberg |
+|---|---|---|
+| 1 | The Wonderful Wizard of Oz | 55 |
+| 2 | The Marvelous Land of Oz | 54 |
+| 3 | Ozma of Oz | 486 |
+| 4 | Dorothy and the Wizard in Oz | 420 |
+| 5 | The Road to Oz | 485 |
+| 6 | The Emerald City of Oz | 517 |
+| 7 | The Patchwork Girl of Oz | 955 |
+| 8 | Tik-Tok of Oz | 956 |
+| 9 | The Scarecrow of Oz | 957 |
+| 10 | Rinkitink in Oz | 958 |
+| 11 | The Lost Princess of Oz | 959 |
+| 12 | The Tin Woodman of Oz | 960 |
+| 13 | The Magic of Oz | 419 |
+| 14 | Glinda of Oz | 961 |
+
+**The reason this corpus leads.** At the end of book 2, a boy named Tip is revealed to be
+Princess Ozma, transformed and hidden since infancy. Every fact asserted about Tip in book 2
+remains true of that period and is superseded thereafter, which exercises aliasing, entity
+merge, supersession and time-scoped truth in a single case. It arrives at book 2 rather than
+book 14, so the incremental update behaviour can be demonstrated with two documents instead of
+the whole series.
+
+Baum's world also has invented geography with stable internal structure (the Munchkin, Winkie,
+Quadling and Gillikin countries), a cast that persists and changes across all fourteen volumes,
+and an active community wiki to score induced structure against. Contamination falls sharply
+after book 1, which makes closed-book question certification easier in the later volumes rather
+than harder.
+
+**Known wrinkle.** The fourteen were digitised by different volunteers over about twenty years
+and do not share a chapter heading convention. At least three variants are present: `Chapter I`
+with the title on the following line, `Chapter One` with the title on the following line, and
+book 2, which uses no chapter marker at all and identifies chapters only by a bare title line
+under a `LIST OF CHAPTERS` table. Every book does carry a table of contents, so the chapter
+count from the table of contents is available as an automatic check on any splitter. Note that
+table of contents titles do not always match body titles exactly, so that check should compare
+counts and order rather than strings.
+
+## Greek and Roman sources (9 works, roughly 984,000 words)
+
+A shared pantheon across independent authors, translators and centuries. File ordinal here is
+**source position and not story time**, and the gap between those two is the reason this corpus
+is in the set.
+
+| # | Work | Author | Gutenberg |
+|---|---|---|---|
+| 1 | The Iliad | Homer | 2199 |
+| 2 | The Odyssey | Homer | 1727 |
+| 3 | Hesiod, the Homeric Hymns, and Homerica | Hesiod, trans. Evelyn-White | 348 |
+| 4 | Oedipus the King, Oedipus at Colonus, Antigone | Sophocles | 31 |
+| 5 | The Seven Plays in English Verse | Sophocles | 14484 |
+| 6 | The House of Atreus (the Oresteia) | Aeschylus | 8604 |
+| 7 | The Tragedies of Euripides, Volume I | Euripides | 15081 |
+| 8 | Metamorphoses, Books I to VII | Ovid | 21765 |
+| 9 | Metamorphoses, Books VIII to XV | Ovid | 26073 |
+
+**What this corpus supplies that Oz cannot.**
+
+Cross-language aliasing with free ground truth. Ovid names the same gods in Latin that Homer
+names in Greek. Odysseus and Ulysses, Zeus and Jupiter, Heracles and Hercules: hundreds of
+pairs that are unambiguously the same entity, spanning works, requiring no hand annotation.
+
+Genuine contradiction between sources. Euripides has Helen never reach Troy. Iphigenia is
+sacrificed in some accounts and rescued in others. A system that folds summaries together
+without asking which source said what will produce a confidently wrong answer here, and that
+failure is detectable rather than theoretical.
+
+Two clocks that visibly disagree. Hesiod describes the origin of the gods, Homer describes a
+war, Ovid retells events from across the whole span, and the tragedies revisit Homeric
+characters after Homer. There is no single ordinal that orders both when a thing happened and
+when a source asserted it.
+
+**Deliberately absent.** Apollodorus's *Bibliotheca* is not on Project Gutenberg. It was wanted
+because it is an ancient systematic mythography, effectively a pre-modern attempt at the same
+wiki this project induces, and would have allowed induced structure to be scored against both a
+modern wiki and an ancient one. Worth revisiting through another public domain source.
+
+**Translator note.** Translations were not held constant across this corpus and in one case not
+within an author. Entity naming will therefore vary by translator as well as by source, which is
+part of the difficulty rather than a defect, but it needs recording before any result is
+reported.
+
+## Chinese classical novels (2 works, incomplete)
+
+| # | Work | Detail | Gutenberg |
+|---|---|---|---|
+| 1 | San kuo, or Romance of the Three Kingdoms | trans. C. H. Brewitt-Taylor, 1925. **Volume 1 of 2 only.** | 77416 |
+| 2 | 三國志演義 | Chinese-language original, complete | 23950 |
+
+**This corpus is incomplete and should not be used for results in its current state.**
+
+The intent was a shared-universe wiki across Journey to the West, Water Margin and Three
+Kingdoms. Verification against Project Gutenberg found that neither *Journey to the West* nor
+*Water Margin* is available there in English at all, and that Three Kingdoms is present only as
+the first of two volumes.
+
+There is also a design point that was not obvious at the outset. The Four Great Classical Novels
+do not share a narrative universe. They share a cosmology and pantheon, the Jade Emperor and the
+celestial bureaucracy, but not their mortal casts. Cross-work entities would therefore be a
+specific identifiable subset rather than the general case, which is arguably a cleaner test but
+is not what was originally assumed.
+
+Paths worth investigating later, none of them as clean as a Gutenberg download: Internet Archive
+scans of Timothy Richard's 1913 abridgement of Journey to the West, with the caveats that it is
+abridged and OCR quality varies; the missing Brewitt-Taylor volume 2 under another catalogue
+entry; and the Chinese-language originals, which are complete and freely available and would
+double as a test of the model-agnostic claim on a non-English corpus.
+
+**Measurement warning already visible.** The word count recorded for the Chinese-language text
+is meaningless. It reports roughly 20,000 "words" for a 1.86 MB file because the count is
+whitespace-delimited and Chinese does not delimit words with whitespace. Any length-based
+metric, and any chunking rule expressed in words, needs a per-language definition before this
+corpus is used.
+
+## Copyright basis
+
+All works here are public domain in the United States by expiry of term. Project Gutenberg is
+United States based and conservative about status, so its hosting a text is itself a reasonable
+signal. This matters because the downstream artifacts are public: a preprint, a Kaggle notebook,
+a distributable harness, and a symposium demonstration.
+
+Two things were considered and excluded. Harry Potter is under copyright and cannot appear in
+any published artifact, though it remains the strongest candidate for a private working corpus
+because its community wiki is the best scoring target available. Robert E. Howard's Conan
+stories were excluded because their public domain status rests on copyright non-renewal rather
+than expiry of term, which is a per-story question requiring records research, the character
+name is separately trademarked and actively enforced, and much of the circulating text is a
+later edited version carrying its own copyright.
