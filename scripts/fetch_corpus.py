@@ -82,6 +82,29 @@ CORPORA = {
             (11, 830,   "Argonautica"),             # Apollonius: Jason, Medea, Heracles
             (12, 228,   "Aeneid"),                  # Virgil: Troy from the other side
             (13, 3327,  "Age of Fable"),            # Bulfinch, a 19th c. mythography
+            (14, 658,   "Fall of Troy"),            # Quintus: the Iliad-to-Odyssey gap
+            (15, 68946, "Pausanias"),               # Description of Greece, vol I
+            (16, 68680, "Pausanias"),               # Description of Greece, vol II
+            (17, 10717, "Pindar"),                  # often the earliest surviving version
+            # Euripides beyond volume I. He is the source that most often contradicts
+            # Homer, so coverage of him is coverage of the disagreement.
+            (18, 10523, "Alcestis"),
+            (19, 14322, "Electra"),
+            (20, 77336, "Hecuba"),
+            (21, 35451, "Medea"),
+            (22, 35173, "Bacchae"),
+            (23, 35171, "Trojan Women"),
+            (24, 5063,  "Iphigenia"),
+            (25, 35170, "Rhesus"),
+            (26, 8418,  "Hippolytus"),
+
+            # Not on Gutenberg; institutional scans from Archive.org. The two Loeb
+            # editions are BILINGUAL, so their OCR interleaves Greek or Latin with the
+            # English. That is a preprocessing problem, recorded rather than hidden.
+            (27, "library00apolgoog",      "library"),   # Apollodorus, Frazer 1921
+            (28, "apollodoruslibra02apol", "library"),   # Apollodorus, second volume
+            (29, "thebaidstatius00conggoog", "Thebaid"), # Statius, 1767 English verse
+            (30, "heroidesamores00ovid",   "Heroides"),  # Ovid, Loeb 1914
         ],
     },
 
@@ -134,6 +157,15 @@ CORPORA = {
             # in a dense kinship graph.
             (6, 9603, "Hung Lou Meng", 1892),
             (7, 9604, "Hung Lou Meng", 1892),
+
+            # The Chinese originals. These close every gap the English side cannot:
+            # complete, unabridged, unambiguously public domain. 封神演義 shares deities
+            # with 西遊記 (Nezha, Li Jing, Erlang Shen), which is the genuine cross-work
+            # entity overlap the Four Novels alone do not provide.
+            (8,  23863, "水滸", 1590),      # Water Margin
+            (9,  23962, "西遊", 1592),      # Journey to the West
+            (10, 24264, "紅樓夢", 1791),     # Dream of the Red Chamber
+            (11, 23910, "封神", 1605),      # Investiture of the Gods
         ],
     },
 }
@@ -198,7 +230,10 @@ def main(corpus_key):
             time.sleep(1)                      # be a decent citizen
 
         text = raw.decode("utf-8", errors="replace")
-        head = text[:1500]
+        # Gutenberg puts the title in the first line. Google Books scans on Archive.org
+        # open with ~2000 characters of digitisation boilerplate before the title page,
+        # so a narrow window reports a mismatch on a perfectly good download.
+        head = text[:1500] if isinstance(ebook_id, int) else text[:20000]
         ok = expect.lower() in head.lower()
         if not ok:
             first = next((l for l in head.splitlines() if l.strip()), "")

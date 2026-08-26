@@ -68,7 +68,7 @@
       "ebook_id": 9603,
       "expected_title": "Hung Lou Meng",
       "title_verified": true,
-      "source_url": "https://www.gutenberg.org/cache/epub/9603/pg9603.txt",
+      "source_url": "cached",
       "file": "06_9603.txt",
       "year": 1892,
       "bytes": 1066247,
@@ -80,12 +80,60 @@
       "ebook_id": 9604,
       "expected_title": "Hung Lou Meng",
       "title_verified": true,
-      "source_url": "https://www.gutenberg.org/cache/epub/9604/pg9604.txt",
+      "source_url": "cached",
       "file": "07_9604.txt",
       "year": 1892,
       "bytes": 1492259,
       "sha256": "3f73ddc245da226dc32d8a6e48c136e5ad55901da35486d3d0eb7481bb355966",
       "words_est": 262688
+    },
+    {
+      "ordinal": 8,
+      "ebook_id": 23863,
+      "expected_title": "\u6c34\u6ef8",
+      "title_verified": true,
+      "source_url": "https://www.gutenberg.org/cache/epub/23863/pg23863.txt",
+      "file": "08_23863.txt",
+      "year": 1590,
+      "bytes": 1632003,
+      "sha256": "9d5b723b57f462545d412593870e7f48157829777b9329350a29bc44fd654789",
+      "words_est": 18323
+    },
+    {
+      "ordinal": 9,
+      "ebook_id": 23962,
+      "expected_title": "\u897f\u904a",
+      "title_verified": true,
+      "source_url": "https://www.gutenberg.org/cache/epub/23962/pg23962.txt",
+      "file": "09_23962.txt",
+      "year": 1592,
+      "bytes": 2264069,
+      "sha256": "af3c9e408c0c58595b666ed9981b6fa1e9343f4bbc78309b1cb0818c32fc1f58",
+      "words_est": 26802
+    },
+    {
+      "ordinal": 10,
+      "ebook_id": 24264,
+      "expected_title": "\u7d05\u6a13\u5922",
+      "title_verified": true,
+      "source_url": "https://www.gutenberg.org/cache/epub/24264/pg24264.txt",
+      "file": "10_24264.txt",
+      "year": 1791,
+      "bytes": 2663455,
+      "sha256": "ff1526996bf4b81807651921a85e5c1c0f1d1d123c9fa4553057ba6a3ec72011",
+      "words_est": 38029
+    },
+    {
+      "ordinal": 11,
+      "ebook_id": 23910,
+      "expected_title": "\u5c01\u795e",
+      "title_verified": true,
+      "source_url": "https://www.gutenberg.org/cache/epub/23910/pg23910.txt",
+      "file": "11_23910.txt",
+      "year": 1605,
+      "bytes": 1820341,
+      "sha256": "390430ad7210e038614a50fe6e435be1ebb378f86017e0ab9a29558564b064fc",
+      "words_est": 6977
     }
   ]
 }
