@@ -48,3 +48,25 @@ Paywalled items: pull via ISU library using the DOI in the note.
 | hayesroth1985-blackboard-control.pdf | PAYWALLED - use DOI via library | - | Artificial Intelligence 26(3). DOI:10.1016/0004-3702(85)90063-3 (Elsevier) |
 | salemi2026-blackboard-llm.pdf | OK (2794 KB) | https://arxiv.org/pdf/2510.01285 | arXiv |
 | pollertlam2026-beyond-context-window.pdf | OK (329 KB) | https://arxiv.org/pdf/2603.04814 | arXiv |
+
+## Novelty reassessment sources, added 2026-08-26
+
+Papers found by adversarial search that occupy the two contributions named in
+`IT494_PLAN.md`. See `docs/14_novelty_reassessment.md` for what each one takes.
+None of these were surfaced by the 2026-08-19 survey; most predate it.
+
+| File | arXiv | Date | Title |
+|---|---|---|---|
+| `bai2025-autoschemakg.pdf` | 2505.23628 | 2025-05 | AutoSchemaKG: Autonomous Knowledge Graph Construction through Dynamic Schema Induction from Web-Scale Corpora |
+| `bian2025-llm-kg-construction-survey.pdf` | 2510.20345 | 2025-10 | LLM-empowered knowledge graph construction: A survey |
+| `yang2026-promem.pdf` | 2601.04463 | 2026-01 | Beyond Static Summarization: Proactive Memory Extraction for LLM Agents |
+| `li2026-evotaxo.pdf` | 2603.19711 | 2026-03 | EvoTaxo: Building and Evolving Taxonomy from Social Media Streams |
+| `cai2026-proactagent.pdf` | 2604.20572 | 2026-04 | Ask Only When Needed: Proactive Retrieval from Memory and Skills for Experience-Driven Lifelong Agents |
+| `xie2026-pask.pdf` | 2604.08000 | 2026-04 | PASK: Toward Intent-Aware Proactive Agents with Long-Term Memory |
+| `dasgupta2026-pkg-triple-extraction.pdf` | 2607.00003 | 2026-04 | From "Strings" to "Things" for Personal Knowledge Graphs: Evaluating LLM Triple Extraction for Recommendation Systems |
+| `ling2026-boosttaxo.pdf` | 2605.12520 | 2026-04 | BoostTaxo: Zero-Shot Taxonomy Induction via Boosting-Style Agentic Reasoning and Constraint-Aware Calibration |
+| `wang2026-cognifold.pdf` | 2605.13438 | 2026-05 | CogniFold: Always-On Proactive Memory via Cognitive Folding |
+| `fu2026-enpmr-bench.pdf` | 2605.27240 | 2026-05 | ENPMR-Bench: Benchmarking Proactive Memory Retrieval for Emotional Support Agents |
+| `chen2026-vitabench2.pdf` | 2605.27141 | 2026-05 | VitaBench 2.0: Evaluating Personalized and Proactive Agents in Long-Term User Interactions |
+| `hu2026-scope-scion.pdf` | 2607.21610 | 2026-05 | SCOPE and SCION: A Benchmark and an Auditable Reference Pipeline for Schema Induction and Fusion from Text |
+| `wu2026-proactive-memory-agent.pdf` | 2607.08716 | 2026-07 | Remember When It Matters: Proactive Memory Agent for Long-Horizon Agents |

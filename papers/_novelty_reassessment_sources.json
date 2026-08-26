@@ -1,0 +1,119 @@
+[
+  {
+    "arxiv": "2605.13438",
+    "file": "wang2026-cognifold.pdf",
+    "title": "CogniFold: Always-On Proactive Memory via Cognitive Folding",
+    "first_author": "Suli Wang",
+    "year": "2026",
+    "month": "05",
+    "bytes": 2923668
+  },
+  {
+    "arxiv": "2604.20572",
+    "file": "cai2026-proactagent.pdf",
+    "title": "Ask Only When Needed: Proactive Retrieval from Memory and Skills for Experience-Driven Lifelong Agents",
+    "first_author": "Yuxuan Cai",
+    "year": "2026",
+    "month": "04",
+    "bytes": 14700519
+  },
+  {
+    "arxiv": "2605.27240",
+    "file": "fu2026-enpmr-bench.pdf",
+    "title": "ENPMR-Bench: Benchmarking Proactive Memory Retrieval for Emotional Support Agents",
+    "first_author": "Xing Fu",
+    "year": "2026",
+    "month": "05",
+    "bytes": 2252348
+  },
+  {
+    "arxiv": "2601.04463",
+    "file": "yang2026-promem.pdf",
+    "title": "Beyond Static Summarization: Proactive Memory Extraction for LLM Agents",
+    "first_author": "Chengyuan Yang",
+    "year": "2026",
+    "month": "01",
+    "bytes": 1083676
+  },
+  {
+    "arxiv": "2604.08000",
+    "file": "xie2026-pask.pdf",
+    "title": "PASK: Toward Intent-Aware Proactive Agents with Long-Term Memory",
+    "first_author": "Zhifei Xie",
+    "year": "2026",
+    "month": "04",
+    "bytes": 3644574
+  },
+  {
+    "arxiv": "2605.27141",
+    "file": "chen2026-vitabench2.pdf",
+    "title": "VitaBench 2.0: Evaluating Personalized and Proactive Agents in Long-Term User Interactions",
+    "first_author": "Yuxin Chen",
+    "year": "2026",
+    "month": "05",
+    "bytes": 5572040
+  },
+  {
+    "arxiv": "2607.08716",
+    "file": "wu2026-proactive-memory-agent.pdf",
+    "title": "Remember When It Matters: Proactive Memory Agent for Long-Horizon Agents",
+    "first_author": "Yifan Wu",
+    "year": "2026",
+    "month": "07",
+    "bytes": 6882106
+  },
+  {
+    "arxiv": "2505.23628",
+    "file": "bai2025-autoschemakg.pdf",
+    "title": "AutoSchemaKG: Autonomous Knowledge Graph Construction through Dynamic Schema Induction from Web-Scale Corpora",
+    "first_author": "Jiaxin Bai",
+    "year": "2025",
+    "month": "05",
+    "bytes": 671648
+  },
+  {
+    "arxiv": "2607.21610",
+    "file": "hu2026-scope-scion.pdf",
+    "title": "SCOPE and SCION: A Benchmark and an Auditable Reference Pipeline for Schema Induction and Fusion from Text",
+    "first_author": "Miaobo Hu",
+    "year": "2026",
+    "month": "05",
+    "bytes": 816863
+  },
+  {
+    "arxiv": "2607.00003",
+    "file": "dasgupta2026-pkg-triple-extraction.pdf",
+    "title": "From \"Strings\" to \"Things\" for Personal Knowledge Graphs: Evaluating LLM Triple Extraction for Recommendation Systems",
+    "first_author": "Abhirup Dasgupta",
+    "year": "2026",
+    "month": "04",
+    "bytes": 856435
+  },
+  {
+    "arxiv": "2603.19711",
+    "file": "li2026-evotaxo.pdf",
+    "title": "EvoTaxo: Building and Evolving Taxonomy from Social Media Streams",
+    "first_author": "Yiyang Li",
+    "year": "2026",
+    "month": "03",
+    "bytes": 1016780
+  },
+  {
+    "arxiv": "2605.12520",
+    "file": "ling2026-boosttaxo.pdf",
+    "title": "BoostTaxo: Zero-Shot Taxonomy Induction via Boosting-Style Agentic Reasoning and Constraint-Aware Calibration",
+    "first_author": "Yancheng Ling",
+    "year": "2026",
+    "month": "04",
+    "bytes": 5290918
+  },
+  {
+    "arxiv": "2510.20345",
+    "file": "bian2025-llm-kg-construction-survey.pdf",
+    "title": "LLM-empowered knowledge graph construction: A survey",
+    "first_author": "Haonan Bian",
+    "year": "2025",
+    "month": "10",
+    "bytes": 929331
+  }
+]
