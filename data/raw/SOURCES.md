@@ -10,7 +10,7 @@ Each corpus directory carries a `manifest.json` recording, per work, the source 
 count, sha256, and whether the title in the Gutenberg header matched what we expected. The
 manifest is what makes a work removable later: excluding it is a filter, not a rebuild.
 
-## Why these three corpora
+## Why these corpora
 
 The project needs a test corpus where the right answers are knowable and the material is
 outside any model's training data in the parts that matter. Literature supplies both kinds of
@@ -22,9 +22,14 @@ the design, and they are ordered so that each adds exactly one new hard problem.
 Entity resolution across works is real but never adversarial, because Baum is not arguing with
 anyone. This is where the pipeline gets built.
 
-**Greek adds disagreement.** The same figures appear across independent sources written
-centuries apart, in two languages, that contradict each other on matters of fact. It also
-breaks the single time axis: source position and story time come apart, which forces the
+**Holmes adds contradiction inside one author.** Sixty works, one writer, recurring entities
+across all of them, and documented inconsistencies that Doyle never reconciled. It also
+supplies something no other corpus here does: a measurable gap between what the text says and
+what the surrounding culture believes, which turns it into a contamination probe.
+
+**Greek adds disagreement between authors.** The same figures appear across independent sources
+written centuries apart, in two languages, that contradict each other on matters of fact. It
+also breaks the single time axis: source position and story time come apart, which forces the
 bitemporal distinction rather than allowing it to be optional.
 
 **Chinese adds a sourcing problem, honestly recorded.** It is last because it is the corpus we
@@ -74,6 +79,59 @@ under a `LIST OF CHAPTERS` table. Every book does carry a table of contents, so 
 count from the table of contents is available as an automatic check on any splitter. Note that
 table of contents titles do not always match body titles exactly, so that check should compare
 counts and order rather than strings.
+
+## The Sherlock Holmes canon (9 volumes, 60 works, roughly 685,000 words)
+
+The complete canon: four novels and five story collections, 1887 to 1927. All of it is public
+domain in the United States, including *The Case-Book*, whose stories were the last to clear
+and did so on expiry of term rather than on any contested basis.
+
+| # | Volume | Gutenberg |
+|---|---|---|
+| 1 | A Study in Scarlet | 244 |
+| 2 | The Sign of the Four | 2097 |
+| 3 | The Adventures of Sherlock Holmes | 1661 |
+| 4 | The Memoirs of Sherlock Holmes | 834 |
+| 5 | The Hound of the Baskervilles | 2852 |
+| 6 | The Return of Sherlock Holmes | 108 |
+| 7 | The Valley of Fear | 3289 |
+| 8 | His Last Bow | 2350 |
+| 9 | The Case-Book of Sherlock Holmes | 69700 |
+
+**Position on the ladder.** Oz is one author with one continuous canon and no contradiction.
+Greek is many authors contradicting each other. Holmes sits between them: one author, sixty
+works, and contradictions he introduced himself and never fixed. Watson's war wound is in his
+shoulder in *A Study in Scarlet* and in his leg in *The Sign of the Four*. That is a
+supersession case with no reconciling reading available, inside a single-author corpus, which
+is a different and cleaner test than two ancient sources disagreeing.
+
+**The contamination probe, which is the real reason this corpus is here.** What the Holmes text
+says and what the culture believes have measurably diverged, and the divergences are specific
+and checkable:
+
+- The deerstalker cap does not appear in the text. It comes from Sidney Paget's magazine
+  illustrations.
+- The curved calabash pipe does not appear in the text. It comes from William Gillette's stage
+  performance. Doyle writes a black clay pipe, a cherrywood, and a briar.
+- "Elementary, my dear Watson" is not in the canon.
+- Watson in the text is an army surgeon invalided home from Afghanistan, not the elderly
+  bumbler of mid-century film.
+
+Holmes himself, by contrast, *is* described in the text: over six feet, excessively lean, sharp
+piercing eyes, a thin hawk-like nose, a square prominent chin.
+
+This gives a genuinely measurable instrument. If the system induces a character description from
+the corpus and that description contains a deerstalker, the description did not come from the
+corpus. It came from the model's parametric memory. The same test works on any downstream render:
+an image generated from an induced description is a **visible leak detector**, and a reader can
+judge it by looking rather than by reading a table of numbers.
+
+That property is worth stating plainly because it is rare. Most memory benchmarks can only
+detect this failure statistically, through question sets built to be answerable only from the
+store. Here the failure has a picture of it. Note that the description induction is the part
+this project's pipeline does, as a call against an entity page; rendering an image from that
+description is a downstream step through the same model interface, and the honest framing is
+that the render displays the result rather than producing it.
 
 ## Greek and Roman sources (9 works, roughly 984,000 words)
 

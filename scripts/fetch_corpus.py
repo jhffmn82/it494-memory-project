@@ -60,6 +60,24 @@ CORPORA = {
         ],
     },
 
+    # Holmes: the contamination probe. What the text says and what the culture
+    # believes have measurably diverged, so induced descriptions can be checked
+    # against the corpus rather than against received impression.
+    "holmes": {
+        "title": "The Sherlock Holmes canon (Doyle, 1887-1927)",
+        "works": [
+            (1, 244,   "Study in Scarlet"),
+            (2, 2097,  "Sign of the Four"),
+            (3, 1661,  "Adventures of Sherlock Holmes"),
+            (4, 834,   "Memoirs of Sherlock Holmes"),
+            (5, 2852,  "Hound of the Baskervilles"),
+            (6, 108,   "Return of Sherlock Holmes"),
+            (7, 3289,  "Valley of Fear"),
+            (8, 2350,  "His Last Bow"),
+            (9, 69700, "Case-Book of Sherlock Holmes"),
+        ],
+    },
+
     # Chinese: INCOMPLETE by necessity, not by choice. See data/raw/SOURCES.md.
     "chinese": {
         "title": "Chinese classical novels (partial: see SOURCES.md)",
