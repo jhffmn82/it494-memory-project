@@ -60,6 +60,7 @@ CORPORA = {
             (26, 73170, "Giant Horse of Oz", 1928),
             (27, 75720, "Jack Pumpkinhead of Oz", 1929),
             (28, 78637, "Yellow Knight of Oz", 1930),
+            (29, 21914, "Woggle-Bug", 1905),        # Oz character spinoff
         ],
     },
 
@@ -105,6 +106,11 @@ CORPORA = {
             (28, "apollodoruslibra02apol", "library"),   # Apollodorus, second volume
             (29, "thebaidstatius00conggoog", "Thebaid"), # Statius, 1767 English verse
             (30, "heroidesamores00ovid",   "Heroides"),  # Ovid, Loeb 1914
+            # Diodorus Siculus, Booth's English, 1814 printing. Books 1-6 are the
+            # mythological ones and are a genuine independent witness: he preserves
+            # variants the poets do not.
+            (31, "historicallibra00bootgoog", "Diodorus"),
+            (32, "historicallibra01bootgoog", "Diodorus"),
         ],
     },
 

@@ -362,6 +362,30 @@
       "bytes": 901490,
       "sha256": "553e5698a90d677ccab18982c70cb9ac980903d3960430ed1a5595e7a7dfc8da",
       "words_est": 139609
+    },
+    {
+      "ordinal": 31,
+      "ebook_id": "historicallibra00bootgoog",
+      "expected_title": "Diodorus",
+      "title_verified": true,
+      "source_url": "https://archive.org/download/historicallibra00bootgoog/historicallibra00bootgoog_djvu.txt",
+      "file": "31_historicallibra00bootgoog.txt",
+      "year": null,
+      "bytes": 2165200,
+      "sha256": "3b4b7dc0aa0da278e57b99ea4fb8e703f7d70d0d4f99026eb8fedc2045acafd4",
+      "words_est": 319681
+    },
+    {
+      "ordinal": 32,
+      "ebook_id": "historicallibra01bootgoog",
+      "expected_title": "Diodorus",
+      "title_verified": true,
+      "source_url": "https://archive.org/download/historicallibra01bootgoog/historicallibra01bootgoog_djvu.txt",
+      "file": "32_historicallibra01bootgoog.txt",
+      "year": null,
+      "bytes": 2116649,
+      "sha256": "7463dfa28fe503b39762fdc11db5da5620d4722f5c95346be1383b262f26df9e",
+      "words_est": 314041
     }
   ]
 }

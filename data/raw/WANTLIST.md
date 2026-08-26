@@ -166,15 +166,58 @@ to exist and has not been checked.
 
 ---
 
-## Summary of what is actually needed
+## Summary: nothing acquirable is still missing
 
-| Corpus | Have | Target | Blocked | Decisions open |
-|---|---|---|---|---|
-| Oz | 19 | 19, or 28 with Thompson | 0 | Thompson yes or no |
-| Holmes | 9 vols / 60 works | 60 | 0 | none |
-| Greek | 13 | ~21 | 0 to 1 | history and comedy in or out |
-| Chinese | 7 files / 3 novels | 4 novels | 1 whole novel, 2 partials | English incomplete, or Chinese complete |
+81 files, roughly 6.8M words. Everything not present is blocked, quality-degraded, or an open
+scope decision. Nothing is merely unfetched.
 
-The Greek hunt list is where the effort should go. Every item on it is public domain, exists,
-and is findable with the same Archive.org method that rescued Three Kingdoms. Nothing there is
-blocked, only unfetched.
+| Corpus | Files | Words | State |
+|---|---|---|---|
+| Oz | 29 | ~1.28M | Baum's 14, five companions, the Woggle-Bug Book, Thompson 1921-1930 |
+| Holmes | 9 | ~0.69M | The complete canon of sixty |
+| Greek | 32 | ~3.36M | Every major narrative source in public domain English |
+| Chinese | 11 | ~1.52M | Complete in Chinese, permanently partial in English |
+
+### Blocked: no public domain English source exists
+
+| Item | Why |
+|---|---|
+| Hyginus, *Fabulae* | Archive.org has it only in Latin. The standard English is Mary Grant, 1960 |
+| Nonnus, *Dionysiaca* | Only Greek and German editions predate 1931. Rouse's English Loeb is 1940 |
+| Water Margin, English | Earliest complete translation is Pearl Buck, 1933 |
+| Journey to the West, complete English | Richard 1913 is roughly one sixth. Complete is Yu, 1977 |
+| Dream of the Red Chamber, chapters 57-120 | Joly died before finishing. No other pre-1931 translation |
+
+### Blocked on quality rather than rights
+
+**Statius, *Thebaid*.** The 1767 English verse translation is public domain and downloaded, but
+the scan is unusable: 18th century printing uses the long s, which OCR renders as "f"
+throughout. A real line reads "It muft oertoly be an infinite Fleafure to perafe". Entity
+extraction on this would produce garbage. The 1928 Loeb (`volumeiithebaidb0002publ`) is cleaner
+but covers only books 5 to 12 and is bilingual. Recommend excluding Statius unless the Theban
+war becomes load-bearing.
+
+### Degraded but usable, recorded so it is not discovered later
+
+Bilingual Loeb editions interleave Greek or Latin with English in their OCR: both Apollodorus
+volumes and Ovid's Heroides. Three of the Chinese files and the Richard Journey to the West are
+OCR from page scans. The Three Kingdoms proofread duplicate exists precisely to put a number on
+what that costs.
+
+### Open scope decisions, not acquisition problems
+
+1. **Thompson's Oz books 1931 to 1939**, ten more volumes. Gutenberg carries several. Their
+   status rests on non-renewal rather than expiry, the basis this project rejected for Conan.
+2. **Herodotus, Plutarch, Aristophanes.** They touch the mythological corpus without being
+   sources for it. Recommend excluding.
+3. **Holmes apocrypha**, two short pieces, perhaps 2,000 words.
+4. **Machine-translating the Chinese originals.** Three Kingdoms can calibrate the error,
+   because it exists as Chinese original, human English translation, OCR and proofread text.
+
+### On what "comprehensive" means for Greek
+
+Greek has no natural boundary: there is a long tail of late antique mythographers, hymns and
+scholia. The stopping rule applied here is **sources that assert facts about the pantheon and
+heroes at narrative length, in public domain English.** By that rule the set is complete except
+for the two blocked items above. Visible tail not pursued: the Orphic Hymns (Taylor 1792) and
+Apuleius's Cupid and Psyche. Both could be added cheaply if coverage ever looks thin.
