@@ -10,7 +10,9 @@ Entry: the advisor meeting.
 2. Take three outcomes from the meeting: agreement on the harness scope, a reaction to the December paper target, and a ruling on the GAO EES preprint question (one paper or two this fall).
 3. Pick the model tiers for the sensitivity axis: one local 7B via Ollama, one mini-class API model, one frontier model. Install Ollama and confirm the local model runs.
 4. Nominate three candidate works for the cold-corpus test. Criteria, revised: long (a serial of several hundred thousand words is fine and better than a doorstopper standalone), fiction with entity structure and reveals, and carrying an ACTIVE COMMUNITY WIKI to score induced structure against. Popularity is acceptable because certification is per-question (bare tiers must fail each kept question closed-book), not per-work. No commitment yet; certification happens in Phase 3.
-5. Scaffold the build repo inside the project repo: `harness/` with the two interfaces stubbed (`embed(texts)`, `generate(prompt, schema)`), the run-row schema from the testing outline as a dataclass, and pytest wired. QA gate: the interfaces, about two pages, walked through.
+5. Scaffold the build repo inside the project repo: `harness/` with the two interfaces stubbed (`embed(texts)`, `generate(prompt, schema, tier)`), the run-row schema from the testing outline as a dataclass, and pytest wired. QA gate: the interfaces, about two pages, walked through.
+
+[Feasibility review recommends: consult-logging on the live mock lands in this phase, this week; the miss rate needs roughly four weeks of collection, and no phase below otherwise builds it.]
 
 Exit: decisions logged in the repo, empty harness that imports and passes a trivial test.
 Valve: none; this phase is small on purpose.
@@ -48,6 +50,8 @@ Entry: design document QA'd; contracts frozen; Fang has the metric sheet.
 
 Build order follows the five steps of the framework: ingest, organize, retrieve, inject, maintain, with the evaluation spine built alongside. One step per block, each ending in a QA authorship gate and a pytest suite. A calibration warning the student issued and the plan adopts: the hour boxes below are task-decomposition floors, the sums of the happy path, and real implementation by one person learning each stage runs several times higher; his own estimate for the full build is hundreds of hours, not thirty-five. The plan absorbs that two ways. The five-step build is a full-year deliverable, with fall's realistic reach being ingest and organize for one corpus plus the control-versus-one-arm comparison, and the later steps moving right as reality dictates. And the December paper is deliberately not hostage to the build: its anchor instrument, the counterfactual miss rate, runs on the live mock with consult-logging added and needs no harness at all, so the paper reports the instruments plus whatever pipeline slice exists by November 15. The boxes below stand as the decomposition and the build order, read as sequence, not as schedule.
 
+[Feasibility review recommends: re-scoping fall to the committed core (instruments on the mock, one two-arm archive comparison, the synthesis memo, the design document with the segmentation spec, the paper frozen November 15); it prices this phase at two to three times these boxes against a realistic 24 to 32 hour block.]
+
 1. INGEST (5h): the corpus adapters (chat transcripts, plain-text documents) feeding one document stream, then segmentation as a model call against the segment contract, with TextTiling as the deterministic comparison arm. Test: boundaries on three known transcripts and one book chapter, disagreements with the baseline explained in a note.
 2. ORGANIZE (13h), three sub-blocks: summaries (4h), segment to leaf against the summary contract, filed into the fixed two-level tree, rejection rate logged per model tier; entities (4h), extraction against the entity contract with the alias ledger, pronoun resolution as a bought model call, pages as quote-validated indexes; facts (5h), dated assertion rows per the Phase 1 schema with source pointers, the token-to-attribute merge recorded in a ledger rather than silent, rejection rate logged. This is the stage the OpenIE, canonicalization, and coreference reading governs.
 3. RETRIEVE (2h): tree routing (index, rollup, descend), entity and fact lookup, lexical fallback. Deliberately thin; retrieval is not the hard part and the design says so.
@@ -62,6 +66,8 @@ Valves, in cut order: the entity layer reduces to extraction-only (no pages) sav
 ## Phase 3. Measure and write (November 16 to December 7, about 12 hours, deliberately low-intensity)
 
 Entry: harness end-to-end. This window contains Test 2, Thanksgiving, HW4, and the application deadlines; everything here is runs and prose, no construction.
+
+[Feasibility review recommends: all fall measurement moves inside November 1 to 15 and the paper posts by November 15; this phase as scheduled sits in weeks the design brief declares dead.]
 
 1. Certify the question set per question: every bare tier runs the candidate set closed-book, and only questions all tiers fail survive; then ingest and run all arms (runs are cheap once built; evenings suffice). Score induced entities and timelines against the community wiki, adjudicating disagreements by the text.
 2. Run the archive slice with the corrected-facts band and the miss-rate instrument.

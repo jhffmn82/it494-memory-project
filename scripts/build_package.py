@@ -38,7 +38,9 @@ SECTIONS = [
     ("How information is modeled", ROOT / "docs" / "10_data_model.md"),
     ("Tentative build plan", ROOT / "docs" / "11_build_plan.md"),
     ("The wiki demo", ROOT / "docs" / "12_wiki_demo.md"),
+    ("Feasibility, reviewed antagonistically", ROOT / "docs" / "13_feasibility_review.md"),
 ]
+IMPL_ORDER = ["ingest", "organize", "retrieve-inject", "maintain", "spine", "wiki"]
 
 CSS = """
 @page { size: letter; margin: 25mm 22mm 22mm 22mm; }
@@ -114,6 +116,27 @@ def build():
         print_pdf(html, pdf)
         parts.append((title, pdf, len(PdfReader(str(pdf)).pages)))
         print(f"  ok: {title} ({parts[-1][2]} pp)")
+
+    # Implementation plans, one part, each plan on a fresh page
+    impl_dir = ROOT / "docs" / "impl"
+    impl_files = [impl_dir / f"{s}.md" for s in IMPL_ORDER if (impl_dir / f"{s}.md").exists()]
+    if impl_files:
+        chunks = []
+        for j, f in enumerate(impl_files):
+            body = markdown.markdown(f.read_text(encoding="utf-8"), extensions=["tables", "smarty"])
+            cls = "onepager" if j else "onepager-first"
+            chunks.append(f"<div class='{cls}'>{body}</div>")
+        html = work / "80_impl.html"
+        html.write_text(f"<!doctype html><meta charset='utf-8'><style>{CSS}</style>"
+                        f"<div class='section-eyebrow'>Part {len(SECTIONS) + 1}</div>"
+                        f"<h1>Implementation plans, step by step</h1>"
+                        f"<p>One plan per component in build order, each sanity-checked in place; "
+                        f"the check's findings close each plan.</p>" + "".join(chunks),
+                        encoding="utf-8")
+        pdf = work / "80_impl.pdf"
+        print_pdf(html, pdf)
+        parts.append(("Implementation plans", pdf, len(PdfReader(str(pdf)).pages)))
+        print(f"  ok: implementation plans ({parts[-1][2]} pp)")
 
     # One-pager appendix, alphabetical by slug, each on a fresh page
     op_files = sorted(OP.glob("*.md"))

@@ -24,7 +24,7 @@ Prepared by the assistant. The schema for every object the harness stores, with 
 
 **Fact row.** One JSONL line: `{fact_id, asserted_at: source_position, subject: entity_id, predicate, object, qualifiers, seg_id, quote, extracted_by_tier, contract_version}`. `asserted_at` is position in the corpus (chapter or session ordinal), not wall-clock, because narrative time is what supersession runs on.
 
-**Supersession.** Not a deletion and not an edit: a later row with the same subject and predicate marks the earlier row superseded, and the read rule is later-assertion-wins. Both rows remain, so "what was believed at chapter 3" is answerable. The worked example, which is also the demo's best moment:
+**Supersession.** Not a deletion and not an edit: a later row with the same subject and a functional predicate (the repo-checked list, `is_a` and kin; plural predicates like `member_of` never collide) marks the earlier row superseded, and the read rule is later-assertion-wins. Both rows remain, so "what was believed at chapter 3" is answerable. The worked example, which is also the demo's best moment:
 
 ```
 {f_0412, ch03, scabbers_e07, is_a, rat, {}, seg_031, "Scabbers the rat dozed..."}

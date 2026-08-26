@@ -64,7 +64,7 @@ Prepared by the assistant. The harness as one dataflow, organized by the five st
 
 **Inject.** The budget accountant assembles the context window from retrieved material under a hard token budget, in one of three strategies: top-k chunks (the control, naive RAG), tree-routed summaries, or the hybrid of summaries plus fact rows. Ordering follows the injection literature; every composition is logged as a run row.
 
-**Maintain.** Runs as a pass over the store, not per query: content-hash staleness marks nodes whose children changed, refold rewrites only those rollups, and supersession marks fact rows whose subject and predicate collide with a later row. Nothing is deleted; the superseding is itself stored.
+**Maintain.** Runs as a pass over the store, not per query: content-hash staleness marks nodes whose children changed, refold rewrites only those rollups, and supersession marks fact rows whose subject and functional predicate collide with a later row; `same_as` rows execute as entity merges, resolved as read-time redirects rather than rewritten rows. Nothing is deleted; the superseding is itself stored.
 
 **The evaluation spine** sits beside the pipeline, not after it: a question runner, an LLM judge on a different model tier than any writer, and the instruments (question bands, counterfactual miss rate, stale-serve rate) reading the same run rows everything else writes.
 
