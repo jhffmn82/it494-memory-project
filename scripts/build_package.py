@@ -38,7 +38,6 @@ SECTIONS = [
     ("How information is modeled", ROOT / "docs" / "10_data_model.md"),
     ("Tentative build plan", ROOT / "docs" / "11_build_plan.md"),
     ("The wiki demo", ROOT / "docs" / "12_wiki_demo.md"),
-    ("Feasibility, reviewed antagonistically", ROOT / "docs" / "13_feasibility_review.md"),
 ]
 IMPL_ORDER = ["ingest", "organize", "retrieve-inject", "maintain", "spine", "wiki"]
 
@@ -55,6 +54,9 @@ li { margin: 0 0 4pt 0; }
 table { border-collapse: collapse; font-size: 9.5pt; margin: 8pt 0; }
 th, td { border: 0.5pt solid #999; padding: 3pt 6pt; text-align: left; }
 code { font-family: Consolas, monospace; font-size: 9pt; }
+pre { white-space: pre-wrap; word-wrap: break-word; overflow-wrap: anywhere; }
+pre code { font-size: 8.5pt; }
+table { table-layout: fixed; width: 100%; word-wrap: break-word; overflow-wrap: anywhere; }
 blockquote { margin: 8pt 0 8pt 14pt; color: #444; }
 .section-eyebrow { font-family: Arial, sans-serif; font-size: 8pt;
   letter-spacing: 2px; text-transform: uppercase; color: #666; margin-bottom: 18pt; }
