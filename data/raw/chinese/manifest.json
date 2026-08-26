@@ -5,25 +5,58 @@
   "works": [
     {
       "ordinal": 1,
-      "ebook_id": 77416,
-      "expected_title": "three kingdoms",
+      "ebook_id": "sankuoorromanceo0001chbr",
+      "expected_title": "San Kuo",
       "title_verified": true,
       "source_url": "cached",
-      "file": "01_77416.txt",
-      "bytes": 1658359,
-      "sha256": "bc8ca79746fe1b7b2ad3bdc2bcb0f4b979b7ff10194201cfb4fb3ed2940e3953",
-      "words_est": 291792
+      "file": "01_sankuoorromanceo0001chbr.txt",
+      "bytes": 1489408,
+      "sha256": "e7f41b1a3d740a1815a8e1731e113e95ea11043c8b5cff65ac941255531ef0de",
+      "words_est": 269302
     },
     {
       "ordinal": 2,
+      "ebook_id": "sankuoorromanceo0000chbr",
+      "expected_title": "San Kuo",
+      "title_verified": true,
+      "source_url": "cached",
+      "file": "02_sankuoorromanceo0000chbr.txt",
+      "bytes": 1604650,
+      "sha256": "9fef11065ad94e919e22b1299270e3597c257d56f5208fef621749947314dc2a",
+      "words_est": 290304
+    },
+    {
+      "ordinal": 3,
+      "ebook_id": "cu31924074502034",
+      "expected_title": "mission to heaven",
+      "title_verified": true,
+      "source_url": "cached",
+      "file": "03_cu31924074502034.txt",
+      "bytes": 574945,
+      "sha256": "b0c6e386bb948019377ba3f2039e5642b3a8f8b73870b46648e8ac2de0370f56",
+      "words_est": 103171
+    },
+    {
+      "ordinal": 4,
       "ebook_id": 23950,
       "expected_title": "\u4e09\u570b",
       "title_verified": true,
       "source_url": "cached",
-      "file": "02_23950.txt",
+      "file": "04_23950.txt",
       "bytes": 1863656,
       "sha256": "ed422e10c16c19af7ca7b09ca0320012e60776b3d7cb054769b8f7d9a19aea7d",
       "words_est": 20640
+    },
+    {
+      "ordinal": 5,
+      "ebook_id": 77416,
+      "expected_title": "three kingdoms",
+      "title_verified": true,
+      "source_url": "https://www.gutenberg.org/cache/epub/77416/pg77416.txt",
+      "file": "05_77416.txt",
+      "bytes": 1658359,
+      "sha256": "bc8ca79746fe1b7b2ad3bdc2bcb0f4b979b7ff10194201cfb4fb3ed2940e3953",
+      "words_est": 291792
     }
   ]
 }

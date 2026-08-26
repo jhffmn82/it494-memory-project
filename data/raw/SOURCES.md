@@ -1,6 +1,7 @@
 # Raw corpora: where each text came from, and why it is here
 
-Everything in this directory is a verbatim download from Project Gutenberg. Nothing has been
+Everything in this directory is a verbatim download from Project Gutenberg or, where no
+Gutenberg edition exists, from an institutional scan on Archive.org. Nothing has been
 cleaned, split, or normalised. That is deliberate: the raw layer is the write-ahead log for
 everything downstream, so it stays byte-identical to what the source served and every later
 artifact can be rebuilt from it. Preprocessing into homogeneous datasets is a separate step
@@ -32,8 +33,11 @@ written centuries apart, in two languages, that contradict each other on matters
 also breaks the single time axis: source position and story time come apart, which forces the
 bitemporal distinction rather than allowing it to be optional.
 
-**Chinese adds a sourcing problem, honestly recorded.** It is last because it is the corpus we
-cannot currently assemble, and saying so is more useful than quietly substituting something else.
+**Chinese adds mixed source quality and one real hole.** Three Kingdoms is complete, but three
+of its five files are OCR from page scans rather than proofread transcription, and Water Margin
+has no public domain English translation in existence. It is last because it is the corpus whose
+inputs are least trustworthy, and because it carries a deliberate duplicate that turns OCR error
+into something measurable rather than assumed.
 
 ## Oz (14 works, roughly 669,000 words)
 
@@ -177,31 +181,69 @@ within an author. Entity naming will therefore vary by translator as well as by 
 part of the difficulty rather than a defect, but it needs recording before any result is
 reported.
 
-## Chinese classical novels (2 works, incomplete)
+## Chinese classical novels (5 files, roughly 975,000 words; one work still missing)
 
-| # | Work | Detail | Gutenberg |
+| # | Work | Source | Detail |
 |---|---|---|---|
-| 1 | San kuo, or Romance of the Three Kingdoms | trans. C. H. Brewitt-Taylor, 1925. **Volume 1 of 2 only.** | 77416 |
-| 2 | 三國志演義 | Chinese-language original, complete | 23950 |
+| 1 | San Kuo, volume 1 | Archive.org `sankuoorromanceo0001chbr` | Brewitt-Taylor, 1929 printing. Library scan, OCR. |
+| 2 | San Kuo, volume 2 | Archive.org `sankuoorromanceo0000chbr` | Brewitt-Taylor, 1929 printing. Library scan, OCR. |
+| 3 | A Mission to Heaven | Archive.org `cu31924074502034` | Timothy Richard, 1913. **Abridged**, roughly a sixth of the novel. |
+| 4 | 三國志演義 | Gutenberg 23950 | Chinese-language original, complete and unabridged. |
+| 5 | San Kuo, volume 1 again | Gutenberg 77416 | Proofread transcription of the 1925 printing. Deliberate duplicate of work 1. |
 
-**This corpus is incomplete and should not be used for results in its current state.**
+**Three Kingdoms is now complete in English.** Project Gutenberg carries only volume 1. Both
+volumes of the 1929 Brewitt-Taylor printing are held by Archive.org as a Graduate Theological
+Union scan, openly accessible and public domain on expiry of term. Together they are the whole
+novel, roughly 560,000 words.
 
-The intent was a shared-universe wiki across Journey to the West, Water Margin and Three
-Kingdoms. Verification against Project Gutenberg found that neither *Journey to the West* nor
-*Water Margin* is available there in English at all, and that Three Kingdoms is present only as
-the first of two volumes.
+**Two verification notes, both of which would have quietly poisoned the corpus.**
 
-There is also a design point that was not obvious at the outset. The Four Great Classical Novels
-do not share a narrative universe. They share a cosmology and pantheon, the Jade Emperor and the
+The Archive.org identifier suffixes are misleading. `sankuoorromanceo0001chbr` carries a
+`volume: 1` field and is volume 1; `sankuoorromanceo0000chbr` carries no volume field and is
+volume 2. This was settled by reading chapter content, not by trusting the labels: the first
+covers Li Ts'ui and Kuo Ssu in the early chapters, the second covers Liu Bei claiming the
+succession and attacking Wu, which is chapter eighty onward.
+
+Archive.org credits *A Mission to Heaven* to Li Zhichang, who wrote a **different** work whose
+English title is also rendered "Journey to the West", a Taoist travel account of Qiu Chuji's
+journey to Genghis Khan. That record is wrong. The text is signed "Timothy Richard, Shanghai,
+October 1913", uses the word Monkey 391 times and never mentions Genghis Khan, so it is the Wu
+Cheng'en novel. Do not trust that catalogue record if the corpus is ever rebuilt.
+
+**Work 5 is a deliberate duplicate and should not be deduplicated away.** Volume 1 exists here
+twice: once as Archive.org OCR of a page scan, once as a Gutenberg human-proofread
+transcription. That makes OCR error cost measurable rather than assumed. Run entity extraction
+over both and the difference between the two entity sets is the OCR tax, on identical content,
+with no annotation required. Given that three of the five files here are OCR, that number is
+worth having before any Chinese result is reported.
+
+**Water Margin is genuinely unavailable and this is not a search failure.** The first complete
+English translation is Pearl Buck's *All Men Are Brothers*, 1933, which is past the public
+domain line. Jackson's is 1937, Shapiro's is 1980. A search of Archive.org restricted to
+pre-1931 returned one Japanese adaptation from 1868 and one unvetted community upload. Pearl
+Buck's translation is on Archive.org, but in the `opensource` and `community` collections,
+meaning a user uploaded it rather than a library digitising a public domain work. It is not
+usable here.
+
+That collection field is the general heuristic worth keeping: `cornell`, `americana`,
+`graduatetheologicalunion` and similar are institutional digitisation programmes with rights
+review behind them, while `opensource` and `community` are user uploads with none. Archive.org
+hosting a file is not evidence that the file is public domain.
+
+**Why the gap exists at all.** English translation of Chinese vernacular fiction began too late
+to clear the copyright window. United States public domain currently reaches published works
+through 1930. Brewitt-Taylor's Three Kingdoms is 1925 and lands inside it. Everything else
+lands outside: Water Margin's first complete English translation is 1933, and Journey to the
+West had to wait until Waley's abridgement in 1942 and Anthony Yu's complete translation in
+1977. Compare Greek and Latin, translated continuously into English since the 1600s, which is
+why that corpus pulled nine works without difficulty. The novels themselves are 14th to 16th
+century and entirely public domain; this is purely a translation rights problem.
+
+**A design point that was not obvious at the outset.** The Four Great Classical Novels do not
+share a narrative universe. They share a cosmology and pantheon, the Jade Emperor and the
 celestial bureaucracy, but not their mortal casts. Cross-work entities would therefore be a
-specific identifiable subset rather than the general case, which is arguably a cleaner test but
-is not what was originally assumed.
-
-Paths worth investigating later, none of them as clean as a Gutenberg download: Internet Archive
-scans of Timothy Richard's 1913 abridgement of Journey to the West, with the caveats that it is
-abridged and OCR quality varies; the missing Brewitt-Taylor volume 2 under another catalogue
-entry; and the Chinese-language originals, which are complete and freely available and would
-double as a test of the model-agnostic claim on a non-English corpus.
+specific identifiable subset rather than the general case, which is arguably a cleaner test
+than was originally assumed, but it is not the same test.
 
 **Measurement warning already visible.** The word count recorded for the Chinese-language text
 is meaningless. It reports roughly 20,000 "words" for a 1.86 MB file because the count is

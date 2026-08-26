@@ -82,26 +82,60 @@ CORPORA = {
     "chinese": {
         "title": "Chinese classical novels (partial: see SOURCES.md)",
         "works": [
-            (1,  77416, "three kingdoms"),          # Brewitt-Taylor 1925, volume 1 of 2
-            (2,  23950, "三國"),            # Chinese-language original, complete
+            # Three Kingdoms, COMPLETE. Brewitt-Taylor 1929 printing, both volumes, from a
+            # Graduate Theological Union scan. Gutenberg has only volume 1 (#77416).
+            # Volume identity was confirmed from chapter content, not from the item labels:
+            # the identifier suffixes are misleading (0001 is vol 1, 0000 is vol 2).
+            (1, "sankuoorromanceo0001chbr", "San Kuo"),
+            (2, "sankuoorromanceo0000chbr", "San Kuo"),
+
+            # Journey to the West, ABRIDGED. Timothy Richard 1913, Cornell scan. Roughly a
+            # sixth of the novel. Archive.org credits this to Li Zhichang, who wrote a
+            # different work of the same English title; the text is signed by Richard and
+            # is the Wu Cheng'en novel. Do not trust that catalogue record.
+            (3, "cu31924074502034", "mission to heaven"),
+
+            # Chinese-language Three Kingdoms, complete and unabridged.
+            (4, 23950, "三國"),
+
+            # Volume 1 AGAIN, as a Gutenberg proofread transcription of the 1925 printing.
+            # Deliberate duplicate: the same content exists here as human-proofread text
+            # and as OCR (work 1), which makes OCR error cost measurable rather than
+            # assumed. Extract entities from both and the difference is the OCR tax.
+            (5, 77416, "three kingdoms"),
         ],
     },
 }
 
 
-def gutenberg_urls(ebook_id):
-    """Gutenberg has moved text files around over the years; try the known layouts."""
-    return [
-        f"https://www.gutenberg.org/cache/epub/{ebook_id}/pg{ebook_id}.txt",
-        f"https://www.gutenberg.org/files/{ebook_id}/{ebook_id}-0.txt",
-        f"https://www.gutenberg.org/files/{ebook_id}/{ebook_id}.txt",
-    ]
+def source_urls(work_id):
+    """An int is a Project Gutenberg ebook number; a string is an Archive.org identifier.
+
+    Gutenberg is preferred wherever it has the text: it serves proofread transcriptions.
+    Archive.org items here are library scans with OCR text, used only where no Gutenberg
+    edition exists. OCR quality is a real variable and is recorded in SOURCES.md.
+    """
+    if isinstance(work_id, int):
+        return [
+            f"https://www.gutenberg.org/cache/epub/{work_id}/pg{work_id}.txt",
+            f"https://www.gutenberg.org/files/{work_id}/{work_id}-0.txt",
+            f"https://www.gutenberg.org/files/{work_id}/{work_id}.txt",
+        ]
+    return [f"https://archive.org/download/{work_id}/{work_id}_djvu.txt"]
 
 
 def fetch(url):
-    req = urllib.request.Request(url, headers={"User-Agent": UA})
-    with urllib.request.urlopen(req, timeout=60) as r:
-        return r.read()
+    """requests, because the system CA bundle is stale and Archive.org redirects to a
+    CDN host that fails verification against it. requests uses certifi."""
+    try:
+        import requests
+        r = requests.get(url, headers={"User-Agent": UA}, timeout=180)
+        r.raise_for_status()
+        return r.content
+    except ImportError:
+        req = urllib.request.Request(url, headers={"User-Agent": UA})
+        with urllib.request.urlopen(req, timeout=180) as r:
+            return r.read()
 
 
 def main(corpus_key):
@@ -117,7 +151,7 @@ def main(corpus_key):
         if dest.exists():                      # idempotent: never refetch
             raw, used = dest.read_bytes(), "cached"
         else:
-            for url in gutenberg_urls(ebook_id):
+            for url in source_urls(ebook_id):
                 try:
                     raw, used = fetch(url), url
                     break
@@ -144,7 +178,7 @@ def main(corpus_key):
             "words_est": len(text.split()),
         })
         flag = "ok " if ok else "MISMATCH"
-        print(f"  [{ordinal:02d}] {flag} #{ebook_id:<6} {expect:<32} "
+        print(f"  [{ordinal:02d}] {flag} {str(ebook_id):<26} {expect:<30} "
               f"{len(raw):>8,} b  ~{len(text.split()):>7,} words")
 
     (out / "manifest.json").write_text(json.dumps(
