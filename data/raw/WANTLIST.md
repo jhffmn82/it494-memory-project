@@ -13,7 +13,7 @@ Status codes used throughout:
 
 ---
 
-## Oz: 19 of 19 on the current definition
+## Oz: 28 of 28. Baum's canon, his companions, and Thompson's run to 1930
 
 **Target definition.** Every work by Baum sharing characters or continuity with the Oz novels.
 Baum linked his own books deliberately, so the boundary is drawn at shared characters rather
@@ -48,19 +48,27 @@ one that merely recurs, and it exists here without being constructed.
 
 ### Scope decisions outstanding
 
-**Thompson's Oz books, 1922 to 1930.** Ruth Plumly Thompson wrote nine more Oz novels that are
-public domain on expiry of term: Kabumpo (1922), The Cowardly Lion (1923), Grampa (1924), The
-Lost King (1925), The Hungry Tiger (1926), The Gnome King (1927), The Giant Horse (1928), Jack
-Pumpkinhead (1929), The Yellow Knight (1930). A Project Gutenberg search did not return them, so
-they would need tracking down elsewhere.
+**RESOLVED, included.** Thompson's nine Oz novels from 1922 to 1930 are all HAVE: Kabumpo
+(#53765), The Cowardly Lion (#58765), Grampa (#61681), The Lost King (#65849), The Hungry Tiger
+(#70152), The Gnome King (#71273), The Giant Horse (#73170), Jack Pumpkinhead (#75720), The
+Yellow Knight (#78637). They are on Project Gutenberg after all; the earlier search that missed
+them used a bad query rather than proving absence.
 
-The argument for including them: the corpus goes from 14 volumes to 24, one continuous world,
-and it introduces a genuinely interesting property, which is a **change of author mid-canon**.
-Facts asserted by Thompson about Baum's characters are a different kind of evidence from facts
-Baum asserted, and no other corpus here has that.
+The reason they are in: **a change of author mid-canon.** A fact Thompson asserts about Baum's
+characters is a different class of evidence from one Baum asserted, and no other corpus in this
+project has that property. It also pays off directly in the wiki render, where colouring each
+assertion by its source work makes the authorial handover visible on the entity pages
+themselves.
 
-The argument against: it doubles the corpus for a set most readers would not call canonical,
-and the Oz wiki's coverage of the Thompson books is thinner than its coverage of Baum.
+**Still outstanding.** Thompson wrote ten more Oz books between 1931 and 1939, and Project
+Gutenberg carries several of them (Pirates, The Purple Prince, Ojo, Speedy, The Wishing Horse,
+Captain Salt, Handy Mandy, The Silver Princess, Ozoplaning). Those postdate the 1930 line, so
+their public domain status rests on copyright non-renewal rather than expiry of term. That is
+the same basis this project rejected for Conan, with one real difference: Project Gutenberg is
+a conservative United States host that has affirmatively cleared and published these, whereas
+nothing of Conan's appears on the United States site. Taking Gutenberg's hosting as the
+clearance signal is defensible and consistent with the heuristic used elsewhere here, but it is
+a weaker footing than the 1922 to 1930 books and should be recorded as such if they are added.
 
 **Baum's non-Oz fantasy.** The Master Key, The Enchanted Island of Yew, American Fairy Tales,
 Dot and Tot of Merryland, The Magical Monarch of Mo, Policeman Bluejay. Separate worlds with no

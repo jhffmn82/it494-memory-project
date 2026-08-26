@@ -188,7 +188,7 @@
       "ebook_id": 4356,
       "expected_title": "Sky Island",
       "title_verified": true,
-      "source_url": "https://www.gutenberg.org/cache/epub/4356/pg4356.txt",
+      "source_url": "cached",
       "file": "16_4356.txt",
       "year": 1912,
       "bytes": 330367,
@@ -230,6 +230,114 @@
       "bytes": 270173,
       "sha256": "edbae67361b0b75b896e5a5eed1838a814be528182a306ce3d703b6b7e1b71e0",
       "words_est": 45430
+    },
+    {
+      "ordinal": 20,
+      "ebook_id": 53765,
+      "expected_title": "Kabumpo in Oz",
+      "title_verified": true,
+      "source_url": "https://www.gutenberg.org/cache/epub/53765/pg53765.txt",
+      "file": "20_53765.txt",
+      "year": 1922,
+      "bytes": 302648,
+      "sha256": "1a659c0108821e044f00a0bf4f2ee0301f82d75932732f7202375365ce852a80",
+      "words_est": 49031
+    },
+    {
+      "ordinal": 21,
+      "ebook_id": 58765,
+      "expected_title": "Cowardly Lion of Oz",
+      "title_verified": true,
+      "source_url": "https://www.gutenberg.org/cache/epub/58765/pg58765.txt",
+      "file": "21_58765.txt",
+      "year": 1923,
+      "bytes": 289038,
+      "sha256": "29b2669851460440c6b0ef6e2669d44eb398c1bdcfb4bfc31e7ff7eb801cc0db",
+      "words_est": 49853
+    },
+    {
+      "ordinal": 22,
+      "ebook_id": 61681,
+      "expected_title": "Grampa in Oz",
+      "title_verified": true,
+      "source_url": "https://www.gutenberg.org/cache/epub/61681/pg61681.txt",
+      "file": "22_61681.txt",
+      "year": 1924,
+      "bytes": 265860,
+      "sha256": "b4860b96f299db515378f06acc5bb004b46dfae05e9fde70e4811152ed1f94b9",
+      "words_est": 44096
+    },
+    {
+      "ordinal": 23,
+      "ebook_id": 65849,
+      "expected_title": "Lost King of Oz",
+      "title_verified": true,
+      "source_url": "https://www.gutenberg.org/cache/epub/65849/pg65849.txt",
+      "file": "23_65849.txt",
+      "year": 1925,
+      "bytes": 270787,
+      "sha256": "e8637da9f3cbe22d7ebbaad597768a025daf0cdfcc7f3994cef93d88c1eb9205",
+      "words_est": 46072
+    },
+    {
+      "ordinal": 24,
+      "ebook_id": 70152,
+      "expected_title": "Hungry Tiger of Oz",
+      "title_verified": true,
+      "source_url": "https://www.gutenberg.org/cache/epub/70152/pg70152.txt",
+      "file": "24_70152.txt",
+      "year": 1926,
+      "bytes": 253782,
+      "sha256": "5932462debe1f3cdc87d0458308cb0ea6e38b2b85d92e8e72f2c5633469a7ab3",
+      "words_est": 43316
+    },
+    {
+      "ordinal": 25,
+      "ebook_id": 71273,
+      "expected_title": "Gnome King of Oz",
+      "title_verified": true,
+      "source_url": "https://www.gutenberg.org/cache/epub/71273/pg71273.txt",
+      "file": "25_71273.txt",
+      "year": 1927,
+      "bytes": 253955,
+      "sha256": "faf29e8a6499381f89382226af9e5bcb707afe522a8d9fbf1ed98200828f7806",
+      "words_est": 42035
+    },
+    {
+      "ordinal": 26,
+      "ebook_id": 73170,
+      "expected_title": "Giant Horse of Oz",
+      "title_verified": true,
+      "source_url": "https://www.gutenberg.org/cache/epub/73170/pg73170.txt",
+      "file": "26_73170.txt",
+      "year": 1928,
+      "bytes": 246338,
+      "sha256": "7c406bc274649a7823a63e5942180a56578317bf705362f09c1791a4a8dd391b",
+      "words_est": 41888
+    },
+    {
+      "ordinal": 27,
+      "ebook_id": 75720,
+      "expected_title": "Jack Pumpkinhead of Oz",
+      "title_verified": true,
+      "source_url": "https://www.gutenberg.org/cache/epub/75720/pg75720.txt",
+      "file": "27_75720.txt",
+      "year": 1929,
+      "bytes": 238478,
+      "sha256": "fd0d5933f6c2f71db2dd3ce89886b5258235387cac3da904fc02e77ed9164dd3",
+      "words_est": 40416
+    },
+    {
+      "ordinal": 28,
+      "ebook_id": 78637,
+      "expected_title": "Yellow Knight of Oz",
+      "title_verified": true,
+      "source_url": "https://www.gutenberg.org/cache/epub/78637/pg78637.txt",
+      "file": "28_78637.txt",
+      "year": 1930,
+      "bytes": 274164,
+      "sha256": "bae80ef7a6cc3339a7215c7695f439b7c604b1f31758767ed34e62914fb73a9b",
+      "words_est": 46137
     }
   ]
 }

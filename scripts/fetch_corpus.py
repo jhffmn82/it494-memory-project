@@ -46,6 +46,20 @@ CORPORA = {
             (17, 25519, "Little Wizard Stories", 1913),
             (18, 520,   "Santa Claus", 1902),      # Santa attends Ozma's party in book 5
             (19, 30537, "Royal Book of Oz", 1921), # Thompson, credited to Baum
+
+            # Thompson's Oz run, 1922-1930. Public domain by expiry of term, same basis
+            # as Baum. The reason they are here is the change of author mid-canon: a fact
+            # Thompson asserts about Baum's characters is a different class of evidence
+            # from one Baum asserted, and no other corpus in this project has that.
+            (20, 53765, "Kabumpo in Oz", 1922),
+            (21, 58765, "Cowardly Lion of Oz", 1923),
+            (22, 61681, "Grampa in Oz", 1924),
+            (23, 65849, "Lost King of Oz", 1925),
+            (24, 70152, "Hungry Tiger of Oz", 1926),
+            (25, 71273, "Gnome King of Oz", 1927),
+            (26, 73170, "Giant Horse of Oz", 1928),
+            (27, 75720, "Jack Pumpkinhead of Oz", 1929),
+            (28, 78637, "Yellow Knight of Oz", 1930),
         ],
     },
 
