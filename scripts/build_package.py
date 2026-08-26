@@ -34,6 +34,10 @@ SECTIONS = [
     ("End product, test data, and records", ROOT / "docs" / "06_end_product_and_testing.md"),
     ("Anatomy of the mock", ROOT / "docs" / "07_pipeline_anatomy.md"),
     ("The plan, in phases", ROOT / "docs" / "08_plan_of_record.md"),
+    ("How it pipes together", ROOT / "docs" / "09_architecture.md"),
+    ("How information is modeled", ROOT / "docs" / "10_data_model.md"),
+    ("Tentative build plan", ROOT / "docs" / "11_build_plan.md"),
+    ("The wiki demo", ROOT / "docs" / "12_wiki_demo.md"),
 ]
 
 CSS = """
