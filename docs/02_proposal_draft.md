@@ -1,7 +1,5 @@
 # IT 494 project proposal, pre-research draft
 
-Drafted from my own notes and records for my correction. Not yet reviewed.
-
 ## What I have running and what it has done
 
 Every conversation I have with an AI is saved as a raw transcript and never edited. At the end of a working session a summary gets written and filed into a tree, organized by area of my life and then by topic. Those summaries roll up, so a higher level can answer a question without reading everything underneath it. A maintenance pass runs on a schedule: it folds in new material, audits a rotating subset of summaries against the original transcripts, and re-summarizes anything whose source changed after it was written. Nothing is deleted. Children fold up into parents and redundant siblings merge, so what has to be read stays bounded while the detail stays recoverable at the bottom. It is wired into my tools, so a new chat starts knowing the map exists and can search it.

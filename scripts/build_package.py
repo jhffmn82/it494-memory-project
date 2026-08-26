@@ -27,7 +27,6 @@ EDGE = next((p for p in EDGE_CANDIDATES if Path(p).exists()), None)
 SECTIONS = [
     ("The proposal, before the research", ROOT / "docs" / "02_proposal_draft.md"),
     ("Reading list", ROOT / "reading-list.md"),
-    ("The literature, work by work", ROOT / "docs" / "03_digest.md"),
     ("The field, by problem", ROOT / "docs" / "01_topic_narrative.md"),
     ("Ways the research could elevate the project", ROOT / "docs" / "04_elevation_options.md"),
     ("Three shapes the project could take", ROOT / "docs" / "05_project_shapes.md"),
@@ -39,6 +38,7 @@ SECTIONS = [
     ("Tentative build plan", ROOT / "docs" / "11_build_plan.md"),
     ("The wiki demo", ROOT / "docs" / "12_wiki_demo.md"),
 ]
+DIGEST = ("The literature, work by work", ROOT / "docs" / "03_digest.md")
 IMPL_ORDER = ["ingest", "organize", "retrieve-inject", "maintain", "spine", "wiki"]
 
 CSS = """
@@ -66,12 +66,12 @@ a { color: inherit; text-decoration: none; }
 """
 
 COVER = """
-<div style="margin-top:70mm; text-align:left;">
-<div style="font-family:Arial,sans-serif; font-size:8pt; letter-spacing:3px; text-transform:uppercase; color:#666;">IT 494 &middot; Phase 1 &middot; Research and Proposal</div>
+<div style="margin-top:75mm; text-align:left;">
+<div style="font-family:Arial,sans-serif; font-size:8pt; letter-spacing:3px; text-transform:uppercase; color:#666;">IT 494 &middot; Research and Proposal &middot; Phase 1</div>
 <h1 style="font-size:26pt; margin-top:10pt; line-height:1.2;">Persistent Memory for Stateless Models</h1>
-<div style="font-size:12pt; margin-top:6pt; color:#333;">A research package: proposal, literature, and candidate directions</div>
-<div style="margin-top:30mm; font-size:10.5pt;">Justin Hoffman<br>Illinois State University, MS Computer Science<br>Supervisor: Dr. Xing Fang</div>
-<div style="margin-top:6mm; font-size:9pt; color:#555;">Assembled {date}. Literature summaries were produced with LLM assistance from the source documents and verified citations; the proposal is the author's own, drafted before the literature review. See the provenance note inside each part.</div>
+<div style="font-size:12pt; margin-top:6pt; color:#333;">Proposal, literature review, and project plan</div>
+<div style="margin-top:32mm; font-size:10.5pt;">Justin Hoffman<br>Illinois State University, MS Computer Science<br>Supervisor: Dr. Xing Fang<br>{date}</div>
+<div style="margin-top:8mm; font-size:8.5pt; color:#777;">Literature summaries assembled with AI assistance; all citations verified against source publications.</div>
 </div>
 """
 
@@ -132,13 +132,21 @@ def build():
         html.write_text(f"<!doctype html><meta charset='utf-8'><style>{CSS}</style>"
                         f"<div class='section-eyebrow'>Part {len(SECTIONS) + 1}</div>"
                         f"<h1>Implementation plans, step by step</h1>"
-                        f"<p>One plan per component in build order, each sanity-checked in place; "
-                        f"the check's findings close each plan.</p>" + "".join(chunks),
+                        f"<p>One plan per component, in build order.</p>" + "".join(chunks),
                         encoding="utf-8")
         pdf = work / "80_impl.pdf"
         print_pdf(html, pdf)
         parts.append(("Implementation plans", pdf, len(PdfReader(str(pdf)).pages)))
         print(f"  ok: implementation plans ({parts[-1][2]} pp)")
+
+    # Digest, second to last, before the one-pager appendix
+    title, src = DIGEST
+    html = work / "85_digest.html"
+    html.write_text(md_to_html(src.read_text(encoding="utf-8"), f"Part {len(SECTIONS) + 2}"), encoding="utf-8")
+    pdf = work / "85_digest.pdf"
+    print_pdf(html, pdf)
+    parts.append((title, pdf, len(PdfReader(str(pdf)).pages)))
+    print(f"  ok: {title} ({parts[-1][2]} pp)")
 
     # One-pager appendix, alphabetical by slug, each on a fresh page
     op_files = sorted(OP.glob("*.md"))
