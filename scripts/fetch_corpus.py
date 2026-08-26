@@ -39,6 +39,13 @@ CORPORA = {
             (12, 960,   "Tin Woodman of Oz"),
             (13, 419,   "Magic of Oz"),
             (14, 961,   "Glinda of Oz"),
+            # Companion works in the same continuity. Ordinal here is file order, not
+            # publication order; see the `year` field for the real sequence.
+            (15, 48778, "Sea Fairies", 1911),      # Trot and Cap'n Bill introduced
+            (16, 4356,  "Sky Island", 1912),   # 21159 has no plain-text format       # Trot, Cap'n Bill, Button-Bright
+            (17, 25519, "Little Wizard Stories", 1913),
+            (18, 520,   "Santa Claus", 1902),      # Santa attends Ozma's party in book 5
+            (19, 30537, "Royal Book of Oz", 1921), # Thompson, credited to Baum
         ],
     },
 
@@ -57,6 +64,10 @@ CORPORA = {
             (7,  15081, "Euripides"),               # Tragedies, volume I
             (8,  21765, "Metamorphoses"),           # Ovid, books I-VII
             (9,  26073, "Metamorphoses"),           # Ovid, books VIII-XV
+            (10, 8714,  "Aeschylus"),               # the plays outside the Oresteia
+            (11, 830,   "Argonautica"),             # Apollonius: Jason, Medea, Heracles
+            (12, 228,   "Aeneid"),                  # Virgil: Troy from the other side
+            (13, 3327,  "Age of Fable"),            # Bulfinch, a 19th c. mythography
         ],
     },
 
@@ -103,6 +114,12 @@ CORPORA = {
             # and as OCR (work 1), which makes OCR error cost measurable rather than
             # assumed. Extract entities from both and the difference is the OCR tax.
             (5, 77416, "three kingdoms"),
+
+            # Dream of the Red Chamber, PARTIAL. Joly 1892 rendered roughly the first
+            # 56 of 120 chapters. The fourth Great Classical Novel; ~400 named characters
+            # in a dense kinship graph.
+            (6, 9603, "Hung Lou Meng", 1892),
+            (7, 9604, "Hung Lou Meng", 1892),
         ],
     },
 }
@@ -144,7 +161,9 @@ def main(corpus_key):
     out.mkdir(parents=True, exist_ok=True)
     manifest, failures = [], []
 
-    for ordinal, ebook_id, expect in spec["works"]:
+    for work in spec["works"]:
+        ordinal, ebook_id, expect = work[0], work[1], work[2]
+        year = work[3] if len(work) > 3 else None
         dest = out / f"{ordinal:02d}_{ebook_id}.txt"
         raw, used = None, None
 
@@ -174,6 +193,7 @@ def main(corpus_key):
         manifest.append({
             "ordinal": ordinal, "ebook_id": ebook_id, "expected_title": expect,
             "title_verified": ok, "source_url": used, "file": dest.name,
+            "year": year,
             "bytes": len(raw), "sha256": hashlib.sha256(raw).hexdigest(),
             "words_est": len(text.split()),
         })

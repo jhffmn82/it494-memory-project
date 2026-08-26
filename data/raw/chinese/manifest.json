@@ -10,6 +10,7 @@
       "title_verified": true,
       "source_url": "cached",
       "file": "01_sankuoorromanceo0001chbr.txt",
+      "year": null,
       "bytes": 1489408,
       "sha256": "e7f41b1a3d740a1815a8e1731e113e95ea11043c8b5cff65ac941255531ef0de",
       "words_est": 269302
@@ -21,6 +22,7 @@
       "title_verified": true,
       "source_url": "cached",
       "file": "02_sankuoorromanceo0000chbr.txt",
+      "year": null,
       "bytes": 1604650,
       "sha256": "9fef11065ad94e919e22b1299270e3597c257d56f5208fef621749947314dc2a",
       "words_est": 290304
@@ -32,6 +34,7 @@
       "title_verified": true,
       "source_url": "cached",
       "file": "03_cu31924074502034.txt",
+      "year": null,
       "bytes": 574945,
       "sha256": "b0c6e386bb948019377ba3f2039e5642b3a8f8b73870b46648e8ac2de0370f56",
       "words_est": 103171
@@ -43,6 +46,7 @@
       "title_verified": true,
       "source_url": "cached",
       "file": "04_23950.txt",
+      "year": null,
       "bytes": 1863656,
       "sha256": "ed422e10c16c19af7ca7b09ca0320012e60776b3d7cb054769b8f7d9a19aea7d",
       "words_est": 20640
@@ -52,11 +56,36 @@
       "ebook_id": 77416,
       "expected_title": "three kingdoms",
       "title_verified": true,
-      "source_url": "https://www.gutenberg.org/cache/epub/77416/pg77416.txt",
+      "source_url": "cached",
       "file": "05_77416.txt",
+      "year": null,
       "bytes": 1658359,
       "sha256": "bc8ca79746fe1b7b2ad3bdc2bcb0f4b979b7ff10194201cfb4fb3ed2940e3953",
       "words_est": 291792
+    },
+    {
+      "ordinal": 6,
+      "ebook_id": 9603,
+      "expected_title": "Hung Lou Meng",
+      "title_verified": true,
+      "source_url": "https://www.gutenberg.org/cache/epub/9603/pg9603.txt",
+      "file": "06_9603.txt",
+      "year": 1892,
+      "bytes": 1066247,
+      "sha256": "43ee78ed77b5976022e9bfbce8ac678fabc4d5113405e2cca7cd06f0889c3737",
+      "words_est": 187632
+    },
+    {
+      "ordinal": 7,
+      "ebook_id": 9604,
+      "expected_title": "Hung Lou Meng",
+      "title_verified": true,
+      "source_url": "https://www.gutenberg.org/cache/epub/9604/pg9604.txt",
+      "file": "07_9604.txt",
+      "year": 1892,
+      "bytes": 1492259,
+      "sha256": "3f73ddc245da226dc32d8a6e48c136e5ad55901da35486d3d0eb7481bb355966",
+      "words_est": 262688
     }
   ]
 }
