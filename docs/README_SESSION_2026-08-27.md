@@ -17,6 +17,7 @@ current understanding, not final decisions.
 | **`22_project1_fall_plan.md`** | Project 1: backend, evaluation, paper |
 | **`23_project2_spring_plan.md`** | Project 2: the distributable. Separate project |
 | **`24_unit_contract.md`** | **FROZEN.** The one schema element preprocessing needs |
+| **`25_paper_argument.md`** | The spine that survived seven novelty searches. Requirements from deployment, measured coverage gap, borrow openly, measure the design space |
 
 ## Superseded, kept for the record
 
@@ -46,7 +47,9 @@ Every contribution the plan named is occupied. Searched and confirmed 2026-08-26
 thread; this design places a unit in N threads at full weight) · the three corpus controls ·
 whether per-stage tier sensitivity has been *measured* rather than named.
 
-**No positioning document was written.** Inventing a claim would be the failure mode this
+**A positioning document now exists: `25_paper_argument.md`.** It was not written to fill a gap; it is what was left standing after seven candidate contributions were found occupied. Original note follows.
+
+**No positioning document was written** during the first pass. Inventing a claim would be the failure mode this
 session repeatedly corrected for. What the project is called is a decision for Justin and
 Dr. Fang, and it is Phase 0 item 1 in `docs/22`.
 
