@@ -134,3 +134,71 @@ of five engines is a warning about RDF stores, not about us.
 for describing the system in prose, but it does not map onto storage: our units are episodic, our
 facts and abstracts are semantic, and we have no procedural memory at all. Adopting it as schema
 would add a field that never varies usefully.
+
+---
+
+## References
+
+Bibliographic details extracted from the PDFs in `papers/`, not recalled. Where a venue could
+not be confirmed from the document itself it is marked **[verify]** and must be checked before
+it appears in a submitted bibliography.
+
+**Angles, Renzo. "The Property Graph Database Model."**
+Dept. of Computer Science, Universidad de Talca, Chile; Center for Semantic Web Research.
+Single author, not "et al." Venue **[verify]** — believed AMW 2018 (Alberto Mendelzon
+International Workshop on Foundations of Data Management), CEUR-WS. No DOI in the document.
+Local: `papers/angles2018-property-graph-model.pdf`.
+
+- *Property graph data structure* — **Definition 1**: `G = (N, E, ρ, λ, σ)`
+- *Schema, including δ* — **Definition 2**: `S = (TN, TE, β, δ)`, where δ is "a partial function
+  that defines the edge types allowed between a given pair of node types"
+
+**Rost, Christopher; Fritzsche, Philip; Schons, Lucas; Zimmer, Maximilian; Gawlick, Dieter;
+Rahm, Erhard. "Bitemporal Property Graphs to Organize Evolving Systems."**
+Subtitle: "Towards the development of a graph model, database, and query language to represent,
+store, and query bitemporal graphs." University of Leipzig / ScaDS.AI Dresden-Leipzig / Oracle.
+21 pages. Venue and year **[verify]** — no DOI or venue string in the document.
+Local: `papers/rost2021-bitemporal-property-graphs.pdf`.
+
+- *Period identifiers and interval convention* — **~p. 6–7**: `VAL_TIME` / `TX_TIME` domains,
+  bounds `VAL_FROM`/`VAL_TO` and `TX_FROM`/`TX_TO`, textual form `[{from},{to})`, lower bound
+  inclusive and upper exclusive, "like in SQL, not a data type but a type definition"
+- *Property-level temporal attributes* — same section: `var1.prop1.TX_FROM` as a valid access path
+
+**Vrandečić, Denny; Krötzsch, Markus. "Wikidata: A Free Collaborative Knowledgebase."**
+*Communications of the ACM* **57**(10), October 2014, pp. 78–85. **DOI: 10.1145/2629489**.
+Fully verified from the document. Local: `papers/vrandecic2014-wikidata.pdf`.
+
+- *Qualifiers* — the subordinate property-value pair model, including the Meryl Streep /
+  Margaret Thatcher / *The Iron Lady* ternary-relation example
+- *Ranks* — preferred / normal / deprecated. **[verify]** the exact page; the rank discussion was
+  not in the extracted span used here and should be located before citing
+
+**Rezazadeh, Alireza; Li, Zichao; Lou, Ange; Zhao, Yuying; Wei, Wei; Bao, Yujia.
+"Collaborative Memory: Multi-User Memory Sharing in LLM Agents with Dynamic Access Control."**
+Center for Advanced AI, Accenture. **arXiv:2505.18279v1** [cs.MA], 23 May 2025.
+Local: `papers/rezazadeh2025-collaborative-memory.pdf`.
+
+- *Two-tier memory, immutable provenance, read-time policy projection* — abstract and
+  related-work section, **~p. 3**: "Each fragment carries immutable provenance attributes
+  (contributing agents, accessed resources, and timestamps) to support retrospective permission
+  checks"
+- *Dynamic access graph* — same section: "time-varying bipartite graphs between users, agents,
+  and resources"
+
+### Cited in "deliberately not adopted"
+
+**Hernández, Daniel; Hogan, Aidan; Krötzsch, Markus.** Reification schemes over Wikidata,
+comparing singleton properties, named graphs, n-ary relations and standard reification across
+five engines. Full citation **[verify]** — not extracted for this pass.
+Local: `papers/hernandez2015-reifying-rdf-wikidata.pdf`.
+
+**Sumers, Theodore; Yao, Shunyu; Narasimhan, Karthik; Griffiths, Thomas L. "Cognitive
+Architectures for Language Agents."** TMLR. **arXiv:2309.02427**.
+Local: `papers/sumers2024-coala.pdf`.
+
+### Standing rule for this file
+
+Every claim attributed to a source above was read out of the PDF during this pass. Nothing here
+is from recall. Anything added later must meet the same bar, and anything marked **[verify]**
+is not citable until it has.
