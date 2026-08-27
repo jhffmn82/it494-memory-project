@@ -126,6 +126,22 @@ citations are resolved and citable.
 
 ---
 
+## Is there a paper? See `08_paper_options.md`
+
+Five candidate paper shapes were searched adversarially on 08-28. Four are occupied or do not fit
+the hours. One survives: **corroboration inflation launders a silent over-merge into apparent
+authority**, resting on the measured 77-of-194 inflation rate and the fact that resolution checks
+structurally cannot see over-merging. It costs 115 to 140 hours, so it is a **spring** project, and
+it has a two-hour kill check that must happen first (read arXiv:2607.24117 and arXiv:2606.14589 in
+full).
+
+**The fall produces citable output without a research paper:** an arXiv endorsement request to
+Dr. Fang this week, the repo made public on September 1, a DOI'd artifact by November 10, and an
+arXiv preprint by November 16. The ARR October cycle was considered and rejected because its
+deadline falls inside the dead window.
+
+---
+
 ## Open, in priority order
 
 1. **What the project is now, given that there is no novelty claim.** This is the decision to walk
@@ -133,7 +149,12 @@ citations are resolved and citable.
 2. **The paperwork behind the approved topic change.** Fang approved the swap in person
    (2026-08-28), so this is no longer a blocker. Only the one-semester proposal form may still be
    outstanding, on the Fang, then Hasselbring and Tang, routing.
-3. **Read Narrative World Model in full.** See above.
+3. **Ask Dr. Fang for an arXiv cs.CL endorsement.** One email. First-time submitters cannot post
+   without it and an institutional address does not grant it. Longest lead time in the plan.
+4. **Read the three papers that gate everything else**, in this order: arXiv:2607.24117
+   (Isnad-Rijal) and arXiv:2606.14589, which are the kill check on the spring paper, then
+   Narrative World Model (arXiv:2607.05577), which occupies the surrounding niche. All three are
+   currently abstract or snippet-level reads.
 4. **`data/clean/` does not meet the frozen contract and has no producing script.** It holds 351
    records covering 16 of 81 works, committed on 08-27 as collateral inside an unrelated
    documentation commit. It has no `unit_type` and no `unit_id`, and uses `chapter_ordinal` where
