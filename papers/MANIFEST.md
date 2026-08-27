@@ -5,7 +5,7 @@ Paywalled items: pull via ISU library using the DOI in the note.
 
 | File | Status | Source | Note |
 |---|---|---|---|
-| kumaran2016-cls-updated.pdf | PAYWALLED - use DOI via library | - | Trends Cog Sci 20(7). DOI:10.1016/j.tics.2016.05.004 (Elsevier) |
+| kumaran2016-cls-updated.pdf | PAYWALLED - still needed | - | **Citation VERIFIED 2026-08-27** from the issue contents page (`tics2016-vol20no7-contents.pdf`): Kumaran, Hassabis & McClelland, *Trends in Cognitive Sciences* **20**(7), July 2016, **p. 512**. DOI:10.1016/j.tics.2016.05.004. NOTE: a 08-27 library pull retrieved 10.1016/j.tics.2016.05.**005** by mistake, which is a one-page correction notice for a different paper. The CLS review is ...05.**004** |
 | park2023-generative-agents.pdf | OK (11667 KB) | https://arxiv.org/pdf/2304.03442 | UIST 2023 |
 | sarthi2024-raptor.pdf | OK (2487 KB) | https://arxiv.org/pdf/2401.18059 | ICLR 2024 |
 | rasmussen2025-zep.pdf | OK (145 KB) | https://arxiv.org/pdf/2501.13956 | arXiv |
@@ -70,3 +70,26 @@ None of these were surfaced by the 2026-08-19 survey; most predate it.
 | `chen2026-vitabench2.pdf` | 2605.27141 | 2026-05 | VitaBench 2.0: Evaluating Personalized and Proactive Agents in Long-Term User Interactions |
 | `hu2026-scope-scion.pdf` | 2607.21610 | 2026-05 | SCOPE and SCION: A Benchmark and an Auditable Reference Pipeline for Schema Induction and Fusion from Text |
 | `wu2026-proactive-memory-agent.pdf` | 2607.08716 | 2026-07 | Remember When It Matters: Proactive Memory Agent for Long-Horizon Agents |
+
+## Timeline summarization and second-pass novelty sources, added 2026-08-27
+
+Found in the 08-27 searches. Timeline summarization is the prior art for the entity axis:
+producing a dated chronological summary for an entity from a corpus is what this project calls
+a cell sequence. The OCR and capacity-allocation papers close two candidate contributions.
+One-pagers exist for all of these, marked **abstract only**.
+
+| File | arXiv | Date | Title |
+|---|---|---|---|
+| `tran2017-tls-entity-ranking.pdf` | 1701.03947 | 2017-01 | Balancing Novelty and Salience: Adaptive Learning to Rank Entities for Timeline Summarization of High-impact Events |
+| `ghalandari2020-tls-survey.pdf` | 2005.10107 | 2020-05 | Examining the State-of-the-Art in News Timeline Summarization |
+| `zhang2024-dtels.pdf` | 2411.09297 | 2024-11 | DTELS: Towards Dynamic Granularity of Timeline Summarization |
+| `zhang2024-ocr-hinders-rag.pdf` | 2412.02592 | 2024-12 | OCR Hinders RAG: Evaluating the Cascading Impact of OCR on Retrieval-Augmented Generation |
+| `qorib2024-constrained-tls.pdf` | 2412.17408 | 2024-12 | Just What You Desire: Constrained Timeline Summarization with Self-Reflection for Enhanced Relevance |
+| `petnehazi2025-hercules.pdf` | 2506.19992 | 2025-06 | HERCULES: Hierarchical Embedding-based Recursive Clustering Using LLMs for Efficient Summarization |
+| `lin2026-stagewise-benchmarking.pdf` | 2601.02669 | 2026-01 | Towards Comprehensive Stage-wise Benchmarking of Large Language Models in Fact-Checking |
+| `shu2026-tracemem.pdf` | 2602.09712 | 2026-02 | TraceMem: Weaving Narrative Memory Schemata from User Conversational Traces |
+| `jiang2026-agentic-memory-anatomy.pdf` | 2602.19320 | 2026-02 | Anatomy of Agentic Memory: Taxonomy and Empirical Analysis of Evaluation and System Limitations |
+| `sun2026-ocr-robustness-rag.pdf` | 2605.00911 | 2026-04 | When Good OCR Is Not Enough: Benchmarking OCR Robustness for Retrieval-Augmented Generation |
+| `zhang2026-timelinereasoner.pdf` | 2605.12518 | 2026-04 | TimelineReasoner: Advancing Timeline Summarization with Large Reasoning Models |
+| `fu2026-vikingmem.pdf` | 2605.29640 | 2026-05 | VikingMem: A Memory Base Management System for Stateful LLM-based Applications |
+| `yang2026-asymmetric-capacity-allocation.pdf` | 2608.21345 | 2026-08 | Asymmetric Capacity Allocation in Self-Refinement Pipelines |

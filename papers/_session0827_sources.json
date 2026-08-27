@@ -1,0 +1,145 @@
+[
+  {
+    "arxiv": "2602.09712",
+    "slug": "tracemem",
+    "file": "shu2026-tracemem.pdf",
+    "title": "TraceMem: Weaving Narrative Memory Schemata from User Conversational Traces",
+    "first_author": "Yiming Shu",
+    "year": "2026",
+    "month": "02",
+    "abstract": "Sustaining long-term interactions remains a bottleneck for Large Language Models (LLMs), as their limited context windows struggle to manage dialogue histories that extend over time. Existing memory systems often treat interactions as disjointed snippets, failing to capture the underlying narrative coherence of the dialogue stream. We propose TraceMem, a cognitively-inspired framework that weaves structured, narrative memory schemata from user conversational traces through a three-stage pipeline: (1) Short-term Memory Processing, which employs a deductive topic segmentation approach to demarcate episode boundaries and extract semantic representation; (2) Synaptic Memory Consolidation, a process that summarizes episodes into episodic memories before distilling them alongside semantics into user-specific traces; and (3) Systems Memory Consolidation, which utilizes two-stage hierarchical clustering to organize these traces into coherent, time-evolving narrative threads under unifying themes. These threads are encapsulated into structured user memory cards, forming narrative memory schemata. For memory utilization, we provide an agentic search mechanism to enhance reasoning process. Evaluation on the LoCoMo benchmark shows that TraceMem achieves state-of-the-art performance with a brain-inspired architecture. Analysis shows that by constructing coherent narratives, it surpasses baselines in multi-hop and temporal reasoning, underscoring its essential role in deep narrative comprehension. Additionally, we provide an open discussion on memory systems, offering our perspectives and future outlook on the field. Our code implementation is available at: https://github.com/YimingShu-teay/TraceMem",
+    "bytes": 8388795
+  },
+  {
+    "arxiv": "2602.19320",
+    "slug": "agentic-memory-anatomy",
+    "file": "jiang2026-agentic-memory-anatomy.pdf",
+    "title": "Anatomy of Agentic Memory: Taxonomy and Empirical Analysis of Evaluation and System Limitations",
+    "first_author": "Dongming Jiang",
+    "year": "2026",
+    "month": "02",
+    "abstract": "Agentic memory systems enable large language model (LLM) agents to maintain state across long interactions, supporting long-horizon reasoning and personalization beyond fixed context windows. Despite rapid architectural development, the empirical foundations of these systems remain fragile: existing benchmarks are often underscaled, evaluation metrics are misaligned with semantic utility, performance varies significantly across backbone models, and system-level costs are frequently overlooked. This survey presents a structured analysis of agentic memory from both architectural and system perspectives. We first introduce a concise taxonomy of MAG systems based on four memory structures. Then, we analyze key pain points limiting current systems, including benchmark saturation effects, metric validity and judge sensitivity, backbone-dependent accuracy, and the latency and throughput overhead introduced by memory maintenance. By connecting the memory structure to empirical limitations, this survey clarifies why current agentic memory systems often underperform their theoretical promise and outlines directions for more reliable evaluation and scalable system design.",
+    "bytes": 541447
+  },
+  {
+    "arxiv": "2412.02592",
+    "slug": "ocr-hinders-rag",
+    "file": "zhang2024-ocr-hinders-rag.pdf",
+    "title": "OCR Hinders RAG: Evaluating the Cascading Impact of OCR on Retrieval-Augmented Generation",
+    "first_author": "Junyuan Zhang",
+    "year": "2024",
+    "month": "12",
+    "abstract": "Retrieval-augmented Generation (RAG) enhances Large Language Models (LLMs) by integrating external knowledge to reduce hallucinations and incorporate up-to-date information without retraining. As an essential part of RAG, external knowledge bases are commonly built by extracting structured data from unstructured PDF documents using Optical Character Recognition (OCR). However, given the imperfect prediction of OCR and the inherent non-uniform representation of structured data, knowledge bases inevitably contain various OCR noises. In this paper, we introduce OHRBench, the first benchmark for understanding the cascading impact of OCR on RAG systems. OHRBench includes 8,561 carefully selected unstructured document images from seven real-world RAG application domains, along with 8,498 Q&amp;A pairs derived from multimodal elements in documents, challenging existing OCR solutions used for RAG. To better understand OCR's impact on RAG systems, we identify two primary types of OCR noise: Semantic Noise and Formatting Noise and apply perturbation to generate a set of structured data with varying degrees of each OCR noise. Using OHRBench, we first conduct a comprehensive evaluation of current OCR solutions and reveal that none is competent for constructing high-quality knowledge bases for RAG systems. We then systematically evaluate the impact of these two noise types and demonstrate the trend relationship between the degree of OCR noise and RAG performance. Our OHRBench, including PDF documents, Q&amp;As, and the ground truth structured data are released at: https://github.com/opendatalab/OHR-Bench",
+    "bytes": 13552746
+  },
+  {
+    "arxiv": "2605.00911",
+    "slug": "ocr-robustness-rag",
+    "file": "sun2026-ocr-robustness-rag.pdf",
+    "title": "When Good OCR Is Not Enough: Benchmarking OCR Robustness for Retrieval-Augmented Generation",
+    "first_author": "Lin Sun",
+    "year": "2026",
+    "month": "04",
+    "abstract": "Industrial Retrieval-Augmented Generation (RAG) systems depend on optical character recognition (OCR) to transform visual documents into text. Existing OCR benchmarks rely on character-level metrics, which inadequately measure downstream RAG effectiveness under real-world conditions. We introduce an OCR benchmark for industrial RAG systems covering 11 challenging document types, including extreme layouts, high-resolution pages, complex or watermarked backgrounds, historical documents with non-standard reading orders, visually decorated text, and documents containing tables and mathematical formulas. Evaluating recent SOTA OCR models under a controlled OCR-first RAG pipeline shows clear performance degradation on realistic industrial documents despite strong conventional benchmark scores. We find that high OCR accuracy does not necessarily translate into strong downstream RAG performance: structural and semantic errors can cause substantial retrieval failures even when WER/CER remains low. Further analysis shows that this mismatch is category-dependent, arises through both retrieval-side and downstream generation-side failures, and remains stable across representative OCR-first pipeline choices. The benchmark is publicly available at https://github.com/Qihoo360/InduOCRBench.",
+    "bytes": 3720206
+  },
+  {
+    "arxiv": "2608.21345",
+    "slug": "asymmetric-capacity-allocation",
+    "file": "yang2026-asymmetric-capacity-allocation.pdf",
+    "title": "Asymmetric Capacity Allocation in Self-Refinement Pipelines",
+    "first_author": "Zhuoyi Yang",
+    "year": "2026",
+    "month": "08",
+    "abstract": "Self-refinement, typically structured as generation, critique, and revision, is a widely adopted paradigm for improving LLM generation and serves as a core mechanism in many LLM agents. While the three stages involve different cognitive demands, most existing approaches conveniently treat the model size as an implementation detail rather than a subject of study, which may lead to a waste of resources. Little work has systematically examined how model size affects each stage or whether effective self-refinement requires equally capable models for generation, critique, and revision. We present the first stage-wise model size study of the self-refinement pipeline on 5 benchmarks from different domains using 6 model sizes of Qwen3 and 4 model sizes of Gemma 3. We conclude that larger generators and refiners generally improve the pipeline, whereas an undersized refiner can even harm performance. Second, performance is highly insensitive to the size of the critic, although including even a small critic consistently outperforms omitting critique altogether. Our findings demonstrate that model capacity should not be allocated uniformly across self-refinement pipelines. Instead, different stages exhibit distinct size scaling characteristics, providing practical guidance for designing more computationally efficient multi-stage language model systems.",
+    "bytes": 1005792
+  },
+  {
+    "arxiv": "2601.02669",
+    "slug": "stagewise-benchmarking",
+    "file": "lin2026-stagewise-benchmarking.pdf",
+    "title": "Towards Comprehensive Stage-wise Benchmarking of Large Language Models in Fact-Checking",
+    "first_author": "Hongzhan Lin",
+    "year": "2026",
+    "month": "01",
+    "abstract": "Large Language Models (LLMs) are increasingly deployed in real-world fact-checking systems, yet existing evaluations focus predominantly on claim verification and overlook the broader fact-checking workflow, including claim extraction and evidence retrieval. This narrow focus prevents current benchmarks from revealing systematic reasoning failures, factual blind spots, and robustness limitations of modern LLMs. To bridge this gap, we present FactArena, a fully automated arena-style evaluation framework that conducts comprehensive, stage-wise benchmarking of LLMs across the complete fact-checking pipeline. FactArena integrates three key components: (i) an LLM-driven fact-checking process that standardizes claim decomposition, evidence retrieval via tool-augmented interactions, and justification-based verdict prediction; (ii) an arena-styled judgment mechanism guided by consolidated reference guidelines to ensure unbiased and consistent pairwise comparisons across heterogeneous judge agents; and (iii) an arena-driven claim-evolution module that adaptively generates more challenging and semantically controlled claims to probe LLMs' factual robustness beyond fixed seed data. Across 16 state-of-the-art LLMs spanning seven model families, FactArena produces stable and interpretable rankings. Our analyses further reveal significant discrepancies between static claim-verification accuracy and end-to-end fact-checking competence, highlighting the necessity of holistic evaluation. The proposed framework offers a scalable and trustworthy paradigm for diagnosing LLMs' factual reasoning, guiding future model development, and advancing the reliable deployment of LLMs in safety-critical fact-checking applications.",
+    "bytes": 6064352
+  },
+  {
+    "arxiv": "2005.10107",
+    "slug": "tls-survey",
+    "file": "ghalandari2020-tls-survey.pdf",
+    "title": "Examining the State-of-the-Art in News Timeline Summarization",
+    "first_author": "Demian Gholipour Ghalandari",
+    "year": "2020",
+    "month": "05",
+    "abstract": "Previous work on automatic news timeline summarization (TLS) leaves an unclear picture about how this task can generally be approached and how well it is currently solved. This is mostly due to the focus on individual subtasks, such as date selection and date summarization, and to the previous lack of appropriate evaluation metrics for the full TLS task. In this paper, we compare different TLS strategies using appropriate evaluation frameworks, and propose a simple and effective combination of methods that improves over the state-of-the-art on all tested benchmarks. For a more robust evaluation, we also present a new TLS dataset, which is larger and spans longer time periods than previous datasets.",
+    "bytes": 345502
+  },
+  {
+    "arxiv": "2411.09297",
+    "slug": "dtels",
+    "file": "zhang2024-dtels.pdf",
+    "title": "DTELS: Towards Dynamic Granularity of Timeline Summarization",
+    "first_author": "Chenlong Zhang",
+    "year": "2024",
+    "month": "11",
+    "abstract": "The rapid proliferation of online news has posed significant challenges in tracking the continuous development of news topics. Traditional timeline summarization constructs a chronological summary of the events but often lacks the flexibility to meet the diverse granularity needs. To overcome this limitation, we introduce a new paradigm, Dynamic-granularity TimELine Summarization, (DTELS), which aims to construct adaptive timelines based on user instructions or requirements. This paper establishes a comprehensive benchmark for DTLES that includes: (1) an evaluation framework grounded in journalistic standards to assess the timeline quality across four dimensions: Informativeness, Granular Consistency, Factuality, and Coherence; (2) a large-scale, multi-source dataset with multiple granularity timeline annotations based on a consensus process to facilitate authority; (3) extensive experiments and analysis with two proposed solutions based on Large Language Models (LLMs) and existing state-of-the-art TLS methods. The experimental results demonstrate the effectiveness of LLM-based solutions. However, even the most advanced LLMs struggle to consistently generate timelines that are both informative and granularly consistent, highlighting the challenges of the DTELS task.",
+    "bytes": 1334228
+  },
+  {
+    "arxiv": "2412.17408",
+    "slug": "constrained-tls",
+    "file": "qorib2024-constrained-tls.pdf",
+    "title": "Just What You Desire: Constrained Timeline Summarization with Self-Reflection for Enhanced Relevance",
+    "first_author": "Muhammad Reza Qorib",
+    "year": "2024",
+    "month": "12",
+    "abstract": "Given news articles about an entity, such as a public figure or organization, timeline summarization (TLS) involves generating a timeline that summarizes the key events about the entity. However, the TLS task is too underspecified, since what is of interest to each reader may vary, and hence there is not a single ideal or optimal timeline. In this paper, we introduce a novel task, called Constrained Timeline Summarization (CTLS), where a timeline is generated in which all events in the timeline meet some constraint. An example of a constrained timeline concerns the legal battles of Tiger Woods, where only events related to his legal problems are selected to appear in the timeline. We collected a new human-verified dataset of constrained timelines involving 47 entities and 5 constraints per entity. We propose an approach that employs a large language model (LLM) to summarize news articles according to a specified constraint and cluster them to identify key events to include in a constrained timeline. In addition, we propose a novel self-reflection method during summary generation, demonstrating that this approach successfully leads to improved performance.",
+    "bytes": 291093
+  },
+  {
+    "arxiv": "2605.12518",
+    "slug": "timelinereasoner",
+    "file": "zhang2026-timelinereasoner.pdf",
+    "title": "TimelineReasoner: Advancing Timeline Summarization with Large Reasoning Models",
+    "first_author": "Liancheng Zhang",
+    "year": "2026",
+    "month": "04",
+    "abstract": "The proliferation of online news poses a challenge to extracting structured timelines from unstructured content. While recent studies have shown that Large Language Models (LLMs) can assist Timeline Summarization (TLS), these approaches primarily treat models as passive generators. The emergence of Large Reasoning Models (LRMs) presents an opportunity to reason over events actively, enabling iterative evidence acquisition, the detection of missing events, and the validation of temporal consistency. To systematically leverage the reasoning capabilities of LRMs, we propose TimelineReasoner, a novel framework that shifts TLS from static generation to an active, reasoning-driven process. Unlike prior work, TimelineReasoner adopts a two-stage framework: Global Cognition, which tracks events at a macroscopic level and continuously updates a global event memory, and Detail Exploration, which identifies informational gaps and refines the timeline via targeted document retrieval. To support this, TimelineReasoner incorporates several specialized mechanisms, including an Event Scraper for retrieving temporal event descriptions, a Timeline Updater for refining the timeline, and a Supervisor for detecting gaps in the timeline and guiding retrieval. Experimental results on open-domain TLS datasets demonstrate that TimelineReasoner significantly outperforms existing LLM-based TLS methods in terms of timeline accuracy, coverage, and coherence. On closed-domain TLS datasets, our method performs on par with or exceeds state-of-the-art approaches. This work not only pushes the boundaries of TLS but also highlights the broader potential of LRM-based reasoning frameworks for timeline summarization.",
+    "bytes": 917456
+  },
+  {
+    "arxiv": "1701.03947",
+    "slug": "tls-entity-ranking",
+    "file": "tran2017-tls-entity-ranking.pdf",
+    "title": "Balancing Novelty and Salience: Adaptive Learning to Rank Entities for Timeline Summarization of High-impact Events",
+    "first_author": "Tuan Tran",
+    "year": "2017",
+    "month": "01",
+    "abstract": "Long-running, high-impact events such as the Boston Marathon bombing often develop through many stages and involve a large number of entities in their unfolding. Timeline summarization of an event by key sentences eases story digestion, but does not distinguish between what a user remembers and what she might want to re-check. In this work, we present a novel approach for timeline summarization of high-impact events, which uses entities instead of sentences for summarizing the event at each individual point in time. Such entity summaries can serve as both (1) important memory cues in a retrospective event consideration and (2) pointers for personalized event exploration. In order to automatically create such summaries, it is crucial to identify the \"right\" entities for inclusion. We propose to learn a ranking function for entities, with a dynamically adapted trade-off between the in-document salience of entities and the informativeness of entities across documents, i.e., the level of new information associated with an entity for a time point under consideration. Furthermore, for capturing collective attention for an entity we use an innovative soft labeling approach based on Wikipedia. Our experiments on a real large news datasets confirm the effectiveness of the proposed methods.",
+    "bytes": 1392279
+  },
+  {
+    "arxiv": "2605.29640",
+    "slug": "vikingmem",
+    "file": "fu2026-vikingmem.pdf",
+    "title": "VikingMem: A Memory Base Management System for Stateful LLM-based Applications",
+    "first_author": "Jiajie Fu",
+    "year": "2026",
+    "month": "05",
+    "abstract": "Large Language Models have revolutionized interactive applications; however, their finite context windows pose a critical data management challenge for maintaining stateful, long-term interactions. Existing memory approaches often rely on simplistic extraction methods that lead to incomplete memories or use rigid, single-purpose memory extraction prompts tailored to a single use case, such as chatbots. Consequently, they lack generalizability and perform poorly across diverse downstream tasks. To bridge this gap, we introduce the Memory Base, a novel data management paradigm for managing the persistent state of long-term interactions. It is characterized by three core principles: selective extraction of high-value memories from raw information streams; inherent statefulness and evolution, where memory content is progressively summarized, corrected, and temporally weighted to prioritize recent interactions; and a generalizable abstraction paradigm designed for robust transferability across diverse applications, including education, recommendation, and agent memory. Building on this foundation, we present VikingMem, an end-to-end Memory Base Management System implemented on the VikingDB vector engine. VikingMem materializes this paradigm through interconnected event and entity abstractions. It features event-centric memory extraction to selectively handle complex information streams, while entities are dynamically updated by events to achieve stateful evolution. Using temporal compression via a topic-wise timeline and time-weighted recall, the system progressively produces high-level summary memories, prioritizes recent items, and compresses and fades older ones. Extensive evaluations on long-term memory benchmarks demonstrate that VikingMem outperformes baselines by up to 30% in memory retrieval effectiveness while maintaining the low latency essential for interactive applications.",
+    "bytes": 2730867
+  },
+  {
+    "arxiv": "2506.19992",
+    "slug": "hercules",
+    "file": "petnehazi2025-hercules.pdf",
+    "title": "HERCULES: Hierarchical Embedding-based Recursive Clustering Using LLMs for Efficient Summarization",
+    "first_author": "Gabor Petnehazi",
+    "year": "2025",
+    "month": "06",
+    "abstract": "The explosive growth of complex datasets across various modalities necessitates advanced analytical tools that not only group data effectively but also provide human-understandable insights into the discovered structures. We introduce HERCULES (Hierarchical Embedding-based Recursive Clustering Using LLMs for Efficient Summarization), a novel algorithm and Python package designed for hierarchical k-means clustering of diverse data types, including text, images, and numeric data (processed one modality per run). HERCULES constructs a cluster hierarchy by recursively applying k-means clustering, starting from individual data points at level 0. A key innovation is its deep integration of Large Language Models (LLMs) to generate semantically rich titles and descriptions for clusters at each level of the hierarchy, significantly enhancing interpretability. The algorithm supports two main representation modes: `direct' mode, which clusters based on original data embeddings or scaled numeric features, and `description' mode, which clusters based on embeddings derived from LLM-generated summaries. Users can provide a `topic\\_seed' to guide LLM-generated summaries towards specific themes. An interactive visualization tool facilitates thorough analysis and understanding of the clustering results. We demonstrate HERCULES's capabilities and discuss its potential for extracting meaningful, hierarchical knowledge from complex datasets.",
+    "bytes": 556041
+  }
+]
