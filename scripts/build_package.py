@@ -6,7 +6,7 @@ those numbers -> merged with pypdf, bookmarks added, page labels continuous.
 
 Usage: python scripts/build_package.py            (full build to build/IT494_Phase1_Research_Package.pdf)
 """
-import os, re, subprocess, sys, tempfile
+import os, re, subprocess, sys, tempfile, time
 from pathlib import Path
 
 import markdown
@@ -90,10 +90,57 @@ def md_to_html(md_text: str, eyebrow: str) -> str:
             f"<div class='section-eyebrow'>{eyebrow}</div>{body}")
 
 
+def stable_page_count(pdf_path: Path, tries: int = 40, delay: float = 0.25) -> int:
+    """Page count of a PDF Edge has just written.
+
+    Edge's --print-to-pdf can still be flushing when the subprocess returns, so reading the
+    page count immediately can undercount or fail outright. This waits until two consecutive
+    reads agree on a non-zero count. Without it the table of contents is silently wrong:
+    on 2026-08-28 the build logged 150 pages against a merged file of 177.
+    """
+    previous = -1
+    for _ in range(tries):
+        try:
+            n = len(PdfReader(str(pdf_path)).pages)
+        except Exception:
+            n = -1
+        if n > 0 and n == previous:
+            return n
+        previous = n
+        time.sleep(delay)
+    if previous > 0:
+        return previous
+    raise SystemExit(f"could not read a stable page count from {pdf_path}")
+
+
 def print_pdf(html_path: Path, pdf_path: Path):
+    """Render one HTML file to PDF via Edge headless.
+
+    The target is deleted first, and we wait for the new file to appear and stop growing.
+    Edge can still be flushing when the subprocess returns, and without the delete a stale
+    PDF from a previous run is indistinguishable from a fresh one. That produced a merged
+    package on 2026-08-28 whose table of contents came from the *previous* build: every page
+    number after the fourth entry was wrong, by up to 27 pages.
+    """
+    try:
+        pdf_path.unlink()
+    except FileNotFoundError:
+        pass
     subprocess.run([EDGE, "--headless", "--disable-gpu", "--no-pdf-header-footer",
                     f"--print-to-pdf={pdf_path}", html_path.as_uri()],
                    check=True, capture_output=True, timeout=120)
+    previous, stable = -1, 0
+    for _ in range(80):
+        size = pdf_path.stat().st_size if pdf_path.exists() else -1
+        if size > 0 and size == previous:
+            stable += 1
+            if stable >= 2:
+                return
+        else:
+            stable = 0
+        previous = size
+        time.sleep(0.25)
+    raise SystemExit(f"Edge did not finish writing {pdf_path}")
 
 
 def build():
@@ -124,7 +171,7 @@ def build():
                         encoding="utf-8")
         pdf = work / f"{i:02d}.pdf"
         print_pdf(html, pdf)
-        parts.append((title, pdf, len(PdfReader(str(pdf)).pages)))
+        parts.append((title, pdf, stable_page_count(pdf)))
         print(f"  ok: {title} ({parts[-1][2]} pp)")
 
     # Implementation plans, one part, each plan on a fresh page
@@ -138,13 +185,13 @@ def build():
             chunks.append(f"<div class='{cls}'>{body}</div>")
         html = work / "80_impl.html"
         html.write_text(f"<!doctype html><meta charset='utf-8'><style>{CSS}</style>"
-                        f"<div class='section-eyebrow'>Part {len(SECTIONS) + 1}</div>"
+                        f"<div class='section-eyebrow'>Part {len(parts) + 1}</div>"
                         f"<h1>Implementation plans, step by step</h1>"
                         f"<p>One plan per component, in build order.</p>" + "".join(chunks),
                         encoding="utf-8")
         pdf = work / "80_impl.pdf"
         print_pdf(html, pdf)
-        parts.append(("Implementation plans", pdf, len(PdfReader(str(pdf)).pages)))
+        parts.append(("Implementation plans", pdf, stable_page_count(pdf)))
         print(f"  ok: implementation plans ({parts[-1][2]} pp)")
 
     # Digest, second to last, before the one-pager appendix
@@ -152,10 +199,10 @@ def build():
     if not src.exists():
         raise SystemExit(f"digest missing: {src}")
     html = work / "85_digest.html"
-    html.write_text(md_to_html(src.read_text(encoding="utf-8"), f"Part {len(SECTIONS) + 2}"), encoding="utf-8")
+    html.write_text(md_to_html(src.read_text(encoding="utf-8"), f"Part {len(parts) + 1}"), encoding="utf-8")
     pdf = work / "85_digest.pdf"
     print_pdf(html, pdf)
-    parts.append((title, pdf, len(PdfReader(str(pdf)).pages)))
+    parts.append((title, pdf, stable_page_count(pdf)))
     print(f"  ok: {title} ({parts[-1][2]} pp)")
 
     # One-pager appendix, alphabetical by slug, each on a fresh page
@@ -175,7 +222,7 @@ def build():
                         encoding="utf-8")
         pdf = work / "90_onepagers.pdf"
         print_pdf(html, pdf)
-        parts.append(("Appendix: one-page summaries", pdf, len(PdfReader(str(pdf)).pages)))
+        parts.append(("Appendix: one-page summaries", pdf, stable_page_count(pdf)))
         print(f"  ok: appendix ({parts[-1][2]} pp)")
 
     # Index with real page numbers (cover=1, then the index itself, then content).
@@ -198,7 +245,7 @@ def build():
             f"<table class='toc'>{''.join(rows)}</table>", encoding="utf-8")
         idx_pdf = work / "01_index.pdf"
         print_pdf(idx_html, idx_pdf)
-        return idx_pdf, len(PdfReader(str(idx_pdf)).pages)
+        return idx_pdf, stable_page_count(idx_pdf)
 
     index_page_count = 1
     for _ in range(5):
