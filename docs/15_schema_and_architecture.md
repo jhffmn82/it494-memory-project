@@ -1,3 +1,6 @@
+> **SUPERSEDED 2026-08-27** by docs/17 (schema) and docs/19 (architecture). The quality pass in this file remains live and drove docs/16.
+> Kept for the record; do not build from it. Index: `docs/README_SESSION_2026-08-27.md`.
+
 # Schema and architecture
 
 Proposal, 2026-08-27. Covers the storage model, the retrieval design, the trigger design,

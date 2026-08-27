@@ -1,3 +1,6 @@
+> **SUPERSEDED 2026-08-27** by docs/22 (Project 1, fall) and docs/23 (Project 2, spring).
+> Kept for the record; do not build from it. Index: `docs/README_SESSION_2026-08-27.md`.
+
 # The plan, in phases
 
 The prototype is a mock. The build target is a bottom-to-top harness: corpus in, memory tree plus entity knowledge base plus dated facts out, with budgeted injection for RAG, model-agnostic by construction, in Python. Calendar constraints: two usable work blocks (September 1 to 27 and October 19 to November 15), five dead stretches owned by coursework, applications December 1 to 15, and roughly 70 to 100 project hours in total. Each phase states an entry condition, ordered steps, an exit deliverable, and a scope valve (the first cut if hours run short), and closes with an authorship gate: implementation by hand, AI assisting in drafting and discussion but never as unexamined author, completion logged.

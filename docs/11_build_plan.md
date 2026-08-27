@@ -1,3 +1,6 @@
+> **SUPERSEDED 2026-08-27** by docs/22 and docs/23.
+> Kept for the record; do not build from it. Index: `docs/README_SESSION_2026-08-27.md`.
+
 # Build plan: execution, tools, validation
 
 This document is sequence and method, not schedule: the build runs to hundreds of hours across the year and is paced by that total, so per-stage hour figures are omitted. Every stage follows the same discipline: implemented by hand, the contract frozen before the code, tests written with the code, and no stage grading its own output.

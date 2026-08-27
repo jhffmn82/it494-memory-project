@@ -1,3 +1,6 @@
+> **SUPERSEDED 2026-08-27** by docs/17 (schema, current).
+> Kept for the record; do not build from it. Index: `docs/README_SESSION_2026-08-27.md`.
+
 # Data model
 
 The schema for every object the harness stores, with Harry Potter as the worked example throughout. Storage is plain files, JSONL for rows and markdown for prose, in a directory layout git can diff. SQLite was deferred: at this scale one dependency buys nothing that sorted JSONL does not, and files keep every artifact human-readable. Identifiers are short content hashes, so re-ingesting the same material yields the same ids.

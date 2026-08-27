@@ -1,3 +1,6 @@
+> **SUPERSEDED 2026-08-27** by docs/19 — the assembled-vs-RAG split supersedes this framing.
+> Kept for the record; do not build from it. Index: `docs/README_SESSION_2026-08-27.md`.
+
 # The wiki demo
 
 An AI-generated Harry Potter wiki, built by the harness from the raw text, with generated portraits.

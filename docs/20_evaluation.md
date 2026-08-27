@@ -36,8 +36,13 @@ Hand-annotated entity, coreference, event and quotation labels over ~100 Project
 - **Why it wins:** no question authoring, no judge model, no kappa study, no hand labelling.
   Deterministic scoring against a published annotation, on Gutenberg text — the same family as
   the project corpus
-- **Status: `[verify]`.** Contents, licensing and download not yet confirmed. This is the first
-  thing to check, because it determines whether the cheapest experiment exists
+- **Status: CONFIRMED 2026-08-27.** 100 works of English fiction, 1719-1922, all US public
+  domain, all drawn from Project Gutenberg. 210,532 tokens. Four annotation layers: entities
+  (six ACE categories), coreference (OntoNotes-style, singletons included), events (asserted
+  realis), and **quotation attribution with speaker**. Repo: `dbamman/litbank`
+- **Caveat that changes the design:** roughly **2,000 words are sampled per work, not whole
+  books**. So this scores extraction on excerpts, not a full pipeline run over a novel. The
+  head-to-head against chunk-first is still valid; the unit is smaller than a chapter
 
 That one experiment produces a real number against a real baseline for roughly a day of work.
 Nothing else on the list is close.

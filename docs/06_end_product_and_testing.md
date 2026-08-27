@@ -1,3 +1,6 @@
+> **SUPERSEDED 2026-08-27** by docs/19 (delivery) and docs/20 (evaluation).
+> Kept for the record; do not build from it. Index: `docs/README_SESSION_2026-08-27.md`.
+
 # End product, test data, and what gets recorded
 
 The prototype is a mock of the intended end state: a general workflow built into a product and tested on data the workflow did not grow up on. Fall produces the defended design, a working core with its evaluation harness, and a short paper; spring builds the product out. Every candidate shape answers to the same measurements.

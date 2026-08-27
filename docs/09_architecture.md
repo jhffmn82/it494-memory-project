@@ -1,3 +1,6 @@
+> **SUPERSEDED 2026-08-27** by docs/18 (ingestion) and docs/19 (retrieval and delivery).
+> Kept for the record; do not build from it. Index: `docs/README_SESSION_2026-08-27.md`.
+
 # Architecture
 
 One dataflow, organized by the five steps. Everything is Python; the model is the only black box, reached through two interfaces: `embed(texts)` and `generate(prompt, schema, tier)`. Every model call records its tier.
