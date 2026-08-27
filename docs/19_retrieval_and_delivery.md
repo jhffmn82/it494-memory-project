@@ -1,5 +1,14 @@
 # Retrieval and delivery
 
+**CORRECTION 2026-08-27 (later):** an earlier claim in this repo that Graphiti/Zep does
+not perform community detection or hierarchical summarisation was **WRONG**. It was based on the
+Graphiti repository README, not the paper. Zep's paper defines a **community subgraph** as the
+highest tier of its graph, whose nodes "contain high-level summarizations of these clusters,"
+built with community detection that "builds upon the technique described in GraphRAG" using
+label propagation instead of Leiden **specifically so it extends dynamically** without full
+refresh. Zep therefore covers hierarchical summarisation AND incremental maintenance. The error
+was treating an absence in a README as a capability finding.
+
 **2026-08-27.** How a query is served, what triggers one, how pages render, and how the thing
 reaches a user. Schema references point at `docs/17_schema_current.md`.
 
@@ -157,10 +166,9 @@ Two deployments, one logical schema, separated by a storage port of twelve opera
 Neo4j. Vector index and graph in one store, temporal traversal as a query.
 
 Graphiti (Zep's engine) runs on Neo4j and supplies temporal facts, provenance to raw episodes,
-incremental writes, and hybrid retrieval — all specified independently in this design. **Verified
-2026-08-27: Graphiti does not do community detection or hierarchical summarisation**, and
-positions itself as doing dynamic temporal graphs *instead of* document summarisation. So the
-summary layer — cells, abstracts, hierarchy — is the part that has to be built.
+incremental writes, and hybrid retrieval — all specified independently in this design. **Corrected 2026-08-27: Zep DOES perform community detection and hierarchical summarisation**,
+via label propagation chosen for dynamic extension. The remaining gap is narrower than first
+stated: per-entity narrative sequences, unprompted firing, and per-stage cost accounting.
 
 Note also that Graphiti ships "prescribed and learned ontology," i.e. schema induction as a
 config flag.

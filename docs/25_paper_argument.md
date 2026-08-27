@@ -1,5 +1,14 @@
 # The paper's argument
 
+**CORRECTION 2026-08-27 (later):** an earlier claim in this repo that Graphiti/Zep does
+not perform community detection or hierarchical summarisation was **WRONG**. It was based on the
+Graphiti repository README, not the paper. Zep's paper defines a **community subgraph** as the
+highest tier of its graph, whose nodes "contain high-level summarizations of these clusters,"
+built with community detection that "builds upon the technique described in GraphRAG" using
+label propagation instead of Leiden **specifically so it extends dynamically** without full
+refresh. Zep therefore covers hierarchical summarisation AND incremental maintenance. The error
+was treating an absence in a README as a capability finding.
+
 **2026-08-27.** Arrived at after a full day of adversarial novelty searching in which seven
 candidate contributions were found occupied. This is the spine that survived. It is not a
 positioning statement written to fill a gap; it is what was left standing.
@@ -38,7 +47,7 @@ Several cells were verified during this session rather than recalled:
 | System | Verified finding | How |
 |---|---|---|
 | GraphRAG | chunks first, extracts entities from each text unit **separately** | its own indexing documentation |
-| Graphiti | **no** community detection, no hierarchical summarisation; positions itself as temporal graphs *instead of* document summarisation | its repository |
+| Graphiti / Zep | **CORRECTED: it DOES have a community subgraph with high-level summarisations, and incremental label-propagation maintenance.** The earlier claim came from the README, not the paper | the Zep paper, read directly |
 | MemTree | online, but measures its own drift; ancestors depend on insertion order | abstract |
 | EntSUM | a task on single documents, on request; does not accumulate | abstract |
 | Timeline summarization | per-entity chronology, news domain, no persistence layer | 2020 survey + 2024–2026 work |

@@ -1,5 +1,14 @@
 # Session record, 2026-08-26/27
 
+**CORRECTION 2026-08-27 (later):** an earlier claim in this repo that Graphiti/Zep does
+not perform community detection or hierarchical summarisation was **WRONG**. It was based on the
+Graphiti repository README, not the paper. Zep's paper defines a **community subgraph** as the
+highest tier of its graph, whose nodes "contain high-level summarizations of these clusters,"
+built with community detection that "builds upon the technique described in GraphRAG" using
+label propagation instead of Leiden **specifically so it extends dynamically** without full
+refresh. Zep therefore covers hierarchical summarisation AND incremental maintenance. The error
+was treating an absence in a README as a capability finding.
+
 Index to the documents produced in this session. All carry the 2026-08-27 date and record
 current understanding, not final decisions.
 
