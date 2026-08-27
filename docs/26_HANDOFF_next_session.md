@@ -133,14 +133,25 @@ currently ship both versions of the data model.
 
 ---
 
+## Late correction: the requirements source was flipped
+
+An earlier draft derived requirements from the personal deployment. That is a wish list with a
+case study attached, and it fails on two counts: no citable source, and it drags personal detail
+into a paper.
+
+**`docs/27_requirements_and_testing.md` flips it.** Seven requirements, each sourced to a
+published paper stating the problem is unsolved. No personal detail anywhere. The deployment
+corroborates in one sentence and does not authorise. Consequence: that section is **motivation,
+not contribution** - which is what it always was.
+
+`docs/27` also carries the testing plan, the asymmetric baseline strategy, and the scope cut, and
+supersedes `docs/20`.
+
 ## The artifact that does not exist yet
 
-**The requirement list.** Move 1 of the argument is "requirements derived from two years of
-running a personal assistant." That list has never been written down. It lives in the failures
-recorded across the archive and in this session's transcript.
-
-It is the first thing the paper needs and **it is Justin's to write**, because its entire
-authority comes from being derived from his own deployment rather than from a literature review.
+**Superseded by the flip above.** The requirements now exist, in `docs/27`, sourced to
+literature. What remains outstanding is smaller: confirming each citation resolves to the claim
+attributed to it, since several were quoted from one-pagers rather than from full papers.
 
 ---
 

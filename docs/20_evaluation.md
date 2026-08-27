@@ -1,3 +1,8 @@
+> **SUPERSEDED 2026-08-27 (later)** by `docs/27_requirements_and_testing.md`, which flips the
+> requirements source from personal deployment to published literature, adds the asymmetric
+> baseline strategy (Zep on its metric, GraphRAG on ours), and scopes to 70-100 hours.
+> Kept for the record; do not build from it.
+
 # Evaluation plan
 
 **2026-08-27.** What can be measured, with what, and in what order. Selection is driven by
