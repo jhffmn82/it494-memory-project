@@ -4,8 +4,8 @@
 `archive/20_evaluation.md`), which predates the source flip below and the asymmetric baseline
 strategy.
 
-Every citation in the requirements table was re-verified against full paper text on 08-28. Three
-were wrong and are corrected here. The corrections are marked, because the corrected versions are
+Every citation in the requirements table was re-verified against full paper text on 08-28, with the
+single exception marked `[abstract only]`. Three were wrong and are corrected here. The corrections are marked, because the corrected versions are
 weaker than what they replace and nobody should reintroduce the stronger wording from an old draft.
 
 ---
@@ -32,7 +32,7 @@ is the measured comparison in `01_argument.md`.
 
 | # | Requirement | The field saying it is unsolved |
 |---|---|---|
-| 1 | **Supersession and fact update** | MemoryAgentBench: on multi-hop fact consolidation, no tested method exceeds **28%**. Memora (ACL 2026 Findings) introduces a forgetting-aware metric that penalises reliance on invalidated memory |
+| 1 | **Supersession and fact update** | MemoryAgentBench: on multi-hop fact consolidation, no tested method exceeds **28%**. Memora (ACL 2026 Findings) introduces a forgetting-aware metric that penalises reliance on invalidated memory [abstract only] |
 | 2 | **Entity resolution** | Noy et al. 2019: disambiguation is named as *one of* the top challenges, recurring almost across the board in five production knowledge graphs. Bing's single Will Smith entry is composed from 108,000 facts taken from 41 websites |
 | 3 | **Faithfulness and provenance** | FABLES: best model **90.9%** faithful; the strongest automatic checker reaches **58.2 F1** with the entire book in hand |
 | 4 | **Omission and coverage** | BooookScore: omission errors are the most common error type across both prompting strategies. FABLES separately finds **33.3% to 65.4%** of summaries lack mentions of key events |

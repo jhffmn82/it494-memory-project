@@ -129,6 +129,17 @@ large comparisons do.
 
 ## The novelty record
 
+**Source types for everything added on 08-28**, per the standing rule that a claim must say how it
+was read. Full text: RAPTOR (the PDF is in `papers/`), and the CHI EA 2025 interview study. Machine
+extracted full text, not verbatim checked line by line: CAM. **Abstract only:** NarrativeXL,
+StoryBench, Memora, *Are We Ready For An Agent-Native Memory System?*, ENPMR-Bench, CogniFold,
+ProactAgent, AutoSchemaKG, SCOPE/SCION, EvoTaxo, and the rest of the occupied-contribution
+citations below. Venues were confirmed through DBLP or the ACL Anthology rather than assumed.
+
+An abstract-only read is enough to establish that a paper *exists and claims a thing*, which is all
+an occupancy finding needs. It is not enough to quote a number from. Nothing in this document
+quotes a number from an abstract-only source.
+
 Adversarial full-text queries against the arXiv API, written to find the paper that scoops the
 project rather than to map the field. The August 19 survey ran seven agents and verified 33
 citations, and missed nearly all of the papers below. A survey asking "what is this field" and a
