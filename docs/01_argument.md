@@ -66,8 +66,8 @@ decision is not the assistant's to make.** It belongs to Justin and his advisor.
 is what survives regardless of framing:
 
 - A working backend, built by hand, with a design that is defensible line by line.
-- Four cleaned public-domain corpora published as a dataset, which is a real reproducibility
-  contribution and is occupied by nobody.
+- Four cleaned public-domain corpora published as a dataset. Useful reproducibility
+  infrastructure, but see the correction below: this is **not** unoccupied ground.
 - Measured per-stage cost and tier-sensitivity numbers across a 146-fold provider spread.
 - A set of instruments that need no gold data: the quote gate, rejection rate per stage per tier,
   duplicate minting per unit, predicate sprawl, plot-versus-cell consistency.
@@ -261,6 +261,37 @@ FABLES and MultiHop-RAG. The only daylight was that CAM and RAPTOR derive overla
 embedding-space similarity while this design derives it from a pre-determined entity cast. That is
 a variant of an occupied idea, and it is the same class of narrow distinction this project already
 downgraded once. **Keep the covering design, claim nothing for it.**
+
+**The corpus as a resource. Also largely taken, and this one was asserted by me without a
+search on 2026-08-28.** An earlier version of this document and of `HANDOFF.md` said the cleaned
+corpora were "occupied by nobody." That was an undocumented absence claim, made while writing the
+rule against undocumented absence claims, and it is false. Searched properly on 08-28:
+
+- **GraphRAG-Bench** (arXiv:2506.05690) curated "pre-20th-century novels (narrative fictions) from
+  the Project Gutenberg library, prioritizing lesser-known works to minimize overlap with
+  pretraining data," explicitly to evaluate the whole pipeline "from graph construction and
+  knowledge retrieval to final generation." Released, MIT licensed, 4,072 questions. That is
+  Gutenberg curation plus contamination control plus KG-construction scope, already on the shelf.
+  Its GitHub claims ICLR 2026; the arXiv Comments field names no venue, so treat that as
+  unverified.
+- **AffilKG** (Cai et al., **LREC 2026 main**, arXiv:2505.10798) ships six datasets pairing complete
+  book scans and their OCR text with large labeled knowledge graphs, with a companion paper on how
+  OCR and extraction error propagate into graph-level analyses. That is the OCR-tax idea, over
+  books, at the venue class this paper would target.
+- **STAGE** (arXiv:2601.08510) is 151 full-length English *and Chinese* screenplays on a
+  "provenance-linked narrative backbone that recovers the state and epistemic access of each
+  character," releasing cleaned scripts and curated graphs. Bilingual axis, provenance axis and
+  supersession axis in one artifact, with gold annotation this project does not have.
+- **CoSER** (arXiv:2502.09082, ICML 2025) covers 771 books and 17,966 characters, building
+  character knowledge bases by "establishing name mappings between aliases and canonical names."
+  The Tip-to-Ozma fixture is one instance of a problem that already has a 771-book resource.
+- **The Standardized Project Gutenberg Corpus** (Gerlach and Font-Clos, *Entropy* 22(1):126, 2020)
+  and **StonyBook** (arXiv:2311.03614) both established "cleaned Gutenberg as a resource
+  contribution," at roughly 600 times this scale.
+
+None of these were in `papers/`, `docs/` or `summaries/` before 08-28. What is left unoccupied is a
+*composition* of individually occupied parts, and "novel combination of occupied components" is the
+argument that killed claims one through nine.
 
 **A literary memory benchmark. Largely taken.** NarrativeXL (Findings of EMNLP 2023) is 1,500
 hand-curated Gutenberg fiction books with 990,595 questions carrying an explicit retention demand,

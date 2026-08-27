@@ -76,7 +76,8 @@ measurements**, which is what the advisor steered toward twice, and which needs 
 What survives regardless of framing:
 
 - A working backend, built by hand, defensible line by line.
-- Four cleaned public-domain corpora published as a dataset. Nobody occupies that.
+- Four cleaned public-domain corpora published as a dataset. Useful, but **not unoccupied**: see
+  the correction below.
 - Measured per-stage cost and tier sensitivity across a 146-fold provider spread.
 - Instruments that need no gold data: quote gate, rejection rate per stage per tier, duplicate
   minting, predicate sprawl, plot-versus-cell consistency.
