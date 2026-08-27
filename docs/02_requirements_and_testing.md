@@ -4,6 +4,12 @@
 `archive/20_evaluation.md`), which predates the source flip below and the asymmetric baseline
 strategy.
 
+> **The LitBank head-to-head is withdrawn, and with it the GraphRAG comparison.** The claim it
+> tested is dead (`01_argument.md`), and LitBank could not have measured it regardless: 96 of its
+> 100 documents are exactly two chunks at GraphRAG's default size, so a phenomenon that compounds
+> across many chunks has one boundary to appear at. Both changes are marked below. The free
+> instruments and LongMemEval are unaffected.
+
 Every citation in the requirements table was re-verified against full paper text on 08-28, with the
 single exception marked `[abstract only]`. Three were wrong and are corrected here. The corrections are marked, because the corrected versions are
 weaker than what they replace and nobody should reintroduce the stronger wording from an old draft.
@@ -82,7 +88,7 @@ occupied**, not as unclaimed ground. See `01_argument.md`.
 
 | # | Test | Cost | Status |
 |---|---|---|---|
-| 2 | LitBank gold entities and coreference; duplicate-minting curve per unit | **free** | gold data, no judge; the curve falls out of ingest |
+| 2 | Duplicate-minting curve per unit, as a **descriptive** measurement of this pipeline | **free** | falls out of ingest. The LitBank head-to-head is withdrawn: see the banner above. Without a baseline arm this describes behaviour, it does not compare |
 | 3 | Quote gate: every claim must trace to a verbatim string in its unit | **free** | deterministic |
 | 6 | Run rows, per stage per tier | **free** | already in the schema |
 | 5 | Refold cost and staleness versus full rebuild | cheap | direct comparison; GraphRAG and RAPTOR are batch, Zep is not, and MemTree published the per-insertion figures to compare against |
@@ -112,7 +118,7 @@ edge-typing constraint exists because a fabricated relation can carry a genuine 
 | Baseline | Compete on | Why |
 |---|---|---|
 | **Zep** | **its own metric**, LongMemEval | Public, conversational, has knowledge-update bands, and Zep published numbers on it |
-| **GraphRAG** | **our metrics**, LitBank entity F1 and duplicate minting | Its evaluation is LLM-judged on self-generated questions over podcast and news corpora. Reproducing that means writing your own questions and your own judge, at which point you are comparing against your own reimplementation rather than their number. Its **pipeline** is open source and its chunk-first ordering is exactly what is under test |
+| **GraphRAG** | **nothing, for now** | The comparison was going to be LitBank entity F1 and duplicate minting against its "chunk-first ordering." That premise is false: GraphRAG's own appendix says its prompt "first identifies all entities in the text ... before identifying all relationships," so it is already entity-first within a chunk. Its published evaluation is LLM-judged on self-generated questions over podcast and news corpora and cannot be reproduced fairly. There is no honest comparison left to run this semester |
 
 **Zep's published LongMemEval numbers**, from Table 2 of its paper: 63.8% with gpt-4o-mini against
 a 55.4% full-context baseline, and 71.2% with gpt-4o against 60.2%. Two qualifiers that must travel
@@ -140,10 +146,19 @@ comprehensiveness and diversity" rather than implying there are only two.
 
 **Committed core**, with no question authoring, no judge calibration and no kappa study:
 
-- LitBank head-to-head (requirement 2)
 - The free instruments: quote gate, rejection rate per stage per tier, duplicate minting, predicate
   sprawl, token cost, plot-versus-cell consistency (requirements 3, 4, 6)
 - Refold versus rebuild (requirement 5)
+- Per-stage tier sensitivity, which is the one measurement with a real spread behind it (146-fold
+  across providers, costed in `05_fall_plan.md`)
+
+**Withdrawn 2026-08-28:** the LitBank head-to-head, which was the anchor of this list. It tested a
+claim that turned out to be occupied and mis-stated, on a corpus that could not have measured it.
+Nothing replaces it, and inventing a replacement without a search behind it would repeat the exact
+error that killed nine consecutive claims.
+
+If a book-scale version is ever wanted, the resource is BOOKCOREF (ACL 2025), not LitBank, and it
+needs its own prior-art search first.
 
 **The one paid benchmark worth running:** LongMemEval. It is where the assistant claim lives and
 where Zep can be matched or beaten (requirement 1).

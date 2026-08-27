@@ -56,14 +56,16 @@ As of the 08-27 and 08-28 searches, all of the following are occupied by publish
 | **Covering versus partition** | **RAPTOR (ICLR 2024) soft-clusters by design; CAM (NeurIPS 2025) does incremental overlapping clustering. Closed 08-28** |
 | **A literary memory benchmark** | **NarrativeXL (Findings of EMNLP 2023), MemoryAgentBench, StoryBench. Closed 08-28** |
 | **A requirements analysis for assistant memory** | **Partially: Jones et al. CHI EA 2025, and 2606.24775 across twelve systems. Closed 08-28** |
+| **Entity-first versus chunk-first extraction** | **iText2KG 2409.03284 (which ran the ablation and got a NEGATIVE result), RAKG 2504.09823, LINK-KG 2510.26486, CORE-KG 2506.21607. And the premise was wrong: both baselines are already entity-first. Closed 08-28** |
 
-The three searches this plan previously listed as outstanding are now closed, and all three came
-back occupied. **What survives is one claim:** pre-determined unit-level entity salience driving
-extraction, versus per-chunk extraction, measured on gold annotations against two shipped systems.
-See `01_argument.md`.
+Every search this plan previously listed as outstanding is now closed, and every one came back
+occupied. **Nine candidate contributions, nine occupied. There is no surviving novelty claim.**
+See `01_argument.md` for how each died.
 
-**Nothing in this plan requires a novelty claim to be worth doing.** The work below produces a
-working backend, a reproducible published dataset, and measured numbers.
+**What this plan is now.** A working backend, a published dataset, and measured cost and tier
+numbers. That is an engineering project with measurements and it does not require a novelty claim.
+Whether it also becomes a paper, and what that paper would claim, is a decision for Justin and his
+advisor, and it belongs in the Phase 0 conversation below alongside the administrative item.
 
 ---
 
@@ -74,8 +76,12 @@ working backend, a reproducible published dataset, and measured numbers.
    project. A new one-semester proposal on the Fang, then Hasselbring and Tang, routing is still
    outstanding, and nothing on record shows the topic change was ever approved. This is the single
    highest-value outcome available and it is administrative rather than intellectual.
-2. **Take the positioning question to the advisor.** Seven candidate contributions were searched
-   and all seven are occupied; the project is not. Present the finding and the one surviving claim.
+2. **Take the positioning question to the advisor, and treat it as a real decision rather than a
+   formality.** Nine candidate contributions were searched and all nine are occupied. There is no
+   novelty claim left. Present that plainly, present what survives without one (a working backend,
+   a published dataset, measured cost and tier numbers), and ask whether the fall deliverable
+   should be an engineering project with measurements or something else. The advisor steered
+   toward a practical project twice before; this finding points the same way.
 3. **Freeze the unit contract** (`04_unit_contract.md`, already frozen). It is the only schema
    element that must be settled before preprocessing.
 4. **Decide the backend.** Files (JSONL, npy, SQLite) versus Neo4j. This plan assumes files,
@@ -154,12 +160,15 @@ Committed measurements, in order of certainty:
 1. **The free instruments.** Rejection rate per stage per tier, duplicate minting per unit,
    predicate sprawl, quote gate pass rate, token cost per arm, plot-versus-cell consistency. These
    fall out of running the pipeline and need no dataset.
-2. **LitBank head to head.** Entity-first versus chunk-first, scored against gold. 100
-   public-domain works, 210,532 tokens, four annotation layers over the same fixed texts. Caveat
-   that must travel with the result: the annotation covers roughly **the first 2,000 words of each
-   work**, not whole books, so this scores extraction on openings.
+2. **Per-stage tier sensitivity.** Which stages need a frontier model and which run on a cheap one,
+   measured per question band. This is the measurement with a real spread behind it.
 3. **The two corpus controls.** OCR tax and translation tax, both carried by Three Kingdoms.
 4. **The contamination probe.** Free generation versus fact-row composition, deerstalker incidence.
+
+**Withdrawn 2026-08-28: the LitBank head to head**, which was item 2 and the anchor of this phase.
+The claim it tested is occupied and its premise was factually wrong, and LitBank could not have
+measured it in any case: 96 of its 100 documents are exactly two chunks at GraphRAG's default, and
+the effect compounds across many chunks. Nothing replaces it this semester.
 
 **The one paid benchmark worth running is LongMemEval**, because it is where the assistant claim
 lives and where Zep published comparable numbers. It was missing from the previous version of this

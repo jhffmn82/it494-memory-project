@@ -1,34 +1,87 @@
 # The paper's argument
 
-**2026-08-27, revised 2026-08-28.** What survived an adversarial novelty search in which seven
-candidate contributions were found occupied, plus a second pass on 08-28 that killed one more.
-This is not a positioning statement written to fill a gap. It is what is left standing.
+**2026-08-27, revised 2026-08-28.** Nine candidate contributions have now been searched
+adversarially and **all nine were occupied.** Seven fell on 08-26 and 08-27; covering versus
+partition fell on 08-28; the extraction-ordering claim, which this document was previously built
+around, fell later the same day.
 
-The revision is narrower than the version it replaces, in four specific ways recorded at the
-bottom. Read those before reusing anything from an older draft.
+This document no longer proposes a contribution. It records what was claimed, how each claim died,
+and what survives that needs no claim at all. Do not reuse an older draft of it: every version
+before 08-28 asserts things that are false.
 
 ---
 
-## The claim
+## There is no surviving novelty claim. Read this before anything else.
 
-> **Pre-determined, unit-level entity salience driving extraction, versus per-chunk extraction.**
+The claim this document was built around was **pre-determined, unit-level entity salience driving
+extraction, versus per-chunk extraction**. It was searched adversarially on 2026-08-28, the same way
+the other eight were, and it died the same way.
 
-Both published baselines extract chunk-first, and both were verified against their own papers
-rather than recalled:
+It failed on three independent grounds, and the first one is the serious one because it is not
+about prior art at all.
 
-| System | Extraction order | Verified against |
-|---|---|---|
-| GraphRAG | splits documents into text units first, then extracts entities from **each unit separately**; there is no document-level entity pass | Edge et al. 2024, sections 3.1.1 and 3.1.2, and Microsoft's indexing documentation |
-| Zep | per episode, with the previous **four messages** as context, then resolves candidates against the graph | Rasmussen et al. 2025, section 2.2.1, p. 3 |
-| **This project** | scan the unit, establish the cast, condition everything downstream on it | the thing under test |
+**1. The contrast is factually wrong. Both baselines are already entity-first.** This was checked
+against the full texts in `papers/`, not recalled.
 
-The claim has a mechanism (a unit-level cast list passed into every downstream call), a measured
-consequence (duplicate minting rate, entity F1), and gold data to score against (LitBank: 100
-public-domain works, 210,532 tokens, with entity, coreference, event and quotation-attribution
-layers over the same fixed texts).
+- **GraphRAG.** Its element-instance-generation appendix describes "a multipart LLM prompt that
+  first identifies all entities in the text, including their name, type, and description, before
+  identifying all relationships between clearly related entities." Entity pass, then relations. The
+  paper also pre-empts the duplicate-minting objection directly: GraphRAG "is generally resilient to
+  duplicate entities since duplicates are typically clustered together for summarization in
+  subsequent steps."
+- **Zep.** Its fact-extraction prompt reads `<ENTITIES> {entities} </ENTITIES>`, followed by "Given
+  the above MESSAGES and ENTITIES, extract all facts pertaining to the listed ENTITIES." Entities
+  are extracted, embedded, hybrid-searched against the existing graph and LLM-resolved **before**
+  edge extraction. Zep is entity-first against a persistent global cast, not a four-message one.
 
-It is one comparison, on one axis, against two shipped systems. That is the whole contribution and
-the paper should not reach for more.
+So the difference was never the *order*. It was the *scope of the unit the entity pass covers*, and
+"run the entity pass over a bigger unit" is not a contribution.
+
+**2. The mechanism is published, repeatedly.** iText2KG (arXiv:2409.03284) accumulates a "Global
+Document Entities" set and states that it is "provided as context along with each Semantic Block to
+the Incremental Relations Matcher," for the same stated reason: unresolved entities produce
+redundant relations. RAKG (arXiv:2504.09823) runs per-chunk recognition, then document-wide
+disambiguation, then per-canonical-entity relation construction, explicitly framed against
+GraphRAG's ordering, and beats it on MINE. LINK-KG (arXiv:2510.26486) builds a global
+alias-to-canonical cache, rewrites every chunk against it, then runs GraphRAG.
+
+**3. The ablation has been run and it came out against us.** iText2KG compared global-cast
+conditioning against local-cast conditioning on two datasets. Global-cast conditioning scored
+roughly **10 points lower** triplet precision: a richer graph carrying more irrelevant relations.
+The related line does report gains, but through pre-extraction *coreference resolution* rather than
+a cast list: LINK-KG cuts node duplication from 27.0% to 10.6% on short documents and 36.0% to
+17.8% on long ones, and CORE-KG's ablation shows removing its coreference pass costs 28.25% more
+node duplication. That is a different mechanism, and it is occupied three times over.
+
+**And the measurement instrument does not work either.** See the LitBank section below.
+
+### What follows from this
+
+Do not repair the claim. Nine consecutive candidates have been searched and nine were occupied,
+and the failure mode every time was asserting an absence without searching for it. A tenth
+formulation invented at this point, without a search behind it, would be the same error again.
+
+**The decision now is whether there is a project left once the novelty claim is removed, and that
+decision is not the assistant's to make.** It belongs to Justin and his advisor. What can be said
+is what survives regardless of framing:
+
+- A working backend, built by hand, with a design that is defensible line by line.
+- Four cleaned public-domain corpora published as a dataset, which is a real reproducibility
+  contribution and is occupied by nobody.
+- Measured per-stage cost and tier-sensitivity numbers across a 146-fold provider spread.
+- A set of instruments that need no gold data: the quote gate, rejection rate per stage per tier,
+  duplicate minting per unit, predicate sprawl, plot-versus-cell consistency.
+
+That is an engineering project with measurements, which is what the advisor originally steered
+toward twice, and it needs no novelty claim to be worth a semester. Whether it also wants a paper,
+and what that paper claims, is the open question in `HANDOFF.md`.
+
+**One genuinely unsearched question survives**, and it is recorded here as a question rather than a
+claim: iText2KG's negative result was measured on short semantic blocks, and LINK-KG's positive
+results came from a different mechanism. Whether cast conditioning helps or hurts **at book scale**,
+across a hundred-plus chunks rather than two, is not settled by either. That question would need its
+own adversarial search before anyone builds on it, and it would need a book-scale gold resource,
+which LitBank is not.
 
 ---
 
@@ -64,16 +117,45 @@ Naming the borrowing is the strength. A paper that shows only what was built rea
 that draws the line explicitly reads as someone who did the survey, which is what happened,
 adversarially, with the results recorded below.
 
-**3. Measure what one design decision costs and buys.**
+**3. Measure what the design decisions cost and buy.**
 
-Two ablations, ranked by what they cost:
+The entity-first versus chunk-first ablation is **withdrawn**, for the three reasons at the top of
+this document and because LitBank cannot carry it. What is left is free and still worth reporting:
 
-| Ablation | Cost | Notes |
+| Measurement | Cost | Notes |
 |---|---|---|
-| **Entity-first versus chunk-first extraction** | nearly free | LitBank supplies gold entities and coreference: precision, recall, F1, no question authoring, no judge. Head-to-head against GraphRAG's shipped pipeline order. The duplicate-minting curve falls out of ingest for nothing |
 | **Tier allocation per stage** | free | Falls out of running anything; the cost arithmetic is in `05_fall_plan.md`. Asymmetric Capacity Allocation (arXiv:2608.21345) covers adjacent ground and must be cited |
+| **Duplicate minting per unit, as a descriptive curve** | free | Falls out of ingest. Without gold and without a baseline arm it is a description of this pipeline's behaviour, not a comparison, and must be reported as such |
+| **Rejection rate per stage per tier, predicate sprawl, quote gate pass rate** | free | Contract instrumentation; no dataset needed |
+| **Plot-versus-cell consistency** | free | Two independent summaries over identical text, compared as sets. No judge, no ground truth |
 
-Do both. There is no third.
+### LitBank cannot measure extraction ordering, and this was computed rather than estimated
+
+The parse was validated by reproducing LitBank's published totals exactly, 210,532 tokens and
+29,103 mentions, before any of the numbers below were taken from it.
+
+| Per document (n=100) | mean | median | range |
+|---|---|---|---|
+| tokens | 2,105 | 2,043 | 1,999 to 3,419 |
+| **chunks at GraphRAG's 1,200-token default** | **2.0** | **2** | **2 to 3** |
+| coreference clusters crossing a chunk boundary | 6.9 | 6.5 | 1 to 16 |
+| cross-chunk clusters with more than one proper-name form | 3.6 | 3 | 0 to 10 |
+
+**96 of 100 LitBank documents are exactly two chunks.** There is one boundary per document. Cast
+drift and duplicate minting compound *across many* chunks, so on this corpus the phenomenon has
+about three to six chances to appear and exactly one place to appear in. A null result would be
+uninterpretable rather than informative.
+
+Two further limits: LitBank's entity layer carries the same 2,000-word ceiling, and LitBank has **no
+relation or triple annotation at all**, so there is no gold analogue for what a knowledge-graph
+extractor actually emits. This is known ground: BOOKCOREF (ACL 2025, arXiv:2507.12075) exists
+because "existing benchmarks, such as LitBank, remain limited in length and do not adequately assess
+system capabilities at the book scale."
+
+If a book-scale ordering experiment is ever wanted, BOOKCOREF is the resource (averaging over
+200,000 tokens per document, roughly 170 chunks), with the caveat that its annotations are
+pipeline-produced rather than fully manual. DocRED is **worse** than LitBank here, not better: it
+has gold relations but its documents are roughly 200-word abstracts.
 
 **4. Evaluate on literature, because it has ground truth the assistant case cannot.**
 
@@ -228,16 +310,31 @@ this project can assert and should be the first thing an outside reader attacks.
 
 ---
 
-## What could still kill this
+## What already killed it, and what remains a risk
 
-- **The extraction-ordering result comes back null.** Entity-first may simply not beat chunk-first
-  on LitBank at the corpus sizes reachable this semester. This is the real risk and it is a real
-  finding either way, provided the paper is framed as a measurement rather than as a system.
-- **A larger design-space study lands on this axis first.** The field is publishing fast enough that
-  any novelty check goes stale in about three months. CogniFold was three months old and invisible
-  to both a seven-agent survey and to an assistant whose training data predates it. Re-check
-  immediately before posting, adversarially, not as a field survey.
-- **The comparison is judged unfair.** GraphRAG's own evaluation is LLM-judged on self-generated
-  questions over podcast and news corpora, so it cannot be reproduced fairly; this project competes
-  with it on gold-annotation metrics instead, and must say plainly that this is a different
-  measurement rather than a better score on theirs.
+The first item is no longer a risk. It happened.
+
+- **The extraction-ordering claim is dead.** Both baselines are entity-first, the mechanism is
+  published three times over, the ablation has been run and came out negative, and the instrument
+  cannot measure it. See the top of this document.
+- **The surrounding niche is also occupied, and closely.** *Narrative World Model*
+  (arXiv:2607.05577, July 2026) is writer memory for long-form fiction with a typed temporal-state
+  graph, evaluated on a public fiction corpus against **Graphiti/Zep and GraphRAG** with a reader
+  held constant, and it isolates extraction quality from representation by rebuilding the baseline
+  with its own extractor. That is this project's niche, its baselines and its corpus type, published
+  six weeks ago. Read it in full before any re-scoping decision; it is currently an abstract-only
+  read and it is the most important paper on this list.
+- **Any novelty check goes stale in about three months.** CogniFold was three months old and
+  invisible both to a seven-agent survey and to an assistant whose training data predates it.
+  Whatever the project ends up claiming, re-check adversarially immediately before posting.
+- **One search hole is unfilled.** The Semantic Scholar API returned HTTP 429 on every attempt
+  during the 08-28 pass, so that source contributed nothing. Everything above rests on arXiv, DBLP,
+  the ACL Anthology, web search, and the PDFs on disk.
+
+### Standing note on how these were found
+
+Every one of the nine dead claims died to the same rule: **an absence claim requires a documented
+search.** In three cases the refuting evidence was already on disk in this repository, in `papers/`
+or in the project's own one-pagers. The searches that killed them were run adversarially, in a
+context that had not been softened by the conversation that produced the claim, which is the only
+method that has reliably worked here.
