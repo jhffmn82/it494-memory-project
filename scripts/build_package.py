@@ -22,24 +22,32 @@ EDGE_CANDIDATES = [
 ]
 EDGE = next((p for p in EDGE_CANDIDATES if Path(p).exists()), None)
 
-# Package order: user's spec of 2026-08-25. Proposal placement per his call.
-# (front, title, source-path) — one-pager appendix is appended programmatically.
+# Package order, revised 2026-08-28 for the consolidated document set.
+# Reading order: what he thought going in, the field, then where it landed, then the plans,
+# then the background that supports them.
+# NOTHING SUPERSEDED SHIPS. Every path below is either the live working set (docs/) or
+# reference material that was never superseded (docs/reference/). docs/archive/ is excluded
+# by design; if you add a path from there, the package starts contradicting itself again.
 SECTIONS = [
-    ("The proposal, before the research", ROOT / "docs" / "02_proposal_draft.md"),
+    ("The proposal, before the research", ROOT / "docs" / "reference" / "02_proposal_draft.md"),
     ("Reading list", ROOT / "reading-list.md"),
-    ("The field, by problem", ROOT / "docs" / "01_topic_narrative.md"),
-    ("Ways the research could elevate the project", ROOT / "docs" / "04_elevation_options.md"),
-    ("Three shapes the project could take", ROOT / "docs" / "05_project_shapes.md"),
-    ("End product, test data, and records", ROOT / "docs" / "06_end_product_and_testing.md"),
-    ("Anatomy of the mock", ROOT / "docs" / "07_pipeline_anatomy.md"),
-    ("The plan, in phases", ROOT / "docs" / "08_plan_of_record.md"),
-    ("How it pipes together", ROOT / "docs" / "09_architecture.md"),
-    ("How information is modeled", ROOT / "docs" / "10_data_model.md"),
-    ("Tentative build plan", ROOT / "docs" / "11_build_plan.md"),
-    ("The wiki demo", ROOT / "docs" / "12_wiki_demo.md"),
+    ("The field, by problem", ROOT / "docs" / "reference" / "01_topic_narrative.md"),
+    ("Where things stand", ROOT / "docs" / "HANDOFF.md"),
+    ("The paper's argument", ROOT / "docs" / "01_argument.md"),
+    ("Requirements and testing", ROOT / "docs" / "02_requirements_and_testing.md"),
+    ("Design: schema, ingestion, retrieval, delivery", ROOT / "docs" / "03_design.md"),
+    ("The unit contract", ROOT / "docs" / "04_unit_contract.md"),
+    ("Fall 2026 plan", ROOT / "docs" / "05_fall_plan.md"),
+    ("Spring 2027 plan", ROOT / "docs" / "06_spring_plan.md"),
+    ("Schema prior art and references", ROOT / "docs" / "07_references.md"),
+    ("Ways the research could elevate the project", ROOT / "docs" / "reference" / "04_elevation_options.md"),
+    ("Anatomy of the prototype", ROOT / "docs" / "reference" / "07_pipeline_anatomy.md"),
+    ("Feasibility, reviewed antagonistically", ROOT / "docs" / "reference" / "13_feasibility_review.md"),
 ]
-DIGEST = ("The literature, work by work", ROOT / "docs" / "03_digest.md")
-IMPL_ORDER = ["ingest", "organize", "retrieve-inject", "maintain", "spine", "wiki"]
+DIGEST = ("The literature, work by work", ROOT / "docs" / "reference" / "03_digest.md")
+# Implementation plans were archived 2026-08-28: they were written against the superseded
+# data model, and their surviving content is folded into docs/03_design.md.
+IMPL_ORDER = []
 
 CSS = """
 @page { size: letter; margin: 25mm 22mm 22mm 22mm; }
@@ -141,6 +149,8 @@ def build():
 
     # Digest, second to last, before the one-pager appendix
     title, src = DIGEST
+    if not src.exists():
+        raise SystemExit(f"digest missing: {src}")
     html = work / "85_digest.html"
     html.write_text(md_to_html(src.read_text(encoding="utf-8"), f"Part {len(SECTIONS) + 2}"), encoding="utf-8")
     pdf = work / "85_digest.pdf"
@@ -160,7 +170,7 @@ def build():
         html.write_text(f"<!doctype html><meta charset='utf-8'><style>{CSS}</style>"
                         f"<div class='section-eyebrow'>Appendix</div>"
                         f"<h1>One-page summaries of the sources</h1>"
-                        f"<p>{len(op_files)} summaries, alphabetical by first author. Each states at its foot "
+                        f"<p>{len(op_files)} summaries, alphabetical by source slug. Each states at its foot "
                         f"how much of the source it was written from.</p>" + "".join(chunks),
                         encoding="utf-8")
         pdf = work / "90_onepagers.pdf"
@@ -168,24 +178,37 @@ def build():
         parts.append(("Appendix: one-page summaries", pdf, len(PdfReader(str(pdf)).pages)))
         print(f"  ok: appendix ({parts[-1][2]} pp)")
 
-    # Index with real page numbers (cover=1, index itself = 1 page, content follows)
+    # Index with real page numbers (cover=1, then the index itself, then content).
+    # The index length is not known until it is rendered, and its length shifts every page
+    # number after it. Render, measure, re-render at the measured length, and repeat until it
+    # is stable. Previously this assumed a one-page index and only printed a note when that
+    # was wrong, which silently produced an off-by-N table of contents.
+    def render_index(index_page_count):
+        start = 1 + index_page_count + 1  # cover + index, first content page
+        rows, cursor = [], start
+        for title, _, n in parts:
+            rows.append(f"<tr><td>{title}</td><td style='text-align:right'>{cursor}</td></tr>")
+            cursor += n
+        idx_html = work / "01_index.html"
+        idx_html.write_text(
+            f"<!doctype html><meta charset='utf-8'><style>{CSS}"
+            "table.toc{width:100%;border:none} table.toc td{border:none;padding:5pt 0;"
+            "border-bottom:0.5pt dotted #bbb;font-size:11pt}</style>"
+            f"<div class='section-eyebrow'>Contents</div><h1>Index</h1>"
+            f"<table class='toc'>{''.join(rows)}</table>", encoding="utf-8")
+        idx_pdf = work / "01_index.pdf"
+        print_pdf(idx_html, idx_pdf)
+        return idx_pdf, len(PdfReader(str(idx_pdf)).pages)
+
     index_page_count = 1
-    start = 1 + index_page_count + 1  # cover + index, first content page
-    rows, cursor = [], start
-    for title, _, n in parts:
-        rows.append(f"<tr><td>{title}</td><td style='text-align:right'>{cursor}</td></tr>")
-        cursor += n
-    idx_html = work / "01_index.html"
-    idx_html.write_text(
-        f"<!doctype html><meta charset='utf-8'><style>{CSS}"
-        "table.toc{width:100%;border:none} table.toc td{border:none;padding:5pt 0;"
-        "border-bottom:0.5pt dotted #bbb;font-size:11pt}</style>"
-        f"<div class='section-eyebrow'>Contents</div><h1>Index</h1>"
-        f"<table class='toc'>{''.join(rows)}</table>", encoding="utf-8")
-    idx_pdf = work / "01_index.pdf"
-    print_pdf(idx_html, idx_pdf)
-    if len(PdfReader(str(idx_pdf)).pages) != index_page_count:
-        print("  note: index exceeded one page; page numbers off by the difference")
+    for _ in range(5):
+        idx_pdf, actual = render_index(index_page_count)
+        if actual == index_page_count:
+            break
+        index_page_count = actual
+    else:
+        raise SystemExit("index page count did not converge; page numbers would be wrong")
+    print(f"  ok: index ({index_page_count} pp)")
 
     # Merge with bookmarks
     writer = PdfWriter()

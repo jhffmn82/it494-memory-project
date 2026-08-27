@@ -1,6 +1,6 @@
 # Paper manifest
 
-Fetched 2026-08-25 15:32. 34/43 on disk.
+Fetched 2026-08-25 15:32. **Header corrected 2026-08-28: this manifest has 72 rows and is incomplete.** There are 89 PDFs in `papers/` plus 3 in `papers/_unused/`. Sources added after the fetch time above are absent from the table below, including `angles2018`, `rost2021`, `hernandez2015` and `vrandecic2014`, all four of which are cited in `docs/07_references.md`. Rebuild this file before using it as an inventory.
 Paywalled items: pull via ISU library using the DOI in the note.
 
 | File | Status | Source | Note |
@@ -52,7 +52,7 @@ Paywalled items: pull via ISU library using the DOI in the note.
 ## Novelty reassessment sources, added 2026-08-26
 
 Papers found by adversarial search that occupy the two contributions named in
-`IT494_PLAN.md`. See `docs/14_novelty_reassessment.md` for what each one takes.
+`IT494_PLAN.md`. See `docs/archive/14_novelty_reassessment.md` for what each one takes.
 None of these were surfaced by the 2026-08-19 survey; most predate it.
 
 | File | arXiv | Date | Title |
