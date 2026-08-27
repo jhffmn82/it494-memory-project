@@ -27,10 +27,8 @@ session opens the wrong clone.
 novelty claim this plan used to carry is gone; see the next section. The build below is unchanged
 by that, because none of it depended on the claim being true.
 
-1. **Clear the administrative gate first.** The approved proposal on file is a survey of LLM and
-   NLP tools on government documents. Everything in this repository is a different project, and
-   nothing on record shows the topic change was ever approved. This blocks everything and is not
-   an intellectual problem.
+1. **The topic change is approved** (Fang, in person, 2026-08-28). Only the one-semester proposal
+   form may still need filing, on the Fang, then Hasselbring and Tang, routing.
 2. **Preprocess in September**, inside the first open block, and publish the cleaned corpora as a
    dataset. That publication is the reproducibility story.
 3. **Pilot on Oz book 1 before September 27**, across three tiers, for about three dollars.
@@ -131,9 +129,9 @@ citations are resolved and citable.
 
 1. **What the project is now, given that there is no novelty claim.** This is the decision to walk
    into the advisor meeting with, and it is not the assistant's to make. See above.
-2. **The administrative gate.** The approved proposal on file is still the government-document tool
-   survey, and nothing on record shows the topic change was approved. Unresolved and blocking. See
-   Phase 0 in `05_fall_plan.md`.
+2. **The paperwork behind the approved topic change.** Fang approved the swap in person
+   (2026-08-28), so this is no longer a blocker. Only the one-semester proposal form may still be
+   outstanding, on the Fang, then Hasselbring and Tang, routing.
 3. **Read Narrative World Model in full.** See above.
 4. **`data/clean/` does not meet the frozen contract and has no producing script.** It holds 351
    records covering 16 of 81 works, committed on 08-27 as collateral inside an unrelated

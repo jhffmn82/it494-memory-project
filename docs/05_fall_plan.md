@@ -71,11 +71,12 @@ advisor, and it belongs in the Phase 0 conversation below alongside the administ
 
 ## Phase 0: decisions and freeze (now to September 7)
 
-1. **Resolve the administrative item, and treat it as the gate.** The approved April proposal on
-   file is a survey of LLM and NLP tools on government documents. Everything below is a different
-   project. A new one-semester proposal on the Fang, then Hasselbring and Tang, routing is still
-   outstanding, and nothing on record shows the topic change was ever approved. This is the single
-   highest-value outcome available and it is administrative rather than intellectual.
+1. **The topic change is approved. File the paperwork behind it.** Dr. Fang approved the swap from
+   the April LLM/NLP tool survey to the memory framework **in person** (Justin, 2026-08-28). The
+   intellectual gate is closed. What may remain is the form: the ISU proposal form covers one
+   semester at a time, and the routing is Fang signing the chair line, then forwarding to Kelly
+   Hasselbring and Dr. Tang for the course permit. Confirm whether that form has been filed; if not,
+   it is a short task, not a blocker.
 2. **Take the positioning question to the advisor, and treat it as a real decision rather than a
    formality.** Nine candidate contributions were searched and all nine are occupied. There is no
    novelty claim left. Present that plainly, present what survives without one (a working backend,
