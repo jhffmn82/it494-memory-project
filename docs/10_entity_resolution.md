@@ -132,6 +132,41 @@ cluster purity, and downstream accuracy on GraphRAG-Bench. Duplicate rate uses t
 LINK-KG protocol: fuzzy match at 75 percent within type, connected components, manual review, then
 count the sum over components of size minus one, normalized by node count.
 
+## What to instrument at build time
+
+Most of these tests are free once the pipeline records the right things, and expensive to retrofit
+after. Build these in from the start.
+
+**Log every candidate the matcher evaluates, with each signal scored separately.** Not just accepted
+merges, and not just the combined score.
+
+```
+MergeCandidate {mention_id, candidate_node, name_score, cooc_score,
+                profile_score, combined, threshold, decision, unit_id}
+```
+
+This turns most of the ablation into an offline re-scoring: replay the log with different weights and
+read off what the decision would have been, instead of paying for another full ingest.
+
+**The limit, stated so it does not become a false claim later.** Every signal here is collective. A
+merge changes the alias table, the co-occurrence sets and the node's accumulated profile, so a
+different arm generates *different candidates* from that point on. Replay is exact only up to the
+first divergence and drifts after it. Use it as a **screen, not a substitute**: run full ingests on
+the two extreme arms, replay-estimate the middle ones, and spend a real ingest on a middle arm only
+when the extremes are far enough apart to make it worth knowing.
+
+Also required, and painful to add later:
+
+- **Rejected candidates**, not only accepted merges. Merge precision needs the ones turned down.
+- **Node lineage:** every node's constituent mentions with their source unit. Duplicate counting and
+  cluster purity both read this.
+- **The merge ledger with its evidence**, which guard 3 requires anyway.
+- **Per-stage call and token counts by tier**, which is requirement 6 for free.
+
+What this does not make cheaper: running someone else's system. That is a second implementation with
+its own dependencies and its own full indexing pass, and no amount of instrumentation here reduces
+it.
+
 ## Their numbers are not a target, and here is why
 
 Checked 2026-08-28. **CORE-KG's 30.38 to 20.27 and LINK-KG's 27.0 to 10.6 cannot be beaten**, for
