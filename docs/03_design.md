@@ -222,8 +222,17 @@ prompting, which is exactly the surface that has to be defended here.
 ## 7. Open
 
 - **Two clocks, partly settled 2026-08-28.** Books order by narrative position, chats by wall clock.
-  `Document.occurred_at` now carries source time and is nullable: a novel leaves it null and orders
-  by `position`, a chat log fills it from the session date. `ingested_at` stays what it was, the day
+  `Document.occurred_at` now carries source time and is nullable: a chat log fills it from the
+  session date, a published work from its publication date, a novel with neither leaves it null and
+  orders by `position`.
+
+  **It has exactly one meaning: when the source was produced.** Not when the story is set. In-story
+  time is `Fact.valid_from` and `valid_to`, which is where it has to live, because it is not constant
+  within a document: a novel spans years, a flashback runs backward, and "Tip is a boy" stops holding
+  partway through book 2. Letting one field mean either would make a temporal query's answer depend
+  silently on which loader ran. The fixtures already separate the two: Homer against Euripides on
+  Helen is two sources disagreeing, which is `occurred_at`; Tip becoming Ozma is the world changing,
+  which is `valid_from`. `ingested_at` stays what it was, the day
   the system read the file, which is not the day the conversation happened. Without this a batch
   ingest flattens a year of chat into one timestamp and every temporal question becomes
   unanswerable. **Still open:** what a single defined order means for a store holding both at once.
