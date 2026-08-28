@@ -36,7 +36,7 @@ It is just right for this store.
 Seven records. Field names indicative.
 
 ```
-Document  {doc_id, source_uri, sha256, ingested_at, provenance}
+Document  {doc_id, source_uri, sha256, ingested_at, occurred_at?, provenance}
 Unit      {unit_id, doc_id, position, text, span, label?}
 Node      {node_id, name, kind, created_from_unit, provenance}
 Alias     {alias, node_id, first_seen_unit, evidence_quote}
@@ -47,7 +47,18 @@ Cell      {cell_id, node_id, unit_id, scope_id, text, tier, provenance}
 Abstract  {node_id, scope_id, text, children_hash, tier, updated_at}
 ```
 
-Plus instrumentation: `Rejection`, `Run`, `Consult`, `Mention`.
+Plus instrumentation: `Rejection`, `Run`, `Consult`, and
+
+```
+Mention   {mention_id, node_id, unit_id, span, surface, resolved_by}
+```
+
+**`Mention` was previously a name with no fields.** It is the record every resolution measurement
+reads: duplicate counting needs its node link, cluster purity needs the full set per node, and
+coreference scoring against a gold benchmark needs `span`, a character offset into the source
+document. Without the span, that class of test needs a full re-ingest to become possible, so it is
+specified here rather than discovered later. `resolved_by` names the signal or merge that assigned
+it.
 
 **Deliberately generic, changed 2026-08-28.** An earlier version had `unit_type` as an enum of
 literary forms (`chapter|book|play|ode|hui|session`) and two ordinals (`work_ordinal`,
@@ -75,6 +86,24 @@ real quote.
 ---
 
 ## 3. Getting text in
+
+### Two seams, and dataset code lives only at them
+
+Six datasets have to go through this: GraphRAG-Bench novels, LongMemEval chat sessions, BookCoref
+books with gold clusters, a hand-labelled alias set, the personal archive, and whatever comes next.
+They stay cheap to add only if nothing dataset-shaped reaches the middle of the system.
+
+```
+loader  ->  Documents + Units  ->  [ the system ]  ->  store  ->  evaluator
+```
+
+- **A loader** turns one source into documents and units and nothing else. It may fill `occurred_at`
+  and `label`. It may not add fields, and the system may not branch on which loader ran.
+- **An evaluator** reads the finished store and computes one metric. It never reaches into the
+  pipeline, so a new metric is a new reader, not a change to ingest.
+
+Adding a dataset is then one loader plus one evaluator. Anything that cannot be expressed that way is
+a signal the schema is missing a field, which is how `occurred_at` and `Mention.span` were found.
 
 **Stage 0. Split.** Raw text to ordered units. How boundaries are found is a preprocessing problem
 and stays out of the schema. See `04_unit_contract.md`.
@@ -192,8 +221,13 @@ prompting, which is exactly the surface that has to be defended here.
 
 ## 7. Open
 
-- **Mixing sources with different clocks.** Books order by narrative position, chats by wall clock.
-  A store holding both has no single defined order.
+- **Two clocks, partly settled 2026-08-28.** Books order by narrative position, chats by wall clock.
+  `Document.occurred_at` now carries source time and is nullable: a novel leaves it null and orders
+  by `position`, a chat log fills it from the session date. `ingested_at` stays what it was, the day
+  the system read the file, which is not the day the conversation happened. Without this a batch
+  ingest flattens a year of chat into one timestamp and every temporal question becomes
+  unanswerable. **Still open:** what a single defined order means for a store holding both at once.
+  Nothing forces that question until a corpus mixes them, so it waits for one that does.
 - **Nothing ever demotes.** Promotion is one-way, and the prototype accumulated 82 orphaned records
   from exactly this.
 - **No conformance test across adapters yet.** Only one adapter exists, so write the suite against
