@@ -1,0 +1,18 @@
+{
+  "graphrag-bench/LICENSE": {
+    "bytes": 1068,
+    "sha256": "f607254fa7fd8fd9e0ab9c2199ee568c44232053f5affa5130a5330b7bbf148a"
+  },
+  "graphrag-bench/novel.json": {
+    "bytes": 4848282,
+    "sha256": "b0b4b2e7dc1b5d72f774783130d08b5d62e922fa9dc3e58612154b78b6089d15"
+  },
+  "graphrag-bench/novel_questions.json": {
+    "bytes": 1312016,
+    "sha256": "d02b3db9c44d273371960f700f9ff9bf174dbc885542a7cadf636cded32c7af1"
+  },
+  "longmemeval/longmemeval_oracle.json": {
+    "bytes": 15388478,
+    "sha256": "821a2034d219ab45846873dd14c14f12cfe7776e73527a483f9dac095d38620c"
+  }
+}

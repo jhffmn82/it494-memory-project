@@ -1,80 +1,88 @@
 # Which benchmark, and why
 
-**2026-08-28.**
+**2026-08-28.** Both are downloaded, verified and in the repo.
 
-## Short version
+## Primary: GraphRAG-Bench, novel split
 
-**Infinity-Bench En.MC.** 229 multiple-choice questions over long books, answers public, scored by
-exact match, no judge and no API cost. The text ships with it.
+ICLR 2026, **MIT licensed**, `github.com/GraphRAG-Bench/GraphRAG-Benchmark`. In
+`data/benchmarks/graphrag-bench/`.
 
-**The reason it wins:** its books have had the character names swapped out. "Mrs. Natalie Ernesto"
-replaces "Mrs. Rachel Lynde". A model cannot answer from what it memorised in training when the
-names have changed, so the score reflects the system rather than the model's reading history.
+| | |
+|---|---|
+| Corpus | **20 public-domain novels, 839,608 words**, pre-1900, picked to minimise pretraining contamination |
+| Questions | **2,010**, every one with a gold answer and gold evidence |
+| Question types | Fact Retrieval 971, Complex Reasoning 610, Contextual Summarize 362, Creative Generation 67 |
+| Fields | `id, source, question, answer, question_type, evidence, evidence_triple` |
+| Metrics | ACC, ROUGE-L, Evidence Recall, Context Relevance, average tokens |
+| Scorers | Provided: `generation_eval.py`, `retrieval_eval.py`, `indexing_eval.py` |
 
-That matters because contamination is otherwise fatal here: **GPT-4 scores 60.94% on NovelQA
-multiple-choice with no book in front of it at all.**
+**Why this one.** Nine systems already published on it **using GPT-4o-mini**, so our numbers go
+straight into their table. We cite; we re-run nothing of theirs.
 
----
+| System | Fact retrieval | Complex reasoning | Contextual summarize | Avg tokens |
+|---|---|---|---|---|
+| RAG (no rerank) | 58.76 | 41.35 | 50.08 | **879** |
+| RAG (rerank) | 60.92 | 42.93 | 51.30 | |
+| **HippoRAG2** | 60.14 | **53.38** | 64.10 | **1,008** |
+| RAPTOR | 49.25 | 38.59 | 47.10 | 3,441 |
+| Fast-GraphRAG | 56.95 | 48.55 | 56.41 | 4,204 |
+| HippoRAG | 52.93 | 38.52 | 48.70 | 7,208 |
+| MS-GraphRAG (local) | 49.29 | 50.93 | **64.40** | 38,707 |
+| LightRAG | 58.62 | 49.07 | 48.85 | 100,832 |
+| MS-GraphRAG (global) | | | | **331,375** |
 
-## How it gets run
+**The argument comes from their own numbers.** Best accuracy costs 1,008 tokens; the most expensive
+system costs 331,375, a 377x spread. Landing near the top of the accuracy column at the bottom of
+the cost column, with no graph database and no server, is the finding.
 
-Three arms through one scorer, plus one ablation:
+**Where the cells should pay:** graph methods beat plain RAG on Complex Reasoning and Contextual
+Summarize, not on Fact Retrieval. The benchmark separates those, so the ablation has a built-in
+target rather than an invented one.
 
-1. **Full system.**
-2. **No context.** Random is 25%. This goes in the headline table, not a footnote.
-3. **Flat chunk retrieval.** The baseline the design has to beat.
-4. **Entity cells switched off.** The one ablation worth running, because it tests the actual design
-   decision.
+**Statistical power:** at n=2,010 a difference of about 2.4 points is detectable. Ablations move 2
+to 5. At ∞Bench's 229 questions we would have needed 7 points and measured nothing, which is why
+that benchmark was dropped.
 
----
+## Second: LongMemEval
 
-## The problem with 229 questions
+ICLR 2025, **MIT**, `github.com/xiaowu0162/LongMemEval`, HuggingFace `xiaowu0162/longmemeval`.
 
-At around 60% accuracy, one arm has a standard error of about **3 points**. The difference between
-two arms needs to be roughly **5 to 9 points** before it is real rather than noise.
+| | |
+|---|---|
+| Questions | **500**, gold answers, gold answer-session ids |
+| Types | temporal-reasoning 133, multi-session 133, **knowledge-update 78**, single-session-user 70, single-session-assistant 56, single-session-preference 30 |
+| Splits | `oracle` 15 MB (committed), `_s` 278 MB (fetch on demand), `_m` 2.7 GB (not used) |
 
-Switching off a component usually moves accuracy **2 to 5 points**.
+**Why.** Zep published on `_s`: 63.8% with gpt-4o-mini against a 55.4% full-context baseline. It is
+the parity check against the system this reimplements. And its **78 knowledge-update questions test
+supersession directly**, which GraphRAG-Bench cannot: that one is static QA over novels.
 
-So the ablation may come back showing nothing, not because the component does not matter but because
-the test cannot see it. **Check this in October against real arm agreement, before committing to the
-run.**
+**Run the full-context arm first.** If it reproduces their 55.4%, our harness matches theirs and our
+number is comparable to their 63.8%. If it does not, we cannot claim parity, and that is worth
+knowing before claiming it. Cost is about $9 on gpt-4o-mini.
 
-**If more sensitivity is needed:** LiteraryQA has 3,785 questions across 138 Gutenberg books, about
-sixteen times as many items. Its metric is free-form text overlap, which is noisier and correlates
-poorly with human judgment, so it buys sensitivity at the cost of metric quality. Use Infinity-Bench
-for the headline number and LiteraryQA for the ablation difference. Report effect sizes with
-confidence intervals either way, rather than claiming significance.
+## Fixtures, from our own corpora
 
-LiteraryQA needs `datasets==3.6.0` pinned. Its licence is stated three different ways across the
-paper, the repo and the dataset card; research use is fine, redistribution is unverified.
+Pass/fail, no benchmark needed, testing what neither benchmark reaches.
 
----
+- **Tip becomes Ozma**, end of Oz book 2. Both supersession mechanisms in one case.
+- **Watson's wound**, shoulder in one book and leg in another. A contradiction that must survive.
+- **The deerstalker.** Doyle never wrote it, so no fact row exists, so the composed path
+  structurally cannot say it. The generated path might. A leakage detector.
+- **Helen and Troy**, Homer against Euripides.
 
-## What no benchmark here can measure
+## Rejected
 
-Both are **static**: one book, questions about it, all at once. Neither can touch updating a fact,
-adding new material, or recomputing only what changed. Those get measured on cost instead, and need
-no answers at all. See `05_fall_plan.md`.
+- **NovelQA.** Gold answers held out behind a Codabench leaderboard.
+- **∞Bench En.MC.** 229 questions is underpowered, and no comparable system published on it.
+- **LitBank.** 96 of 100 documents are two chunks long.
+- **BOOKCOREF.** Coreference only, no questions.
 
----
+## Reproducing
 
-## Rejected, and why
+```bash
+python scripts/fetch_benchmarks.py         # GraphRAG-Bench + LongMemEval oracle
+python scripts/fetch_benchmarks.py --all   # adds longmemeval_s, 278 MB
+```
 
-**NovelQA.** Looked ideal: 89 novels, multiple choice, a published no-book baseline. But **the
-answers are not released.** Scoring goes through a leaderboard submission, so every ablation would
-be a round trip through someone else's server. Also 24 of its 89 books are in copyright and will
-never be released.
-
-**LitBank.** Withdrawn. 96 of its 100 documents are two chunks long at standard chunk sizes, so the
-cross-chunk effects this design is about cannot appear in it. It also has no relation annotations.
-
-**BOOKCOREF.** Book-length and gold, but it annotates only who-refers-to-whom. No questions at all.
-
-**QuALITY.** Documents are about 5,000 words, roughly ten times too short.
-
----
-
-## One data trap
-
-The HuggingFace copy of NarrativeQA serves 28,668 rows against the 46,765 its own card claims; the
-training split is missing more than half. Use the original CSVs if you touch it.
+Hashes in `data/benchmarks/manifest.json`.

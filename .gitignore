@@ -12,3 +12,7 @@ Thumbs.db
 build/sections/
 build/preview_*.png
 build/_*.pdf
+
+# LongMemEval bulk splits: 278 MB and 2.7 GB. Fetch with scripts/fetch_benchmarks.py --all
+data/benchmarks/longmemeval/longmemeval_s.json
+data/benchmarks/longmemeval/longmemeval_m.json
