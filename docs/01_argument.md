@@ -29,10 +29,18 @@ measurement.
 | Finding entities before extracting facts | iText2KG, RAKG, LINK-KG, CORE-KG |
 | Publishing cleaned novels as a test set | GraphRAG-Bench, AffilKG, STAGE, CoSER |
 
-The last row is the sharpest lesson. The plan said GraphRAG and Zep pull facts out chunk by chunk,
-so scanning the whole chapter for characters first was the contribution. **Both of them already do
-characters first**, by their own papers. And iText2KG already ran that exact experiment: doing it
-"our" way scored about ten points *worse*.
+**Finding entities first is the sharpest lesson.** The plan said GraphRAG and Zep pull facts out
+chunk by chunk, so scanning the whole chapter for characters first was the contribution. **Both of
+them already do characters first**, by their own papers: GraphRAG's prompt "first identifies all
+entities in the text" before relationships, and Zep's fact-extraction prompt takes an `<ENTITIES>`
+block.
+
+iText2KG ran the nearest experiment and it does **not** settle the question. Its Table 2 measures
+triplet precision for relation extraction given the global versus the locally matched entity list as
+context: CS 0.83 against 0.94, Music 0.81 against 0.90. The paper declines to call either better,
+because the global condition yields implied relations the local one never extracts and richness is
+not measured: "We leave it to the user to decide whether to accept a 10% decrease in precision in
+exchange for an enriched graph." Cite it as an open trade-off, not as a refutation.
 
 **Rule from here: do not add a thirteenth idea without searching it first.** All twelve died the
 same way, by assuming nobody had done it. Three were disproved by papers already sitting in this

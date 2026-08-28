@@ -64,11 +64,17 @@ documents before a cold audit caught it.
    (arXiv:2607.05577). Both sit very close to this work.
 3. **`data/clean/` is not progress.** 351 records over 16 of 81 works, committed by accident, does
    not meet the contract, and no script here produced it. Regenerate from committed code.
-4. **Check the power calculation before running the ablation.** 229 questions may not be enough to
-   see a 2 to 5 point effect.
-5. **Rebuild `papers/MANIFEST.md`.** It predates half the current corpus.
+4. **Verify the hour budget.** Every schedule number in `05_fall_plan.md` rests on an assumed 8
+   hours a week that was never checked against a real week. Confirm it before trusting the calendar.
+   (Power is no longer an open item: GraphRAG-Bench's 2,010 questions detect about 2.4 points, and
+   ablations move 2 to 5. The old 229-question worry was for the dropped benchmark.)
+5. **Rebuild `papers/MANIFEST.md`.** It predates half the current corpus. Three entries were
+   corrected on 2026-08-28 (CORE-KG, WiCER, iText2KG); assume others are wrong until checked.
 6. **Unrevoked tokens** belong to the archive repo, not this one. A full-history scan here found
    nothing.
+7. **Pick which ablations actually run.** Five are now designable (cells, resolution, threshold, fact
+   layer, refold) and there is not room for five. `10_entity_resolution.md` argues resolution has
+   published reference numbers and cells do not.
 
 ---
 
@@ -98,6 +104,7 @@ documents before a cold audit caught it.
 | `07_references.md` | Sources behind the schema decisions |
 | `08_paper_options.md` | What kind of paper, and where it goes |
 | `09_evaluation_corpus.md` | Which benchmark, and why |
+| `10_entity_resolution.md` | Deciding when two names mean one thing |
 
 `reference/` is background that still holds. `archive/` is superseded, each file labelled with what
 replaced it. Correction history is in `git log`, not in the documents.

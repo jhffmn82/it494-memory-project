@@ -1,6 +1,7 @@
 # Paper manifest
 
-Fetched 2026-08-27 21:09. 79/88 on disk.
+Fetched 2026-08-27 21:09; 12 entity-resolution sources added 2026-08-28. 91/100 on disk.
+Three notes were corrected 2026-08-28 (CORE-KG, WiCER, iText2KG). Others are unverified.
 Paywalled items: pull via ISU library using the DOI in the note.
 
 | File | Status | Source | Note |
@@ -54,10 +55,10 @@ Paywalled items: pull via ISU library using the DOI in the note.
 | bookcoref-2025.pdf | OK (800 KB) | https://arxiv.org/pdf/2507.12075 | ACL 2025. Book-scale coreference, no relations |
 | storybench-2025.pdf | OK (1637 KB) | https://arxiv.org/pdf/2506.13356 | Long-term memory over interactive fiction |
 | stonybook-2023.pdf | OK (1011 KB) | https://arxiv.org/pdf/2311.03614 | ~50k novels, standard XML annotation |
-| itext2kg-2024.pdf | OK (2561 KB) | https://arxiv.org/pdf/2409.03284 | Ran the global-vs-local cast ablation; global scored ~10 pts LOWER |
+| itext2kg-2024.pdf | OK (2561 KB) | https://arxiv.org/pdf/2409.03284 | Global-vs-local entity context for RELATION extraction: precision 0.83 vs 0.94 (CS), 0.81 vs 0.90 (Music). Paper calls it a trade-off, not a loss; richness unmeasured. Future work asks for entity type in matching |
 | rakg-2025.pdf | OK (980 KB) | https://arxiv.org/pdf/2504.09823 | Document-wide disambiguation then per-entity relation construction |
 | linkkg-2025.pdf | OK (1483 KB) | https://arxiv.org/pdf/2510.26486 | Global alias cache, node duplication 27.0->10.6 short, 36.0->17.8 long |
-| corekg-2025.pdf | OK (2634 KB) | https://arxiv.org/pdf/2506.21607 | ICDM 2025. Removing coreference costs +28.25% node duplication |
+| corekg-2025.pdf | OK (2634 KB) | https://arxiv.org/pdf/2506.21607 | ICDM 2025. NO ablation (word appears 0 times). Between-systems vs a GraphRAG baseline, 20 legal cases: node duplication 30.38->20.27, legal noise 27.41->16.89. Body says 33.28% relative, appendix says 33.58% |
 | slide-2025.pdf | OK (278 KB) | https://arxiv.org/pdf/2503.17952 | Extraction context varied on a 160k-token novel |
 | elite-2025.pdf | OK (1196 KB) | https://arxiv.org/pdf/2505.11908 | Discards embeddings AND graph construction |
 | story-ribbons-2025.pdf | OK (3860 KB) | https://arxiv.org/pdf/2508.06772 | IEEE VIS 2025. NEAREST PEER-REVIEWED THREAT: cell matrix, both marginals, quote gate, 30 Gutenberg works |
@@ -73,7 +74,7 @@ Paywalled items: pull via ISU library using the DOI in the note.
 | llm-wiki-ming-2026.pdf | OK (1052 KB) | https://arxiv.org/pdf/2605.25480 | One page per entity, 5,825 pages, YAML frontmatter, wikilinks |
 | llm-wiki-cochran-2026.pdf | OK (371 KB) | https://arxiv.org/pdf/2607.04576 | A real 709-page LLM-maintained wiki |
 | wiki-vs-rag-cochran-2026.pdf | OK (410 KB) | https://arxiv.org/pdf/2605.18490 | PREREGISTERED head-to-head: vector RAG vs an LLM-compiled wiki |
-| wicer-2026.pdf | OK (477 KB) | https://arxiv.org/pdf/2605.07068 | Wiki construction with entity resolution |
+| wicer-2026.pdf | OK (477 KB) | https://arxiv.org/pdf/2605.07068 | CEGAR-style compile/evaluate/refine loop for KV-cache wikis. ZERO entity-resolution content; earlier note was wrong |
 | llmpedia-2026.pdf | OK (7228 KB) | https://arxiv.org/pdf/2603.24080 | Infobox plus lead, ~1.3M articles |
 | as-we-may-search-2026.pdf | OK (1315 KB) | https://arxiv.org/pdf/2606.29652 | ICTIR 2026. OCCUPIES the local-first thesis; 1K-1M sweep, exact vs HNSW vs IVF |
 | memx-2026.pdf | OK (749 KB) | https://arxiv.org/pdf/2603.16171 | Local-first libSQL plus FTS5, evaluated on LongMemEval |
@@ -93,3 +94,15 @@ Paywalled items: pull via ISU library using the DOI in the note.
 | stage-2026.pdf | OK (4940 KB) | https://arxiv.org/pdf/2601.08510 | 151 bilingual screenplays, provenance-linked narrative backbone |
 | coser-2025.pdf | OK (15631 KB) | https://arxiv.org/pdf/2502.09082 | ICML 2025. 771 books, alias-to-canonical character mappings |
 | affilkg-2026.pdf | OK (1140 KB) | https://arxiv.org/pdf/2505.10798 | LREC 2026. Book scans plus OCR text paired with labelled KGs |
+| bhattacharya-getoor-2007-collective-er.pdf | OK | https://linqs.org/assets/resources/bhattacharya-tkdd07.pdf | TKDD 1(1) art.5. THE collective ER paper. Attribute->collective F1 0.980->0.995 CiteSeer, 0.568->0.819 BioBase. Transitive closure HURTS BioBase 0.568->0.559. Admits merges cannot be undone |
+| dong2005-reference-reconciliation.pdf | OK | https://lunadong.com/publication/reconciliation_sigmod.pdf | SIGMOD 2005 pp.85-96. CLOSEST PRIOR ART to our matcher: associations, propagation over a dependency graph, reference enrichment. Domain was personal desktop data |
+| pujara-getoor-2016-srer.pdf | OK | https://arxiv.org/pdf/1607.00992 | PSL formulation, 14 rules. Local (type/attribute agreement) vs collective. Only ontology-exclusive properties get a hard veto |
+| lee2013-entity-centric-coref.pdf | OK | Computational Linguistics 39(4) 885-916 | Sec 3.2.3: attribute union across mentions, contradictions kept as variants. Feature sharing worth ~3.4 CoNLL F1 |
+| raghunathan2010-multipass-sieve.pdf | OK | ACL 2010 | Precision-ranked sieve: high-precision passes first so later passes inherit clean clusters |
+| deeptype-2018.pdf | OK | https://arxiv.org/pdf/1802.01021 | AAAI 2018. THE argument for type signals: oracle types give 99.0 CoNLL / 98.6 TAC KBP 2010. Non-oracle table did not extract cleanly, do not quote it |
+| menestrina2010-evaluating-er.pdf | OK | https://vldb.org/pvldb/vol3/R18.pdf | PVLDB 3(1). ER metrics DISAGREE and rank systems differently. Generalized merge distance takes asymmetric merge/split costs |
+| er-in-practice-2026.pdf | OK | https://arxiv.org/pdf/2607.26298 | Walmart. CONTRADICTS our soft-veto choice: transitivity took MusicBrainz-200K Pair-F1 0.540->0.000. Above 0.9 precision safe, below 0.5 mega-clusters. Cite against ourselves |
+| factnet-2026.pdf | OK | https://arxiv.org/pdf/2602.03417 | Billion-scale KG. False-merge rates 0.005 strict / 0.017 relaxed, n=1000 each. STATEMENT merges, not entity merges. Machine-readable merge_reason |
+| entity-collision-2026.pdf | OK | https://arxiv.org/pdf/2605.29630 | Stratified protocol for ATTRIBUTING RETRIEVAL LIFT in agent memory. Unread; directly relevant to how the ablation is designed |
+| hipporag-2024.pdf | OK | https://arxiv.org/pdf/2405.14831 | Never merges. Synonym edges above cosine 0.8, tuned on 100 MuSiQue examples. Calls it noisy entity standardization |
+| hipporag2-2025.pdf | OK | https://arxiv.org/pdf/2502.14802 | Same resolution approach. Best accuracy per token on GraphRAG-Bench |
