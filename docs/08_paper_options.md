@@ -18,6 +18,23 @@ here at all?
 > memory backend*, evaluated on the literary corpora. The thesis is that at personal scale the
 > heavyweight machinery is unnecessary and the tradeoff is measurable. See the last section.
 
+> **ANSWER REVISED 2026-08-28, and the revision is the important part of this document.**
+> Everything below asks "is it novel?" That was the wrong test. Several of the venues this project
+> should target reject it explicitly:
+>
+> - **PVLDB research track:** novelty "often lies in the design, innovative system architecture, new
+>   abstractions, or interesting and effective combination of existing techniques."
+> - **NeurIPS 2026 reviewer guidelines:** "Does this work offer a novel combination of existing
+>   techniques... originality does not necessarily require introducing an entirely new method."
+> - **ISWC In-Use:** novelty "in the application or assessment... their combination/interplay with
+>   other technologies."
+> - **ACM SIGSOFT Empirical Standards** lists **"This is not the first known solution to the
+>   identified problem"** as an **invalid criticism**.
+>
+> The price is stated by the same source: **"less innovative artifacts require more rigorous
+> evaluations."** Novelty and rigour are substitutes, the novelty budget is spent, and the paper is
+> therefore paid entirely in measurement. See the final section.
+
 **Short answer: one, and it is a spring project.** Five candidate paper shapes were searched
 adversarially. Four are occupied or do not fit the hours. The fifth has genuine daylight, in a
 place nobody was looking.
@@ -338,3 +355,84 @@ research letter writer something specific to describe, and it demonstrates the a
 and ship a paper-shaped object. List it under **Preprints**, never under Publications, and list the
 dataset under Research Artifacts. Miscategorising a preprint as a publication is the most common CV
 error and committees notice it.
+
+
+---
+
+# The answer, arrived at 2026-08-28 after twelve dead claims
+
+**There is a paper. It is a system paper, and the contribution is not the architecture.**
+
+The composition (cell matrix, threshold gate, wiki tiers, append-only temporal facts, hash refold,
+entity-keyed retrieval) is **unoccupied as a six-way conjunction and occupied in every individual
+element**. That gap is exactly the "novel combination of occupied components" argument that killed
+claims one through twelve, and it must not be the pitch.
+
+**The contribution is which mechanisms carry the win and which do not, measured.** That is an
+ablation study over this architecture, and its decisive property for this project is that **it
+requires building the system anyway.** The degree project and the paper stop competing for the same
+70 hours and become the same work.
+
+## What it must contain, per the venue analysis
+
+- Head-to-head against **Mem0, Zep, MemGPT/Letta, A-MEM, plain RAG, and full-context**.
+- **Per-mechanism ablations**: drop the salience threshold, drop the cells, drop the fact layer,
+  drop the hash refold, and report what each costs.
+- At least one **non-accuracy axis**. The sharpest available here is **recompute cost under edit
+  churn**, because incremental refolding is the mechanism this design actually invests in and
+  nobody publishes the number.
+- A **DOI'd artifact** and at least one **honest negative result**.
+- **Concede all six mechanisms as occupied in the introduction**, with citations, before a reviewer
+  does it in the review.
+
+## Venue
+
+**ACL / EMNLP / NAACL System Demonstrations.** Six pages, single-blind, prototypes explicitly in
+scope, entry is a live link plus a roughly 2.5-minute screencast. Structural precedent: **FlexRAG
+(ACL 2025 Demo)**, an open-source framework with zero algorithmic claims.
+
+**CAIN 2027, deadline 30 October 2026**, falls inside the open block and is a stretch rather than a
+plan; note CAIN does not waive novelty.
+
+**Effectively closed:** VLDB Industrial (needs a non-academic author), ICSE-SEIP (built around an
+organisation), KDD ADS and CIKM Applied (both desk-reject systems without live users and post-launch
+usage metrics), ISWC In-Use and Resources (want uptake outside the developing group).
+
+## The nearest peer-reviewed threat, which must be read and cited
+
+**Story Ribbons** (Yeh et al., **IEEE VIS 2025**, arXiv:2508.06772). 36 works, 30 from Project
+Gutenberg. Its pipeline extracts characters per scene with "a direct quote from the text as
+evidence," then composes **both** chapter summaries and character summaries from that layer, with an
+exact-string-match check and an alias-dedup loop. That is the cell matrix with both marginals, plus
+the quote gate, published and peer-reviewed.
+
+**The difference is real and must be stated rather than hoped past: Story Ribbons is a visualisation
+system with no retrieval layer.** Also close: **ReverieMem** (arXiv:2606.25632), per-character
+per-scene retrospective summaries over 8 novels including the Sherlock Holmes canon.
+
+## The largest gap in this repo's prior-art coverage
+
+**An entire 2026 "LLM Wiki" line is absent from `papers/`, `docs/` and `summaries/`.** It occupies
+the wiki-tier rendering (section 5 of `03_design.md`) and the entity-keyed retrieval table outright:
+
+- Ming et al., arXiv:2605.25480: one page per entity, 5,825 knowledge pages, YAML frontmatter with
+  aliases and tags, a one-line summary, structured key facts, bidirectional wikilinks, source refs.
+- Cochran, arXiv:2607.04576: a real 709-page LLM-maintained wiki, lead paragraph plus a Connections
+  section.
+- Cochran, arXiv:2605.18490: a **preregistered** head-to-head of vector RAG against an LLM-compiled
+  wiki. This is the comparison this project would want to run.
+- WiCER (arXiv:2605.07068), LLMpedia (arXiv:2603.24080), and Karpathy's April 2026 gist.
+
+Also absent and relevant: NKW (2606.05724), StateFuse (2607.05844), MOSS (2607.04391), xmemory
+(2604.27906), Streaming Knowledge Compilation (2606.09877).
+
+## A method warning carried out of this search
+
+The searching agent caught **four fabrications** produced by fetched PDF summaries during this
+session: an invented tiered architecture attributed to MEMTIER (2605.03675), the same for
+2606.09877, a venue invented for ENGRAM (2606.09900) whose arXiv comments field names none, and a
+novelty policy misattributed between two conferences. Each was caught only by extracting the PDF
+locally and reading it.
+
+**Do not trust a fetched summary of a paper. Extract and read it.** That is the same failure that
+produced the Zep README error, and it is now documented three times in this repository.

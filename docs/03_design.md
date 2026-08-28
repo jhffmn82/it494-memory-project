@@ -553,16 +553,59 @@ both came back usable:
 Consequence: the Zep-as-baseline comparison stands on the literary corpora, and the spring product
 does not need to build its own graph layer.
 
+### But deployment B cannot satisfy this design's invariants, and that is a design finding
+
+**Added 2026-08-28.** The two caveats above are not minor. Read against the invariants in section 6:
+
+- `add_triplet` **still runs node and edge resolution**, so a supplied entity may be merged into an
+  existing node rather than stored as given. That violates **invariant 2**, that nothing is
+  overwritten and merges resolve at read time.
+- `add_triplet` **creates no episode node**, so triplets added that way carry no provenance back to
+  a source unit. That violates **invariant 3**, that every assertion carries a verbatim quote which
+  must appear in its unit.
+
+So "two deployments, one logical schema, separated by a storage port" is **not achievable with
+Graphiti as deployment B**. The arms would differ in semantics, not merely in storage, which also
+means any measured quality difference between them is confounded and cannot be attributed to the
+storage layer.
+
+Three honest options, and the choice has not been made:
+
+1. **Accept that B is a different system**, not a second backend, and stop describing the pair as
+   one schema behind a port. Comparisons then become end-to-end system comparisons, which is a
+   different and weaker claim.
+2. **Use raw Neo4j for B** and implement the fact and provenance layers directly, giving up
+   Graphiti's temporal machinery but keeping the invariants. More work, but the port promise holds.
+3. **Drop B.** Build A behind the port so the adapter stays cheap later, and do not claim a
+   comparison this project cannot make cleanly.
+
+Option 3 is what the fall calendar supports. See `08_paper_options.md`.
+
 **B, the distributable.** JSONL as the store of record, `.npy` for embeddings, SQLite FTS5 for
 text search, no server. The canonical data is entirely JSONL: human-readable, git-diffable, one
 record per line. The two indexes are derived and disposable; delete them and they rebuild. This is
-justified rather than merely convenient, and the justification is now **citable rather than
-asserted**. Zerhoudi, Roegiest, Mitrovic and Granitzer, *As We May Search* (ICTIR 2026,
-arXiv:2606.29652), sweep five benchmarks from 1K to 1M documents on consumer hardware, comparing
-FAISS exact flat search against HNSW and IVF plus BM25, and report dense retrieval holding over 91%
-nDCG@10 **up to 100K documents**, with approximate indexes extending to 1M at about 2% quality loss.
-A personal corpus is far below that boundary. This repo previously stated the 100K figure as design
-rationale with no source; cite the paper.
+defensible, but **the justification this repo gave for it was wrong twice and is restated here
+accurately.**
+
+The original wording was "brute-force exact cosine is correct below roughly 100K vectors." That
+conflates two things. Exact search is *always* correct; it is exact. The real question is latency,
+and the 100K figure had no source. Faiss's own paper, `papers/douze2024-faiss.pdf` §5, read in full,
+says: "Non-exhaustive search is the cornerstone of fast search implementations for datasets larger
+than around N=10k vectors," and its index-selection decision tree sends N below 10k to a flat index.
+So the published threshold is **10k, an order of magnitude below the figure this repo asserted**,
+and the four-corpus run at roughly 10,000 to 20,000 vectors sits just *above* it rather than far
+below.
+
+The decision still holds, on latency arithmetic rather than on a borrowed threshold: 20,000 vectors
+at 768 dimensions in float32 is about 61 MB, and an exact query is one BLAS matrix-vector product
+over it. That is milliseconds on a laptop, and it buys exact recall, no index build, no index to
+keep in sync with the node table, and one less dependency. Say that, and cite Faiss §5 for where
+the speed threshold actually sits, rather than claiming to be comfortably underneath one.
+
+For the wider design-space framing, Zerhoudi et al., *As We May Search* (ICTIR 2026,
+arXiv:2606.29652) sweeps 1K to 1M documents on consumer hardware across exact, HNSW and IVF plus
+BM25. Cite it as the framing for local-first retrieval rather than trying to establish that framing
+here.
 
 **Reaching a desktop client is MCP:** a Python server over stdio plus a config entry, where the
 tool list is the capability contract. Two such servers already run against the prototype.
@@ -606,7 +649,10 @@ prompt templates, which is exactly the surface that has to be built and defended
 - **`kind` does two jobs**, routing extraction prompts and constraining delta. Those will want to
   diverge, because `event` and `topic` need the same predicates and very different prompts.
 - **Conformance testing.** Two adapters, twelve operations, no shared test suite. The realistic
-  failure is that the files adapter is developed against and the Neo4j adapter rots.
+  failure is that the files adapter is developed against and the Neo4j adapter rots. Note this is
+  now doubly urgent: the suite is the only thing that would catch the invariant divergence recorded
+  in section 5, and writing it against the single existing adapter is cheap (roughly 10 to 15 hours
+  at one case per operation) and does not require the second adapter to exist.
 - **Embedding-to-node desync has no detector.** The `.npy` matrix and the node table are written
   separately, so a partial write leaves row *i* of the matrix pointing at the wrong node. There is
   no checksum tying them together, and the failure is silent: retrieval simply returns the wrong
