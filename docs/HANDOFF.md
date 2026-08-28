@@ -103,7 +103,7 @@ documents before a cold audit caught it.
 | `06_spring_plan.md` | The installable version |
 | `07_references.md` | Sources behind the schema decisions |
 | `08_paper_options.md` | What kind of paper, and where it goes |
-| `09_evaluation_corpus.md` | Which benchmark, and why |
+| `09_evaluation_corpus.md` | **The handle.** Every dataset, what it tests, what the build must support |
 | `10_entity_resolution.md` | Deciding when two names mean one thing |
 
 `reference/` is background that still holds. `archive/` is superseded, each file labelled with what

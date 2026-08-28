@@ -1,6 +1,40 @@
-# Which benchmark, and why
+# The datasets, and what each demands of the build
 
-**2026-08-28.** Both are downloaded, verified and in the repo.
+**2026-08-28.** Two are downloaded and verified. This is the list every build step gets checked
+against: if a stage cannot serve a row here, it is not done.
+
+## The handle
+
+| Dataset | Status | What it tests | What the build must support |
+|---|---|---|---|
+| **GraphRAG-Bench** novels | in repo, verified | QA accuracy against 9 published baselines, token cost, the cells ablation, resolution arms downstream | plain-text loader, splitting per the unit contract, the retrieval and answer path |
+| **Hand-labelled aliases**, one novel | **does not exist. Build first** | merge precision and recall from the very first ingest | nothing special; it is the day-one smoke test |
+| **Our 81-work corpus** | in repo | the fixtures: Tip becoming Ozma, Watson's wound, the deerstalker, Helen and Troy, clean text against OCR | supersession, `rank: deprecated`, the quote gate |
+| **BookCoref** | **not fetched** | coreference F1 against published numbers on full books | `Mention.span`, a character offset into the source, plus a CoNLL scorer |
+| **CORE-KG's pipeline** on our corpus | not attempted | duplication rate head to head, same corpus and model | their code, GraphRAG 0.3.2, their seven prompts retyped for narrative |
+| **LongMemEval** | oracle in repo, `_s` on demand | Zep parity, 78 knowledge-update questions, 133 temporal-reasoning | chat loader, `Document.occurred_at` populated, speaker recoverable from unit text |
+| **The personal archive** | in another repo | nothing. Design rationale only, never evidence | not an input |
+
+## What that implies for the code
+
+Read this column-first. Each row is a build requirement that more than one dataset depends on, which
+is why none of them can be deferred to an evaluation phase.
+
+| Requirement | Needed by | Cost if deferred |
+|---|---|---|
+| `Mention` with a character span | BookCoref, duplicate counting, cluster purity | full re-ingest |
+| `Document.occurred_at` | LongMemEval temporal and knowledge-update | a batch ingest flattens a year of chat into one timestamp |
+| Per-signal candidate scores, rejects included | every resolution arm, merge precision | one full ingest per arm instead of a replay |
+| Node lineage, mentions to node | duplicate rate, cluster purity | cannot be reconstructed after merging |
+| Per-stage call and token counts by tier | the cost result, requirement 6 | re-run everything |
+| Loader and evaluator as the only dataset-aware code | all six | dataset logic leaks into the pipeline and every new set touches the middle |
+
+**The order this forces.** The alias set and the fixtures run against the first working ingest. The
+GraphRAG-Bench numbers come next because everything else is scoped by whether the QA path works at
+all. BookCoref and the CORE-KG run are additive and can slip. LongMemEval is spring, and it is the
+only one needing a loader shape we have not built.
+
+---
 
 ## Primary: GraphRAG-Bench, novel split
 

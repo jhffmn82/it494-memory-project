@@ -41,7 +41,7 @@ SECTIONS = [
     ("Spring 2027 plan", ROOT / "docs" / "06_spring_plan.md"),
     ("Schema prior art and references", ROOT / "docs" / "07_references.md"),
     ("Is there a paper, and what is it", ROOT / "docs" / "08_paper_options.md"),
-    ("The evaluation corpus", ROOT / "docs" / "09_evaluation_corpus.md"),
+    ("The datasets, and what each demands of the build", ROOT / "docs" / "09_evaluation_corpus.md"),
     ("Entity resolution", ROOT / "docs" / "10_entity_resolution.md"),
     ("Ways the research could elevate the project", ROOT / "docs" / "reference" / "04_elevation_options.md"),
     ("Anatomy of the prototype", ROOT / "docs" / "reference" / "07_pipeline_anatomy.md"),
