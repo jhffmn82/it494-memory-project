@@ -4,6 +4,20 @@
 This document answers the question that follows: with no novelty claim, is there an honest paper
 here at all?
 
+> **SCOPE DECISION, Justin, 2026-08-28, and it overrides the recommendation below.** The personal
+> archive is **not** an evaluation subject. Everything is tested against reproducible public-domain
+> data. The deployment is design rationale only, never evidence.
+>
+> **Consequence, stated plainly: this rules out section 5, the one paper that survived.** The
+> corroboration-inflation and over-merge findings exist only as measurements on a private corpus
+> that nobody else can rerun. Ruling out the personal backend removes them. That is a defensible
+> trade (it avoids a real reviewer objection about reproducibility and a real privacy problem), but
+> it is a trade, and the cost is the only shape that came back with daylight.
+>
+> **The direction that replaces it, under search as of 2026-08-28:** a *lightweight personal-scale
+> memory backend*, evaluated on the literary corpora. The thesis is that at personal scale the
+> heavyweight machinery is unnecessary and the tradeoff is measurable. See the last section.
+
 **Short answer: one, and it is a spring project.** Five candidate paper shapes were searched
 adversarially. Four are occupied or do not fit the hours. The fifth has genuine daylight, in a
 place nobody was looking.
@@ -95,7 +109,11 @@ scenario.
 
 ---
 
-## 5. The one that survives: provenance integrity
+## 5. Provenance integrity. RULED OUT BY THE SCOPE DECISION ABOVE, kept for the record
+
+**This section is retained because the search behind it was real and the finding may matter later,
+for instance if the archive is ever instrumented with a releasable synthetic replica. Under the
+2026-08-28 scope decision it is not the fall or spring paper.**
 
 **The contribution is not fault injection. It is two measured provenance failures and the link
 between them.**
@@ -161,6 +179,33 @@ the replica; it is what reviewers actually want.
 
 **Venue:** CAIN or ICSE-SEIP, an experience or industry track, not a research track. The model is
 *Seven Failure Points When Engineering a RAG System* (CAIN 2024).
+
+---
+
+---
+
+## The direction now under examination: lightweight at personal scale
+
+Stated as a thesis rather than a claim, because it has not finished being searched:
+
+> At personal corpus scale, the infrastructure the published systems assume is unnecessary, and
+> what it costs to drop it can be measured.
+
+Zep and Graphiti require Neo4j. GraphRAG does batch community detection over a graph store. Most
+agent-memory systems assume a server or a hosted service. A personal corpus is small: tens of
+thousands of units, not millions. This design's deployment B is JSONL as the store of record, a
+numpy array with brute-force exact cosine, and SQLite FTS5, with no server and an option to drop
+embeddings entirely and resolve entities from an alias table plus lexical search.
+
+Two things make this a better fit than anything above. It is a **design-space measurement**, which
+is the framing that survives prior art. And it is evaluated on **corpora anyone can re-download**,
+which satisfies the scope decision.
+
+What would have to be true for it to be a paper: that nobody has published the crossover
+measurement at personal scale, and that the zero-embedding variant is not already known to be
+strong. Both are being searched. Do not write a word of it until those return, and do not treat
+this section as a claim until then. The nine dead claims all began as a paragraph exactly this
+confident.
 
 ---
 
