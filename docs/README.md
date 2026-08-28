@@ -11,7 +11,7 @@ literature because literature supplies ground truth a personal archive cannot.
 
 ## The working set
 
-Ten documents. Everything else is background or superseded.
+Eleven documents. Everything else is background or superseded.
 
 | Document | What it is |
 |---|---|
@@ -23,6 +23,7 @@ Ten documents. Everything else is background or superseded.
 | [`05_fall_plan.md`](05_fall_plan.md) | The calendar, the phases, the cut order, and the cost model |
 | [`06_spring_plan.md`](06_spring_plan.md) | The distributable, its risks, and its administrative gates |
 | [`07_references.md`](07_references.md) | Schema prior art with complete, verified citations |
+| [`09_evaluation_corpus.md`](09_evaluation_corpus.md) | Which benchmark supplies the gold questions. Infinity-Bench En.MC primary, LiteraryQA scale-up, NovelQA ruled out |
 | [`08_paper_options.md`](08_paper_options.md) | Whether there is an honest paper here. Five shapes searched, four dead; the surviving one is a spring project with a two-hour kill check |
 
 `04_unit_contract.md` is frozen and code is meant to build against it. Change it only with a note
