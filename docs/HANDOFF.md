@@ -45,9 +45,9 @@ one-semester proposal form may remain, on the Fang, then Hasselbring and Tang, r
    **Graphiti cannot satisfy invariants 2 and 3.** `add_triplet` runs node and edge resolution, so a
    supplied entity may be merged rather than stored as given, and it creates no episode node, so
    triplets carry no quote provenance. The two arms would have differed in semantics, not storage.
-2. **Keep the twelve-operation storage port**, which keeps that decision reversible, and **write the
-   conformance suite against the one adapter that exists**, roughly 10 to 15 hours at one case per
-   operation.
+2. **Keep the storage port**, which keeps that decision reversible, and **write the conformance suite
+   against the one adapter that exists**. It is **seventeen** operations, not the twelve this repo
+   said until 2026-08-29, so roughly **14 to 21 hours** at one case per operation.
 3. **Ingest sequentially, chapter by chapter, never in bulk.** A bulk-loaded book is static and
    exercises nothing temporal. Reading in order exercises both supersession mechanisms, and they are
    different operations: *the world changed* is computed supersession, while *we were wrong* (Tip
@@ -111,7 +111,7 @@ else, so correcting the sentence did not correct the argument resting on it.
 | The correction to it was itself overstated | "Without full refresh" became "delays but does not eliminate it." The paper says periodic refreshes remain necessary |
 | "Best single system covers five or six of nine" | Never computed. Deleted rather than repaired. There are seven requirements, not nine |
 | Covering versus partition asserted as unoccupied | RAPTOR soft-clusters by design and this repo's own one-pager said so; CAM does incremental overlapping clustering |
-| MemoryAgentBench "28% on fact update" | It is the multi-hop ceiling only; single-hop reaches 78 to 100 |
+| MemoryAgentBench "28% on fact update" | It is the multi-hop ceiling only. Single-hop reaches 78.0 at full length and 100 only on the 6K version, so the "78 to 100" range in earlier drafts spliced two context lengths; at full length most systems are far lower, Zep at 7.0 |
 | "33 to 65% omit key events" attributed to BooookScore | It is FABLES. Both halves true, the attribution was not |
 | "RAPTOR and GraphRAG name incremental insertion as unsolved" | Neither does. MemTree measured it and is the real source |
 | Requirement 7 as "no benchmark can express this" | False. ENPMR-Bench is exactly that benchmark |
@@ -119,6 +119,32 @@ else, so correcting the sentence did not correct the argument resting on it.
 | Cost model: 70x spread, 1.5M batched output, 3x saving | Real figures are 146x, 1.29M (unchanged by batching), and 2.33x on total input |
 | "The corpora are occupied by nobody" | Asserted by the assistant with no search. GraphRAG-Bench, AffilKG, STAGE, CoSER and SPGC all bear on it |
 | The 100K vector threshold, stated as rationale | Faiss's own paper puts it at **10k**, an order of magnitude lower. The decision still holds, on latency arithmetic |
+
+### A second round of corrections, 2026-08-29, from a cold audit of the 08-28 work
+
+The 08-28 revision was audited in a fresh context that was given no conclusions from it. It found
+fifteen items. The five that mattered:
+
+| Error | What it propagated into |
+|---|---|
+| **"CORE-KG's ablation shows removing its coreference pass costs 28.25% more node duplication"** | **Fabricated.** The figure is in no paper, and CORE-KG runs no ablation: its Table 1 is a between-systems comparison against a GraphRAG baseline (30.38% to 20.27%, a 33.28% relative improvement) on legal text. Taken from a subagent report and written into two documents without opening the PDF. It was one of four "independent killers" of the book-scale replication |
+| **The A/B labels were inverted in the backend decision** | `03_design.md` §5 argued about Graphiti (deployment A) while saying "deployment B", and concluded "Drop B. Build A." Read with the document's own definitions that says drop the distributable and build Neo4j, the exact inverse of the decision. Two documents point readers there for it |
+| The claim count contradicted itself four ways | Nine, ten, eleven and twelve, with one document managing all four. Twelve is right, derivable from the eleven-row table in `05_fall_plan.md` plus the self-asserted corpus claim |
+| The 100K correction never propagated | Fixed in `03_design.md`, still asserted as rationale in two other documents, one of which also mis-stated where the corrected figure was cited |
+| Two live documents did not ship in the package | `08_paper_options.md` and `09_evaluation_corpus.md` were never added to `SECTIONS` |
+
+Also corrected: three documents disagreed on whether to run DMR; the storage port is **seventeen**
+operations, not twelve, so the conformance suite is 14 to 21 hours rather than 10 to 15; "the number
+nobody publishes" about refold cost is an undocumented absence claim that MemTree refutes with a
+figure cited elsewhere in the same doc set; the `Run` record had lost `config_hash`, `tiers` and
+`dollars`, so spend accounting was not the query the plan claimed; the cut order still called the
+prototype instruments "the paper" after the scope decision ruled the prototype out as evidence; the
+Chinese corpus figure was 4% high; and the pilot is about $2, not $3.
+
+**The pattern in both rounds:** claims verified directly against a source held up, and roughly
+thirty verbatim quotes survived the audit exactly. What broke was anything asserted from a
+subagent's summary rather than a source, and cross-document consistency after rewriting eleven files
+in one pass.
 
 ---
 
@@ -138,7 +164,10 @@ else, so correcting the sentence did not correct the argument resting on it.
    81 works, committed 08-27 as collateral inside an unrelated docs commit. No `unit_type`, no
    `unit_id`, and `chapter_ordinal` where the contract says `unit_ordinal`. Nothing in the repo or
    its history produced it, so it is not reproducible. Treat it as a scratch spike.
-5. **Two unrevoked tokens in pushed history.** Revoking is the fix; deleting the file is not.
+5. **Two unrevoked tokens: check which repository.** `06_spring_plan.md` attributes this to "the
+   live archive", a different system. A pattern and filename scan of *this* repository's full
+   history found zero matches, with a positive control confirming the search worked. Treat it as an
+   open item **for the archive repo**, not this one, and verify there rather than here.
 6. **`papers/MANIFEST.md` needs rebuilding.** It predates roughly half the current corpus.
 7. **Make the repo public on September 1** if the JOSS route is ever wanted, since it needs six
    months of public history. Costs nothing now.

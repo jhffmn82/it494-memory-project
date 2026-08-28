@@ -226,7 +226,8 @@ is no deerstalker fact row, because Doyle never wrote one, so nothing composes.
 ```
 Rejection  {rej_id, ts, stage, unit_id, target, contract_version, tier, error}
 Run        {run_id, ts, arm, question_id, injected_ids, answer_text, verdict,
-            judge_tier, tokens_in, tokens_out, latency_ms}
+            judge_tier, tokens_in, tokens_out, latency_ms,
+            config_hash, tiers: {stage: model}, dollars}
 Consult    {consult_id, ts, cued_node_ids, retrieved_ids, used_ids}
 Mention    {mention_id, unit_id, node_id, surface_form, quote, span, tier}
 ```
@@ -240,6 +241,12 @@ were identified as gaps and never absorbed:
   restarts from the beginning.
 - **`Run.answer_text`** lets verdicts be re-judged after a judge-prompt change. Without it, every
   judge revision invalidates every prior run and the runs cannot be re-scored, only re-executed.
+- **`config_hash`, `tiers` and `dollars`** were on the archived data model and were dropped in the
+  08-28 consolidation. Restored 2026-08-29, because two committed measurements are otherwise not
+  queries at all: **per-stage tier sensitivity** needs `tiers: {stage: model}` to know which model
+  ran which stage, and **spend accounting** needs `dollars`, since the per-million rate tables that
+  would let you derive it live only in `archive/21_cost_and_models.md`. `config_hash` is what makes
+  an arm reproducible.
 - **`Mention`** makes the surface-form-to-node binding a first-class record. Quote verification and
   the hand-check sample both need bindings as data; deriving them after the fact from cells is not
   the same thing.
@@ -538,7 +545,7 @@ prose.
 
 ### Two deployments, one logical schema
 
-Separated by a storage port of twelve operations.
+Separated by a storage port of seventeen operations, enumerated below.
 
 **A, the research backend.** Neo4j, with the vector index and the graph in one store and temporal
 traversal as a query. Graphiti (Zep's engine) runs on Neo4j and supplies temporal facts,
@@ -575,7 +582,7 @@ both came back usable:
 Consequence: the Zep-as-baseline comparison stands on the literary corpora, and the spring product
 does not need to build its own graph layer.
 
-### But deployment B cannot satisfy this design's invariants, and that is a design finding
+### But deployment A cannot satisfy this design's invariants, and that is a design finding
 
 **Added 2026-08-28.** The two caveats above are not minor. Read against the invariants in section 6:
 
@@ -587,21 +594,49 @@ does not need to build its own graph layer.
   must appear in its unit.
 
 So "two deployments, one logical schema, separated by a storage port" is **not achievable with
-Graphiti as deployment B**. The arms would differ in semantics, not merely in storage, which also
+Graphiti as deployment A**. The arms would differ in semantics, not merely in storage, which also
 means any measured quality difference between them is confounded and cannot be attributed to the
 storage layer.
 
-Three honest options, and the choice has not been made:
+**Label correction, 2026-08-29.** An earlier version of this section said "deployment B" throughout
+and concluded "Drop B. Build A." That inverted this document's own definitions, where **A is the
+Neo4j and Graphiti research backend** and **B is the JSONL distributable**, so it read as an
+instruction to drop the distributable and build the Neo4j arm, the exact opposite of the decision in
+`HANDOFF.md` and `05_fall_plan.md`. Two documents point readers here for this finding, so the
+inversion was load-bearing.
 
-1. **Accept that B is a different system**, not a second backend, and stop describing the pair as
-   one schema behind a port. Comparisons then become end-to-end system comparisons, which is a
-   different and weaker claim.
-2. **Use raw Neo4j for B** and implement the fact and provenance layers directly, giving up
+Three honest options, and the choice is now made:
+
+1. **Accept that A is a different system**, not a second backend, and stop describing the pair as
+   one schema behind a port. Comparisons become end-to-end system comparisons, a weaker claim.
+2. **Use raw Neo4j for A** and implement the fact and provenance layers directly, giving up
    Graphiti's temporal machinery but keeping the invariants. More work, but the port promise holds.
-3. **Drop B.** Build A behind the port so the adapter stays cheap later, and do not claim a
-   comparison this project cannot make cleanly.
+3. **Drop A.** Build **B**, the files distributable, behind the port so a second adapter stays cheap
+   later, and do not claim a comparison this project cannot make cleanly.
 
-Option 3 is what the fall calendar supports. See `08_paper_options.md`.
+**Option 3 is the decision**, and it is what the fall calendar supports. See `05_fall_plan.md`.
+
+### The storage port, enumerated
+
+**Seventeen operations, not twelve.** Corrected 2026-08-29: three live documents said "twelve
+operations", inherited from `archive/15_schema_and_architecture.md`, whose own heading reads "Twelve
+operations" above a list of seventeen. The count was never checked and the conformance-suite
+estimate was priced against it.
+
+```
+put_document / get_document
+put_unit / get_unit / get_units(work_id) -> ordered
+put_node / get_node
+resolve_alias(text) -> node_id | None
+nearest_nodes(vector, k) -> [(node_id, score)]
+put_fact / get_facts(subject, as_of=None)
+put_cell / get_cells(node_id, corpus_id) -> ordered
+put_abstract / get_abstract(node_id, corpus_id)
+search_text(query, scope, k) -> [(id, score)]
+log_consult(record)
+```
+
+Nothing in the pipeline touches an adapter directly. Any adapter implements all seventeen.
 
 **B, the distributable.** JSONL as the store of record, `.npy` for embeddings, SQLite FTS5 for
 text search, no server. The canonical data is entirely JSONL: human-readable, git-diffable, one

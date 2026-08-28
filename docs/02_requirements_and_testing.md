@@ -23,8 +23,10 @@ strategy.
 > **NovelQA was considered and rejected**: its gold answers are held out behind a Codabench
 > leaderboard, so every ablation would be a round-trip through someone else's server.
 
-Every citation in the requirements table was re-verified against full paper text on 08-28, with the
-single exception marked `[abstract only]`. Three were wrong and are corrected here. The corrections are marked, because the corrected versions are
+Every citation in the requirements table was re-verified against full paper text on 08-28, **with
+two exceptions**: the row marked `[abstract only]`, and **Noy et al. 2019, whose paper is not in
+`papers/`** and was verified against the publisher's page rather than a local copy. Corrected
+2026-08-29; the earlier wording claimed one exception. Three were wrong and are corrected here. The corrections are marked, because the corrected versions are
 weaker than what they replace and nobody should reintroduce the stronger wording from an old draft.
 
 ---
@@ -141,7 +143,9 @@ it served those numbers from about 1,600 tokens of context against the baseline'
 roughly a tenfold latency reduction. If this project competes on LongMemEval it is competing on
 that frontier, not on accuracy alone.
 
-**DMR:** run it because it is cheap and widely cited, and quote Zep's own caveat. Zep scored 94.8%
+**DMR: do not run it.** Corrected 2026-08-29; this line previously said to run it, contradicting
+`05_fall_plan.md` and `09_evaluation_corpus.md`, which both say not to, on the same evidence. Cite
+Zep's own caveat instead of spending a run. Zep scored 94.8%
 against a 94.4% full-conversation baseline with gpt-4-turbo. The gpt-4o-mini row is the sharper
 illustration and is currently unused: 98.2% against 98.0%, a margin of two tenths of a point. Zep's
 paper calls the benchmark inadequate in its own words, noting each conversation is only 60 messages

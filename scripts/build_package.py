@@ -40,6 +40,8 @@ SECTIONS = [
     ("Fall 2026 plan", ROOT / "docs" / "05_fall_plan.md"),
     ("Spring 2027 plan", ROOT / "docs" / "06_spring_plan.md"),
     ("Schema prior art and references", ROOT / "docs" / "07_references.md"),
+    ("Is there a paper, and what is it", ROOT / "docs" / "08_paper_options.md"),
+    ("The evaluation corpus", ROOT / "docs" / "09_evaluation_corpus.md"),
     ("Ways the research could elevate the project", ROOT / "docs" / "reference" / "04_elevation_options.md"),
     ("Anatomy of the prototype", ROOT / "docs" / "reference" / "07_pipeline_anatomy.md"),
     ("Feasibility, reviewed antagonistically", ROOT / "docs" / "reference" / "13_feasibility_review.md"),
@@ -175,7 +177,7 @@ def build():
         print(f"  ok: {title} ({parts[-1][2]} pp)")
 
     # Implementation plans, one part, each plan on a fresh page
-    impl_dir = ROOT / "docs" / "impl"
+    impl_dir = ROOT / "docs" / "archive" / "impl"  # archived 2026-08-28; excluded via IMPL_ORDER = []
     impl_files = [impl_dir / f"{s}.md" for s in IMPL_ORDER if (impl_dir / f"{s}.md").exists()]
     if impl_files:
         chunks = []

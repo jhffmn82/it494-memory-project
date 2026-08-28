@@ -1,9 +1,14 @@
 # The paper's argument
 
-**2026-08-27, revised 2026-08-28.** Nine candidate contributions have now been searched
-adversarially and **all nine were occupied.** Seven fell on 08-26 and 08-27; covering versus
-partition fell on 08-28; the extraction-ordering claim, which this document was previously built
-around, fell later the same day.
+**2026-08-27, revised 2026-08-29.** Twelve candidate contributions have now been searched
+adversarially and **all twelve were occupied.** Seven fell on 08-26 and 08-27. Five more fell on
+08-28: covering versus partition, the literary memory benchmark, the requirements analysis, the
+extraction-ordering claim this document was previously built around, and the corpus-as-a-resource
+claim that the assistant asserted about itself without a search.
+
+**Count corrected 2026-08-29.** Earlier versions of this document said nine, derived by listing only
+three of the 08-28 closures. The occupied-claim table in `05_fall_plan.md` has eleven rows, and the
+self-asserted corpus claim makes twelve. Anything still saying nine is stale.
 
 This document no longer proposes a contribution. It records what was claimed, how each claim died,
 and what survives that needs no claim at all. Do not reuse an older draft of it: every version
@@ -50,14 +55,23 @@ conditioning against local-cast conditioning on two datasets. Global-cast condit
 roughly **10 points lower** triplet precision: a richer graph carrying more irrelevant relations.
 The related line does report gains, but through pre-extraction *coreference resolution* rather than
 a cast list: LINK-KG cuts node duplication from 27.0% to 10.6% on short documents and 36.0% to
-17.8% on long ones, and CORE-KG's ablation shows removing its coreference pass costs 28.25% more
-node duplication. That is a different mechanism, and it is occupied three times over.
+17.8% on long ones. CORE-KG reports the same direction, reducing node duplication from **30.38% to
+20.27%** against a GraphRAG baseline, a 33.28% relative improvement over 20 legal cases. That is a
+different mechanism from a cast list, and it is occupied three times over.
+
+**Correction, 2026-08-29.** An earlier version of this paragraph said "CORE-KG's ablation shows
+removing its coreference pass costs 28.25% more node duplication." **That was fabricated.** The
+figure 28.25 appears nowhere in the paper, and **CORE-KG runs no ablation at all**: its Table 1 is a
+between-systems comparison against a GraphRAG baseline, not a within-system component removal. It
+also runs on legal proceedings rather than literature, and states that it benchmarks against that
+baseline "in the absence of annotated ground-truth graphs." The number was taken from a subagent's
+report and written into two documents without opening the PDF.
 
 **And the measurement instrument does not work either.** See the LitBank section below.
 
 ### What follows from this
 
-Do not repair the claim. Nine consecutive candidates have been searched and nine were occupied,
+Do not repair the claim. Twelve consecutive candidates have been searched and twelve were occupied,
 and the failure mode every time was asserting an absence without searching for it. A tenth
 formulation invented at this point, without a search behind it, would be the same error again.
 
@@ -133,6 +147,12 @@ this document and because LitBank cannot carry it. What is left is free and stil
 
 The parse was validated by reproducing LitBank's published totals exactly, 210,532 tokens and
 29,103 mentions, before any of the numbers below were taken from it.
+
+**Reproducibility caveat, added 2026-08-29.** The LitBank data, the parsing script and its
+intermediate output are **not in this repository**, so the table below cannot be regenerated here.
+It is reported on the authority of the session that computed it, which is a weaker footing than the
+rest of this document and is the same defect flagged for `data/clean/`. If any of it becomes
+load-bearing for a submission, recompute it and commit the script.
 
 | Per document (n=100) | mean | median | range |
 |---|---|---|---|
@@ -291,7 +311,7 @@ rule against undocumented absence claims, and it is false. Searched properly on 
 
 None of these were in `papers/`, `docs/` or `summaries/` before 08-28. What is left unoccupied is a
 *composition* of individually occupied parts, and "novel combination of occupied components" is the
-argument that killed claims one through nine.
+argument that killed claims one through twelve.
 
 **A literary memory benchmark. Largely taken.** NarrativeXL (Findings of EMNLP 2023) is 1,500
 hand-curated Gutenberg fiction books with 990,595 questions carrying an explicit retention demand,

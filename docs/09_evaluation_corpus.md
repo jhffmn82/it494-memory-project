@@ -83,7 +83,9 @@ fail with "Dataset scripts are no longer supported."
 
 ## Overlap with this project's existing corpora
 
-Measured from NarrativeQA's `documents.csv` and `qaps.csv`.
+Measured from NarrativeQA's `documents.csv` and `qaps.csv`. **Neither file is in this repository**,
+so this table cannot be regenerated here; it is reported on the authority of the session that
+computed it. Recompute and commit the script before relying on it. (Caveat added 2026-08-29.)
 
 | Title | Split | Words | Questions | Gutenberg |
 |---|---|---|---|---|

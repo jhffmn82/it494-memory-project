@@ -1,6 +1,8 @@
 # Is there a paper, and what is it?
 
-**2026-08-28.** Written after nine novelty claims were searched and all nine came back occupied.
+**2026-08-28, count corrected 2026-08-29.** Written after twelve novelty claims were searched and
+all twelve came back occupied. Sections below written on 08-28 say nine, ten or eleven as the count
+rose during that day; twelve is the settled figure.
 This document answers the question that follows: with no novelty claim, is there an honest paper
 here at all?
 
@@ -78,7 +80,7 @@ table in an engineering report, not a paper.
   contribution, at roughly 600 times this scale.
 
 What remains is a *composition* of individually occupied parts. "Novel combination of occupied
-components" is the argument that killed claims one through nine.
+components" is the argument that killed claims one through twelve.
 
 **What survives, and it is worth doing anyway:** a DOI'd artifact release. Roughly 15 hours, no
 novelty claim to shoot down, citable in December. And the cheapest real measurement available is
@@ -92,9 +94,14 @@ Four independent killers:
 - **The instrument cannot measure the variable.** BOOKCOREF annotates only character coreference:
   no relations, no non-character entities. iText2KG's ablation metric is human-judged triplet
   precision. Swapping the outcome measure is not a replication.
-- **The measurable half is predictable.** CORE-KG already shows removing coreference costs +28.25%
-  node duplication; LINK-KG shows 27.0 to 10.6 and 36.0 to 17.8. Extrapolating a twice-published
-  monotone trend to longer input is not a finding.
+- **The measurable half is largely predictable.** LINK-KG shows node duplication falling 27.0 to
+  10.6 on short documents and 36.0 to 17.8 on long ones, and CORE-KG reports the same direction,
+  30.38% to 20.27% against a GraphRAG baseline. **Corrected 2026-08-29:** this bullet previously
+  claimed "CORE-KG already shows removing coreference costs +28.25% node duplication." That was
+  fabricated; the figure is in no paper, CORE-KG runs no ablation, and its result is a
+  between-systems comparison on legal text rather than a component removal on books. The bullet is
+  weaker than it was: the direction is established between systems, not within one, and not on this
+  corpus type. It is still one of four reasons and the other three stand on their own.
 - **The corpus is maximally contaminated.** BOOKCOREF's three gold books are *Pride and Prejudice*,
   *Animal Farm* and *Siddhartha*. The model knows the cast before it sees chunk one, so a null is
   uninterpretable and a positive is confounded.
@@ -219,8 +226,9 @@ Why this is the best-shaped version so far, and each point is checkable:
 one logical schema separated by a twelve-operation port. Written as engineering discipline, it is
 also a controlled comparison: same schema, same pipeline, same corpora, one variable.
 
-**The corpora are already a size ladder**, on disk and public: Holmes 0.69M words, Oz 1.28M, Chinese
-1.58M, Greek 3.36M, all four 6.84M. Roughly 3,200 units, so on the order of 10,000 to 20,000
+**The corpora are already a size ladder**, on disk and public: Holmes 0.68M words, Oz 1.28M, Chinese
+1.52M, Greek 3.36M, all four 6.84M. (Corrected 2026-08-29: Chinese was stated as 1.58M, which is 4%
+high and made the components sum to 6.91M against a correctly computed 6.84M total.) Roughly 3,200 units, so on the order of 10,000 to 20,000
 vectors at the top.
 
 **The Graphiti arm is de-risked**, verified against source at commit `683a853`: `EpisodeType.text`
@@ -229,11 +237,13 @@ ingests plain text, and `add_triplet` accepts pre-extracted entities.
 **The framing is design-space, not novelty**, which is the one framing this project has established
 survives prior art.
 
-**The likely result, and it should be expected rather than hoped against:** the project's own vector
-survey puts exact brute-force cosine as correct below roughly 100K vectors. At 10,000 to 20,000
-vectors the server arm may never earn its keep anywhere on the reachable ladder. **That null is the
-finding**, and it is the strongest possible argument for the desktop version. Design the write-up so
-a null is the headline, not a disappointment.
+**The likely result, and it should be expected rather than hoped against:** the server arm may never
+earn its keep anywhere on the reachable ladder, so **that null is the finding** rather than a
+disappointment. **Corrected 2026-08-29:** this paragraph previously justified that with "exact
+brute-force cosine is correct below roughly 100K vectors." Faiss puts the threshold at **around
+10k**, so the four-corpus run at 10,000 to 20,000 vectors sits just above it rather than far below.
+The expectation survives on latency arithmetic (61 MB, one BLAS call), not on being comfortably
+underneath a threshold.
 
 **The cost, stated honestly.** Two backends roughly doubles the build against 70 hours with nothing
 built, and `03_design.md` section 7 already names the failure mode: "two adapters, twelve
@@ -288,8 +298,10 @@ queries need. GAM, ExpGraph and H-Mem publish ablations pointing the same way.
 heavy arm first, so you have something to drop.
 
 **One real gain from the search, independent of the claim:** the 100K figure in `03_design.md` §5
-was stated as design rationale with no source. It is now cited to *As We May Search*. Cite that
-paper as framing rather than trying to beat it.
+was stated as design rationale with no source. It is now **corrected to Faiss's published 10k
+threshold** and cited there; *As We May Search* is cited separately for the wider local-first
+framing rather than for the number. **Corrected 2026-08-29:** this paragraph previously said the
+figure "is now cited to *As We May Search*", which was wrong on both the number and the source.
 
 **The narrow seam that remains, recorded and not recommended:** *As We May Search* measures flat
 retrieval and does not touch the construction side (entity resolution, community detection,
@@ -379,8 +391,11 @@ requires building the system anyway.** The degree project and the paper stop com
 - **Per-mechanism ablations**: drop the salience threshold, drop the cells, drop the fact layer,
   drop the hash refold, and report what each costs.
 - At least one **non-accuracy axis**. The sharpest available here is **recompute cost under edit
-  churn**, because incremental refolding is the mechanism this design actually invests in and
-  nobody publishes the number.
+  churn**, because incremental refolding is the mechanism this design actually invests in.
+  **Corrected 2026-08-29:** this previously added "and nobody publishes the number," which was an
+  undocumented absence claim and is false. MemTree publishes 3,750 LLM calls per insertion for
+  RAPTOR and 3,850 for GraphRAG against 3.27 for itself. Position the measurement against that
+  number rather than as a first.
 - A **DOI'd artifact** and at least one **honest negative result**.
 - **Concede all six mechanisms as occupied in the introduction**, with citations, before a reviewer
   does it in the review.

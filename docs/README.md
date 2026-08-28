@@ -16,7 +16,7 @@ Eleven documents. Everything else is background or superseded.
 | Document | What it is |
 |---|---|
 | [`HANDOFF.md`](HANDOFF.md) | Where things stand, what is verified, what is open. Read first |
-| [`01_argument.md`](01_argument.md) | Why there is no novelty claim left, how all nine died, and what survives without one |
+| [`01_argument.md`](01_argument.md) | Why there is no novelty claim left, how all twelve died, and what survives without one |
 | [`02_requirements_and_testing.md`](02_requirements_and_testing.md) | Seven requirements sourced to literature, how each is tested, the asymmetric baseline strategy, and the scope cut |
 | [`03_design.md`](03_design.md) | Schema, ingestion, retrieval, rendering and delivery, in one document |
 | [`04_unit_contract.md`](04_unit_contract.md) | **FROZEN.** The preprocessing output contract: eight convention handlers, three acceptance gates |
@@ -105,8 +105,8 @@ refresh, and three arithmetic errors in the cost model.
 five or six of nine." It was never computed and there are seven requirements, not nine.
 
 **Withdrawn 2026-08-28:** the entity-first versus chunk-first claim and the LitBank head-to-head
-that was meant to measure it. Nine candidate contributions have now been searched adversarially and
-all nine are occupied. The premise was also wrong: both baselines are already entity-first, by their
+that was meant to measure it. Twelve candidate contributions have now been searched adversarially
+and all twelve are occupied. The premise was also wrong: both baselines are already entity-first, by their
 own papers. There is no novelty claim left, and inventing a tenth without a search behind it would
 repeat the error that killed the other nine. What the project becomes instead is a decision for
 Justin and his advisor. See `HANDOFF.md`.

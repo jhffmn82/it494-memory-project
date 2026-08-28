@@ -59,7 +59,9 @@ As of the 08-27 and 08-28 searches, all of the following are occupied by publish
 | **Entity-first versus chunk-first extraction** | **iText2KG 2409.03284 (which ran the ablation and got a NEGATIVE result), RAKG 2504.09823, LINK-KG 2510.26486, CORE-KG 2506.21607. And the premise was wrong: both baselines are already entity-first. Closed 08-28** |
 
 Every search this plan previously listed as outstanding is now closed, and every one came back
-occupied. **Nine candidate contributions, nine occupied. There is no surviving novelty claim.**
+occupied. **Twelve candidate contributions, twelve occupied. There is no surviving novelty claim.**
+The table above has eleven rows; the twelfth is the corpus-as-a-resource claim the assistant asserted
+about itself on 08-28 without a search, recorded in `01_argument.md`.
 See `01_argument.md` for how each died.
 
 **What this plan is now.** A working backend, a published dataset, and measured cost and tier
@@ -78,16 +80,20 @@ advisor, and it belongs in the Phase 0 conversation below alongside the administ
    Hasselbring and Dr. Tang for the course permit. Confirm whether that form has been filed; if not,
    it is a short task, not a blocker.
 2. **Take the positioning question to the advisor, and treat it as a real decision rather than a
-   formality.** Nine candidate contributions were searched and all nine are occupied. There is no
+   formality.** Twelve candidate contributions were searched and all twelve are occupied. There is no
    novelty claim left. Present that plainly, present what survives without one (a working backend,
    a published dataset, measured cost and tier numbers), and ask whether the fall deliverable
    should be an engineering project with measurements or something else. The advisor steered
    toward a practical project twice before; this finding points the same way.
 3. **Freeze the unit contract** (`04_unit_contract.md`, already frozen). It is the only schema
    element that must be settled before preprocessing.
-4. **Decide the backend.** Files (JSONL, npy, SQLite) versus Neo4j. This plan assumes files,
-   because brute-force exact cosine is correct below roughly 100K vectors and a personal corpus is
-   far under that. Neo4j is a spring call.
+4. **The backend is decided: files** (JSONL, npy, SQLite). Not because the corpus sits far below a
+   threshold, which is what this plan used to say. Faiss's own paper puts the point where
+   non-exhaustive search becomes "the cornerstone of fast search implementations" at **around 10k
+   vectors**, and the four-corpus run at 10,000 to 20,000 vectors sits just *above* that, not an
+   order of magnitude below. The decision holds on latency arithmetic instead: 20,000 vectors at 768
+   dimensions is about 61 MB and one BLAS matrix-vector product per query, buying exact recall, no
+   index build, and one fewer dependency. See `03_design.md` section 5.
 5. **Turn on consult-logging**, and note that the logger emitting conforming rows is a separate
    deliverable from switching logging on. The instrument needs about four weeks of collection
    before its number means anything, so it cannot wait for the pipeline.
@@ -157,10 +163,13 @@ independent reasons, and the third is about the design rather than the schedule:
 nothing now and it is the whole reason a second adapter would be cheap later, which keeps this
 decision reversible.
 
-**Write the conformance suite against the one adapter that exists.** Roughly 10 to 15 hours at one
-case per operation. `03_design.md` section 7 already names the failure mode it prevents, that the
-files adapter gets developed against while any second adapter rots, and it is also what would catch
-the invariant divergence above if a second arm is ever built.
+**Write the conformance suite against the one adapter that exists.** **Seventeen** operations, not
+twelve, so roughly **14 to 21 hours** at one case per operation. (Corrected 2026-08-29: the count
+was inherited unchecked from an archived document whose own heading said twelve above a list of
+seventeen, and the estimate was priced on the wrong number.) `03_design.md` section 7 names the
+failure mode it prevents, that the files adapter gets developed against while any second adapter
+rots, and it is also what would catch the invariant divergence above if a second arm is ever
+built.
 
 **Ingest sequentially, chapter by chapter, not in bulk.** A bulk-loaded book is static and exercises
 nothing temporal. Read in order, the store's state at chapter 10 differs from chapter 20, which is
@@ -212,8 +221,12 @@ data:
   is the honest form of the two-axis claim: the entity axis does not know more, it costs less to
   reach.
 - **Refold cost under change.** Recompute cost with hash gating against a full rebuild, as the
-  corpus grows. This is the mechanism the design actually invests in and the number nobody
-  publishes.
+  corpus grows. **Corrected 2026-08-29:** this previously said "the number nobody publishes," which
+  was an undocumented absence claim in a plan that codifies the rule against them, and it is false.
+  MemTree publishes exactly this: incorporating one new observation costs roughly **3,750 LLM calls
+  for RAPTOR and 3,850 for GraphRAG**, against **3.27 per insertion** for MemTree, and
+  `02_requirements_and_testing.md` already cites it. The measurement is still worth making, on this
+  design and at this scale, but it is a comparison against a published number rather than a first.
 - **Coverage differential.** Plot summaries and entity cells are independent summaries over
   identical text, so the symmetric difference between what each contains is measurable with no
   ground truth at all. If the cells hold nothing the plot summaries miss, the entity axis is
@@ -279,8 +292,15 @@ lost week deletes from the bottom.**
 
 1. The signed proposal and the meeting package. Survives anything; nothing may displace it.
 2. The instruments on the live prototype: consult-logging, miss rate, stale-serve rate,
-   corrected-facts band. These run in evenings while coursework owns the weeks, and they are the
-   paper.
+   corrected-facts band. These run in evenings while coursework owns the weeks.
+   **Corrected 2026-08-29: they are NOT the paper.** This layer was carried verbatim from the
+   feasibility review and never re-derived against the scope decision made the same day, which rules
+   the personal archive out as evidence entirely (`08_paper_options.md`). The paper is the
+   Infinity-Bench arms in Phase 4, which is layer 4. Keep this layer for its own sake, because the
+   consult rate needs weeks of collection, but nothing in the paper now depends on it. Note also
+   that the operational definitions of miss rate, stale-serve rate and the corrected-facts band
+   exist only in `archive/impl/spine.md` and `archive/10_data_model.md`; carry them forward before
+   relying on any of them.
 3. The design document and the segmentation spec. These fit campus gaps and dead stretches by
    construction.
 4. The pipeline slice (interfaces, adapters, splitter, ingest and organize on one corpus), if and
@@ -340,8 +360,10 @@ Full four-corpus run, batched where a batch discount exists:
 | OpenAI | gpt-4o-mini | $4.40 |
 | OpenAI | gpt-5-nano | $2.30 |
 
-**Oz alone, batched:** about $6 on Haiku, $13 on Sonnet 5, $32 on Opus 5. **The pilot is about $3**
-for all three tiers over Oz book 1.
+**Oz alone, batched:** about $6 on Haiku, $13 on Sonnet 5, $32 on Opus 5. **The pilot is about $2**
+for all three tiers over Oz book 1 (24 of roughly 3,200 units, so 0.75% of the four-corpus run:
+$0.26 + $0.50 + $1.26). Earlier drafts said $3, which is about 50% high. Either way the pilot is
+not a budget question.
 
 **What the spread changes.** A 146-fold gap is not an academic question about which stages need a
 frontier model, it is the difference between a corpus that can be re-run every time the pipeline
@@ -355,8 +377,12 @@ works, report at minimum two tiers, and reserve the top tier for the judge, whic
 every writer anyway and is cheap because judging is far fewer tokens than generating.
 
 **Two operational constraints.** The prototype's fact layer has failed twice on credit balance, so
-instrument spend per run and set a hard stop before starting a full pass; the `Run` record already
-carries the token counts, so this is a query rather than new logging. And local models will fail on
+instrument spend per run and set a hard stop before starting a full pass. Corrected 2026-08-29: this
+previously said the `Run` record "already carries the token counts, so this is a query rather than
+new logging." It did not. `dollars` and `tiers` were dropped in the consolidation and are now
+restored in `03_design.md`, and the per-million rate tables needed to derive spend from tokens exist
+only in `archive/21_cost_and_models.md`. Carry those rates forward before any budget depends on
+them. And local models will fail on
 format rather than comprehension: the feasibility review predicts 30 to 40 percent rejection on
 strict nested JSON from 7B instruct models, and grammar-constrained decoding makes malformed output
 structurally impossible. Measure format failure and comprehension failure separately, because they
@@ -370,7 +396,7 @@ have different remedies.
   directly.
 - **Files, not Neo4j.** The distributable is a folder someone points a client at. A server
   dependency now becomes a port later.
-- **The MCP shape informs the retrieval API.** The twelve port operations should map cleanly onto
+- **The MCP shape informs the retrieval API.** The seventeen port operations should map cleanly onto
   tools a desktop client can call.
 - **Single-user, single-workspace assumptions are fine.** Multi-workspace partitioning is filesystem
   separation in the spring, not a policy layer now.
