@@ -1,132 +1,93 @@
 # The unit contract
 
-> **Note added 2026-08-28, not a change to the contract.** The `session` value of `unit_type` is
-> now **load-bearing rather than aspirational**. The Zep comparison runs on LongMemEval, which is
-> conversational, so a session has to normalise into this contract for real and not just exist in
-> the enum. Budget for it. Nothing else about the contract changes.
+**Re-frozen 2026-08-28.** This is the one thing that must be settled before preprocessing starts.
+Everything else in `03_design.md` gets settled by contact with real data.
 
-**2026-08-27. FROZEN.** This is the only schema element that must be settled before preprocessing
-begins. Everything else in `03_design.md` is provisional and gets settled by contact with real data.
+## Short version
 
-Preprocessing emits records matching this contract and nothing else. Per-corpus handlers absorb
-the heterogeneity; downstream sees one shape.
+Splitting produces one record shape and nothing else. **Text is text.** A novel, a chat log and a
+PDF all come out the same way.
 
 ---
 
 ## The record
 
-```jsonc
-{
-  "corpus_id":     "oz",              // oz | greek | holmes | chinese
-  "work_id":       "55",              // Gutenberg number or Archive.org identifier
-  "work_ordinal":  1,                 // position of the work within the corpus
-  "work_title":    "The Wonderful Wizard of Oz",
-  "unit_type":     "chapter",         // chapter | book | play | ode | hui | session
-  "unit_ordinal":  3,                 // position within the work, 1-based
-  "title":         "How Dorothy Saved the Scarecrow",
-  "text":          "...",             // verbatim, boilerplate stripped, nothing else altered
-  "chars":         11482,
-  "source_sha256": "…",               // sha256 of the RAW file, from the corpus manifest
-  "unit_id":       "u_a91f0c33"       // content hash: cid(corpus_id, work_id, unit_ordinal, text)
-}
+```
+{unit_id, doc_id, position, text, span, label?}
 ```
 
----
-
-## Field notes
-
-**`unit_type` carries the heterogeneity forward rather than erasing it.** A Euripides play has no
-siblings to fold with; an Oz chapter does. Normalising to one record shape is correct;
-flattening that distinction is not, and downstream needs to know which it is holding.
-
-**Ordering is `(work_ordinal, unit_ordinal)`, never a single integer.** A node's cells span
-multiple works, and a flat ordinal silently interleaves them.
-
-**`unit_id` is a content hash**, so re-running preprocessing on unchanged input produces
-identical ids and a second run is visible as an empty diff.
-
-**`text` is verbatim after boilerplate stripping.** No normalisation, no whitespace collapsing, no
-smart-quote conversion. The quote gate compares extracted quotes against this text, so anything
-done here has to be done identically at extraction time or every quote fails.
-
-**No `span` field.** Offsets into the raw file are deliberately omitted: any change to a splitter
-invalidates every offset, and the quote is the durable pointer. Spans are recomputed downstream
-as a cache, never stored here. See `03_design.md`, quote-primary and span-as-cache.
-
----
-
-## Acceptance gates
-
-A work passes preprocessing only if one of these holds. **A failure is a failure**, not a
-warning, a corpus that is quietly wrong in the middle is worse than one that is visibly short.
-
-| Gate | Applies to |
+| Field | What it is |
 |---|---|
-| Split count equals the table-of-contents entry count | any work carrying a TOC |
-| Markers are monotonic with no gaps | regular-marker works with no TOC (e.g. `第N回`) |
-| Count equals 1 | single-unit works, plays, odes, standalone stories |
+| `unit_id` | content hash of `text`. Re-splitting identical text gives the same id |
+| `doc_id` | content hash of the source file |
+| `position` | integer, 0-based, ordering units inside their document. No gaps |
+| `text` | the chunk, verbatim, never edited |
+| `span` | `[start, end]` byte offsets into the source. A cache; the text is the truth |
+| `label` | **optional free string with no meaning to the system.** "chapter 4", "session 2026-08-12". Nothing branches on it |
 
-**Table-of-contents titles do not always match body titles.** *The Marvelous Land of Oz* lists
-"Tip Manufactures Pumpkinhead" and the body reads "Tip Manufactures **a** Pumpkinhead." Match on
-count and order, never on string equality.
+The document record carries `source_uri` and `sha256` separately, so provenance is a lookup rather
+than a field copied onto every unit.
 
----
-
-## Convention handlers
-
-Eight known variants, one visible function each, plus a dispatcher that picks by inspection.
-Ugly on purpose: every line is defensible and a failure points at exactly one handler.
-
-| Handler | Form | Seen in |
-|---|---|---|
-| `caps_inline` | `CHAPTER I. TITLE`, number and title on one line, all caps | Holmes *A Study in Scarlet*, Brewitt-Taylor *Three Kingdoms* |
-| `roman_own_line` | `Chapter I` with the title on the following line | Oz book 1 |
-| `word_own_line` | `Chapter One` with the title on the following line | Oz books 7, 14 |
-| `contents_indent` | `I.  A Scandal in Bohemia` indented under `Contents` | Holmes *Adventures* |
-| `book_marker` | `BOOK I.` | Iliad, Odyssey |
-| `hui_marker` | `第一回 靈根育孕源流出` | Chinese originals, 105 in *Journey to the West* |
-| `bare_title` | no marker at all; body titles matched against a `LIST OF CHAPTERS` block | Oz books 2, 3, 13, 17 |
-| `single_unit` | the work is the unit | Euripides plays, Pindar's odes |
+**What changed, and why.** This contract previously required `unit_type` from a fixed list
+(`chapter|book|play|ode|hui|session`) and carried two ordinals, `work_ordinal` and `unit_ordinal`,
+so a character's thread could span volumes of a series. Both were chapter-parsing concerns that had
+leaked into the data model. A series is now just several documents in order, which is the same thing
+a year of chat sessions is, and the corpus manifest carries that order. The system no longer knows
+what a novel is.
 
 ---
 
-## Boilerplate stripping
+## The three gates
 
-Gutenberg's `*** START OF ***` and `*** END OF ***` markers bound the text, **but they are not
-sufficient.** Several files carry producer credits *inside* the START marker, "Produced by
-Dennis Amundson", proofreading team notes, HTML-version pointers.
+Splitting is not done until all three pass, per document.
 
-The rule is explicit and inspectable: after the START marker, drop leading blocks matching known
-producer patterns until the title line. A heuristic that trims N characters is not defensible and
-will eat a real first chapter somewhere.
+1. **Count.** Where the source has a table of contents, unit count equals its entry count. Where it
+   does not, unit markers must increase monotonically with no gaps. A document with no internal
+   structure is one unit.
+2. **Coverage.** The units account for the whole source. Concatenated unit text plus stripped
+   boilerplate equals the original, and **no single unit holds a wildly disproportionate share.**
+3. **Round-trip.** Every `span` resolves, and the text at that span equals the unit text.
 
-Archive.org scans have no markers at all and open with digitisation boilerplate, the Statius
-title does not appear until character 39,300. Those need a per-file front-matter rule or manual
-inspection.
-
----
-
-## Known quality flags to carry forward
-
-These are properties of specific files, recorded so downstream results can be qualified:
-
-- **OCR, not proofread transcription**, three Chinese files, the Richard *Journey to the West*,
-  both Apollodorus volumes, both Diodorus volumes
-- **Bilingual interleaving**, the Loeb editions mix Greek or Latin into the English: Apollodorus
-  ×2, Ovid's *Heroides*
-- **Unusable**, the 1767 Statius: 18th-century long-s renders as "f" throughout
-- **Abridged**, Richard's *Journey to the West* is roughly one sixth; Joly's *Dream of the Red
-  Chamber* stops at chapter 56 of 120
-- **No whitespace tokenisation**, the Chinese-language originals. Every length-based rule,
-  including chunk size, needs a per-language definition
+**Gate 2's second half was added 2026-08-28** after a real failure: Metamorphoses volume 1 split
+into 7 units taken from its *summary* section, leaving 97% of the book inside the last unit, and it
+passed the monotonic check while doing so. Counting and ordering cannot tell a good split from a
+catastrophic one. Proportion can.
 
 ---
 
-## What is deliberately not in this contract
+## Boilerplate
 
-**Segments below the unit.** If a unit needs subdividing for a context window, that is a
-downstream decision recorded on the segment, not baked into preprocessing. Preprocessing finds
-the units the work itself declares; it does not invent boundaries.
+Project Gutenberg's `*** START OF ***` and `*** END OF ***` markers bound the text, but they are not
+sufficient: producer notes and transcriber comments appear **inside** the start marker on some
+files. Strip to the first real content, and record what was stripped so the coverage gate can
+account for it.
 
-**Anything derived.** No summaries, no entities, no embeddings. This layer is the write-ahead log
-and everything above it is rebuildable from it.
+---
+
+## What the corpora actually throw at a splitter
+
+Implementation notes, not part of the contract. A dispatcher picks by inspection.
+
+| Form | Example |
+|---|---|
+| Number and title on one line, caps | Holmes *A Study in Scarlet*, Brewitt-Taylor *Three Kingdoms* |
+| `Chapter I` with the title on the next line | Oz book 1 |
+| `Chapter One` with the title on the next line | Oz books 7, 14 |
+| Indented under a `Contents` block | Holmes *Adventures* |
+| `BOOK I.` | Iliad, Odyssey |
+| `第一回` | Chinese originals, 105 in *Journey to the West* |
+| No marker at all, body titles matched against a chapter list | Oz books 2, 3, 13, 17 |
+| The work is one unit | Euripides plays, Pindar's odes |
+
+Eight forms, one output shape. If a ninth turns up, it is a new function in preprocessing and
+nothing downstream changes.
+
+---
+
+## Known quality problems in the sources
+
+- One Greek work (`29_thebaidstatius00conggoog`) fails title verification and is unusable as-is.
+- The Internet Archive scans are OCR and carry scan artifacts. That is deliberate: the same content
+  exists clean and OCR'd, which is a controlled variable rather than a defect.
+- Corpus files are stored with their original line endings and must not be normalised. `.gitattributes`
+  enforces this; without it, checkouts break the hashes the manifests attest.

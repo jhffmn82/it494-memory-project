@@ -1,721 +1,205 @@
-# Design: schema, ingestion, retrieval, delivery
+# The design
 
-**2026-08-27, revised 2026-08-28.** The design worked out in session on 08-26/27, consolidated
-from three separate documents (schema, ingestion pipeline, retrieval and delivery). Records the
-*what* and the *why*; implementation is the student's, per the authorship rule.
+**2026-08-28.** What gets stored, how it gets built, how it gets read.
 
-Citations resolve against `07_references.md`, where every source is now complete and citable.
-The unit contract is `04_unit_contract.md` and is frozen.
+## Short version
+
+Text comes in as an ordered run of chunks. For each chunk the system works out who or what is in
+it, writes down dated facts with the quote that supports them, and writes a short narrative for each
+important thing. Reading is mostly lookup by name, not similarity search.
+
+**Nothing in the schema knows what a novel is.** Books, chat logs and PDFs all arrive the same way.
 
 ---
 
-## 1. What the store is shaped like
+## 1. The shape of the store
 
-The design records on two axes over the same source text, and neither substitutes for the other.
+Two views over the same text, and neither replaces the other.
 
-**Plot axis.** Summaries per unit, attached to work nodes. Complete by construction: every unit
-gets one, no threshold, no entity judgment involved.
+- **By chunk.** One summary per chunk. Every chunk gets one.
+- **By thing.** One short narrative per important entity, per chunk it appears in.
 
-**Entity axis.** Per-node narrative cells. Sparse by design: only above-threshold nodes, and only
-for the units they appear in.
+The first loses the individual thread: a character in twelve chapters is scattered across twelve
+summaries, none of which is about them. The second loses the cause: Ozma's thread says she was Tip
+and became ruler, not why.
 
-Each covers the other's blind spot. The plot axis loses the individual thread, because a
-character appearing in twelve chapters is scattered across twelve summaries, none of which is
-about them. The entity axis loses the causal frame: Ozma's thread says she was Tip and became
-ruler, but not *why*, because the why is Mombi's enchantment and Jinjur's revolt, which are facts
-about other things.
+The atom is the **cell**: one entity, one chunk. Chunk summaries are the rows, entity narratives are
+the columns.
 
-Formally the atom is the **cell**, `(unit × node)`. Plot summaries are the row marginals; entity
-narratives are the column marginals. Two complementary views over one matrix.
-
-### Threads are a covering, not a partition
-
-GraphRAG partitions by graph topology, and says so outright: each level of its hierarchy "provides
-a community partition that covers the nodes of the graph in a mutually exclusive, collectively
-exhaustive way" (Edge et al. 2024, p. 6). TraceMem is equally explicit, its coarse clustering
-operation "produces a partition into m topic clusters" (Shu et al. 2026, eq. 4), with a KNN step
-reassigning noise points so nothing is left out and nothing lands in two places. HERCULES
-recursively applies k-means. Zep uses label propagation. A folder tree assigns by topic path.
-
-Threads do not. A chapter belongs to Tip's thread *and* Jack Pumpkinhead's *and* Mombi's,
-simultaneously, at full weight in each. The same text is covered N times from N vantage points.
-
-**This is a design choice, not a novel one, and the distinction matters.** RAPTOR already soft-
-clusters: "nodes can belong to multiple clusters without requiring a fixed number of clusters ...
-thereby warranting their inclusion in multiple summaries" (Sarthi et al., ICLR 2024, p. 3). CAM
-(Li et al., NeurIPS 2025) combines incremental *overlapping* clustering with hierarchical
-summarisation and online batch integration, evaluated against RAPTOR, GraphRAG, MemTree and
-MemGPT. Covering is settled ground in hierarchical memory. Adopt it because it is right for this
-store, and claim nothing for it. See `01_argument.md`.
-
-The prototype deployment shows the same structure outside literature: leaves mentioning one
-project sit in six different topic folders, including one in an unrelated personal-health topic.
-The routing is not wrong, because that leaf genuinely belongs where it was filed. The thread is
-simply orthogonal to the hierarchy, so no assignment of documents to folders can represent it.
-That is a structural limit rather than a curation failure.
-
-Consequence: **a thread index is a second index over the same units, not a reorganisation.** The
-hierarchy stays. Nothing is re-filed.
+One chunk can belong to many entity threads at once. That is not novel; RAPTOR and CAM both do it.
+It is just right for this store.
 
 ---
 
 ## 2. Schema
 
-Eight record types, one controlled vocabulary, and three instrumentation records. Field names are
-indicative.
-
-### Source layer
-
-**Document**
-```
-{doc_id, corpus_id, work_id, kind: text|chat, title,
- source_url, sha256, ingested_at,
- provenance: {contributed_by, resources, ts}}
-```
-Raw text sits beside it on disk and is never edited. Ids are content hashes, so re-ingesting the
-same material is a no-op rather than a duplicate.
-
-`provenance` is immutable and exists on every derived record below. It carries who contributed
-the record, what resources it drew on, and when. This is the substrate for read-time access
-control (Rezazadeh et al. 2025, *Collaborative Memory*).
-
-**Unit**
-```
-{unit_id, doc_id, unit_type: chapter|book|play|ode|hui|session,
- work_ordinal, unit_ordinal, title, span: [start, end], text}
-```
-The atom. Every derived record points here. The full contract, including the eight per-convention
-handlers and the three acceptance gates, is `04_unit_contract.md`.
-
-`unit_type` carries heterogeneity forward as data rather than erasing it. A Euripides play has no
-siblings to fold with; an Oz chapter does. Normalising to one record shape is correct; flattening
-the distinction is not.
-
-### Node layer
-
-**Node**
-```
-{node_id, canonical_name, kind: person|org|place|thing|topic|event,
- created_from_unit, provenance}
-```
-**Entities and topics are the same type.** A person is a node, a project is a node, a recurring
-event such as the Chunin Exams is a node. `kind` exists because extraction prompts differ per
-kind, and because it participates in the delta constraint below, not because storage differs.
-
-**Works are nodes.** "Oz book 2" is a `topic` node. This removes the need for a separate
-chapter-summary record type: the plot axis is cells on work nodes, and the book blurb is that
-node's abstract.
-
-**Type versus instance is not a kind distinction.** The Chunin Exams is one node whose sequence
-holds every exam event; an instance is promoted to its own node only when it accumulates enough
-to warrant one. Same promotion mechanism as minor entity to major entity. This matches wiki
-practice, where instances appear as sections until they earn a page.
-
-**Alias**
-```
-{alias, node_id, alias_kind: name|nickname|epithet,
- first_seen_unit, evidence_quote}
-```
-The surface-form list mapping mentions to one node. Resolution reads it; nothing writes over it.
-
-### Fact layer
-
-**Fact**
-```
-{fact_id, subject, predicate, object, object_is_node,
- qualifiers, rank: preferred|normal|deprecated,
- unit_id, quote,
- valid_from, valid_to,            # [from, to), upper exclusive
- asserted_at_unit, asserted_at_wallclock,
- tier, contract_version, provenance}
-```
-
-**Append-only.** Nothing is overwritten, and there is no stored `superseded_by`: supersession is
-computed at read time over a functional-predicate list.
-
-**`rank` fills a gap supersession cannot.** Computed supersession handles *the world changed*, in
-which a later assertion collides with an earlier one on a functional predicate. It does not
-handle *we were wrong*: an extraction error has no later assertion to supersede it, and deleting
-violates append-only. `deprecated` means present, preserved, and excluded from reads by default.
-
-Source note, corrected 2026-08-28: the three-value vocabulary (preferred, normal, deprecated)
-comes from Wikidata's *Help:Ranking*, not from Vrandecic and Krotzsch 2014. That paper describes
-optional marking as "preferred" or "deprecated" on p. 83 but never uses the word "rank" and never
-names a "normal" value. Both sources are in `07_references.md`.
-
-An error of exactly this shape occurred in the prototype deployment, where two distinct people
-were merged under one alias and the fix was to append an is-distinct-from assertion rather than
-edit the record. Same pattern, done ad hoc.
-
-**`qualifiers` carry n-ary relations, not just timing.** Ozma rules Oz *as restored by Glinda*;
-Zhuge Liang serves Liu Bei *in the capacity of Chancellor*. Without qualifiers, role information
-becomes either lost detail or invented predicates, and invented predicates are the sprawl that
-silently breaks supersession. Source: Wikidata qualifiers, Vrandecic and Krotzsch 2014, p. 82.
-
-**Interval convention is `[from, to)`**, lower bound inclusive and upper exclusive, following
-SQL. Stating it prevents the off-by-one that appears wherever two intervals abut. Source: Rost et
-al. 2021, pp. 6 to 7. Cite that work as an arXiv preprint and technical report; it has no
-conference or workshop venue.
-
-**Fact-level validity subsumes property-level.** Rost puts validity on individual properties
-because those vertices carry properties directly. Ours do not, because our facts *are* the
-properties, so this is already covered. Recorded so it is not re-opened.
-
-**Predicate registry** (controlled vocabulary, not a record)
-```
-core:    ~15-20 universal predicates, including every functional one
-corpus:  per-corpus vocabulary, namespaced
-delta:   allowed (subject_kind, predicate, object_kind) triples
-```
-
-**Namespaced predicates**, such as `appearance.height` and `appearance.build`, give attribute
-grouping for free. That is how a "Physical description" section assembles itself, and it stays
-human-readable.
-
-**Delta is a typing constraint on edges.** A table of allowed
-`(subject_kind, predicate, object_kind)` triples, with violations logged as rejections rather
-than stored. Source: Angles 2018, *The Property Graph Database Model*, Definition 2, where delta
-"defines the edge types allowed between a given pair of node types."
-
-This catches a class of error **the quote gate structurally cannot see**: a fabricated relation
-can carry a perfectly genuine quote. `parent_of` between a place and a thing passes every other
-check in the system. This is also why the assembled path should be described as fully
-*traceable*, not as zero-fabrication. See `01_argument.md`.
-
-**Merge ledger**
-```
-{attr_id, node_id, attribute, merged_from: [fact_ids in order],
- absorbed_node, evidence, tier}
-```
-Which rows, in what order, folded into an attribute. The anti-black-box requirement, stored as
-data rather than asserted.
-
-### Summary layer
-
-**Cell**
-```
-{cell_id, node_id, unit_id, corpus_id,
- work_ordinal, unit_ordinal, text, tier, provenance}
-```
-One node's narrative for one unit. The expensive layer, and the thresholded one.
-
-**Ordered by `(work_ordinal, unit_ordinal)`, never a single integer**, because a node's cells span
-multiple works.
-
-Keyed by (node, unit), which flattens two separate scenes involving the same character in one
-chapter into a single cell. Accepted deliberately; recorded so it is a decision rather than an
-omission.
-
-**Abstract**
-```
-{node_id, corpus_id, text, children_hash, tier, updated_at, provenance}
-```
-One paragraph per node **per corpus**. Salience is corpus-scoped: Tip is a major entity in Oz and
-a passing citation in a conversation archive. The node is global; its narrative is local.
-
-`children_hash` is computed over the node's cells, so the abstract is stale exactly when its
-cells change. Refold is incremental, never a full pass.
-
-**Composition, not storage.** A visual description is not a stored artifact, it is a query over
-`appearance.*` fact rows, rendered. Free to regenerate, automatically current, and every clause
-traces to a quote. This is also why the Holmes contamination probe passes by construction: there
-is no deerstalker fact row, because Doyle never wrote one, so nothing composes.
-
-### Instrumentation
+Seven records. Field names indicative.
 
 ```
-Rejection  {rej_id, ts, stage, unit_id, target, contract_version, tier, error}
-Run        {run_id, ts, arm, question_id, injected_ids, answer_text, verdict,
-            judge_tier, tokens_in, tokens_out, latency_ms,
-            config_hash, tiers: {stage: model}, dollars}
-Consult    {consult_id, ts, cued_node_ids, retrieved_ids, used_ids}
-Mention    {mention_id, unit_id, node_id, surface_form, quote, span, tier}
+Document  {doc_id, source_uri, sha256, ingested_at, provenance}
+Unit      {unit_id, doc_id, position, text, span, label?}
+Node      {node_id, name, kind, created_from_unit, provenance}
+Alias     {alias, node_id, first_seen_unit, evidence_quote}
+Fact      {fact_id, subject, predicate, object, qualifiers,
+           rank: preferred|normal|deprecated,
+           unit_id, quote, valid_from, valid_to, tier, provenance}
+Cell      {cell_id, node_id, unit_id, scope_id, text, tier, provenance}
+Abstract  {node_id, scope_id, text, children_hash, tier, updated_at}
 ```
 
-Four fields here were carried forward from the module specs now in `archive/impl/`, where they
-were identified as gaps and never absorbed:
+Plus instrumentation: `Rejection`, `Run`, `Consult`, `Mention`.
 
-- **`Rejection.target`** makes "what got rejected twice" a query rather than a manual scan. Without
-  it the repeated-failure report cannot be written.
-- **`Rejection.unit_id`** makes a failed run resumable. Without it, a crash midway through a corpus
-  restarts from the beginning.
-- **`Run.answer_text`** lets verdicts be re-judged after a judge-prompt change. Without it, every
-  judge revision invalidates every prior run and the runs cannot be re-scored, only re-executed.
-- **`config_hash`, `tiers` and `dollars`** were on the archived data model and were dropped in the
-  08-28 consolidation. Restored 2026-08-29, because two committed measurements are otherwise not
-  queries at all: **per-stage tier sensitivity** needs `tiers: {stage: model}` to know which model
-  ran which stage, and **spend accounting** needs `dollars`, since the per-million rate tables that
-  would let you derive it live only in `archive/21_cost_and_models.md`. `config_hash` is what makes
-  an arm reproducible.
-- **`Mention`** makes the surface-form-to-node binding a first-class record. Quote verification and
-  the hand-check sample both need bindings as data; deriving them after the fact from cells is not
-  the same thing.
+**Deliberately generic, changed 2026-08-28.** An earlier version had `unit_type` as an enum of
+literary forms (`chapter|book|play|ode|hui|session`) and two ordinals (`work_ordinal`,
+`unit_ordinal`) so a character's thread could span volumes of a series. Both were chapter-parsing
+concerns that had leaked into the data model.
 
-`Consult` is the proactive-recall instrument. It needs to exist from day one because the rate is
-meaningless without weeks of collection. How `used_ids` gets populated is unresolved and is
-recorded as such in `02_requirements_and_testing.md`; that requirement is explicitly not promised
-this semester. Note that the logger that emits conforming rows is a **separate deliverable** from
-turning consult-logging on, and only the latter is currently scheduled.
+- **A unit is a unit.** `position` is one integer, ordering units inside their document. Ordering
+  documents inside a corpus is the corpus manifest's job. A series is just several documents in
+  order; so is a year of chat sessions.
+- **`label` is a free string with no meaning to the system.** Keep "chapter" or "session" in it if
+  it helps a human read the data. Nothing branches on it.
+- **`scope_id`** replaces `corpus_id` on cells and abstracts. Same idea, no assumption about what a
+  corpus is: it is whatever set you want salience scoped to.
 
-The node record also needs **`merged_into`**, so a node absorbed by a merge resolves to its
-survivor at read time rather than becoming unreachable.
+**Why the rest is there.** `rank` covers the case supersession cannot: supersession handles *the
+world changed* (a later fact collides with an earlier one), while `deprecated` handles *we were
+wrong*, where there is no later event and deleting would break append-only. `qualifiers` carry
+role and timing so nobody invents a new predicate for "as Chancellor". `children_hash` says exactly
+when an abstract is stale, so refolding touches only what changed.
+
+Predicates come from a small controlled list, with a table of which subject and object kinds each
+one may join. That catches the error a quote cannot: a made-up relationship can carry a perfectly
+real quote.
 
 ---
 
-## 3. Ingestion
+## 3. Getting text in
 
-### Stage 0. Preprocessing
+**Stage 0. Split.** Raw text to ordered units. How boundaries are found is a preprocessing problem
+and stays out of the schema. See `04_unit_contract.md`.
 
-Raw text to normalised `Unit` records. Per-corpus handlers, one output contract, specified in
-`04_unit_contract.md`. Deliberately outside this pipeline so the heterogeneity is absorbed once.
+**Ingest in order, never in bulk.** A book loaded all at once is static and tests nothing temporal.
+Read in sequence and the store's state after chunk 10 differs from chunk 20, which is what
+supersession is for.
 
-**Ingest sequentially, unit by unit, in narrative order. Never bulk-load a work.** Added 2026-08-28,
-and it is a correctness requirement rather than a preference. A bulk-loaded book is static: every
-fact arrives at once, nothing ever supersedes anything, and the temporal half of this design is
-never exercised. Read in order, the store's state after chapter 10 genuinely differs from its state
-after chapter 20, and Tip becoming Ozma is an actual update applied to an actual prior belief.
+**Stage 1. Who is in this chunk.** One call, returns the cast. Passing that cast into every later
+call for the chunk stops the same character being minted three times as "Tip", "the boy" and
+"Tippetarius".
 
-This also has published precedent to cite rather than invent: MemoryAgentBench (ICLR 2026) wraps
-input chunks "within a simulated User-Assistant dialogue to explicitly trigger the agent's memory
-mechanism," for the same reason.
+**Stage 2. Match the cast against what you already know.** This is the step the prototype failed at
+scale. Once the name list outgrows a prompt it becomes retrieval-then-prompt: embed the mention,
+pull the nearest few known names, decide among those. Topics are harder than people, because a
+person has a name and a topic has whatever the speaker called it that day.
 
-**Note which of the two supersession mechanisms a novel exercises.** Reading in order produces both,
-and they are not the same operation:
+**Stage 3. Facts.** Dated subject-predicate-object rows, each with a verbatim quote and a pointer to
+its unit. Rejections logged. Dedup must come first or facts attach to duplicates.
 
-- *The world changed.* A later assertion collides with an earlier one on a functional predicate.
-  Handled by computed supersession at read time.
-- *We were wrong.* Tip was never a boy; he was Ozma enchanted the whole time. There is no later
-  event to supersede the earlier claim, it was never true, and deleting violates append-only.
-  Handled by `rank: deprecated`.
+**Stage 4. Cells.** One per above-threshold entity per chunk. This is where the money goes, so emit
+all of a chunk's cells in one call rather than re-sending the chunk text once per entity.
 
-Synthetic conversational benchmarks almost exclusively exercise the first, because planted facts get
-updated by planted events. Literature is full of the second, and revelation is the harder case.
+**Stage 5. Refold.** An abstract is a fold over its cells, so recompute only entities whose cells
+changed.
 
-### Stage 1. High-level pass: identify topics and major entities
+**The threshold.** Everything gets facts. Only important things get narratives. So a search never
+comes back empty (the one-paragraph abstract is the floor) and nothing is lost when something falls
+below the line, because the chunk summary still recorded it. Importance is scoped to the set, not
+baked into the entity: a character can be major in one corpus and a footnote in another.
 
-One call per unit. Returns the cast: entities and topics present, with a salience signal.
+**Free consistency check.** Chunk summaries and entity cells are independent summaries of identical
+text. If a chunk summary mentions an event no cell does, either it was invented or stage 1 missed
+someone. Set comparison, no judge, no ground truth.
 
-**Entity-first, not chunk-first. This is the project's primary claim.** GraphRAG's pipeline
-composes text units first and extracts entities from each text unit *separately*; there is no
-document-level entity pass. Zep extracts per episode with a short message lookback, then resolves
-against the graph.
-
-That ordering is where duplicate minting comes from. Chunk 3 sees "Tip," chunk 9 sees "the boy,"
-chunk 15 sees "Tippetarius": three independent extractions with no shared context, reconciled
-afterward if at all. The prototype deployment measured the consequence, a registry that grew to
-roughly 1,169 names against a 400-name prompt cap, with active duplicate minting.
-
-A unit-level cast list passed into each downstream call fixes it before it happens. The same pass
-does three jobs at once: de-duplication, cross-chunk coreference resolution, and **determining
-which cells exist**, which is what makes the sparse matrix tractable rather than requiring every
-entity against every unit.
-
-### Stage 2. Dedup against the existing registry
-
-Resolve the cast against known nodes and aliases. **This is on the critical path and it is the
-step the prototype already failed.**
-
-Once the registry exceeds what fits in a prompt, this stops being a prompt and becomes
-retrieval-then-prompt: embed the mention, pull top-k candidates from the node store, resolve
-against those few.
-
-**Topic dedup is harder than person dedup.** A person has a name; a topic has whatever
-description the speaker reached for. Person aliases converge; topic aliases proliferate, because
-each mention invents its own label.
-
-**Topic granularity has no natural boundary.** The prototype's hand-curated boundary rules exist
-because automatic topic boundaries drifted and had to be adjudicated. Expect the same here: a
-curated layer over the induced one.
-
-### Stage 3. Fact extraction
-
-Dated subject-predicate-object rows with verbatim quotes and unit pointers, validated against the
-fact contract and the delta table. Rejections logged.
-
-Order matters: **dedup precedes facts**, or facts bind to duplicate nodes.
-
-### Stage 4. Narrative cells
-
-One cell per above-threshold node per unit. **The dominant cost, and the batching decision lives
-here.** Emit all N cells for a unit in one call rather than N calls, or the unit text is re-sent N
-times. Costed in `05_fall_plan.md`.
-
-### Stage 5. Maintenance: abstracts refold
-
-An abstract is a fold over its node's cells, so `children_hash` says exactly when it is stale.
-Refold only nodes whose cells changed: **O(nodes touched)**, not O(all nodes). That is the
-difference between an affordable nightly pass and an unaffordable one.
-
-Supersession and merges also resolve here, at read time rather than by rewriting rows.
-
-### The threshold
-
-**All nodes enter the fact layer. Only above-threshold nodes get narrative cells.** That places
-the threshold between a cheap layer and an expensive one rather than between having something and
-having nothing.
-
-Three tiers, matching wiki practice (confirmed against the Naruto and Harry Potter wikis via
-their MediaWiki APIs):
-
-| Tier | On a wiki page | Scope | Cost |
-|---|---|---|---|
-| Facts | infobox (`born`, `died`, `alias`) | every node | cheap |
-| Abstract | lead paragraph; Background, Personality, Appearance | every node | O(nodes) |
-| Cells | Biography, per-year, named events; arcs | above threshold | O(nodes x units) |
-
-Scabbers before the reveal gets facts and a paragraph (Ron's pet rat, unusually long-lived) and
-no biography, because he is not doing anything. After the reveal, Pettigrew has a full segmented
-one.
-
-**A search therefore never returns null.** The abstract is the floor. Below-threshold nodes
-degrade gracefully instead of disappearing. And nothing is lost when a node falls below
-threshold, because the plot axis records that unit regardless. What is missing is the
-entity-indexed *access path*, not the content, which makes it measurable rather than silent: ask
-the same question against each axis and the difference is what the entity layer buys.
-
-**What the threshold must not be.** Salience-by-action would demote exactly the entities that
-carry an argument. Tip/Ozma and Scabbers/Pettigrew are the most-referenced concrete examples in
-this project's own design discussion and they never act: they are cited, not participants.
-
-**Major and minor are scoped per corpus, not properties of the node.** Tip is major in Oz and
-minor in a chat archive. Same node, different salience. This falls out of the keying for free,
-since cells are keyed by (node, unit) and units belong to corpora.
-
-**Promotion** candidates, and they are not equivalent: cross-unit recurrence; within-unit
-salience; retroactive promotion via a `same_as` merge; on demand when a query targets the node.
-
-**Record "considered, below threshold" as distinct from "never considered."** The two are
-indistinguishable later otherwise.
-
-**Retroactive promotion is re-narration, not backfill.** A wiki's Pettigrew biography covers 1981
-to 1993 as "hiding as a rat," a framing unavailable to anyone reading those chapters at the time.
-Cells generated retroactively are written from an epistemic position the source did not have, a
-second-order supersession where both accounts are valid from different vantage points.
-
-### A free consistency gate
-
-The plot-axis summary and the entity cells are **independent summaries over identical text**. If
-the plot summary carries an event that no cell mentions, either it was invented or stage 1 missed
-a thread. Set comparison, no ground truth, no judge model, catches both directions.
-
-### Model tier per stage
-
-The intuition that higher abstraction deserves a higher tier is **half right**, and the wrong
-half is expensive.
-
-| Stage | Volume | Difficulty | Errors | Tier |
-|---|---|---|---|---|
-| Entity spotting | 1/unit | easy, NER is solved | local | cheap |
-| **Coreference and alias resolution** | per ambiguous mention | **hard** | **propagate** | **high** |
-| Fact extraction | 1/unit | medium | local, quote-gated | mid |
-| Cell generation | **N/unit, dominates cost** | medium | recoverable | cheap to mid |
-| Abstract refold | 1/node when stale | high | recoverable | high |
-| Judge | low | high | n/a | high, and never the writer's tier |
-
-**The rule is not "spend more at higher abstraction." It is: spend where errors propagate,
-economise where they are recoverable.** A mediocre abstract costs one call to regenerate. A
-corrupted entity registry costs a re-ingest. In the prototype, two entities whose names share a
-substring cannot currently be told apart, and no amount of frontier-model summarisation fixes
-that: a top-tier abstract over a merged node just writes a confident paragraph about a hybrid
-that does not exist.
-
-Both expensive categories are low-volume, so this is affordable. The cost driver is cell
-generation, which is also the layer where a bad output is one cheap regeneration away.
-
-### Risks carried forward
-
-- **Stage 2 is the critical path** and the prototype already failed it at scale.
-- **Predicate sprawl** breaks supersession silently, because `is_a`, `species` and `form` never
-  collide. Count distinct predicates per unit; linear growth means the contract needs a
-  controlled vocabulary.
-- **Duplicate minting.** Count nodes minted per unit. A rising line is the failure.
-- **Contract rejection on cheap tiers** is a format failure, not a comprehension failure, and has
-  a different remedy (grammar-constrained decoding). Measure the two separately.
+**Where to spend the expensive model.** Not "more abstraction, better model." **Spend where errors
+spread, economise where they are recoverable.** A mediocre summary costs one call to redo. A
+corrupted name registry costs a full re-ingest. So coreference and alias resolution get the good
+model; cell generation, which dominates volume, does not.
 
 ---
 
-## 4. Retrieval
+## 4. Getting text out
 
-**Most retrieval here is a keyed lookup, not a similarity search.** Standard RAG embeds the query
-and cosines against chunks. This store is indexed by node, so the first job is not "find similar
-text" but "which node is this about." **Embeddings do entity resolution; they do not fetch
-content.**
+**Most reads are lookups, not searches.** Standard RAG embeds the question and finds similar text.
+Here the store is indexed by entity, so the first job is "which entity is this about". Embeddings do
+that matching; they do not fetch the content. The name index is a few thousand short strings, not
+millions of chunks.
 
-| Job | Method |
+| Question | Path |
 |---|---|
-| Query to nodes | `nearest_nodes` over node-name and alias embeddings, then a cheap judgment over the top few |
-| Node to abstract, cells, facts | keyed lookup, ordered |
-| Unit to its text | keyed lookup |
-| "Where do X and Y meet" | set intersection of their cells' unit ids |
-| Exact name, phrase, number | `search_text`, BM25 |
-| **Query resolves to no node** | `search_text` over cells and abstracts, the fallback, and it is not optional |
+| Who is X | the abstract |
+| What happened to X | the cell sequence |
+| What happened in chunk 5 | the chunk summary |
+| Where do X and Y meet | intersect their cells' unit ids |
+| Exact name or phrase | full-text search |
+| Nothing matches a known entity | full-text fallback, which must be good, not vestigial |
 
-The node-name index is a few thousand short strings, not millions of chunks. This is entity
-linking, not passage retrieval, and it reuses the stage-2 machinery.
+**Two honest weaknesses.** The whole path depends on resolving the question to an entity; "the boy
+who became a princess" names nothing, and then you are on the fallback. And what gets ranked is
+generated text, not source text, though every piece of it points back to its chunk.
 
-**Question shape picks the partition.** *Who is X* reads the abstract. *What happened to X* reads
-the cell sequence. *What happened in chapter 5* reads the unit summary. *Why did X do Y* reads
-both nodes' cells, joined on shared units. Facts index into the sequence: a `same_as` firing at
-unit N tells you which cells to fetch rather than all of them. That join is why both axes are
-kept.
-
-**Two honest weak points.** The whole path rests on query-side entity resolution. "The boy who
-became a princess" names no node, the front end fails, and you are on the similarity fallback,
-which must therefore be good rather than vestigial. The prototype's own worst retrieval failure
-was a *query* failure fixed by multi-query, not a storage failure, which argues the fallback needs
-query expansion more than a better index. And what gets ranked is **generated text**: cells and
-abstracts are summaries, and every one points back to its unit, so drilling to source works, but
-the thing you rank is not the thing that is true.
-
-**Raw text is reachable, not ranked.** Drill-down is always available. Ranked search over raw is
-the naive-RAG control arm and stays out of the default path; blend it in and the arms stop being
-separable.
-
-**Drill-down, at execution:**
-```
-cell -> unit_id -> doc_id -> file, sha256
-fact -> unit_id, then unit.text.find(quote) -> +/-500 chars
-```
-Three dictionary lookups and a string find. No search, no ranking, because the pointer was
-written at ingest time, so all the difficulty is in *storing* it correctly.
-
-**Quote-primary, span-as-cache.** Span is fast, quote is durable. Any splitter change re-derives
-units and invalidates every offset, but a quote still finds itself: on mismatch the quote wins and
-the span is recomputed.
-
-**Drill-down and the anti-fabrication gate are the same mechanism.** Following a quote to its unit
-and checking that it lands is a drill-down; doing it for every assertion at once is the gate. A
-`find` returning `-1` means either the quote was fabricated or preprocessing moved, and it is the
-same check either way.
-
-### Triggers
-
-Three, and the distinction between them is where the design lives.
-
-1. **Boundary hooks.** Session start and prompt submit, firing on new chat, topic shift, idle gap.
-   Unconditional, no question required. Already built and running in the prototype.
-2. **Explicit question.** The standard path.
-3. **Agent-initiated.** Mid-task lookup.
-
-**The hook cues; it does not retrieve.** It injects pointers and an instruction. Whether anything
-is read is a discretionary second step, and that step demonstrably fails: during the 08-26/27
-session, memory cues fired on nearly every turn, each naming three leaves, and almost none were
-followed. The store held the content, the trigger fired correctly, the pointers were in context,
-and nothing was read. **The trigger is not the broken part. The step after it is.**
-
-**The fork worth measuring.** Does the hook inject **pointers** or **content**? Pointers are cheap
-and leave a discretionary step that fails; content is expensive in tokens and removes the
-discretion. Two arms, no corpus work required, since the hook, the store and a live agent all
-already exist.
+**Drilling down and the anti-fabrication check are the same mechanism.** Follow a quote to its unit
+and see if it lands. Doing that for one claim is a drill-down; doing it for all of them is the gate.
+A failed match means either the quote was invented or the splitter moved.
 
 ---
 
-## 5. Rendering and delivery
+## 5. Where it runs
 
-A wiki page is **largely assembly of content that already exists**:
+**One backend: files.** JSONL as the record of truth, a numpy array for embeddings, SQLite full-text
+search. No server. Human-readable, git-diffable, and the two indexes are disposable because they
+rebuild.
 
-| Element | Source | Cost |
-|---|---|---|
-| Lead paragraph | stored abstract | zero |
-| Biography sections | stored cells, ordered | zero |
-| Infobox | fact rows | zero |
-| Categories and groupings | query over facts | zero |
+Exact search over the whole embedding array is fine here on latency grounds: 20,000 vectors at 768
+dimensions is about 61 MB and one matrix multiply per query. Faiss's own paper puts the point where
+you *start* wanting an approximate index at around 10k vectors, so this sits just above that
+threshold rather than far below it, and buys exact recall with no index to keep in sync.
 
-Only three parts need generation, and all three are low-volume folds: grouping cells into arcs
-(24 chapter-cells become 5 sections), prose smoothing, and contradiction presentation. **If
-rendering needs a frontier model every time, the store is not doing its job.** Distillation
-happens once at write time so reads are cheap; a frontier call per page view inverts that.
+**Neo4j and Graphiti are not being built this semester.** Beyond the hours, Graphiti cannot satisfy
+two of the invariants below: `add_triplet` runs its own entity resolution, so a supplied entity may
+be silently merged, and it creates no episode node, so nothing carries quote provenance. The arms
+would have differed in meaning, not just storage.
 
-**Two views of one page.** The *provenance view* is appended cells coloured by source work: pure
-assembly, free, always available. The *article view* is the readable synthesis: one fold per node,
-cached by `children_hash`, so it regenerates only when its cells change. That split is not new
-machinery, it is the leaf-and-rollup architecture rendered. It also inherits the prototype's
-measured finding that defects concentrate in the synthesised layer, where 39 node claims traced
-back to raw gave 31 confirmed, 4 wrong and 4 unsupported, with every defect in the synthesis and
-all 31 leaf checks clean. **The provenance view is the audit tool for the article view**, visible
-to a reader instead of requiring a rotating audit.
-
-**What colour-by-source buys.** Real wikis partition by source authority because they must, with
-sections such as "Behind the scenes" and "In Other Media" kept separate from canon. Doing it
-structurally means the Baum-to-Thompson authorial handover is visible on the entity page itself,
-and for the Greek corpus source disagreement renders inline: Helen reached Troy per Homer, never
-reached Troy per Euripides, both live, both cited, neither overwritten. No existing mythology wiki
-does that, because a human writing one article cannot hold five contradicting sources in the
-prose.
-
-### Two deployments, one logical schema
-
-Separated by a storage port of seventeen operations, enumerated below.
-
-**A, the research backend.** Neo4j, with the vector index and the graph in one store and temporal
-traversal as a query. Graphiti (Zep's engine) runs on Neo4j and supplies temporal facts,
-provenance to raw episodes, incremental writes, and hybrid retrieval, all specified independently
-in this design.
-
-**Zep does perform community detection and hierarchical summarisation.** Its community subgraph is
-the highest level of the graph, and its nodes "contain high-level summarizations of these
-clusters" (Rasmussen et al. 2025, p. 2). Community detection "builds upon the technique described
-in GraphRAG" but uses label propagation rather than Leiden (p. 4), chosen for its straightforward
-dynamic extension. An earlier claim in this repo that Zep lacks this was based on the Graphiti
-README rather than the paper, and was wrong.
-
-Two precision notes, because the correction was itself overstated once. Label propagation
-**delays full refresh, it does not eliminate it**: the paper says the communities "gradually
-diverge from those that would be generated by a complete label propagation run. Therefore,
-periodic community refreshes remain necessary" (p. 4). That concession is useful rather than
-damaging, since it means Zep also carries a batch refold. The remaining gap is narrower than first
-stated: per-entity narrative sequences, unprompted firing, and per-stage cost accounting.
-
-Two Graphiti capabilities were checked directly against source at commit `683a853` (v0.29.3) and
-both came back usable:
-
-- It ingests plain text, not only chat messages. `EpisodeType.text` is a first-class episode type,
-  so a chapter goes in as one episode. There is no document abstraction, no loader and no
-  splitter on the ingestion path, so unit splitting stays ours, and each episode body must fit the
-  extraction model's context window. A `content_chunking` module exists but has zero callers in
-  `graphiti_core` at that commit.
-- It accepts pre-extracted entities. `add_triplet(source_node, edge, target_node)` takes
-  constructed `EntityNode` and `EntityEdge` objects with no extraction call. Two caveats: it still
-  runs node and edge resolution, so a supplied entity may be merged rather than stored as-is, and
-  it creates no episode node, so triplets added this way carry no episode provenance.
-
-Consequence: the Zep-as-baseline comparison stands on the literary corpora, and the spring product
-does not need to build its own graph layer.
-
-### But deployment A cannot satisfy this design's invariants, and that is a design finding
-
-**Added 2026-08-28.** The two caveats above are not minor. Read against the invariants in section 6:
-
-- `add_triplet` **still runs node and edge resolution**, so a supplied entity may be merged into an
-  existing node rather than stored as given. That violates **invariant 2**, that nothing is
-  overwritten and merges resolve at read time.
-- `add_triplet` **creates no episode node**, so triplets added that way carry no provenance back to
-  a source unit. That violates **invariant 3**, that every assertion carries a verbatim quote which
-  must appear in its unit.
-
-So "two deployments, one logical schema, separated by a storage port" is **not achievable with
-Graphiti as deployment A**. The arms would differ in semantics, not merely in storage, which also
-means any measured quality difference between them is confounded and cannot be attributed to the
-storage layer.
-
-**Label correction, 2026-08-29.** An earlier version of this section said "deployment B" throughout
-and concluded "Drop B. Build A." That inverted this document's own definitions, where **A is the
-Neo4j and Graphiti research backend** and **B is the JSONL distributable**, so it read as an
-instruction to drop the distributable and build the Neo4j arm, the exact opposite of the decision in
-`HANDOFF.md` and `05_fall_plan.md`. Two documents point readers here for this finding, so the
-inversion was load-bearing.
-
-Three honest options, and the choice is now made:
-
-1. **Accept that A is a different system**, not a second backend, and stop describing the pair as
-   one schema behind a port. Comparisons become end-to-end system comparisons, a weaker claim.
-2. **Use raw Neo4j for A** and implement the fact and provenance layers directly, giving up
-   Graphiti's temporal machinery but keeping the invariants. More work, but the port promise holds.
-3. **Drop A.** Build **B**, the files distributable, behind the port so a second adapter stays cheap
-   later, and do not claim a comparison this project cannot make cleanly.
-
-**Option 3 is the decision**, and it is what the fall calendar supports. See `05_fall_plan.md`.
-
-### The storage port, enumerated
-
-**Seventeen operations, not twelve.** Corrected 2026-08-29: three live documents said "twelve
-operations", inherited from `archive/15_schema_and_architecture.md`, whose own heading reads "Twelve
-operations" above a list of seventeen. The count was never checked and the conformance-suite
-estimate was priced against it.
+**Keep the storage port anyway.** Seventeen operations, nothing calls a backend directly. It costs
+almost nothing now and makes a second backend cheap later.
 
 ```
-put_document / get_document
-put_unit / get_unit / get_units(work_id) -> ordered
-put_node / get_node
-resolve_alias(text) -> node_id | None
-nearest_nodes(vector, k) -> [(node_id, score)]
-put_fact / get_facts(subject, as_of=None)
-put_cell / get_cells(node_id, corpus_id) -> ordered
-put_abstract / get_abstract(node_id, corpus_id)
-search_text(query, scope, k) -> [(id, score)]
-log_consult(record)
+put_document / get_document        put_fact / get_facts(subject, as_of)
+put_unit / get_unit / get_units    put_cell / get_cells(node_id, scope_id)
+put_node / get_node                put_abstract / get_abstract
+resolve_alias(text)                search_text(query, scope, k)
+nearest_nodes(vector, k)           log_consult(record)
 ```
 
-Nothing in the pipeline touches an adapter directly. Any adapter implements all seventeen.
+**Reaching a desktop client is MCP:** a Python server over stdio, where the tool list is the
+capability contract.
 
-**B, the distributable.** JSONL as the store of record, `.npy` for embeddings, SQLite FTS5 for
-text search, no server. The canonical data is entirely JSONL: human-readable, git-diffable, one
-record per line. The two indexes are derived and disposable; delete them and they rebuild. This is
-defensible, but **the justification this repo gave for it was wrong twice and is restated here
-accurately.**
-
-The original wording was "brute-force exact cosine is correct below roughly 100K vectors." That
-conflates two things. Exact search is *always* correct; it is exact. The real question is latency,
-and the 100K figure had no source. Faiss's own paper, `papers/douze2024-faiss.pdf` §5, read in full,
-says: "Non-exhaustive search is the cornerstone of fast search implementations for datasets larger
-than around N=10k vectors," and its index-selection decision tree sends N below 10k to a flat index.
-So the published threshold is **10k, an order of magnitude below the figure this repo asserted**,
-and the four-corpus run at roughly 10,000 to 20,000 vectors sits just *above* it rather than far
-below.
-
-The decision still holds, on latency arithmetic rather than on a borrowed threshold: 20,000 vectors
-at 768 dimensions in float32 is about 61 MB, and an exact query is one BLAS matrix-vector product
-over it. That is milliseconds on a laptop, and it buys exact recall, no index build, no index to
-keep in sync with the node table, and one less dependency. Say that, and cite Faiss §5 for where
-the speed threshold actually sits, rather than claiming to be comfortably underneath one.
-
-For the wider design-space framing, Zerhoudi et al., *As We May Search* (ICTIR 2026,
-arXiv:2606.29652) sweeps 1K to 1M documents on consumer hardware across exact, HNSW and IVF plus
-BM25. Cite it as the framing for local-first retrieval rather than trying to establish that framing
-here.
-
-**Reaching a desktop client is MCP:** a Python server over stdio plus a config entry, where the
-tool list is the capability contract. Two such servers already run against the prototype.
-
-**One dependency decision outstanding.** `sentence-transformers` pulls torch, roughly 2GB, which
-is not a folder someone scans a QR code for. Either ship precomputed embeddings with a small ONNX
-runtime for the query vector, or drop embeddings from the distributable entirely: for a fixed
-corpus with a built alias table, resolving a name is a dictionary hit plus fuzzy match, and FTS5
-covers the rest. The second option gives zero ML dependencies and costs recall only on phrasings
-that share no vocabulary with any alias.
-
-**Not asserted:** current OpenAI and Gemini desktop MCP support. Check before promising
-cross-client anywhere.
-
-**Not adopted:** LangChain and LlamaIndex. They take ownership of chunking, retrieval strategy and
-prompt templates, which is exactly the surface that has to be built and defended here.
+**Not adopted:** LangChain and LlamaIndex, because they take ownership of chunking, retrieval and
+prompting, which is exactly the surface that has to be defended here.
 
 ---
 
 ## 6. Invariants
 
-1. Raw is immutable. Ids are content hashes.
-2. Nothing is overwritten. Supersession, merges and permissions all resolve at read time.
-3. Every assertion carries a verbatim quote that must appear in its unit. Unverifiable claims are
-   flagged or dropped, never asserted.
-4. Every model call goes through the two interfaces, `embed(texts)` and
-   `generate(prompt, schema, tier)`, and records its tier.
-5. Every contract rejection is logged, so rejection rate per stage per tier is a query.
-6. The abstract is a fold over cells; staleness is a hash comparison, never a wall-clock guess.
-7. Every delta violation is a rejection, not a stored row.
+1. Raw text is never edited. Ids are content hashes.
+2. Nothing is overwritten. Supersession and merges resolve at read time.
+3. Every assertion carries a verbatim quote that must appear in its unit.
+4. Every model call goes through `embed()` and `generate()` and records its tier.
+5. Every contract rejection is logged.
+6. An abstract is a fold over its cells; staleness is a hash comparison, never a guess.
+7. A relationship that violates the type table is a rejection, not a stored row.
 
 ---
 
-## 7. Open questions
+## 7. Open
 
-- **Mixed-corpus ordering.** Books order by narrative position, chats by wall clock. A store
-  containing both has no defined sequence, and `(work_ordinal, unit_ordinal)` silently interleaves
-  incomparable things.
-- **Nothing demotes or retires.** Promotion is one-way, and the prototype already carries 82
-  orphaned sheets from exactly this.
-- **`kind` does two jobs**, routing extraction prompts and constraining delta. Those will want to
-  diverge, because `event` and `topic` need the same predicates and very different prompts.
-- **Conformance testing.** Two adapters, twelve operations, no shared test suite. The realistic
-  failure is that the files adapter is developed against and the Neo4j adapter rots. Note this is
-  now doubly urgent: the suite is the only thing that would catch the invariant divergence recorded
-  in section 5, and writing it against the single existing adapter is cheap (roughly 10 to 15 hours
-  at one case per operation) and does not require the second adapter to exist.
-- **Embedding-to-node desync has no detector.** The `.npy` matrix and the node table are written
-  separately, so a partial write leaves row *i* of the matrix pointing at the wrong node. There is
-  no checksum tying them together, and the failure is silent: retrieval simply returns the wrong
-  entity. Store a row count and a hash of the node-id ordering alongside the matrix and verify on
-  load. Carried from the doc 15 quality pass, item 3, never absorbed.
-- **FTS5 is assumed, not checked.** The distributable's text search depends on SQLite being
-  compiled with FTS5, which is not universal. Probe for it at startup and fall back to an in-process
-  BM25 if it is missing, or the distributable fails on a stranger's machine in the one way that
-  cannot be debugged remotely. Carried from the doc 15 quality pass, item 4, never absorbed.
+- **Mixing sources with different clocks.** Books order by narrative position, chats by wall clock.
+  A store holding both has no single defined order.
+- **Nothing ever demotes.** Promotion is one-way, and the prototype accumulated 82 orphaned records
+  from exactly this.
+- **No conformance test across adapters yet.** Only one adapter exists, so write the suite against
+  it; that is what stops a second one rotting later.
+- **Embeddings can silently desync from the entity table.** The numpy array and the node list are
+  written separately with no checksum tying them, so a partial write returns the wrong entity and
+  nothing complains. Store a row count and a hash of the id ordering, and verify on load.
+- **Full-text search is assumed, not checked.** SQLite is not always compiled with FTS5. Probe at
+  startup and fall back, or the distributable fails on a stranger's machine.
