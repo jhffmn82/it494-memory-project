@@ -74,9 +74,15 @@ concerns that had leaked into the data model.
   corpus is: it is whatever set you want salience scoped to.
 
 **What "later" means, settled 2026-08-28.** Supersession handles *the world changed*: a later fact
-collides with an earlier one. The ordering key is **`occurred_at` when both facts have one, and unit
-position otherwise.** Position always exists; a date often does not, and leaving it unknown is
-correct rather than guessing at it.
+collides with an earlier one. The ordering key is **`occurred_at` when both facts have one, and
+otherwise the pair (document order in the corpus manifest, unit position within that document).**
+Position always exists; a date often does not, and leaving it unknown is correct rather than
+guessing at it. Feed a series in sequence, book 1 then book 2, and the manifest records that order.
+
+**Both halves of that pair are required.** Tip becomes Ozma across two books, and unit position alone
+gets it right only by accident: book 2 unit 47 outranks book 1 unit 3 numerically. Move the reveal to
+unit 3 of book 2 and position alone reverses it. This makes the corpus manifest load-bearing for
+correctness rather than a convenience for reading order.
 
 This ordering is not a detail. Order by date alone and the novel corpus supersedes nothing at all,
 because almost no fact in a novel carries one, and the Tip fixture would pass while doing nothing.
