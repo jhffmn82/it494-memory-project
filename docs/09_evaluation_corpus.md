@@ -132,6 +132,45 @@ cost.
 
 ---
 
+## The Zep comparison: LongMemEval, kept deliberately
+
+Zep is the closest published system to this design, so its numbers are the only ones this work can
+be measured against directly. The strategy is asymmetric on purpose: **compete with Zep on its own
+metric rather than on ours**, because it never ran on literary corpora and a comparison invented
+here would be against a reimplementation rather than against their published result.
+
+**Zep's published LongMemEval numbers:** 63.8% with gpt-4o-mini against a 55.4% full-context
+baseline, and 71.2% with gpt-4o against 60.2%.
+
+Two qualifiers that must travel with those figures, both verified against the paper:
+
+- They are **LongMemEval_s**, the small variant, averaging about 115,000 tokens per conversation,
+  not the full benchmark.
+- **The accuracy is the weaker half of their result.** Zep served those numbers from roughly 1,600
+  tokens of context against the baseline's 115,000, with about a tenfold latency reduction.
+  Competing on LongMemEval means competing on that frontier. A system that matches Zep's accuracy
+  while reading far more context has lost, and the paper should report context size alongside
+  accuracy or it is reporting half the comparison.
+
+**A dependency this creates.** LongMemEval is conversational, so the `session` value of `unit_type`
+in `04_unit_contract.md` has to actually work. That is real preprocessing effort and it is easy to
+overlook because the enum already lists it.
+
+**Do not spend a run on DMR.** Zep's own paper calls the benchmark inadequate: 94.8% against a 94.4%
+full-conversation baseline with gpt-4-turbo, and 98.2% against 98.0% on the gpt-4o-mini row, where
+each conversation is only 60 messages and "easily fits within current LLM context windows." Cite the
+caveat, and cite Table 1 rather than the abstract, since the abstract's headline compares Zep to
+MemGPT rather than to full context.
+
+**Note the tension, and state it in the write-up rather than hoping nobody notices.** LongMemEval is
+assembled rather than organic (roughly 25% ShareGPT, 25% UltraChat, 50% model self-chat), and this
+project's stated reason for preferring novels is that synthetic dialogue has planted structure. Both
+things are true. The resolution is that LongMemEval is not being used as a substrate for measuring
+the design; it is being used as the one place a head-to-head against the nearest published system is
+possible on that system's own terms.
+
+---
+
 ## Alternatives considered
 
 | Benchmark | Gold public | Long books | Cheap metric | Verdict |

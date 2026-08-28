@@ -1,5 +1,10 @@
 # The unit contract
 
+> **Note added 2026-08-28, not a change to the contract.** The `session` value of `unit_type` is
+> now **load-bearing rather than aspirational**. The Zep comparison runs on LongMemEval, which is
+> conversational, so a session has to normalise into this contract for real and not just exist in
+> the enum. Budget for it. Nothing else about the contract changes.
+
 **2026-08-27. FROZEN.** This is the only schema element that must be settled before preprocessing
 begins. Everything else in `03_design.md` is provisional and gets settled by contact with real data.
 

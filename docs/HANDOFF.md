@@ -23,23 +23,38 @@ session opens the wrong clone.
 
 ## The plan of attack, locked
 
-**A working backend, a published dataset, measured cost and tier numbers, by November 15.** The
-novelty claim this plan used to carry is gone; see the next section. The build below is unchanged
-by that, because none of it depended on the claim being true.
+**One build, one scorer, two cost numbers, by November 15.** There is no novelty claim; see the
+next section. Nothing in the build depended on there being one.
 
 1. **The topic change is approved** (Fang, in person, 2026-08-28). Only the one-semester proposal
    form may still need filing, on the Fang, then Hasselbring and Tang, routing.
-2. **Preprocess in September**, inside the first open block, and publish the cleaned corpora as a
-   dataset. That publication is the reproducibility story.
-3. **Pilot on Oz book 1 before September 27**, across three tiers, for about three dollars.
-4. **Build October 19 to November 7.** Batch the cell calls from the start.
-5. **Measure and write November 8 to 15.** The free instruments, per-stage tier sensitivity, the
-   two corpus controls, the contamination probe, and LongMemEval as the one paid benchmark. The
-   LitBank head to head is withdrawn.
-6. **When a week disappears, cut from the bottom of the order in `05_fall_plan.md`**, which is
-   decided in advance precisely so it is not decided under pressure.
+2. **Ask Fang for an arXiv cs.CL endorsement.** One email, and the only item with a dependency on
+   another person. First-time submitters cannot post without one and an institutional address does
+   not grant it.
+3. **Build the store from `03_design.md`. Files backend only.** The Neo4j and Graphiti arm is not
+   built this semester: it costs 75 to 120 hours, the comparison it existed for is occupied, and
+   Graphiti cannot satisfy invariants 2 and 3 anyway. **Keep the twelve-operation port**, which
+   makes that reversible, and **write the conformance suite against the one adapter that exists**
+   (10 to 15 hours).
+4. **Ingest sequentially, chapter by chapter.** Bulk loading makes a book static and exercises
+   nothing temporal. In order, the store's state genuinely changes as it reads.
+5. **Evaluate on Infinity-Bench En.MC**, three arms through one scorer: full system, no-context
+   control (random 25%, and it goes in the headline table), flat chunk retrieval. **The ablations
+   are further arms on the same scorer**, which is what makes them nearly free. See
+   `09_evaluation_corpus.md`.
+6. **Measure the temporal half on cost**, since no static benchmark can reach it: read-cost
+   differential, refold cost under change, coverage differential. None needs gold data.
+7. **Run LongMemEval as the Zep comparison.** Zep is the closest published system and the only one
+   whose numbers this work can be measured against directly. Note it is conversational, so the
+   `session` unit type has to actually work.
+8. **When a week disappears, cut from the bottom of the order in `05_fall_plan.md`**, decided in
+   advance precisely so it is not decided under pressure.
 
-The full calendar, hour budget, cost model and cut order are in `05_fall_plan.md`.
+**The four literary corpora are no longer load-bearing.** Infinity-Bench supplies the evaluation, so
+they become an optional DOI'd dataset artifact that can ship or be deferred.
+
+The full calendar, hour budget, cost model and cut order are in `05_fall_plan.md`. Whether any of
+this becomes a paper, and what it would claim, is `08_paper_options.md`.
 
 ---
 

@@ -141,6 +141,32 @@ convention and the Tip-to-Ozma fixture, and it should be the second thing run.
 
 Pipeline and storage per `03_design.md`, behind the port described there.
 
+**One backend only: files.** The Neo4j and Graphiti arm is **not built this semester.** Three
+independent reasons, and the third is about the design rather than the schedule:
+
+1. It costs an additional 75 to 120 hours against a budget already oversubscribed threefold.
+2. The comparison it existed for is occupied: *As We May Search* (ICTIR 2026), *Storage Is Not
+   Memory* (arXiv:2605.04897), and Pacaci et al. (GRADES at SIGMOD 2017) for the graph half.
+3. **Graphiti cannot satisfy this design's invariants.** `add_triplet` runs node and edge
+   resolution, so a supplied entity may be merged rather than stored as given (invariant 2), and it
+   creates no episode node, so triplets carry no quote provenance (invariant 3). The two arms would
+   have differed in semantics rather than only in storage, so the comparison was never clean. See
+   `03_design.md` section 5.
+
+**Keep the port anyway.** Twelve operations, nothing calls a backend directly. It costs almost
+nothing now and it is the whole reason a second adapter would be cheap later, which keeps this
+decision reversible.
+
+**Write the conformance suite against the one adapter that exists.** Roughly 10 to 15 hours at one
+case per operation. `03_design.md` section 7 already names the failure mode it prevents, that the
+files adapter gets developed against while any second adapter rots, and it is also what would catch
+the invariant divergence above if a second arm is ever built.
+
+**Ingest sequentially, chapter by chapter, not in bulk.** A bulk-loaded book is static and exercises
+nothing temporal. Read in order, the store's state at chapter 10 differs from chapter 20, which is
+genuine incremental ingestion with organic supersession. This follows MemoryAgentBench (ICLR 2026),
+which wraps chunks in a simulated dialogue "to explicitly trigger the agent's memory mechanism."
+
 Build order: ingest, then organize, then maintain, with the evaluation spine alongside. **Batch the
 cell calls from the start.** See the cost model below: batching cuts total input by about 2.3 times
 and the dominant cell-input term by 5 times.
@@ -156,24 +182,83 @@ file hides.
 **The paper posts by November 15.** December holds four graded events in another course, an exam
 window, and eight to ten PhD applications.
 
-Committed measurements, in order of certainty:
+### The quality axis: three arms through one scorer
 
-1. **The free instruments.** Rejection rate per stage per tier, duplicate minting per unit,
-   predicate sprawl, quote gate pass rate, token cost per arm, plot-versus-cell consistency. These
-   fall out of running the pipeline and need no dataset.
-2. **Per-stage tier sensitivity.** Which stages need a frontier model and which run on a cheap one,
-   measured per question band. This is the measurement with a real spread behind it.
-3. **The two corpus controls.** OCR tax and translation tax, both carried by Three Kingdoms.
-4. **The contamination probe.** Free generation versus fact-row composition, deerstalker incidence.
+**Corpus: Infinity-Bench En.MC.** 229 questions, gold answers public, four-way accuracy by exact
+match, no judge and no API cost, roughly 184k tokens per book, and the text ships with the benchmark
+so there is nothing to fetch. Its books are **entity-substituted**, which is the decisive property:
+a model cannot answer from memorised pretraining when the names have been changed, so the score is
+attributable to the system. Full reasoning in `09_evaluation_corpus.md`.
 
-**Withdrawn 2026-08-28: the LitBank head to head**, which was item 2 and the anchor of this phase.
-The claim it tested is occupied and its premise was factually wrong, and LitBank could not have
-measured it in any case: 96 of its 100 documents are exactly two chunks at GraphRAG's default, and
-the effect compounds across many chunks. Nothing replaces it this semester.
+Three arms, one identical scorer:
 
-**The one paid benchmark worth running is LongMemEval**, because it is where the assistant claim
-lives and where Zep published comparable numbers. It was missing from the previous version of this
-plan, which is a reconciliation error against `02_requirements_and_testing.md`.
+1. **Full system.**
+2. **No-context control.** Random is 25%. **This goes in the headline table, not a footnote.**
+3. **Flat chunk retrieval.** The baseline the components have to beat.
+
+**The ablations are additional arms on the same scorer**, which is what makes them nearly free once
+the harness exists: no salience threshold, no entity cells, no fact layer. Each answers whether that
+mechanism earned its cost. This is the measurement the paper is paid in, per `08_paper_options.md`.
+
+### The cost axis, which no benchmark can reach
+
+Infinity-Bench is **static**: one book, questions about it, all at once. It cannot touch supersession,
+incremental update or hash-gated refolding. Those are measured on cost instead, and need no gold
+data:
+
+- **Read-cost differential.** For an entity appearing in K or more units, enumerated mechanically
+  from the store, count tokens read to cover its thread via the entity axis (one cell sequence)
+  against the plot axis (N unit summaries, most about something else). Report as a curve in K. This
+  is the honest form of the two-axis claim: the entity axis does not know more, it costs less to
+  reach.
+- **Refold cost under change.** Recompute cost with hash gating against a full rebuild, as the
+  corpus grows. This is the mechanism the design actually invests in and the number nobody
+  publishes.
+- **Coverage differential.** Plot summaries and entity cells are independent summaries over
+  identical text, so the symmetric difference between what each contains is measurable with no
+  ground truth at all. If the cells hold nothing the plot summaries miss, the entity axis is
+  redundant and that is a finding.
+
+### The Zep comparison, kept deliberately
+
+Zep is the closest published system, so its numbers are the ones this work can be measured against
+directly. **Compete on its metric, not ours: LongMemEval.** Zep published 63.8% with gpt-4o-mini
+against a 55.4% full-context baseline, and 71.2% with gpt-4o against 60.2%.
+
+Two qualifiers that must travel with those figures. They are **LongMemEval_s**, the small variant
+averaging about 115,000 tokens per conversation. And the stronger half of Zep's result is not the
+accuracy: it served those numbers from roughly 1,600 tokens of context against the baseline's
+115,000, with about a tenfold latency reduction. Competing on LongMemEval means competing on that
+frontier, not on accuracy alone.
+
+Note the dependency this creates: LongMemEval is conversational, so the `session` unit type in
+`04_unit_contract.md` has to actually work, not just exist in the enum. Budget for that.
+
+**DMR is not worth running as a discriminator** and Zep's own paper says so: 94.8% against a 94.4%
+full-conversation baseline, and 98.2% against 98.0% on the gpt-4o-mini row. Cite the caveat rather
+than spending a run on it.
+
+### Also committed, and free
+
+- **The free instruments.** Rejection rate per stage per tier, duplicate minting per unit, predicate
+  sprawl, quote gate pass rate, token cost per arm.
+- **Per-stage tier sensitivity.** Which stages need a frontier model and which run on a cheap one.
+
+**Withdrawn 2026-08-28: the LitBank head to head**, which was the anchor of this phase. The claim it
+tested is occupied and its premise was factually wrong, and LitBank could not have measured it
+regardless: 96 of its 100 documents are exactly two chunks at GraphRAG's default.
+
+**Also withdrawn: NovelQA**, considered and rejected. Its gold answers are not distributed and
+scoring runs through a Codabench leaderboard, so every ablation would be a round-trip through
+someone else's server. Keep one number from it: **GPT-4 scores 60.94% multichoice closed-book**,
+which is the contamination problem in one figure and the reason Infinity-Bench's entity substitution
+matters.
+
+**The four literary corpora are no longer load-bearing for the fall.** They were assembled to be the
+evaluation substrate, and Infinity-Bench supplies that now. They become an optional DOI'd dataset
+artifact that can ship or be deferred without touching the evaluation. The OCR and translation-tax
+controls go with them; the cheapest of those, the OCR tax on Three Kingdoms, remains the single
+best-value optional measurement if hours appear.
 
 **Cut, not stretched.** NarrativeQA across three injection arms and the four-arm ablation are
 removed. They were listed as stretch goals in the previous version and are not in the committed

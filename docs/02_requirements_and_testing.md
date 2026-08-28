@@ -7,8 +7,21 @@ strategy.
 > **The LitBank head-to-head is withdrawn, and with it the GraphRAG comparison.** The claim it
 > tested is dead (`01_argument.md`), and LitBank could not have measured it regardless: 96 of its
 > 100 documents are exactly two chunks at GraphRAG's default size, so a phenomenon that compounds
-> across many chunks has one boundary to appear at. Both changes are marked below. The free
-> instruments and LongMemEval are unaffected.
+> across many chunks has one boundary to appear at.
+>
+> **What replaces it, settled 2026-08-28: Infinity-Bench En.MC.** 229 questions, gold answers
+> public, four-way accuracy by exact match, no judge, text shipped with the benchmark, and its books
+> are **entity-substituted** so a model cannot answer from memorised pretraining. Three arms through
+> one scorer (full system, no-context control at 25% random, flat chunk retrieval), with the
+> ablations as further arms. Reasoning and alternatives in `09_evaluation_corpus.md`; schedule in
+> `05_fall_plan.md`.
+>
+> **LongMemEval is kept, deliberately, as the Zep comparison.** Zep is the closest published system,
+> so its numbers are the only ones this work can be measured against directly. That is the
+> asymmetric strategy below: compete with Zep on its own metric.
+>
+> **NovelQA was considered and rejected**: its gold answers are held out behind a Codabench
+> leaderboard, so every ablation would be a round-trip through someone else's server.
 
 Every citation in the requirements table was re-verified against full paper text on 08-28, with the
 single exception marked `[abstract only]`. Three were wrong and are corrected here. The corrections are marked, because the corrected versions are
@@ -88,7 +101,7 @@ occupied**, not as unclaimed ground. See `01_argument.md`.
 
 | # | Test | Cost | Status |
 |---|---|---|---|
-| 2 | Duplicate-minting curve per unit, as a **descriptive** measurement of this pipeline | **free** | falls out of ingest. The LitBank head-to-head is withdrawn: see the banner above. Without a baseline arm this describes behaviour, it does not compare |
+| 2 | Infinity-Bench En.MC accuracy across three arms, plus the duplicate-minting curve per unit | **free** | gold answers public, exact match, no judge. The entity substitution defeats the contamination confound |
 | 3 | Quote gate: every claim must trace to a verbatim string in its unit | **free** | deterministic |
 | 6 | Run rows, per stage per tier | **free** | already in the schema |
 | 5 | Refold cost and staleness versus full rebuild | cheap | direct comparison; GraphRAG and RAPTOR are batch, Zep is not, and MemTree published the per-insertion figures to compare against |

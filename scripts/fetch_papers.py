@@ -73,6 +73,59 @@ ITEMS = {
     "salemi2026-blackboard-llm": (arxiv("2510.01285"), "arXiv"),
     "pollertlam2026-beyond-context-window": (arxiv("2603.04814"), "arXiv"),
     # note: LongMemEval intentionally absent: no verified id on file yet; added after verification.
+    # --- added 2026-08-28: evaluation corpora ---
+    "infinitebench-2024": (arxiv("2402.13718"), "ACL 2024. En.MC split is the primary evaluation set"),
+    "literaryqa-2025": (arxiv("2510.13494"), "EMNLP 2025, anthology 2025.emnlp-main.1729. Cleaned Gutenberg NarrativeQA"),
+    "novelqa-2024": (arxiv("2403.12766"), "Gold answers held out, Codabench only. Kept for the closed-book baseline"),
+    "bookcoref-2025": (arxiv("2507.12075"), "ACL 2025. Book-scale coreference, no relations"),
+    "storybench-2025": (arxiv("2506.13356"), "Long-term memory over interactive fiction"),
+    "stonybook-2023": (arxiv("2311.03614"), "~50k novels, standard XML annotation"),
+    # --- added 2026-08-28: extraction ordering, the ninth dead claim ---
+    "itext2kg-2024": (arxiv("2409.03284"), "Ran the global-vs-local cast ablation; global scored ~10 pts LOWER"),
+    "rakg-2025": (arxiv("2504.09823"), "Document-wide disambiguation then per-entity relation construction"),
+    "linkkg-2025": (arxiv("2510.26486"), "Global alias cache, node duplication 27.0->10.6 short, 36.0->17.8 long"),
+    "corekg-2025": (arxiv("2506.21607"), "ICDM 2025. Removing coreference costs +28.25% node duplication"),
+    "slide-2025": (arxiv("2503.17952"), "Extraction context varied on a 160k-token novel"),
+    "elite-2025": (arxiv("2505.11908"), "Discards embeddings AND graph construction"),
+    # --- added 2026-08-28: the composition, per-element occupants ---
+    "story-ribbons-2025": (arxiv("2508.06772"), "IEEE VIS 2025. NEAREST PEER-REVIEWED THREAT: cell matrix, both marginals, quote gate, 30 Gutenberg works"),
+    "reveriemem-2026": (arxiv("2606.25632"), "Per-character per-scene retrospective summaries, 8 novels incl. Holmes"),
+    "cam-2025": (arxiv("2510.05520"), "NeurIPS 2025. Incremental overlapping clustering; killed covering-vs-partition"),
+    "nkw-2026": (arxiv("2606.05724"), "Degree-gated per-entity extraction; closest whole-stack analogue"),
+    "statefuse-2026": (arxiv("2607.05844"), "Append-only, resolution at projection time, conflict objects"),
+    "moss-2026": (arxiv("2607.04391"), "A year in production on one scholar's corpus, no LLM in the retrieval loop"),
+    "xmemory-2026": (arxiv("2604.27906"), "Explicit unknowns as a first-class operation"),
+    "streaming-knowledge-compilation-2026": (arxiv("2606.09877"), "Per-(entity, document) materiality gate under a token budget"),
+    "memtier-2026": (arxiv("2605.03675"), "Checked and NOT entity-salience tiering; kept to prevent re-checking"),
+    "engram-2026": (arxiv("2606.09900"), "arXiv comments field names no venue; do not cite a venue for it"),
+    # --- added 2026-08-28: the LLM Wiki line, absent from this repo until now ---
+    "llm-wiki-ming-2026": (arxiv("2605.25480"), "One page per entity, 5,825 pages, YAML frontmatter, wikilinks"),
+    "llm-wiki-cochran-2026": (arxiv("2607.04576"), "A real 709-page LLM-maintained wiki"),
+    "wiki-vs-rag-cochran-2026": (arxiv("2605.18490"), "PREREGISTERED head-to-head: vector RAG vs an LLM-compiled wiki"),
+    "wicer-2026": (arxiv("2605.07068"), "Wiki construction with entity resolution"),
+    "llmpedia-2026": (arxiv("2603.24080"), "Infobox plus lead, ~1.3M articles"),
+    # --- added 2026-08-28: local-first, the eleventh dead claim ---
+    "as-we-may-search-2026": (arxiv("2606.29652"), "ICTIR 2026. OCCUPIES the local-first thesis; 1K-1M sweep, exact vs HNSW vs IVF"),
+    "memx-2026": (arxiv("2603.16171"), "Local-first libSQL plus FTS5, evaluated on LongMemEval"),
+    "vstash-2026": (arxiv("2604.15484"), "Single SQLite file, sqlite-vec plus FTS5"),
+    "superlocalmemory-2026": (arxiv("2608.08253"), "Eleven fault-injection scenarios x200 reps against its own invariants"),
+    "graphrag-bench-2025": (arxiv("2506.05690"), "When graphs help: reasoning 53.4 vs 42.9, summarization 64.4 vs 51.3"),
+    # --- added 2026-08-28: the provenance findings, ruled out but searched ---
+    "isnad-rijal-2026": (arxiv("2607.24117"), "Independent-chain corroboration; publishes the FIX for echo inflation"),
+    "errors-become-narratives-2026": (arxiv("2606.14589"), "Single personal-assistant runtime; ~70% of silent failures caught by humans"),
+    "manufactured-confidence-2026": (arxiv("2606.29279"), "Consolidation rewrites hedged remarks into flat dated assertions"),
+    "agentchaos-2026": (arxiv("2608.06790"), "ASE 2026. Fault injection for agent systems"),
+    "agentchaosbench-2026": (arxiv("2608.14680"), "Ten operational fault types, 275 traces"),
+    # --- added 2026-08-28: benchmark generality and requirements ---
+    "ama-bench-2026": (arxiv("2602.22769"), "Cross-substrate ranking flip"),
+    "cross-scenario-generality-2026": (arxiv("2606.04315"), "Winning on one scenario does not imply winning on others"),
+    "agent-native-memory-2026": (arxiv("2606.24775"), "12 systems, 11 datasets; occupies requirements-plus-coverage"),
+    "meme-2026": (arxiv("2605.12477"), "100 episodes, 694 questions, entity KG, CC BY 4.0"),
+    # --- added 2026-08-28: narrative memory and corpora ---
+    "narrative-world-model-2026": (arxiv("2607.05577"), "MOST IMPORTANT UNREAD PAPER: same niche, baselines and corpus type"),
+    "stage-2026": (arxiv("2601.08510"), "151 bilingual screenplays, provenance-linked narrative backbone"),
+    "coser-2025": (arxiv("2502.09082"), "ICML 2025. 771 books, alias-to-canonical character mappings"),
+    "affilkg-2026": (arxiv("2505.10798"), "LREC 2026. Book scans plus OCR text paired with labelled KGs"),
 }
 
 def fetch(url, dest):

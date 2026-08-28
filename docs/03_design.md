@@ -262,6 +262,28 @@ survivor at read time rather than becoming unreachable.
 Raw text to normalised `Unit` records. Per-corpus handlers, one output contract, specified in
 `04_unit_contract.md`. Deliberately outside this pipeline so the heterogeneity is absorbed once.
 
+**Ingest sequentially, unit by unit, in narrative order. Never bulk-load a work.** Added 2026-08-28,
+and it is a correctness requirement rather than a preference. A bulk-loaded book is static: every
+fact arrives at once, nothing ever supersedes anything, and the temporal half of this design is
+never exercised. Read in order, the store's state after chapter 10 genuinely differs from its state
+after chapter 20, and Tip becoming Ozma is an actual update applied to an actual prior belief.
+
+This also has published precedent to cite rather than invent: MemoryAgentBench (ICLR 2026) wraps
+input chunks "within a simulated User-Assistant dialogue to explicitly trigger the agent's memory
+mechanism," for the same reason.
+
+**Note which of the two supersession mechanisms a novel exercises.** Reading in order produces both,
+and they are not the same operation:
+
+- *The world changed.* A later assertion collides with an earlier one on a functional predicate.
+  Handled by computed supersession at read time.
+- *We were wrong.* Tip was never a boy; he was Ozma enchanted the whole time. There is no later
+  event to supersede the earlier claim, it was never true, and deleting violates append-only.
+  Handled by `rank: deprecated`.
+
+Synthetic conversational benchmarks almost exclusively exercise the first, because planted facts get
+updated by planted events. Literature is full of the second, and revelation is the harder case.
+
 ### Stage 1. High-level pass: identify topics and major entities
 
 One call per unit. Returns the cast: entities and topics present, with a salience signal.
