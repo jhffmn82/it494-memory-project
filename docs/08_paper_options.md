@@ -436,3 +436,98 @@ locally and reading it.
 
 **Do not trust a fetched summary of a paper. Extract and read it.** That is the same failure that
 produced the Zep README error, and it is now documented three times in this repository.
+
+
+---
+
+# Using novels as the substrate: what it costs, and the one rule
+
+**2026-08-28.** Searched. The proxy argument is **standard as a practice and unjustified as an
+argument**. Papers do use narrative corpora for memory work, but almost none argue that narrative
+substitutes for conversation. They either say nothing, or they quietly reshape the books into a
+dialogue stream first.
+
+## The rule, and it governs any quality measurement here
+
+**Report a no-memory baseline as a headline number, not a footnote.** Ask the questions with the
+store switched off entirely and report what the model gets right from pretraining alone. Without it,
+a reviewer cannot tell memory from recall of the training set.
+
+**Contamination is the strongest objection and it lands hardest on exactly this corpus.** GPT-4
+scores **60.94% on NovelQA multiple choice with no novel in context**. BooookScore names the source
+directly: BookSum texts "from the Project Gutenberg public-domain repository ... are in the
+pretraining data of existing LLMs." Chang et al., *Speak, Memory* (EMNLP 2023) found the most
+memorised books include "popular works in the public domain," and that "disparity in memorization
+leads to disparity in downstream tasks." NoCha names this exact design as the failure mode.
+
+The asymmetry the proxy needs is that the model has read the novel but not the user's life. That is
+the axis on which the two corpora differ most, and it runs against the argument.
+
+**Two measurements are immune and should therefore come first:** the read-cost differential (tokens
+read to cover the same content, a cost measurement) and the coverage differential (two of this
+system's own outputs compared against each other). Neither involves model knowledge.
+
+## How to justify the substrate, in order of defensibility
+
+1. **Reproducibility, not realism.** Narrative World Model (arXiv:2607.05577) pairs a public corpus
+   with a private one: "The public corpus makes the protocol reproducible while the private
+   five-book corpus tests the same systems on longer, production-style serialized stories." This is
+   the cleanest available framing and it does not make a realism claim that can be attacked.
+2. **Reshape the book into an incremental multi-turn stream, and say so.** This is the ICLR 2026
+   precedent. MemoryAgentBench criticises static book QA, then uses books anyway after restructuring:
+   "we wrap all input chunks within a simulated User-Assistant dialogue to explicitly trigger the
+   agent's memory mechanism."
+3. **The supporting argument, from the other direction.** TraceMem (arXiv:2602.09712) argues a
+   personal chat archive *is* narrative, organising "disjointed interaction traces into evolving
+   narrative threads that represent the user's ongoing life story."
+
+**Do not cite CAM as precedent**: it is framed as reading comprehension, not assistant memory, and
+offers no proxy justification.
+
+## The objections, sourced, that a reviewer will raise
+
+- **Contamination**, above. Fatal as specified unless the no-memory baseline is reported.
+- **The published warning that book QA is not a memory-agent proxy**, from MemoryAgentBench itself.
+  A reviewer can paste that sentence and stop.
+- **Bounded versus unbounded.** ConvoMem: memory systems "start from zero and grow progressively."
+  A novel is complete at t=0, so compaction and forgetting policy, which is the actual engineering
+  problem, is untestable on it.
+- **Narrative time versus wall clock.** Narrative World Model models event order and reveal order as
+  separate fields precisely because generic memory cannot.
+- **Entity density.** BOOKCOREF reports roughly 27 consistently-named characters per book. An open
+  personal cast referred to by first name or "that thing we talked about" is harder, so the proxy
+  makes entity tracking artificially tractable.
+- **Fact change is a different operation.** In fiction a fact changes by *revelation*, where reader
+  access changes and the world does not; in an archive the same predicate takes a new value. Noted
+  as **unsourced as a named contrast**, assembled from halves.
+
+## Do not spend the project measuring the proxy
+
+Nobody has built the same system over a narrative and a conversational corpus to ask which
+measurements transfer. But the framing is occupied twice within four months: **AMA-Bench**
+(arXiv:2602.22769) already reports a cross-substrate ranking flip, and **Cross-Scenario Generality
+of Agentic Memory Systems** (arXiv:2606.04315) already concludes "winning on one does not imply
+winning on others." A reviewer would call it AMA-Bench applied to a new pair of corpora.
+
+## Conversational corpora, if a second substrate is ever wanted
+
+| Corpus | Size | Ground truth | License |
+|---|---|---|---|
+| LongMemEval | 500 Q | knowledge-update category, evidence-session labels, timestamps | **MIT** |
+| MemoryAgentBench FactConsolidation | 146 rows | explicit fact supersession, **exact match, no judge** | **MIT** |
+| MEME (arXiv:2605.12477) | 100 episodes, 694 Q | entity KG, 90 entities | **CC BY 4.0** |
+| MTRAG | 110 human conversations | per-turn answerability, relevant passages | **Apache-2.0** |
+| LoCoMo | **10 released**, not the 50 the paper claims | evidence dialog ids | CC BY-NC 4.0 |
+| MSC + personal-facts-MSC | 17.9k episodes, 2,779 annotated facts | **real human** dialogue | **license unstated** |
+
+**LongMemEval is assembled, not real** (roughly 25% ShareGPT, 25% UltraChat, 50% model self-chat).
+**Avoid DialSim**: unlicensed copyrighted TV scripts, LICENSE returns 404. **Avoid HaluMem**:
+NoDerivatives.
+
+## Integrity note from this search
+
+The searching agent caught **two hallucinations mid-run**: a search engine attributed a quote about
+synthetic datasets to Narrative World Model, in which the word "synthetic" does not occur; and a
+WebFetch echoed the prompt's own wording back as a verbatim quote. Both were caught by re-extracting
+the source. Two secondhand figures are flagged as unverified: the Mem0 ECAI 2025 acceptance (vendor
+blog only) and the MemGym fictionalization numbers.
