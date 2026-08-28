@@ -110,7 +110,7 @@ compete with it silently.
 Hierarchical summaries from GraphRAG and RAPTOR. Temporal facts and invalidation from Zep and,
 underneath it, bitemporal modelling. Community summarisation from GraphRAG and, as corrected
 below, from Zep as well. Per-document per-entity summarisation from EntSUM. Per-entity chronology
-from timeline summarisation. Online maintenance from MemTree and Graphiti. Property graph
+from timeline summarisation (Ghalandari et al., *Examining the State-of-the-Art in News Timeline Summarization*, arXiv:2005.10107, as the survey citation for the family). Online maintenance from MemTree and Graphiti. Property graph
 structure and the edge-typing constraint from Angles. Ranks and qualifiers from Wikidata.
 
 Naming the borrowing is the strength. A paper that shows only what was built reads as naive; one

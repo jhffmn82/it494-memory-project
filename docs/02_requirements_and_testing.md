@@ -198,5 +198,5 @@ must not present them as results.
 | Watson's wound, shoulder in *A Study in Scarlet* and leg in *The Sign of the Four* | Holmes | Contradiction with no reconciling reading, inside one author |
 | The deerstalker probe | Holmes | Free generation versus fact-row composition; the second structurally cannot leak, because Doyle never wrote the detail so no fact row exists to compose |
 | Source disagreement rendered inline | Greek | Helen reached Troy per Homer, never per Euripides, both live and both cited |
-| OCR tax and translation tax | Chinese | Same content, one variable. Cite Sun et al. 2026, *When Good OCR Is Not Enough: Benchmarking OCR Robustness for Retrieval-Augmented Generation* (arXiv:2605.00911), which is the prior art and is on disk as `papers/sun2026-ocr-robustness-rag.pdf` |
+| OCR tax and translation tax | Chinese | Same content, one variable. Cite **OHRBench** (Zhang et al., *OCR Hinders RAG: Evaluating the Cascading Impact of OCR on Retrieval-Augmented Generation*, arXiv:2412.02592, on disk as `papers/zhang2024-ocr-hinders-rag.pdf`) as the original prior art, and Sun et al. 2026 (arXiv:2605.00911, `papers/sun2026-ocr-robustness-rag.pdf`) as the follow-up |
 | The design session's own transcript | none | Ten interleaved, non-contiguous threads with cross-thread supersession. A **figure**, not a result |
