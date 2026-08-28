@@ -1,231 +1,200 @@
-# Handoff: where things stand
+# Handoff: read this first
 
-**Written 2026-08-28, replacing the 08-27 handoff.** Read this first. It records what is settled,
-what was wrong, and what is still open. The document index is `README.md`.
+**Written 2026-08-28 at the end of a long session, replacing the 08-27 handoff entirely.** This is
+the one document that reflects where things actually stand. A fresh session should be able to start
+from here without reading the rest.
 
 ---
 
-## Read this before opening anything
+## 0. Before anything else, check you are on the current clone
 
-**Check you are on the current clone.** This session opened a checkout that was 19 commits behind
-origin and concluded, reasonably and wrongly, that the handoff documents had never been written.
-They were on origin the whole time. Two machines are in play and the maintenance script pushes
-without fetching, so a stale local checkout is the default failure mode here, not an unlikely one.
+The last session opened a checkout **19 commits behind origin** and concluded, reasonably and
+wrongly, that the handoff documents had never been written. They were on origin the whole time. Two
+machines are in play and `maintain.py` pushes without ever fetching, so a stale local clone is the
+default state here, not an unlikely one.
 
 ```bash
 git -C ~/it494-memory-project fetch && git -C ~/it494-memory-project status -sb
 ```
 
-If that shows you behind, pull before reading further. A handoff document is useless if the next
-session opens the wrong clone.
+If that says you are behind, pull before reading further. A handoff is useless if the next session
+opens the wrong clone.
 
 ---
 
-## The plan of attack, locked
+## 1. What this project is
 
-**One build, one scorer, two cost numbers, by November 15.** There is no novelty claim; see the
-next section. Nothing in the build depended on there being one.
+A memory backend for a desktop RAG assistant: a `(unit × entity)` cell store where plot summaries
+are the row marginals and per-entity narratives the column marginals, over an append-only temporal
+fact layer with read-time supersession. Evaluated on public-domain literature because literature
+supplies ground truth a personal archive cannot.
 
-1. **The topic change is approved** (Fang, in person, 2026-08-28). Only the one-semester proposal
-   form may still need filing, on the Fang, then Hasselbring and Tang, routing.
-2. **Ask Fang for an arXiv cs.CL endorsement.** One email, and the only item with a dependency on
-   another person. First-time submitters cannot post without one and an institutional address does
-   not grant it.
-3. **Build the store from `03_design.md`. Files backend only.** The Neo4j and Graphiti arm is not
+ISU MSCS directed project, Dr. Xing Fang supervising, fall 2026 plus spring 2027. Roughly 70 to 100
+usable hours in two blocks, September 1 to 27 and October 19 to November 15. **Complete by November
+15 or it does not count**, because December holds the PhD application window.
+
+**Fang approved the topic change in person on 2026-08-28.** That gate is closed. Only the
+one-semester proposal form may remain, on the Fang, then Hasselbring and Tang, routing.
+
+---
+
+## 2. The plan, settled. Do not re-open these.
+
+1. **Build the store in `03_design.md`. Files backend only.** The Neo4j and Graphiti arm is **not**
    built this semester: it costs 75 to 120 hours, the comparison it existed for is occupied, and
-   Graphiti cannot satisfy invariants 2 and 3 anyway. **Keep the twelve-operation port**, which
-   makes that reversible, and **write the conformance suite against the one adapter that exists**
-   (10 to 15 hours).
-4. **Ingest sequentially, chapter by chapter.** Bulk loading makes a book static and exercises
-   nothing temporal. In order, the store's state genuinely changes as it reads.
-5. **Evaluate on Infinity-Bench En.MC**, three arms through one scorer: full system, no-context
-   control (random 25%, and it goes in the headline table), flat chunk retrieval. **The ablations
-   are further arms on the same scorer**, which is what makes them nearly free. See
-   `09_evaluation_corpus.md`.
-6. **Measure the temporal half on cost**, since no static benchmark can reach it: read-cost
-   differential, refold cost under change, coverage differential. None needs gold data.
-7. **Run LongMemEval as the Zep comparison.** Zep is the closest published system and the only one
-   whose numbers this work can be measured against directly. Note it is conversational, so the
-   `session` unit type has to actually work.
+   **Graphiti cannot satisfy invariants 2 and 3.** `add_triplet` runs node and edge resolution, so a
+   supplied entity may be merged rather than stored as given, and it creates no episode node, so
+   triplets carry no quote provenance. The two arms would have differed in semantics, not storage.
+2. **Keep the twelve-operation storage port**, which keeps that decision reversible, and **write the
+   conformance suite against the one adapter that exists**, roughly 10 to 15 hours at one case per
+   operation.
+3. **Ingest sequentially, chapter by chapter, never in bulk.** A bulk-loaded book is static and
+   exercises nothing temporal. Reading in order exercises both supersession mechanisms, and they are
+   different operations: *the world changed* is computed supersession, while *we were wrong* (Tip
+   was never a boy, he was Ozma enchanted) has no later event to supersede it and needs
+   `rank: deprecated`.
+4. **Evaluate on Infinity-Bench En.MC.** 229 questions, gold answers public, four-way exact match,
+   no judge and no API cost, text ships with the benchmark, and the books are **entity-substituted**
+   so contamination cannot confound the result. Three arms through one scorer: full system,
+   no-context control (random is 25%, **and it goes in the headline table, not a footnote**), and
+   flat chunk retrieval as the baseline the components must beat.
+5. **The ablations are further arms on the same scorer**, which is what makes them nearly free: no
+   salience threshold, no entity cells, no fact layer, no hash refold.
+6. **Measure the temporal half on cost**, since no static benchmark reaches it: read-cost
+   differential, refold cost under change, coverage differential. None of the three needs gold data.
+7. **Run LongMemEval as the Zep head-to-head.** Zep is the closest published system and the only one
+   whose numbers this work can be measured against directly. It is conversational, so the `session`
+   value of `unit_type` has to actually work rather than merely exist in the enum.
 8. **When a week disappears, cut from the bottom of the order in `05_fall_plan.md`**, decided in
    advance precisely so it is not decided under pressure.
 
 **The four literary corpora are no longer load-bearing.** Infinity-Bench supplies the evaluation, so
 they become an optional DOI'd dataset artifact that can ship or be deferred.
 
-The full calendar, hour budget, cost model and cut order are in `05_fall_plan.md`. Whether any of
-this becomes a paper, and what it would claim, is `08_paper_options.md`.
+---
+
+## 3. The thing a fresh session is most likely to get wrong
+
+**Twelve candidate contributions were searched adversarially on 08-27 and 08-28. All twelve came
+back occupied.** A thirteenth was invented by the assistant itself mid-session (the corpora
+described as "occupied by nobody"), and it was also false.
+
+**Do not generate claim thirteen.** Every one died the same way, by asserting an absence without
+searching for it, and three were refuted by papers already sitting in `papers/`.
+
+**And do not re-run the novelty test, because it was the wrong test.** The venues this project
+should target waive method novelty in writing:
+
+- **PVLDB:** novelty "often lies in the design, innovative system architecture, new abstractions, or
+  interesting and effective combination of existing techniques."
+- **NeurIPS 2026 reviewer guidelines:** "originality does not necessarily require introducing an
+  entirely new method."
+- **ACM SIGSOFT Empirical Standards** lists **"This is not the first known solution to the
+  identified problem"** as an **invalid criticism**.
+
+The price, from the same source: **"less innovative artifacts require more rigorous evaluations."**
+Novelty and rigour are substitutes, and the novelty budget is spent. **The contribution is which
+mechanisms carry the win, measured**, which requires building the system anyway. The degree project
+and the paper are the same work. Venue is a system-demonstration track; full analysis in
+`08_paper_options.md`.
 
 ---
 
-## The headline: there is no novelty claim left
+## 4. What was wrong, and what each error propagated into
 
-Nine candidate contributions have now been searched adversarially. **All nine were occupied.** The
-last one fell on 08-28, after this pass had already rewritten the argument document around it.
-
-The surviving claim was *pre-determined, unit-level entity salience driving extraction, versus
-per-chunk extraction*. It failed three ways, and the first is not about prior art:
-
-1. **The contrast was factually wrong.** GraphRAG's own appendix says its extraction prompt "first
-   identifies all entities in the text ... before identifying all relationships." Zep's
-   fact-extraction prompt takes an `<ENTITIES>` block and extracts facts pertaining to them. **Both
-   baselines are already entity-first.** The only difference was the size of the unit the entity
-   pass covers, and that is not a contribution.
-2. **The mechanism is published three times over.** iText2KG (2409.03284) accumulates a Global
-   Document Entities set and feeds it to relation extraction. RAKG (2504.09823) does document-wide
-   disambiguation then per-entity relation construction, explicitly against GraphRAG's ordering.
-   LINK-KG (2510.26486) builds a global alias cache and rewrites every chunk against it.
-3. **The ablation has been run, and it came out negative.** iText2KG compared global-cast against
-   local-cast conditioning: global scored about **10 points lower** triplet precision.
-
-**And LitBank could not have measured it.** Computed, with the parse validated by reproducing
-LitBank's published 210,532 tokens and 29,103 mentions exactly: **96 of 100 documents are exactly
-two chunks** at GraphRAG's default size. One boundary per document, against an effect that
-compounds across many. LitBank also has no relation annotation at all. BOOKCOREF (ACL 2025) exists
-precisely because LitBank is too short for book-scale work.
-
-### What this means, and what it does not
-
-It does not mean the project is dead. It means the project is **an engineering project with
-measurements**, which is what the advisor steered toward twice, and which needs no novelty claim.
-What survives regardless of framing:
-
-- A working backend, built by hand, defensible line by line.
-- Four cleaned public-domain corpora published as a dataset. Useful, but **not unoccupied**: see
-  the correction below.
-- Measured per-stage cost and tier sensitivity across a 146-fold provider spread.
-- Instruments that need no gold data: quote gate, rejection rate per stage per tier, duplicate
-  minting, predicate sprawl, plot-versus-cell consistency.
-
-**Do not invent a tenth claim.** Every one of the nine died the same way, by asserting an absence
-without searching for it, and three of them were refuted by evidence already sitting in `papers/`.
-A fresh formulation with no search behind it would be the same error a tenth time.
-
-**One question is genuinely unsearched**, and it is written down as a question, not a claim:
-iText2KG's negative result was on short semantic blocks and LINK-KG's gains came from a different
-mechanism, so whether cast conditioning helps or hurts **at book scale**, across a hundred-plus
-chunks, is unsettled. It would need its own adversarial search and a book-scale gold resource
-before anyone builds on it.
-
-**Read `Narrative World Model` (arXiv:2607.05577) in full before deciding anything.** It is writer
-memory for long-form fiction, evaluated on a fiction corpus against Graphiti/Zep and GraphRAG with
-the reader held constant, and it isolates extraction quality from representation by rebuilding the
-baseline with its own extractor. That is this project's niche, baselines and corpus type, published
-six weeks ago. It is currently an abstract-only read, and it is the single most important unread
-paper on the list.
-
----
-
-## What was wrong, and what it propagated into
-
-The point of this list is not the individual errors. It is that each one was load-bearing
-somewhere else, and fixing the sentence does not fix the argument that rested on it.
+Kept because the pattern matters more than the individual fixes: each was load-bearing somewhere
+else, so correcting the sentence did not correct the argument resting on it.
 
 | Error | What it propagated into |
 |---|---|
-| Zep said to lack community summarisation, read from a README | The entire gap argument. If Zep already does hierarchical summarisation and incremental maintenance, "build the composition that covers the requirements" loses most of its force. The argument is now "nothing here is claimed as new," which is honest and much smaller |
-| The correction to it was itself overstated | "Extends dynamically without full refresh" became "delays but does not eliminate full refresh." The weaker version is better for us: it means Zep also carries a batch refold |
-| "Best single system covers five or six of nine" | Never computed. Deleted rather than repaired, because a defensible version of that coverage argument already exists across twelve systems (arXiv:2606.24775), and there are seven requirements, not nine |
-| Covering versus partition asserted as unoccupied | Was the surviving secondary claim. RAPTOR soft-clusters by design and this repo's own one-pager said so; CAM does incremental overlapping clustering. The design stays, the claim goes |
-| MemoryAgentBench "28% on fact update" | Requirement 1's urgency. It is the multi-hop ceiling only; single-hop reaches 78 to 100. Supersession is less obviously unsolved than the row implied |
-| "33 to 65% omit key events" attributed to BooookScore | Requirement 4. It is FABLES. Both halves were true, the attribution was not |
-| "RAPTOR, GraphRAG name incremental insertion as unsolved" | Requirement 5. Neither does. MemTree measured it and is the real source, which makes the row stronger than the version that was wrong |
-| Requirement 7 as "no benchmark can express this" | An absence claim, and false. ENPMR-Bench is exactly that benchmark. Same failure mode, third instance |
-| "Both baselines extract chunk-first" | The whole surviving claim, and the committed core measurement. Neither baseline extracts chunk-first: GraphRAG's prompt does entities then relations, and Zep's fact extraction is conditioned on a resolved entity list. This was in both papers, on disk, the entire time |
-| Cost model: 70x spread, 1.5M batched output, 3x saving | The tier-sensitivity argument. Real figures are 146x, 1.29M (unchanged by batching), and 2.33x on total input, 5x on the dominant term |
-
-All seven of the previous handoff's "unverified assumptions" are now discharged. Both Graphiti
-questions came back usable: `EpisodeType.text` ingests plain text, and `add_triplet` accepts
-pre-extracted entity instances, verified against source at commit `683a853`. All four uncertain
-citations are resolved and citable.
+| Zep said to lack community summarisation, read from a README | The entire gap argument. Zep does have a community subgraph with hierarchical summarisation and incremental label-propagation maintenance |
+| The correction to it was itself overstated | "Without full refresh" became "delays but does not eliminate it." The paper says periodic refreshes remain necessary |
+| "Best single system covers five or six of nine" | Never computed. Deleted rather than repaired. There are seven requirements, not nine |
+| Covering versus partition asserted as unoccupied | RAPTOR soft-clusters by design and this repo's own one-pager said so; CAM does incremental overlapping clustering |
+| MemoryAgentBench "28% on fact update" | It is the multi-hop ceiling only; single-hop reaches 78 to 100 |
+| "33 to 65% omit key events" attributed to BooookScore | It is FABLES. Both halves true, the attribution was not |
+| "RAPTOR and GraphRAG name incremental insertion as unsolved" | Neither does. MemTree measured it and is the real source |
+| Requirement 7 as "no benchmark can express this" | False. ENPMR-Bench is exactly that benchmark |
+| **"Both baselines extract chunk-first"** | **The whole surviving claim.** Neither does: GraphRAG's prompt does entities then relations, and Zep's fact extraction is conditioned on a resolved entity list. Both papers were on disk the entire time |
+| Cost model: 70x spread, 1.5M batched output, 3x saving | Real figures are 146x, 1.29M (unchanged by batching), and 2.33x on total input |
+| "The corpora are occupied by nobody" | Asserted by the assistant with no search. GraphRAG-Bench, AffilKG, STAGE, CoSER and SPGC all bear on it |
+| The 100K vector threshold, stated as rationale | Faiss's own paper puts it at **10k**, an order of magnitude lower. The decision still holds, on latency arithmetic |
 
 ---
 
-## Is there a paper? See `08_paper_options.md`
+## 5. Open, in priority order
 
-Five candidate paper shapes were searched adversarially on 08-28. Four are occupied or do not fit
-the hours. One survives: **corroboration inflation launders a silent over-merge into apparent
-authority**, resting on the measured 77-of-194 inflation rate and the fact that resolution checks
-structurally cannot see over-merging. It costs 115 to 140 hours, so it is a **spring** project, and
-it has a two-hour kill check that must happen first (read arXiv:2607.24117 and arXiv:2606.14589 in
-full).
-
-**The fall produces citable output without a research paper:** an arXiv endorsement request to
-Dr. Fang this week, the repo made public on September 1, a DOI'd artifact by November 10, and an
-arXiv preprint by November 16. The ARR October cycle was considered and rejected because its
-deadline falls inside the dead window.
-
----
-
-## Open, in priority order
-
-1. **What the project is now, given that there is no novelty claim.** This is the decision to walk
-   into the advisor meeting with, and it is not the assistant's to make. See above.
-2. **The paperwork behind the approved topic change.** Fang approved the swap in person
-   (2026-08-28), so this is no longer a blocker. Only the one-semester proposal form may still be
-   outstanding, on the Fang, then Hasselbring and Tang, routing.
-3. **Ask Dr. Fang for an arXiv cs.CL endorsement.** One email. First-time submitters cannot post
-   without it and an institutional address does not grant it. Longest lead time in the plan.
-4. **Read the three papers that gate everything else**, in this order: arXiv:2607.24117
-   (Isnad-Rijal) and arXiv:2606.14589, which are the kill check on the spring paper, then
-   Narrative World Model (arXiv:2607.05577), which occupies the surrounding niche. All three are
-   currently abstract or snippet-level reads.
-4. **`data/clean/` does not meet the frozen contract and has no producing script.** It holds 351
-   records covering 16 of 81 works, committed on 08-27 as collateral inside an unrelated
-   documentation commit. It has no `unit_type` and no `unit_id`, and uses `chapter_ordinal` where
-   `04_unit_contract.md` says `unit_ordinal`. Nothing in the repository or its history produced it,
-   so it is not reproducible. Treat it as a scratch spike and regenerate from a committed splitter.
-5. **Two unrevoked tokens in pushed history.** Recorded in the risk register in
-   `reference/00_design_brief.md` and again in `06_spring_plan.md`. Revoking is the fix; deleting
-   the file is not, because the history still carries it. This is unrelated to the project's
-   argument and should be closed anyway.
-6. **`papers/MANIFEST.md` is incomplete**, 72 rows against 89 PDFs, and missing all four sources
-   that `07_references.md` now depends on. Its header is corrected but the table is not rebuilt.
-7. **The `Consult` logger** is a separate deliverable from switching consult-logging on, and only
-   the latter is scheduled. The rate needs weeks of collection, so if it is going to happen at all
-   it has to start early.
+1. **Ask Fang for an arXiv cs.CL endorsement.** One email, and the only item depending on another
+   person. First-time submitters cannot post without one and an institutional address does not grant
+   it. Latest safe submission for December 1 visibility is **November 16**; avoid November 23 to 27,
+   since arXiv defers around Thanksgiving.
+2. **Read Story Ribbons in full** (IEEE VIS 2025, arXiv:2508.06772, now in `papers/`). The nearest
+   peer-reviewed work: a scene-by-character cell matrix with **both marginals** composed from it,
+   quote gate included, on 30 Gutenberg works. The real difference is that **it has no retrieval
+   layer**, and that belongs in your introduction rather than in a reviewer's report.
+3. **Read Narrative World Model** (arXiv:2607.05577, in `papers/`). Same niche, same baselines, same
+   corpus type, six weeks old. Currently an abstract-only read.
+4. **`data/clean/` violates the frozen contract and has no producing script.** 351 records over 16 of
+   81 works, committed 08-27 as collateral inside an unrelated docs commit. No `unit_type`, no
+   `unit_id`, and `chapter_ordinal` where the contract says `unit_ordinal`. Nothing in the repo or
+   its history produced it, so it is not reproducible. Treat it as a scratch spike.
+5. **Two unrevoked tokens in pushed history.** Revoking is the fix; deleting the file is not.
+6. **`papers/MANIFEST.md` needs rebuilding.** It predates roughly half the current corpus.
+7. **Make the repo public on September 1** if the JOSS route is ever wanted, since it needs six
+   months of public history. Costs nothing now.
 
 ---
 
-## What this pass changed
-
-`docs/` went from 45 markdown files to nine live ones, plus `reference/` (still valid, never
-superseded) and `archive/` (27 files, each carrying a banner naming its successor). Nothing was
-deleted.
-
-Seven parallel audits re-verified every factual claim against full paper text, source code, or the
-publisher's page. The corrections are listed above and recorded inside the documents that carried
-the errors, rather than quietly patched, because the pattern is more useful than the individual
-fixes.
-
-The build script shipped six superseded documents, missed every current one, and merged the
-*previous* run's table of contents, so every page number after the fourth entry was wrong. Fixed
-and verified: 201 pages, contiguous part numbering, and all 16 contents entries checked against
-real section starts.
-
-`SOURCES.md` still claimed Apollodorus and Water Margin were unavailable when both are on disk.
-Corrected in place, with the wrong text struck through rather than removed, since they are the same
-false-absence failure the method rules exist to prevent.
-
-Three of 92 papers are genuinely unreferenced and moved to `papers/_unused/` with their one-pagers.
-An initial pass said 23; that matched filename slugs only and produced a false positive for every
-paper cited by project name or arXiv identifier. The corpus is almost entirely in use.
-
----
-
-## The method rules, which are the actual deliverable
-
-Every substantive error in this project has had the same shape: asserted without checking. These
-are mechanical and checkable, and they belong in front of the next session.
+## 6. Standing method rules, each written after a specific failure here
 
 - **An absence claim requires a documented search.** Never write that nobody has done X without
-  reporting how you looked. Three contributions died to this rule and all three had been asserted
-  without one.
-- **Run a control query before trusting an empty result set.**
-- **State the source type for every factual claim:** full text, abstract, README, or memory.
+  reporting how you looked. Twelve contributions died to this, and three were refuted by papers
+  already on disk.
+- **Run a control query before trusting an empty result set.** Two corpora were reported unavailable
+  when they were on Project Gutenberg the whole time, behind bad queries.
+- **State the source type for every factual claim:** full text, abstract, README, or memory. A
+  README is not the paper.
 - **Never emit a number you did not compute.**
+- **Extract and read the PDF. Never trust a fetched summary of a paper.** Five separate searches on
+  08-28 caught their own tools **fabricating**: an invented venue for ENGRAM, an invented
+  architecture for MEMTIER, invented conversation counts for a WildChat analysis, and a quote echoed
+  back from the prompt that had requested it. Every one was caught only by extracting the source
+  locally.
 
-The stronger version is structural rather than dispositional. Generate in one context and refute in
-another that has not been softened by the conversation. That is what the cold audit does in the
-prototype, it is what the seven parallel audits did here, and it is the only thing that has
-reliably caught this class of error.
+**The structural version, which is the only thing that has reliably worked here:** generate in one
+context and refute in another that has not been softened by the conversation that produced the
+claim.
+
+---
+
+## 7. Document map and repository state
+
+| Document | What it is |
+|---|---|
+| `README.md` | The index, plus the standing style and voice rules |
+| `01_argument.md` | Why there is no novelty claim, how all twelve died, what survives without one |
+| `02_requirements_and_testing.md` | Seven requirements sourced to literature, and how each is tested |
+| `03_design.md` | Schema, ingestion, retrieval, rendering, delivery |
+| `04_unit_contract.md` | **FROZEN.** Eight convention handlers, three acceptance gates |
+| `05_fall_plan.md` | Calendar, phases, cut order, cost model |
+| `06_spring_plan.md` | The distributable |
+| `07_references.md` | Schema prior art, every citation verified |
+| `08_paper_options.md` | Whether there is a paper, and the venue analysis that reframes the question |
+| `09_evaluation_corpus.md` | Infinity-Bench, LiteraryQA, the Zep comparison, why NovelQA is out |
+
+`reference/` holds ten background files that were never superseded, including the only source for
+the hour budget, the dead weeks and the risk register. `archive/` holds twenty-seven superseded
+files, each with a banner naming its successor.
+
+**State as of this handoff:** 130 papers on disk, all referenced, 7 retired to `papers/_unused/`.
+87 one-pagers. The package builds to 206 pages with its contents verified entry by entry against
+real section starts. Working tree clean, in sync with origin.
+
+---
+
+## 8. What to do first
+
+**Not more research.** Build Phase 1: the splitter, against `04_unit_contract.md`, with
+`data/clean/` regenerated from committed code so it meets the frozen contract. That is the gate on
+everything downstream, it is first in the calendar, and after two days of literature search it is
+the thing most at risk of being deferred again.
