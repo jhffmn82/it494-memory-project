@@ -132,6 +132,25 @@ cluster purity, and downstream accuracy on GraphRAG-Bench. Duplicate rate uses t
 LINK-KG protocol: fuzzy match at 75 percent within type, connected components, manual review, then
 count the sum over components of size minus one, normalized by node count.
 
+## This is a build instrument before it is a paper instrument
+
+Resolution is not one test among five. It is the **gate on the other four**. Cells are per-entity
+narratives, facts attach to nodes, and the wiki is a page per entity, so if resolution is wrong then
+the cells ablation, the supersession fixtures and the demo are all measuring noise. Nothing
+downstream can be trusted until this is known to work.
+
+So the instrumentation below belongs in the build phase, not the evaluation phase, and it would be
+written even if no paper came out of it.
+
+**That exposes a gap.** Every comparison in this document needs a working end-to-end system first,
+which means there is no signal at all during the weeks when it would be most useful. Fix it cheaply:
+**hand-label the aliases for one novel** before the first ingest. Around twenty characters, their
+aliases and epithets, the pairs that must merge, and a few near-misses that must not. Half an hour of
+work, runnable from day one, and it catches the two failures that actually kill the build (a black
+hole forming, or nothing merging at all) months before any benchmark would.
+
+The Tip fixture belongs here too. It is a regression test first and a demonstration second.
+
 ## What to instrument at build time
 
 Most of these tests are free once the pipeline records the right things, and expensive to retrofit
