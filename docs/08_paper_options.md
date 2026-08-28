@@ -243,7 +243,48 @@ boundaries, and anything relying on a user asserting facts directly.
 
 ---
 
-## The direction now under examination: lightweight at personal scale
+## Lightweight at personal scale. DEAD, 2026-08-28. This was the eleventh.
+
+**OCCUPIED, and not partially.** *As We May Search* (Zerhoudi, Roegiest, Mitrovic, Granitzer,
+arXiv:2606.29652, **ICTIR 2026**, presented 25 July 2026) proposes "local-first IR, a design
+philosophy where indexes, models, and inference reside on user devices, treating remote services as
+optional," and runs the same two arms: FAISS exact flat search against HNSW and IVF, plus BM25,
+across five benchmarks from 1K to 1M documents on consumer hardware. It reports dense retrieval
+holding over 91% nDCG@10 up to 100K documents. Thesis, paper form, crossover number and venue, all
+of it, seven weeks before this idea was formulated.
+
+**The premise was also factually false**, and it was asserted without a search by the assistant
+rather than by Justin. The claim was that published systems assume infrastructure and do not
+evaluate at personal scale. LoCoMo and LongMemEval *are* personal-scale corpora and every one of
+those systems evaluates on them; Cognee already defaults to embedded local stores. MemX
+(arXiv:2603.16171), vstash (arXiv:2604.15484) and SuperLocalMemory are published local-first
+SQLite-plus-FTS5 memory systems. ELITE (arXiv:2505.11908) already discards embeddings *and* graph
+construction and beats embedding-based baselines.
+
+**And the direction of the effect runs against the design.** GraphRAG-Bench (arXiv:2506.05690)
+measured when graphs help: simple fact retrieval ties (60.9 versus 60.1), but complex reasoning is
+53.4 versus 42.9 and contextual summarization 64.4 versus 51.3, both favouring the graph. Those are
+this design's headline query shapes. The machinery the thesis wanted to drop is the machinery those
+queries need. GAM, ExpGraph and H-Mem publish ablations pointing the same way.
+
+**And it costs more than what it replaced.** A "what can you drop" paper requires building the
+heavy arm first, so you have something to drop.
+
+**One real gain from the search, independent of the claim:** the 100K figure in `03_design.md` §5
+was stated as design rationale with no source. It is now cited to *As We May Search*. Cite that
+paper as framing rather than trying to beat it.
+
+**The narrow seam that remains, recorded and not recommended:** *As We May Search* measures flat
+retrieval and does not touch the construction side (entity resolution, community detection,
+temporal facts, hierarchical summarisation), and GraphRAG-Bench does not measure on consumer
+hardware or account cost per stage. A per-stage construction-cost-versus-per-query-benefit ablation
+is untaken. It is also mostly held by GraphRAG-Bench, *Anatomy of Agentic Memory* and *Are We Ready
+For An Agent-Native Memory System?*, its likely result is unfavourable, and it requires building
+both arms. Not inside 70 hours.
+
+---
+
+## The direction previously under examination, superseded by the section above
 
 Stated as a thesis rather than a claim, because it has not finished being searched:
 

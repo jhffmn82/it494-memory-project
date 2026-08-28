@@ -556,8 +556,13 @@ does not need to build its own graph layer.
 **B, the distributable.** JSONL as the store of record, `.npy` for embeddings, SQLite FTS5 for
 text search, no server. The canonical data is entirely JSONL: human-readable, git-diffable, one
 record per line. The two indexes are derived and disposable; delete them and they rebuild. This is
-justified rather than merely convenient, since brute-force exact cosine is correct below roughly
-100K vectors and a personal corpus is nowhere near that.
+justified rather than merely convenient, and the justification is now **citable rather than
+asserted**. Zerhoudi, Roegiest, Mitrovic and Granitzer, *As We May Search* (ICTIR 2026,
+arXiv:2606.29652), sweep five benchmarks from 1K to 1M documents on consumer hardware, comparing
+FAISS exact flat search against HNSW and IVF plus BM25, and report dense retrieval holding over 91%
+nDCG@10 **up to 100K documents**, with approximate indexes extending to 1M at about 2% quality loss.
+A personal corpus is far below that boundary. This repo previously stated the 100K figure as design
+rationale with no source; cite the paper.
 
 **Reaching a desktop client is MCP:** a Python server over stdio plus a config entry, where the
 tool list is the capability contract. Two such servers already run against the prototype.
