@@ -184,6 +184,65 @@ the replica; it is what reviewers actually want.
 
 ---
 
+## The thesis as it stands after the 08-28 conversation
+
+**UNVERIFIED. Four searches are in flight. Do not act on this section until they return, and do
+not let its confidence fool you: the nine dead claims each began as a paragraph exactly this
+tidy.**
+
+Justin's framing, arrived at in conversation, in his terms:
+
+> A lightweight RAG at the user level, installable on a desktop, **and** scaled: test both a
+> desktop version on JSON and a Neo4j implementation with Graphiti, on novels as a reproducible
+> substrate, motivated by personal assistant use.
+
+Why this is the best-shaped version so far, and each point is checkable:
+
+**The storage port becomes the apparatus.** `03_design.md` already specifies two deployments behind
+one logical schema separated by a twelve-operation port. Written as engineering discipline, it is
+also a controlled comparison: same schema, same pipeline, same corpora, one variable.
+
+**The corpora are already a size ladder**, on disk and public: Holmes 0.69M words, Oz 1.28M, Chinese
+1.58M, Greek 3.36M, all four 6.84M. Roughly 3,200 units, so on the order of 10,000 to 20,000
+vectors at the top.
+
+**The Graphiti arm is de-risked**, verified against source at commit `683a853`: `EpisodeType.text`
+ingests plain text, and `add_triplet` accepts pre-extracted entities.
+
+**The framing is design-space, not novelty**, which is the one framing this project has established
+survives prior art.
+
+**The likely result, and it should be expected rather than hoped against:** the project's own vector
+survey puts exact brute-force cosine as correct below roughly 100K vectors. At 10,000 to 20,000
+vectors the server arm may never earn its keep anywhere on the reachable ladder. **That null is the
+finding**, and it is the strongest possible argument for the desktop version. Design the write-up so
+a null is the headline, not a disappointment.
+
+**The cost, stated honestly.** Two backends roughly doubles the build against 70 hours with nothing
+built, and `03_design.md` section 7 already names the failure mode: "two adapters, twelve
+operations, no shared test suite. The realistic failure is that the files adapter is developed
+against and the Neo4j adapter rots." One semester almost certainly buys one arm. The split that
+follows is fall for the files backend, the instrumentation and the ladder; spring for the Graphiti
+arm, the comparison and a system-demonstration paper.
+
+**Venue note not previously surfaced:** ACL and EMNLP run **system demonstration tracks**, four to
+six pages plus a video, where the bar is a working useful system rather than a novel mechanism.
+That is a materially lower bar than the research track against which everything in this document
+was implicitly judged, and it is the natural home for an installable backend. Requirements not yet
+verified.
+
+**The proxy argument, and the strong form of it.** Do not argue that personal archives and novels
+are structurally similar; that invites four fair objections (novels are authored while archives
+accrete, novels end while archives do not, archives carry wall-clock and session metadata that
+fiction lacks, and ordering semantics differ, which `03_design.md` section 7 already flags as an
+open problem). Argue instead that **the mechanisms under test are invariant to those differences**:
+entity resolution across units, supersession on a functional predicate, and non-contiguous thread
+interleaving are properties of sequential multi-entity text regardless of whether it was authored
+or accreted. Then say plainly what does *not* transfer, which is wall-clock reasoning, session
+boundaries, and anything relying on a user asserting facts directly.
+
+---
+
 ## The direction now under examination: lightweight at personal scale
 
 Stated as a thesis rather than a claim, because it has not finished being searched:
