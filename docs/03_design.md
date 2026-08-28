@@ -73,9 +73,18 @@ concerns that had leaked into the data model.
 - **`scope_id`** replaces `corpus_id` on cells and abstracts. Same idea, no assumption about what a
   corpus is: it is whatever set you want salience scoped to.
 
-**Why the rest is there.** `rank` covers the case supersession cannot: supersession handles *the
-world changed* (a later fact collides with an earlier one), while `deprecated` handles *we were
-wrong*, where there is no later event and deleting would break append-only. `qualifiers` carry
+**What "later" means, settled 2026-08-28.** Supersession handles *the world changed*: a later fact
+collides with an earlier one. The ordering key is **`occurred_at` when both facts have one, and unit
+position otherwise.** Position always exists; a date often does not, and leaving it unknown is
+correct rather than guessing at it.
+
+This ordering is not a detail. Order by date alone and the novel corpus supersedes nothing at all,
+because almost no fact in a novel carries one, and the Tip fixture would pass while doing nothing.
+Order by position alone and backfilling an old chat session after a newer one silently reverses the
+truth. So: dates win where both sides have them, position carries everything else.
+
+**Why the rest is there.** `rank` covers the case supersession cannot, namely *we were wrong*, where
+there is no later event and deleting would break append-only. `qualifiers` carry
 role and timing so nobody invents a new predicate for "as Chancellor". `children_hash` says exactly
 when an abstract is stale, so refolding touches only what changed.
 
