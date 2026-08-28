@@ -129,11 +129,50 @@ Four arms, same corpus, same model, everything else held constant:
 
 Reported per arm: duplicate nodes minted per chunk, merge precision on a hand-checked sample,
 cluster purity, and downstream accuracy on GraphRAG-Bench. Duplicate rate uses the CORE-KG and
-LINK-KG protocol so the numbers are comparable: fuzzy match at 75 percent within type, connected
-components, manual review, then count the sum over components of size minus one, normalized by node
-count. Their published rates are 30.38 falling to 20.27 (CORE-KG against a GraphRAG baseline) and
-27.02, 17.00, 10.61 on short documents and 36.01, 26.10, 17.78 on long ones (LINK-KG). Different
-corpus and different domain, so these are reference points, not a leaderboard.
+LINK-KG protocol: fuzzy match at 75 percent within type, connected components, manual review, then
+count the sum over components of size minus one, normalized by node count.
+
+## Their numbers are not a target, and here is why
+
+Checked 2026-08-28. **CORE-KG's 30.38 to 20.27 and LINK-KG's 27.0 to 10.6 cannot be beaten**, for
+three independent reasons:
+
+1. **The corpus was never released.** Both repos publish code and prompts and no data.
+   `CoreKG-HumanSmuggling` has 33 files, one stray 11 KB blob named `...`, and no case documents.
+   `LinkKG-HS` leaked a vim swap file (`.02USVsYusuf.txt.swp`) but not the text.
+2. **Zero overlap with our corpus**, confirmed by Gutenberg ID. GraphRAG-Bench picked obscure works
+   to limit contamination; gold-annotated book sets pick canonical works because that is where
+   character lists exist. The disjointness is structural.
+3. **Duplication rate is normalized by node count**, so it is bound to a domain and a graph size.
+
+A rate on novels printed next to their rate on court filings is two unrelated numbers.
+
+## What produces a comparable number instead
+
+**Run their method on our corpus.** Both pipelines are released in full. Their seven coreference
+prompts are typed for human smuggling (person, location, organization, means of transportation,
+smuggled item, route, means of communication); retype them for narrative and run their method and
+ours over the same novels, same model, same chunking, same duplication protocol. That controls every
+confound a cross-corpus comparison leaves open, and it asks a question nobody has answered: **does
+type-partitioned coreference transfer outside the domain it was written for?**
+
+Cost note: they ran LLaMA 3.3 70B on an A100 80GB. Hold the model constant across both arms and use
+whatever runs here; the comparison is what matters, not their hardware.
+
+**Second gold number, different metric: BookCoref** (ACL 2025, HuggingFace
+`sapienzanlp/bookcoref`). 53 Gutenberg books, gold coreference clusters, CoNLL-F1, published
+baselines: best off-the-shelf 46.6, their pipeline 80.5, Dual cache 36.3 on Animal Farm. It measures
+mention clustering rather than graph node dedup, and its gold split is three books, so it is a
+second opinion and not the headline.
+
+**Weak ground truth on our own corpus:** every one of the 2,010 GraphRAG-Bench questions carries an
+`evidence_triple`, roughly 128 entity mentions per novel. It says which entities exist, not which are
+the same, so it supports a recall check (did resolution lose an entity) and not a duplication rate.
+Parsing needs care: some entries pack several triples into one field.
+
+**Rejected: CoSER.** Alias-to-canonical mappings for 17,966 characters across 771 books would be
+exactly right, but it releases "only the processed data, not the raw content from the novels" for
+copyright reasons. Gold labels with no text.
 
 **The expected result is worth predicting in advance.** By Bhattacharya and Getoor's finding, the
 collective signal should buy little on low-ambiguity text and a lot on high-ambiguity text. Novels
