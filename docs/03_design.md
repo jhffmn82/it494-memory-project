@@ -120,15 +120,18 @@ loader  ->  Documents + Units  ->  [ the system ]  ->  store  ->  evaluator
 Adding a dataset is then one loader plus one evaluator. Anything that cannot be expressed that way is
 a signal the schema is missing a field, which is how `occurred_at` and `Mention.span` were found.
 
-**Homogenise the ingest side only.** Every loader emits the same two tables, `documents` and `units`,
-because the system must not be able to tell which dataset it is reading. Gold and question files are
-the opposite case: they never enter the system, each has its own scorer, and forcing them into one
-schema produces a table that is mostly null columns (alias rows have no spans, cluster rows have no
-merge flag). Keep one file per dataset, each shaped to its own data.
+**Homogenise the ingest side, and nothing else.** Every loader emits the same two tables,
+`documents` and `units`, because the system must not be able to tell which dataset it is reading.
+That is the entire contract.
 
-**What is shared on that side is the identifier space, not the schema.** Every gold file joins to
-`documents` on the same `doc_id` the loader minted, and to `units` on `unit_id`. That single rule is
-what makes a new evaluator cheap; a common column layout would not.
+Gold files, question files and harnesses are **not** standardised. Each dataset keeps whatever shape
+it already ships in: BookCoref stays in its HuggingFace format, GraphRAG-Bench's questions stay JSON,
+the alias set is whatever is convenient to write by hand. Each evaluator is dataset-specific by
+definition, so converting them all to a shared layout is work that buys nothing and produces mostly
+null columns.
+
+Not even the join needs a format. A loader already knows which source it read and which `doc_id` it
+minted, so it returns that mapping and the evaluator uses it in memory.
 
 Open, and a loader decision rather than a schema one: **what counts as a document in LongMemEval**, a
 single session or the whole haystack behind one question. It sets what `doc_id` means there and
