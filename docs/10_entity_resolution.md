@@ -151,6 +151,19 @@ hole forming, or nothing merging at all) months before any benchmark would.
 
 The Tip fixture belongs here too. It is a regression test first and a demonstration second.
 
+## Open: at what scope does a node exist
+
+Undecided, cheap now, expensive after any corpus is loaded. `scope_id` exists on cells and abstracts
+and is **not** on resolution.
+
+Within one novel "the boy" has a few dozen candidates. Across many works the same name collides
+constantly: every Elizabeth, every Mary, every doctor. Resolve globally and those merge. Resolve per
+work and cross-work linking disappears, which is the interesting case, since Napoleon in Tolstoy and
+Napoleon in Hugo are the same person.
+
+Two shapes: a node is corpus-global with per-scope aliases, or scope-local with explicit cross-scope
+links. Decide before the second corpus is ingested, not after.
+
 ## What to instrument at build time
 
 Most of these tests are free once the pipeline records the right things, and expensive to retrofit
