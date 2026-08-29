@@ -269,6 +269,14 @@ prompting, which is exactly the surface that has to be defended here.
   ingest flattens a year of chat into one timestamp and every temporal question becomes
   unanswerable. **Still open:** what a single defined order means for a store holding both at once.
   Nothing forces that question until a corpus mixes them, so it waits for one that does.
+- **No export gate exists, and the personal archive needs one before it can ever be an input.**
+  The eventual goal is to re-ingest the archive under this system (Justin, 2026-08-28, parked, not
+  this fall). That archive carries quarantine semantics this schema has no concept of: whole eras are
+  local-only and never pushed, one user's sessions are walled out of another's, and a holds ledger
+  tracks what must not travel. `provenance` and read-time permissions do not cover it. Quarantine is
+  an **export** gate, "readable here, never leaves the machine", and the current nightly auto-pushes
+  cleared content to a remote, so a system lacking that concept would push protected material the
+  first time it ran. Design it before the archive is ever loaded, not during the migration.
 - **Nothing ever demotes.** Promotion is one-way, and the prototype accumulated 82 orphaned records
   from exactly this.
 - **No conformance test across adapters yet.** Only one adapter exists, so write the suite against
