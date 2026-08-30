@@ -27,7 +27,7 @@ Greek, and a failure on Greek would be impossible to attribute.
 
 ### Oz: the control, and the supersession fixture
 
-Twenty-nine files, Baum's fourteen novels plus five companions plus Thompson's run to 1930.
+Twenty-nine files: Baum's fourteen novels, five companions, the Woggle-Bug Book, and Thompson's nine-novel run to 1930.
 
 **The primary fixture is Tip becoming Ozma** at the end of book 2. A boy raised by a witch is
 revealed to be the transformed princess of Oz. Everything asserted about Tip in book 2 stays

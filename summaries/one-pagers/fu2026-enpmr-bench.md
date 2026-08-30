@@ -23,7 +23,7 @@ personalized emotional support through need-sensitive memory retrieval.
 
 A benchmark for proactive memory retrieval. Narrower domain (emotional support), but its
 existence alone falsifies the claim that no benchmark can express the proactive-recall failure -
-a sentence that appears in IT494_PLAN.md.
+a claim an earlier plan document made.
 
 Read from: **abstract only**. Added 2026-08-27 during the novelty reassessment. Full-text read
 outstanding; do not cite specifics beyond the abstract until that is done.

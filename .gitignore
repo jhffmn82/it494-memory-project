@@ -12,3 +12,6 @@ Thumbs.db
 build/sections/
 build/preview_*.png
 build/_*.pdf
+
+# benchmark datasets: fetched by scripts/fetch_eval.py, never committed
+data/eval/

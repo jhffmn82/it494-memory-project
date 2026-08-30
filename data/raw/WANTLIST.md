@@ -13,7 +13,7 @@ Status codes used throughout:
 
 ---
 
-## Oz: 28 of 28. Baum's canon, his companions, and Thompson's run to 1930
+## Oz: 29 of 29. Baum's canon, his companions, the Woggle-Bug Book, and Thompson's run to 1930
 
 **Target definition.** Every work by Baum sharing characters or continuity with the Oz novels.
 Baum linked his own books deliberately, so the boundary is drawn at shared characters rather
@@ -43,7 +43,7 @@ one that merely recurs, and it exists here without being constructed.
 
 | Work | Year | Status | Note |
 |---|---|---|---|
-| The Woggle-Bug Book | 1905 | HUNT | Oz character spinoff. Not yet searched |
+| The Woggle-Bug Book | 1905 | HAVE | Oz character spinoff, `oz/29_21914.txt` |
 | Queer Visitors from the Marvelous Land of Oz | 1904-05 | HUNT | Newspaper serial. May never have been digitised |
 
 ### Scope decisions outstanding
@@ -89,7 +89,7 @@ two thousand words. Not worth effort unless they turn up free.
 
 ---
 
-## Greek: 13 of roughly 24, and the gaps are the interesting ones
+## Greek: the hunt closed at 32 files
 
 **Target definition.** Every surviving classical source that asserts facts about the Greek
 pantheon and heroes, available in public domain English. The point of this corpus is
@@ -109,18 +109,14 @@ articles. That is precisely what this project's pipeline produces. It therefore 
 against it as well as against a modern wiki. It partly replaces Apollodorus, which is not on
 Gutenberg.
 
-### Hunt
+### Formerly hunted, now in hand
 
-| Work | Why it matters | Where to look |
-|---|---|---|
-| **Apollodorus, *Bibliotheca*** | An ancient systematic mythography. The closest thing antiquity produced to this project's own output. Frazer's 1921 Loeb is public domain | Archive.org, HathiTrust |
-| **Euripides, volumes II and III** | We have volume I only. Euripides is the source that most often contradicts Homer, so a third of him is a third of the disagreement | Gutenberg individual plays, or Way's Loeb on Archive.org |
-| **Pausanias, *Description of Greece*** | Geographic mythography: which city claimed which hero, where the tombs were. Local variants that contradict the panhellenic versions | Frazer 1898 or Jones 1918, Archive.org |
-| **Quintus Smyrnaeus, *The Fall of Troy*** | Fills the gap between the Iliad's end and the Odyssey's start. Way's 1913 translation | Gutenberg, not yet searched |
-| **Ovid, *Heroides*** | Letters from mythological women. The same events from the perspective the epics do not give | Gutenberg, not yet searched |
-| **Hyginus, *Fabulae*** | A second ancient mythography. Not on Gutenberg. May have no pre-1931 English translation, in which case it is BLOCKED rather than HUNT | Needs checking |
-| **Statius, *Thebaid*** | The Theban war at epic length | Not yet searched |
-| **Pindar, *Odes*** | Mythological narrative embedded in victory poems, often the earliest surviving version of a story | Not yet searched |
+Every item on the original hunt list except Hyginus was acquired: Apollodorus's
+Bibliotheca in two volumes, nine further Euripides plays beyond volume I,
+Pausanias in two volumes, Quintus Smyrnaeus's Fall of Troy, Ovid's Heroides,
+Pindar's Odes, and Diodorus in two volumes. The Statius Thebaid was downloaded
+and then excluded on OCR quality; the file stays on disk and stays unused.
+Hyginus remains BLOCKED, no public domain English translation.
 
 ### Decide
 

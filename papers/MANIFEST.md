@@ -51,8 +51,8 @@ Paywalled items: pull via ISU library using the DOI in the note.
 
 ## Novelty reassessment sources, added 2026-08-26
 
-Papers found by adversarial search that occupy the two contributions named in
-`IT494_PLAN.md`. See `docs/14_novelty_reassessment.md` for what each one takes.
+Papers found by adversarial search that occupy earlier candidate contributions.
+See the "What is already taken" section of `RESEARCH.md` for what each one takes.
 None of these were surfaced by the 2026-08-19 survey; most predate it.
 
 | File | arXiv | Date | Title |

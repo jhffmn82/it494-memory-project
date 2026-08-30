@@ -265,3 +265,19 @@ stories were excluded because their public domain status rests on copyright non-
 than expiry of term, which is a per-story question requiring records research, the character
 name is separately trademarked and actively enforced, and much of the circulating text is a
 later edited version carrying its own copyright.
+
+---
+
+## The collection as it stands, 2026-08-30
+
+Per-file provenance for every file, including the ones added after the sectionsabove were written, lives in each corpus's `manifest.json`: ordinal, Gutenberg orArchive.org identifier, verified title, byte count, and sha256. The counts:
+
+**oz** — 29 files: 1 Wonderful Wizard of Oz, 2 Marvelous Land of Oz, 3 Ozma of Oz, 4 Dorothy and the Wizard in Oz, 5 Road to Oz, 6 Emerald City of Oz, 7 Patchwork Girl of Oz, 8 Tik-Tok of Oz, 9 Scarecrow of Oz, 10 Rinkitink in Oz, 11 Lost Princess of Oz, 12 Tin Woodman of Oz, 13 Magic of Oz, 14 Glinda of Oz, 15 Sea Fairies, 16 Sky Island, 17 Little Wizard Stories, 18 Santa Claus, 19 Royal Book of Oz, 20 Kabumpo in Oz, 21 Cowardly Lion of Oz, 22 Grampa in Oz, 23 Lost King of Oz, 24 Hungry Tiger of Oz, 25 Gnome King of Oz, 26 Giant Horse of Oz, 27 Jack Pumpkinhead of Oz, 28 Yellow Knight of Oz, 29 Woggle-Bug.
+
+**holmes** — 9 files: 1 Study in Scarlet, 2 Sign of the Four, 3 Adventures of Sherlock Holmes, 4 Memoirs of Sherlock Holmes, 5 Hound of the Baskervilles, 6 Return of Sherlock Holmes, 7 Valley of Fear, 8 His Last Bow, 9 Case-Book of Sherlock Holmes.
+
+**greek** — 32 files: 1 Iliad, 2 Odyssey, 3 Homeric Hymns, 4 Sophocles, 5 Seven Plays, 6 House of Atreus, 7 Euripides, 8 Metamorphoses, 9 Metamorphoses, 10 Aeschylus, 11 Argonautica, 12 Aeneid, 13 Age of Fable, 14 Fall of Troy, 15 Pausanias, 16 Pausanias, 17 Pindar, 18 Alcestis, 19 Electra, 20 Hecuba, 21 Medea, 22 Bacchae, 23 Trojan Women, 24 Iphigenia, 25 Rhesus, 26 Hippolytus, 27 library, 28 library, 29 Thebaid, 30 Heroides, 31 Diodorus, 32 Diodorus.
+
+**chinese** — 11 files: 1 San Kuo, 2 San Kuo, 3 mission to heaven, 4 三國, 5 three kingdoms, 6 Hung Lou Meng, 7 Hung Lou Meng, 8 水滸, 9 西遊, 10 紅樓夢, 11 封神.
+
+81 files in all.
