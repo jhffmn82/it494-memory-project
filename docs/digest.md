@@ -1,5 +1,5 @@
 > **REFERENCE, not superseded.** This is the working bibliography, one paragraph per work.
-> It is background rather than part of the working set. Index: `docs/README.md`.
+> It is background rather than part of the working set.
 
 # The literature, work by work
 

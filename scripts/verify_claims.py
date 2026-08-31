@@ -1,4 +1,4 @@
-"""Check the entity-resolution claims in docs/10_entity_resolution.md against the PDFs.
+"""Check the entity-resolution claims in docs/entity-resolution.md against the PDFs.
 
 Every claim in that document's "What is actually unmeasured" table asserts how some
 published system resolves entities. This script does not evaluate those claims. It

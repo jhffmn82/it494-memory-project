@@ -16,11 +16,11 @@
     "sha256": "821a2034d219ab45846873dd14c14f12cfe7776e73527a483f9dac095d38620c"
   },
   "narrativeqa/documents_ours.csv": {
-    "bytes": 2944,
-    "sha256": "6a52236e1c3d7b7a4fe307e503743a889afe8d0058f7ec8fe7963292163b8ac3"
+    "bytes": 2931,
+    "sha256": "3e7b5bce9e680559eb74bf4c0a2a305ec992de9c72990e1e956a619324faf1d5"
   },
   "narrativeqa/qas_ours.csv": {
-    "bytes": 83468,
-    "sha256": "01c5d98042b28f4c090175fde1ea52e7937448ab8843b189ee9f64fcae842684"
+    "bytes": 83122,
+    "sha256": "df4ffec17e76e57dafdba1906d16d27b9839cb58e223a98669eadf3e6825824d"
   }
 }

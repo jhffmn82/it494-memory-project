@@ -1,7 +1,6 @@
 # Build rules
 
-SCHEMA.md says what is stored. This says how the code that writes and reads it
-behaves.
+The records themselves are defined in SCHEMA.md.
 
 ## Dataset code lives only at the seams
 
@@ -14,8 +13,8 @@ dataset-specific by definition. Adding a dataset is one loader plus one
 evaluator; anything that cannot be expressed that way means the schema is
 missing a field.
 
-Ingest runs in order, never in bulk. A book loaded all at once is static and
-tests nothing temporal; read in sequence, the store's state after chunk 10
+Ingest runs in corpus order. A book loaded all at once is static and tests
+nothing temporal; read in sequence, the store's state after chunk 10
 differs from chunk 20, which is what supersession is for. Every mention gets
 recorded with its span at ingest, because resolution measurements read
 mentions and spans cannot be reconstructed after merging.
@@ -34,7 +33,7 @@ set by code. On local tiers, use grammar-constrained decoding so malformed
 output is impossible rather than counted.
 
 Cross-unit coreference gets the previous unit's summary as context. A pronoun
-that still does not resolve is recorded as unresolved, never forced to bind.
+that still does not resolve stays recorded as unresolved.
 A stage that completes with zero yield and zero rejections writes an explicit
 empty completion record, so a resumed run can tell done-but-empty from failed.
 
@@ -66,7 +65,8 @@ of functional predicates, and that list is maintained by hand.
 
 ## Exact match, whole items, byte-for-byte replay
 
-Alias lookup is exact match, then case-folded match, never fuzzy. Context is
+Alias lookup is exact match, then case-folded match; fuzzy matching stays
+out of the query path. Context is
 assembled greedily in rank order, whole items only, nothing truncated, with the
 strongest material at the edges of the window. Budgets use the serving tier's
 own tokenizer plus a fifteen percent margin, because tiers tokenize

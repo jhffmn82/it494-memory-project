@@ -67,9 +67,9 @@ stretch between them is three weeks of exams and nothing gets scheduled there.
 | Nov 10 | Dataset DOI minted |
 | Nov 15 | Paper frozen; wiki demo standing; arXiv submission the next day |
 
-Hours are the scarce resource, and you write the code; AI drafts and argues
-but ships nothing unexamined. When something slips, cut corpus scope and keep
-every measurement.
+Hours are the scarce resource, and the author writes the code; AI drafts and
+argues but ships nothing unexamined. When something slips, corpus scope gets
+cut and every measurement stays.
 
 ## Repo map
 

@@ -13,3 +13,6 @@
 data/raw/**/*.txt     -text
 data/raw/**/*.json    -text
 data/clean/**/*.jsonl -text
+
+# benchmark data: byte-exact, manifest-attested
+data/benchmarks/** -text

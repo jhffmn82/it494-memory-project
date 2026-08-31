@@ -75,7 +75,7 @@ corroborates every row and authorizes none of them.
 
 | Requirement | The field saying so |
 |---|---|
-| Fact supersession | MemoryAgentBench: no tested system above 28% on fact updates |
+| Fact supersession | MemoryAgentBench: no tested system above 28% on multi-hop fact updates |
 | Entity resolution | Noy et al. 2019: disambiguation the top challenge across five production graphs |
 | Faithfulness | FABLES: best model 90.9% faithful; best automatic checker 58.2 F1 |
 | Coverage | FABLES: 33 to 65% of summaries omit key events |
@@ -83,22 +83,23 @@ corroborates every row and authorizes none of them.
 | Cost accounting | Anatomy of Agentic Memory 2602.19320: system costs overlooked |
 | Consultation | every benchmark poses the query; a store never consulted fails none |
 
-## Measurements
+## The measurement slate
 
 The dataset contract, row by row, is `docs/evaluation-corpus.md`. The slate:
 
 | Measurement | Against | Cost |
 |---|---|---|
 | GraphRAG-Bench novels: full system, no-context control, flat retrieval, then the cells ablation | 9 published gpt-4o-mini baselines, gold answers and evidence, 2,010 questions | the main paid run |
-| Hand-labelled alias set, one novel | merge precision and recall from the first ingest | a day of labelling |
+| Hand-labeled alias set, one novel | merge precision and recall from the first ingest | half an hour of labeling |
 | NarrativeQA, the 345 questions over 12 works we own | reference answers; same three arms | cheap secondary run |
 | LongMemEval, stretch: full-context parity arm, then the 78-question knowledge-update band | Zep's 63.8 over a 55.4 full-context baseline (gpt-4o-mini, original `_s` file) | ~$9 parity, one paid run |
 | Read cost, refold cost, coverage difference | MemTree's published 3,750 / 3,850 / 3.27 calls per insertion; no gold answers needed | free |
-| The free instruments: rejection rate per stage per tier, duplicate mints per chunk, predicate sprawl, quote-gate pass rate, token cost per arm | our own run logs | free |
+| The free instruments: rejection rate per stage per tier, duplicate mints per chunk, predicate sprawl, quote-gate pass rate, chunk-versus-cell summary agreement, token cost per arm | our own run logs | free |
+| The OCR tax and the translation tax | Three Kingdoms as proofread text, raw OCR, and machine translation of identical content | cheap runs |
 
-GraphRAG-Bench carries the argument in its own baseline table: the best
-accuracy costs 1,008 tokens per question and the most expensive system costs
-331,375, a 377x spread. Landing near the top of the accuracy column at the
+GraphRAG-Bench carries the argument in its own baseline table: the cheapest
+system spends 879 tokens per question, the strongest graph system 1,008, and the most
+expensive 331,375, a 377-fold spread. Landing near the top of the accuracy column at the
 bottom of the cost column, with no graph database and no server, is the
 finding. Graph methods beat plain RAG on complex reasoning and summarization,
 not fact retrieval, so the cells ablation has a built-in target. At n=2,010 a
@@ -111,7 +112,7 @@ full-context arm first: if it reproduces 55.4, the harness is comparable; if
 not, say so instead of claiming parity.
 
 The anti-goal: do not try to beat Zep on its benchmark. Benchmarks supply task
-definitions and comparability, never a contest. Long-context models beat
+definitions and comparability. Long-context models beat
 extraction stores on raw recall by 33 to 35 points; the store's case is cost,
 provenance, and supersession.
 
@@ -141,16 +142,16 @@ Never presented as results.
 | Watson's wound, shoulder then leg | contradiction inside one author, no reconciling reading |
 | The deerstalker probe | Doyle never wrote one; assembled pages cannot contain it, generated pages can |
 | Helen at Troy, Homer vs Euripides | source disagreement rendered inline |
-| Three Kingdoms in three forms | the OCR tax and the translation tax, isolated |
 
 ## What a run costs
 
 Rates fetched 2026-08-27 and perishable. Per chunk the pipeline makes one
 entity pass, one fact pass, and N cell calls, each re-sending the chunk text;
 batching the cell calls is 2.3x on total input and 5x on the dominant part,
-so it is built in from the start. Full four-corpus run, batched: $34 on the
-cheapest tier worth using, $335 at the top, a 146-fold spread, which is why
-tier sensitivity gets measured rather than assumed. The pilot is about $2.
+so it is built in from the start. Full four-corpus run, batched: $2.30 on the
+cheapest model, $34 to $168 across the three mainline tiers, $335 at the top,
+a 146-fold spread, which is why tier sensitivity gets measured rather than
+assumed. The pilot is about $2.
 Set the spending stop before every run; the prototype ran out of credit
 mid-pass twice. Money is not the constraint; hours are.
 
@@ -184,8 +185,8 @@ Ask Dr. Fang for an arXiv cs.CL endorsement now; first-time submitters cannot
 post without one and an ISU address does not grant it. Repo public September 1,
 which starts the six-month JOSS clock. Dataset DOI via Zenodo by November 10.
 arXiv submission November 16, cs.CL, as a resource-and-experience paper,
-avoiding November 23 to 27. On the CV it is a preprint, never a publication,
-and the dataset goes under research artifacts. Deliberately not adopted, with
+avoiding November 23 to 27. On the CV it goes under preprints, with the dataset under research artifacts;
+miscategorizing a preprint as a publication is the mistake committees notice. Deliberately not adopted, with
 reasons recorded in `docs/references.md`: RDF reification (native in a
 property graph whose edges carry properties; Hernández 2015's engine failures
 are a warning about RDF stores, not this design) and CoALA's memory taxonomy
@@ -218,7 +219,7 @@ retired one entity layer for being rebuilt nightly and consumed by nothing; an
 entity index earns trust only after it is built from the ledger and wired into
 a recall surface. Re-ingesting the personal archive is the eventual goal and
 is settled: everything on the PC goes into the private PC database, local, no
-gating, not to be re-opened.
+gating.
 
 IRB review comes before recruiting a single tester; a department email is
 human-subjects research, and if testers might set it up for family, scope the
@@ -236,7 +237,7 @@ problem, evidence, artifact.
 4. Verify the 8-hours-a-week assumption against one real week before trusting
    the calendar.
 5. Rebuild `papers/MANIFEST.md`; it predates half the corpus.
-6. Pick which ablations run. Five are designable (cells, resolution,
-   threshold, fact layer, refold) and there is room for one, maybe two.
-   `docs/entity-resolution.md` argues resolution has published reference
-   numbers and cells do not.
+6. The cells ablation is committed. Whether a second one fits is open; of
+   the four remaining candidates (resolution, threshold, fact layer, refold),
+   `docs/entity-resolution.md` argues resolution should take the slot because
+   it has published reference numbers and cells do not.

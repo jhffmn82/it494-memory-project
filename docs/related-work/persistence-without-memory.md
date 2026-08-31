@@ -1,6 +1,3 @@
-> **SUPERSEDED 2026-08-28** by `reference/01_topic_narrative.md`, which is a tightening of these eight sections and loses nothing: the only numeric difference is that the narrative is *more* precise (15.2 to 18.5 percent, against 15 to 18 here).
-> Kept for the record; do not build from it. Index: `docs/README.md`.
-
 ## Can a Context Window Substitute for Memory?
 
 The simplest way to make a language model persistent is to give it no memory at all: resend everything it needs to know, every time. The literature of the past two years is largely an argument over how far that trick stretches, and the argument began not with context windows but with retrieval. Wang and colleagues, in their 2024 EMNLP study of RAG pipelines, treated the whole retrieve-and-generate stack as a sequence of swappable modules and searched greedily for the best method at each position. Buried in their module-by-module results is the finding that matters most here: a small BERT classifier deciding whether to retrieve at all, with 0.95 accuracy, raised the pipeline's average score from 0.428 to 0.443 while cutting latency from 16.41 to 11.58 seconds per query. The cheapest win in the whole search was not a better retriever but a gate in front of it.

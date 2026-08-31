@@ -44,7 +44,7 @@ entity under a new name. That is the same event, structurally, as a course
 pivoting or a colleague changing jobs, and it arrives with ground truth
 attached.
 
-Four public-domain corpora are already assembled, 81 files and about 6.8
+Four public-domain corpora are already assembled, 81 files and about 6.9
 million words: the Oz canon, the complete Sherlock Holmes, the major Greek
 mythological sources, and the Chinese classical novels. Oz supplies the
 supersession fixture and a mid-canon change of author. Holmes contributes a
@@ -96,7 +96,7 @@ best system spends about a thousand tokens per question and the most
 expensive spends over three hundred thousand, so accuracy per token is where
 a serverless design can show up.
 
-Second, resolution accuracy against a hand-labelled alias set over one novel,
+Second, resolution accuracy against a hand-labeled alias set over one novel,
 built in the first week and scored from the very first ingest.
 
 Third, question answering on NarrativeQA, which happens to include 345
@@ -106,9 +106,10 @@ the same three arms.
 Fourth, the instruments that fall out of running the pipeline at all:
 duplicate entities minted per chapter, the rate at which extracted quotes
 fail to appear verbatim in their source, predicate sprawl, token cost per
-stage and per model tier, and agreement between the chapter-level and
+stage and per model tier, agreement between the chapter-level and
 entity-level summaries, which describe the same text independently and catch
-each other's omissions.
+each other's omissions, and the cost of keeping summaries current as the
+corpus grows, set against published figures for full-rebuild systems.
 
 Fifth, the corpus controls: the OCR tax and the translation tax, each
 isolated by comparing pipeline output over the same content in two forms.
@@ -148,7 +149,6 @@ The spring semester wraps the proven methodology in the desktop product,
 points it at real chat exports, and ships something a person can install.
 That work is out of scope for the fall.
 
-Hours, not compute, are the binding constraint. The full four-corpus run
-costs from a few dollars on the cheapest model tier to a few hundred on the
-priciest at batch rates. When something slips, the plan cuts corpus scope,
-never measurement.
+Hours are the binding constraint; the compute is a few dollars to a few
+hundred at batch rates for the full four-corpus run. When something slips, I
+cut corpus scope and keep every committed measurement.

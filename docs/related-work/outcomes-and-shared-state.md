@@ -1,6 +1,3 @@
-> **SUPERSEDED 2026-08-28** by `reference/01_topic_narrative.md`, which is a tightening of these eight sections and loses nothing: the only numeric difference is that the narrative is *more* precise (15.2 to 18.5 percent, against 15 to 18 here).
-> Kept for the record; do not build from it. Index: `docs/README.md`.
-
 ## What Teaches a Memory, and Who Is Allowed to Read What It Learns
 
 A memory system that never changes in response to how things went is a filing cabinet. The question this literature circles is what signal should drive the change, and the answers split into three lineages: outcome feedback, self-judged experience, and shared structured state.

@@ -3,7 +3,7 @@
 Re-runnable: existing non-empty files are skipped. Writes a manifest with sizes and
 sha256 so a later run can prove it got the same bytes.
 
-Two benchmarks:
+The datasets:
 
   GraphRAG-Bench (ICLR 2026, MIT) -- 20 public-domain novels, 2,010 questions with
     gold answers, gold evidence, and question-type labels. Nine systems already
