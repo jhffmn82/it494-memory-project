@@ -89,7 +89,7 @@ The dataset contract, row by row, is `docs/evaluation-corpus.md`. The slate:
 
 | Measurement | Against | Cost |
 |---|---|---|
-| GraphRAG-Bench novels: full system, no-context control, flat retrieval, then the cells ablation | 9 published gpt-4o-mini baselines, gold answers and evidence, 2,010 questions | the main paid run |
+| GraphRAG-Bench novels: full system, no-context control, flat retrieval, then the resolution ablation (co-occurrence and profile signals off, name matching alone) | 9 published gpt-4o-mini baselines, gold answers and evidence, 2,010 questions | the main paid run; the ablation is a replay, since per-signal candidate scores are logged at ingest |
 | Hand-labeled alias set, one novel | merge precision and recall from the first ingest | half an hour of labeling |
 | NarrativeQA, the 345 questions over 12 works we own | reference answers; same three arms | cheap secondary run |
 | LongMemEval, stretch: full-context parity arm, then the 78-question knowledge-update band | Zep's 63.8 over a 55.4 full-context baseline (gpt-4o-mini, original `_s` file) | ~$9 parity, one paid run |
@@ -98,10 +98,15 @@ The dataset contract, row by row, is `docs/evaluation-corpus.md`. The slate:
 | The OCR tax and the translation tax | Three Kingdoms as proofread text, raw OCR, and machine translation of identical content | cheap runs |
 
 GraphRAG-Bench carries the argument in its own baseline table: the cheapest
-system spends 879 tokens per question, the strongest graph system 1,008, and the most
-expensive 331,375, a 377-fold spread. Landing near the top of the accuracy column at the
-bottom of the cost column, with no graph database and no server, is the
-finding. Graph methods beat plain RAG on complex reasoning and summarization,
+system spends 879 tokens per question, the strongest graph system 1,008, and
+the most expensive 331,375, a 377-fold spread. Landing near the top of the
+accuracy column at the bottom of the cost column, with no graph database and
+no server, is the finding. Those token figures come from their harness and
+their counting rules, so the same parity discipline applies as on LongMemEval:
+reproduce their plain-RAG baseline (58.76 on fact retrieval at 879 tokens) on
+our harness first. If it reproduces, our numbers join their table; if not,
+cost is reported as ratios between our own arms and their column is cited as
+context, never as comparison. Graph methods beat plain RAG on complex reasoning and summarization,
 not fact retrieval, so the cells ablation has a built-in target. At n=2,010 a
 2.4-point difference is detectable and ablations typically move 2 to 5.
 
@@ -126,6 +131,11 @@ store competes. And the deerstalker probe catches weight leakage directly.
 
 Rules that keep the numbers honest. The judge model never shares a tier with
 any writer and is calibrated on a hand-labeled sample before its scores count.
+Any supersession score is reported beside its denominator: how many predicates
+the functional list holds, which they are, and what fraction of the questions
+scored actually touch one, because supersession fires only on that list and a
+reviewer will otherwise ask whether the result measures the system or the
+list.
 Segmentation gets a deterministic baseline (TextTiling) beside the model call.
 Retrieval misses are classified coverage versus vocabulary before prescribing
 a fix. Agent-fleet evaluations carry completion accounting, since a partial
@@ -237,7 +247,7 @@ problem, evidence, artifact.
 4. Verify the 8-hours-a-week assumption against one real week before trusting
    the calendar.
 5. Rebuild `papers/MANIFEST.md`; it predates half the corpus.
-6. The cells ablation is committed. Whether a second one fits is open; of
-   the four remaining candidates (resolution, threshold, fact layer, refold),
-   `docs/entity-resolution.md` argues resolution should take the slot because
-   it has published reference numbers and cells do not.
+6. The resolution ablation is committed, because it is the measurement the
+   position claims and the replay design makes it cheap. Cells is next in
+   line if hours appear, and GraphRAG-Bench's own graph-versus-RAG splits
+   already sketch what it would show.

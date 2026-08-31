@@ -55,12 +55,15 @@ quote gate a lie.
 Facts are append-only. When a predicate is functional, a later fact on the
 same subject and predicate supersedes an earlier one at read time; ruler_of
 collides that way, member_of never does, and the functional list is maintained
-by hand. What "later" means: `occurred_at` when both facts have one, otherwise
-the pair of document order in the corpus manifest and unit position. Dates win
-where both sides have them; position carries everything else. Order by date
-alone and a novel corpus supersedes nothing, because almost no fact in a novel
-carries a date. Order by position alone and backfilling an old chat session
-silently reverses the truth.
+by hand. What "later" means: a fact's ordering time is its `valid_from` when the text
+states one, else its document's `occurred_at`, else null. Dated facts order by
+that time. Undated facts order among themselves by document order in the
+corpus manifest and unit position, and an undated fact never supersedes a
+dated one; that collision is flagged for review instead of resolved. Order by
+date alone and a novel corpus supersedes nothing, because almost no fact in a
+novel carries a date. Order by position alone and an undated upload ingested
+today would silently outrank a dated chat fact from two years ago, which is
+exactly the mixed corpus the spring product ingests.
 
 `rank` covers the case supersession cannot: we were wrong, there is no later
 event, and deleting would break append-only. `deprecated` means present,

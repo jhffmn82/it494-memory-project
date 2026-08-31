@@ -91,7 +91,9 @@ First, question answering on GraphRAG-Bench, a benchmark of 2,010 questions
 with gold answers and gold evidence over twenty pre-1900 novels, where nine
 systems have published numbers under the same reader model. I run the full
 system, a no-context control, and flat retrieval, then once more with the
-per-entity narratives switched off. Their own results give the target: the
+co-occurrence and profile resolution signals switched off, which isolates
+what my one open question is worth. The per-entity narrative ablation runs
+after it if hours allow. Their own results give the target: the
 best system spends about a thousand tokens per question and the most
 expensive spends over three hundred thousand, so accuracy per token is where
 a serverless design can show up.
@@ -150,5 +152,7 @@ points it at real chat exports, and ships something a person can install.
 That work is out of scope for the fall.
 
 Hours are the binding constraint; the compute is a few dollars to a few
-hundred at batch rates for the full four-corpus run. When something slips, I
-cut corpus scope and keep every committed measurement.
+hundred at batch rates for the full four-corpus run. The plan in the
+repository prices every slate item against the open weeks and carries a cut
+order decided now rather than in November. When something slips, I cut from
+the bottom of that order and keep the committed measurements.

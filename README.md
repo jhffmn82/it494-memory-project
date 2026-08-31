@@ -68,8 +68,42 @@ stretch between them is three weeks of exams and nothing gets scheduled there.
 | Nov 15 | Paper frozen; wiki demo standing; arXiv submission the next day |
 
 Hours are the scarce resource, and the author writes the code; AI drafts and
-argues but ships nothing unexamined. When something slips, corpus scope gets
-cut and every measurement stays.
+argues but ships nothing unexamined.
+
+## The bill, priced now
+
+The two open blocks hold roughly 64 hours at eight a week, and the
+8-hours-a-week assumption is itself unverified against a real week. The
+slate, priced:
+
+| Work | Hours |
+|---|---|
+| Splitting, gates, dataset publish | 8-12 |
+| Store, ingest, organize, maintain | 20-40 |
+| Hand-labeled alias set | 1 |
+| GraphRAG-Bench: three arms, scorer wiring, plain-RAG parity check | 8-12 |
+| Resolution ablation, replayed from logged scores | 2-3 |
+| Cost curves: read, refold, coverage | 3-5 |
+| OCR control | 2-3 |
+| Translation control, including the machine translation run | 3-6 |
+| NarrativeQA evaluator and arms | 3-5 |
+| Wiki: the Tip and Ozma page, the Holmes page, the ship checks | 4-8 |
+| Cells ablation | 2 |
+| LongMemEval loader, parity arm, update band | 8-15 |
+| Paper writing | 10-15 |
+
+That sums to 74 to 127 against 64, so the cut order is decided now, not in
+November, and a lost week deletes from the bottom:
+
+1. Protected: splitting, the store, the alias set, the GraphRAG-Bench arms
+   with their parity check, the resolution ablation, the instruments, the
+   cost curves, the OCR control, the two wiki pages, and the paper.
+2. First cut: the LongMemEval stretch item.
+3. Then: the cells ablation.
+4. Then: the wiki beyond its two showpiece pages.
+5. Then: NarrativeQA.
+6. Last cut before touching the protected core: the translation control. The
+   OCR control stays, because it is cheaper and carries the same argument.
 
 ## Repo map
 
