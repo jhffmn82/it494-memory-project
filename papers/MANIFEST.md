@@ -93,3 +93,48 @@ One-pagers exist for all of these, marked **abstract only**.
 | `zhang2026-timelinereasoner.pdf` | 2605.12518 | 2026-04 | TimelineReasoner: Advancing Timeline Summarization with Large Reasoning Models |
 | `fu2026-vikingmem.pdf` | 2605.29640 | 2026-05 | VikingMem: A Memory Base Management System for Stateful LLM-based Applications |
 | `yang2026-asymmetric-capacity-allocation.pdf` | 2608.21345 | 2026-08 | Asymmetric Capacity Allocation in Self-Refinement Pipelines |
+
+## Backfill from manifest verification, added 2026-08-30
+
+A 2026-08-30 verification pass diffed `papers/` against this manifest and found these
+32 PDFs on disk with no row (landed during working sessions without being logged here).
+Title, authors, and arXiv id were extracted from each PDF's own front matter; venue is
+given where the PDF states one. "—" in the arXiv column means the file carries no arXiv
+stamp (anthology/publisher copy). Anything tagged **UNCONFIRMED** could not be confirmed
+from the PDF itself — the value shown (if any) is from outside knowledge; double-check
+before citing.
+
+| File | arXiv | Venue | Title | Authors |
+|---|---|---|---|---|
+| `angles2018-property-graph-model.pdf` | — | AMW 2018 (**UNCONFIRMED** — venue not stated in PDF) | The Property Graph Database Model | Renzo Angles |
+| `artstein2008-intercoder-agreement.pdf` | — | Computational Linguistics 34(4), 2008 | Inter-Coder Agreement for Computational Linguistics | Ron Artstein, Massimo Poesio |
+| `balog2019-personal-kg-agenda.pdf` | — | ICTIR 2019 (DOI:10.1145/3341981.3344241) | Personal Knowledge Graphs: A Research Agenda | Krisztian Balog, Tom Kenter |
+| `cai2024-temporal-kg-survey.pdf` | 2403.04782 | arXiv | A Survey on Temporal Knowledge Graph: Representation Learning and Applications | Li Cai, Xin Mao, et al. |
+| `caufield2024-spires.pdf` | 2304.02711 | arXiv; pub. Bioinformatics 2024 (**UNCONFIRMED** — journal not stated in PDF) | Structured Prompt Interrogation and Recursive Extraction of Semantics (SPIRES): A Method for Populating Knowledge Bases Using Zero-shot Learning | J. Harry Caufield, Harshad Hegde, et al. |
+| `chen2023-frugalgpt.pdf` | 2305.05176 | arXiv | FrugalGPT: How to Use Large Language Models While Reducing Cost and Improving Performance | Lingjiao Chen, Matei Zaharia, James Zou |
+| `geng2023-grammar-constrained.pdf` | — | EMNLP 2023 | Grammar-Constrained Decoding for Structured NLP Tasks without Finetuning | Saibo Geng, Martin Josifoski, Maxime Peyrard, Robert West |
+| `hearst1997-texttiling.pdf` | — | Computational Linguistics 23(1), 1997 | TextTiling: Segmenting Text into Multi-paragraph Subtopic Passages | Marti A. Hearst |
+| `hernandez2015-reifying-rdf-wikidata.pdf` | — | SSWS workshop @ ISWC 2015 (**UNCONFIRMED** — venue not stated in PDF) | Reifying RDF: What Works Well With Wikidata? | Daniel Hernández, Aidan Hogan, Markus Krötzsch |
+| `jiang2023-longllmlingua.pdf` | 2310.06839 | arXiv; ACL 2024 (**UNCONFIRMED** — not stated in PDF) | LongLLMLingua: Accelerating and Enhancing LLMs in Long Context Scenarios via Prompt Compression | Huiqiang Jiang, Qianhui Wu, et al. (Microsoft) |
+| `kamalloo2023-open-qa-eval.pdf` | — | ACL 2023 | Evaluating Open-Domain Question Answering in the Era of Large Language Models | Ehsan Kamalloo, Nouha Dziri, Charles L. A. Clarke, Davood Rafiei |
+| `kocisky2017-narrativeqa.pdf` | 1712.07040 | arXiv; TACL 2018 (**UNCONFIRMED** — not stated in PDF) | The NarrativeQA Reading Comprehension Challenge | Tomáš Kočiský, Jonathan Schwarz, et al. (DeepMind) |
+| `koshorek2018-supervised-segmentation.pdf` | 1803.09337 | arXiv; NAACL 2018 (**UNCONFIRMED** — not stated in PDF) | Text Segmentation as a Supervised Learning Task | Omri Koshorek, Adir Cohen, et al. |
+| `lee2017-e2e-coreference.pdf` | 1707.07045 | arXiv; EMNLP 2017 (**UNCONFIRMED** — not stated in PDF) | End-to-end Neural Coreference Resolution | Kenton Lee, Luheng He, Mike Lewis, Luke Zettlemoyer |
+| `liu2023-lost-in-the-middle.pdf` | 2307.03172 | arXiv; TACL 2024 (**UNCONFIRMED** — not stated in PDF) | Lost in the Middle: How Language Models Use Long Contexts | Nelson F. Liu, Kevin Lin, et al. |
+| `niklaus2018-openie-survey.pdf` | 1806.05599 | arXiv; COLING 2018 (**UNCONFIRMED** — not stated in PDF) | A Survey on Open Information Extraction | Christina Niklaus, Matthias Cetto, André Freitas, Siegfried Handschuh |
+| `ong2024-routellm.pdf` | 2406.18665 | ICLR 2025 | RouteLLM: Learning to Route LLMs with Preference Data | Isaac Ong, Amjad Almahairi, et al. |
+| `pang2021-quality.pdf` | 2112.08608 | arXiv; NAACL 2022 (**UNCONFIRMED** — not stated in PDF) | QuALITY: Question Answering with Long Input Texts, Yes! | Richard Yuanzhe Pang, Alicia Parrish, Nitish Joshi, et al. |
+| `panickssery2024-self-preference.pdf` | 2404.13076 | arXiv; NeurIPS 2024 (**UNCONFIRMED** — not stated in PDF) | LLM Evaluators Recognize and Favor Their Own Generations | Arjun Panickssery, Samuel R. Bowman, Shi Feng |
+| `rost2021-bitemporal-property-graphs.pdf` | 2111.13499 | arXiv (Oracle–Leipzig project report) | Bitemporal Property Graphs to Organize Evolving Systems | Christopher Rost, Philip Fritzsche, et al. |
+| `tam2024-format-restrictions.pdf` | 2408.02442 | arXiv; EMNLP 2024 (**UNCONFIRMED** — not stated in PDF) | Let Me Speak Freely? A Study on the Impact of Format Restrictions on Performance of Large Language Models | Zhi Rui Tam, Cheng-Kuang Wu, et al. |
+| `tics2016-vol20no7-contents.pdf` | — | Trends in Cognitive Sciences 20(7), July 2016 | Issue contents page (not a paper) — the verification source for the `kumaran2016-cls-updated.pdf` citation above | n/a |
+| `vrandecic2014-wikidata.pdf` | — | CACM 57(10), Oct 2014 (DOI:10.1145/2629489) | Wikidata: A Free Collaborative Knowledgebase | Denny Vrandečić, Markus Krötzsch |
+| `wang2023-not-fair-evaluators.pdf` | — | ACL 2024 (filename says 2023; the arXiv preprint was 2023) | Large Language Models are not Fair Evaluators | Peiyi Wang, Lei Li, et al. |
+| `wang2024-novelqa.pdf` | 2403.12766 | ICLR 2025 | NovelQA: Benchmarking Question Answering on Documents Exceeding 200K Tokens | Cunxiang Wang, Ruoxi Ning, et al. |
+| `willard2023-guided-generation.pdf` | 2307.09702 | arXiv (Outlines library paper) | Efficient Guided Generation for Large Language Models | Brandon T. Willard, Rémi Louf |
+| `xing2021-dialogue-segmentation.pdf` | 2106.06719 | arXiv; Findings of ACL 2021 (**UNCONFIRMED** — not stated in PDF) | Improving Unsupervised Dialogue Topic Segmentation with Utterance-Pair Coherence Scoring | Linzi Xing, Giuseppe Carenini |
+| `xu2024-kg-rag-customer-service.pdf` | 2404.17723 | SIGIR 2024 (DOI:10.1145/3626772.3661370) | Retrieval-Augmented Generation with Knowledge Graphs for Customer Service Question Answering | Zhentao Xu, et al. (LinkedIn) |
+| `zhang2024-edc-kg-construction.pdf` | 2404.03868 | arXiv | Extract, Define, Canonicalize: An LLM-based Framework for Knowledge Graph Construction | Bowen Zhang, Harold Soh |
+| `zheng2023-llm-as-judge.pdf` | 2306.05685 | NeurIPS 2023 Datasets & Benchmarks | Judging LLM-as-a-Judge with MT-Bench and Chatbot Arena | Lianmin Zheng, Wei-Lin Chiang, Ying Sheng, et al. |
+| `zhong2023-kg-construction-survey.pdf` | 2302.05019 | arXiv, ACM CSUR format (preprint carries placeholder issue info; published vol/issue **UNCONFIRMED**) | A Comprehensive Survey on Automatic Knowledge Graph Construction | Lingfeng Zhong, Jia Wu, Qian Li, Hao Peng, Xindong Wu |
+| `zhou2024-universalner.pdf` | 2308.03279 | ICLR 2024 | UniversalNER: Targeted Distillation from Large Language Models for Open Named Entity Recognition | Wenxuan Zhou, Sheng Zhang, Yu Gu, Muhao Chen, Hoifung Poon |
