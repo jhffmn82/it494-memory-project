@@ -1,3 +1,6 @@
+> **SUPERSEDED 2026-08-28** by `reference/01_topic_narrative.md`, which is a tightening of these eight sections and loses nothing: the only numeric difference is that the narrative is *more* precise (15.2 to 18.5 percent, against 15 to 18 here).
+> Kept for the record; do not build from it. Index: `docs/README.md`.
+
 ## What Must an Agent Write Down, and When?
 
 The systems in this section share a conviction that reading memory is the easy half of the problem. The harder half is consolidation: deciding what an accumulating stream of experience should become, and building machinery that writes that structure rather than merely querying it.

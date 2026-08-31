@@ -1,3 +1,6 @@
+> **REFERENCE, not superseded.** This is the working bibliography, one paragraph per work.
+> It is background rather than part of the working set. Index: `docs/README.md`.
+
 # The literature, work by work
 
 A per-work reference: one paragraph per work, for looking a paper up; the narrative document serves the read-through.

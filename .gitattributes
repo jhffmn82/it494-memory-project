@@ -1,0 +1,15 @@
+# Corpus and derived data are bytes, not source. Git must not translate line endings.
+#
+# core.autocrlf=true is set on at least one machine in play, which stored these blobs
+# as LF and expanded them to CRLF on checkout. That silently broke source_sha256: the
+# nine Internet Archive OCR scans were fetched and hashed as LF, so every Windows
+# checkout produced files whose bytes no longer matched the sha256 their manifest
+# attests. On Linux the failure inverts and the 72 Gutenberg files break instead, so
+# before this file NO checkout of this repository could verify all 81.
+#
+# The corpus is genuinely mixed-newline: Project Gutenberg serves CRLF, the Archive.org
+# scans are LF, and each manifest records the file as it was actually downloaded.
+# Preserving the bytes is what keeps the manifest true.
+data/raw/**/*.txt     -text
+data/raw/**/*.json    -text
+data/clean/**/*.jsonl -text

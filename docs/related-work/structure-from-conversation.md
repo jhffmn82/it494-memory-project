@@ -1,3 +1,6 @@
+> **SUPERSEDED 2026-08-28** by `reference/01_topic_narrative.md`, which is a tightening of these eight sections and loses nothing: the only numeric difference is that the narrative is *more* precise (15.2 to 18.5 percent, against 15 to 18 here).
+> Kept for the record; do not build from it. Index: `docs/README.md`.
+
 ## Can a Schema Be Pulled Out of Raw Dialogue, and How Would Success Be Measured?
 
 A memory system that stores conversations eventually has to impose structure on them: this exchange was about payroll, that one was a support request, these two came from the same person. The works in this group ask whether that structure can be induced from the transcripts themselves, and their collective answer is a qualified yes, with the qualifications doing most of the work.

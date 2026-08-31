@@ -1,3 +1,13 @@
+> **COUNTS CORRECTED 2026-08-28.** This file was written when the corpora were roughly half their
+> current size and its section headers were never updated: it documented 37 of the 81 files now on
+> disk. Headers below now match `manifest.json` in each corpus directory, which is the authority.
+>
+> **Two absence claims in this file were false and are corrected in place.** Apollodorus and Water
+> Margin were both recorded here as unavailable; both were acquired on 2026-08-26 and are on disk.
+> The corrections landed in `fetch_corpus.py` and `WANTLIST.md` at the time but never reached this
+> file. That is the same failure the project's method rules exist to prevent, preserved here as a
+> worked example rather than quietly deleted.
+
 # Raw corpora: where each text came from, and why it is here
 
 Everything in this directory is a verbatim download from Project Gutenberg or, where no
@@ -39,7 +49,7 @@ has no public domain English translation in existence. It is last because it is 
 inputs are least trustworthy, and because it carries a deliberate duplicate that turns OCR error
 into something measurable rather than assumed.
 
-## Oz (14 works, roughly 669,000 words)
+## Oz (29 works, roughly 1,279,000 words)
 
 L. Frank Baum's fourteen canonical Oz novels, 1900 to 1920, all public domain in the United
 States by expiry of term. Files are numbered by publication order, which is also narrative
@@ -84,7 +94,7 @@ count from the table of contents is available as an automatic check on any split
 table of contents titles do not always match body titles exactly, so that check should compare
 counts and order rather than strings.
 
-## The Sherlock Holmes canon (9 volumes, 60 works, roughly 685,000 words)
+## The Sherlock Holmes canon (9 volumes, 60 works, roughly 685,000 words; unchanged and accurate)
 
 The complete canon: four novels and five story collections, 1887 to 1927. All of it is public
 domain in the United States, including *The Case-Book*, whose stories were the last to clear
@@ -137,7 +147,7 @@ this project's pipeline does, as a call against an entity page; rendering an ima
 description is a downstream step through the same model interface, and the honest framing is
 that the render displays the result rather than producing it.
 
-## Greek and Roman sources (9 works, roughly 984,000 words)
+## Greek and Roman sources (32 works, roughly 3,363,000 words)
 
 A shared pantheon across independent authors, translators and centuries. File ordinal here is
 **source position and not story time**, and the gap between those two is the reason this corpus
@@ -171,7 +181,9 @@ war, Ovid retells events from across the whole span, and the tragedies revisit H
 characters after Homer. There is no single ordinal that orders both when a thing happened and
 when a source asserted it.
 
-**Deliberately absent.** Apollodorus's *Bibliotheca* is not on Project Gutenberg. It was wanted
+**CORRECTED 2026-08-28: Apollodorus is present.** The paragraph below is wrong and is kept to show how the error read. The *Bibliotheca* is on disk as `27_library00apolgoog.txt` and `28_apollodoruslibra02apol.txt`, acquired from Archive.org rather than Project Gutenberg. The original note checked one source, found nothing, and recorded absence as a decision.
+
+~~**Deliberately absent.** Apollodorus's *Bibliotheca* is not on Project Gutenberg. It was wanted
 because it is an ancient systematic mythography, effectively a pre-modern attempt at the same
 wiki this project induces, and would have allowed induced structure to be scored against both a
 modern wiki and an ancient one. Worth revisiting through another public domain source.
@@ -181,7 +193,7 @@ within an author. Entity naming will therefore vary by translator as well as by 
 part of the difficulty rather than a defect, but it needs recording before any result is
 reported.
 
-## Chinese classical novels (5 files, roughly 975,000 words; one work still missing)
+## Chinese classical novels (11 files, roughly 1,577,000 words)
 
 | # | Work | Source | Detail |
 |---|---|---|---|
@@ -217,7 +229,9 @@ over both and the difference between the two entity sets is the OCR tax, on iden
 with no annotation required. Given that three of the five files here are OCR, that number is
 worth having before any Chinese result is reported.
 
-**Water Margin is genuinely unavailable and this is not a search failure.** The first complete
+**CORRECTED 2026-08-28: Water Margin is present**, in Chinese, as `08_23863.txt` (水滸). It was a search failure after all: the original queries were too specific and missed the Gutenberg record. The paragraph below is kept as written so the error is visible.
+
+~~**Water Margin is genuinely unavailable and this is not a search failure.** The first complete
 English translation is Pearl Buck's *All Men Are Brothers*, 1933, which is past the public
 domain line. Jackson's is 1937, Shapiro's is 1980. A search of Archive.org restricted to
 pre-1931 returned one Japanese adaptation from 1868 and one unvetted community upload. Pearl
@@ -270,7 +284,9 @@ later edited version carrying its own copyright.
 
 ## The collection as it stands, 2026-08-30
 
-Per-file provenance for every file, including the ones added after the sectionsabove were written, lives in each corpus's `manifest.json`: ordinal, Gutenberg orArchive.org identifier, verified title, byte count, and sha256. The counts:
+Per-file provenance for every file, including the ones added after the sections
+above were written, lives in each corpus's `manifest.json`: ordinal, Gutenberg or
+Archive.org identifier, verified title, byte count, and sha256. The counts:
 
 **oz** — 29 files: 1 Wonderful Wizard of Oz, 2 Marvelous Land of Oz, 3 Ozma of Oz, 4 Dorothy and the Wizard in Oz, 5 Road to Oz, 6 Emerald City of Oz, 7 Patchwork Girl of Oz, 8 Tik-Tok of Oz, 9 Scarecrow of Oz, 10 Rinkitink in Oz, 11 Lost Princess of Oz, 12 Tin Woodman of Oz, 13 Magic of Oz, 14 Glinda of Oz, 15 Sea Fairies, 16 Sky Island, 17 Little Wizard Stories, 18 Santa Claus, 19 Royal Book of Oz, 20 Kabumpo in Oz, 21 Cowardly Lion of Oz, 22 Grampa in Oz, 23 Lost King of Oz, 24 Hungry Tiger of Oz, 25 Gnome King of Oz, 26 Giant Horse of Oz, 27 Jack Pumpkinhead of Oz, 28 Yellow Knight of Oz, 29 Woggle-Bug.
 

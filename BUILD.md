@@ -3,6 +3,23 @@
 SCHEMA.md says what is stored. This says how the code that writes and reads it
 behaves.
 
+## Dataset code lives only at the seams
+
+Every dataset enters through a loader that emits documents and units and
+nothing else, and is scored by an evaluator that reads the finished store and
+computes one metric. A loader may fill `occurred_at` and `label`; it may not
+add fields, and the system may not branch on which loader ran. Gold files and
+question sets keep whatever shape they shipped in, because each evaluator is
+dataset-specific by definition. Adding a dataset is one loader plus one
+evaluator; anything that cannot be expressed that way means the schema is
+missing a field.
+
+Ingest runs in order, never in bulk. A book loaded all at once is static and
+tests nothing temporal; read in sequence, the store's state after chunk 10
+differs from chunk 20, which is what supersession is for. Every mention gets
+recorded with its span at ingest, because resolution measurements read
+mentions and spans cannot be reconstructed after merging.
+
 ## Two interfaces, every failure measured
 
 Every model touch goes through two interfaces, embed(texts) and
@@ -30,6 +47,13 @@ through one resolve() that follows merged-into chains with a cycle guard,
 because chains and cycles both occur and a read that skips resolve() misses
 merged entities silently. After a merge, collision detection re-runs under the
 merged identity: conflicts supersede, the rest stay.
+
+Resolution scores name similarity, co-occurrence, and profile compatibility
+together, and the guards in `docs/entity-resolution.md` are binding: profile
+mismatch lowers a score and never blocks a merge, inherited facts never count
+as independent corroboration, every merge records its evidence and stays
+revocable, cluster size is capped, and the merge rate per chunk is watched,
+because a spike is a black hole forming.
 
 Summaries rebuild only when the hash of their inputs changes, and staleness
 markers are stripped before hashing so stamping a summary cannot cascade. A
@@ -61,7 +85,9 @@ on load, because a partial write there fails silently.
 Set a hard per-run spending stop and check it against the run log before
 continuing. Iterate on the cheapest tier that holds each stage and
 report at three tiers; the spread between tiers is a finding, and running
-everything on the best model erases it.
+everything on the best model erases it. Batch each chunk's cell calls into one
+from the start; re-sending the chunk text per entity is 2.3x on total input
+and 5x on the part that dominates.
 
 ## Three checks before the wiki ships
 
