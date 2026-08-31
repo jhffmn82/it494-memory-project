@@ -81,18 +81,18 @@ One-pagers exist for all of these, marked **abstract only**.
 
 | File | arXiv | Date | Title |
 |---|---|---|---|
-| `tran2017-tls-entity-ranking.pdf` | 1701.03947 | 2017-01 | Balancing Novelty and Salience: Adaptive Learning to Rank Entities for Timeline Summarization of High-impact Events |
+| `_unused/tran2017-tls-entity-ranking.pdf` | 1701.03947 | 2017-01 | Balancing Novelty and Salience: Adaptive Learning to Rank Entities for Timeline Summarization of High-impact Events |
 | `ghalandari2020-tls-survey.pdf` | 2005.10107 | 2020-05 | Examining the State-of-the-Art in News Timeline Summarization |
-| `zhang2024-dtels.pdf` | 2411.09297 | 2024-11 | DTELS: Towards Dynamic Granularity of Timeline Summarization |
+| `_unused/zhang2024-dtels.pdf` | 2411.09297 | 2024-11 | DTELS: Towards Dynamic Granularity of Timeline Summarization |
 | `zhang2024-ocr-hinders-rag.pdf` | 2412.02592 | 2024-12 | OCR Hinders RAG: Evaluating the Cascading Impact of OCR on Retrieval-Augmented Generation |
-| `qorib2024-constrained-tls.pdf` | 2412.17408 | 2024-12 | Just What You Desire: Constrained Timeline Summarization with Self-Reflection for Enhanced Relevance |
+| `_unused/qorib2024-constrained-tls.pdf` | 2412.17408 | 2024-12 | Just What You Desire: Constrained Timeline Summarization with Self-Reflection for Enhanced Relevance |
 | `petnehazi2025-hercules.pdf` | 2506.19992 | 2025-06 | HERCULES: Hierarchical Embedding-based Recursive Clustering Using LLMs for Efficient Summarization |
-| `lin2026-stagewise-benchmarking.pdf` | 2601.02669 | 2026-01 | Towards Comprehensive Stage-wise Benchmarking of Large Language Models in Fact-Checking |
+| `_unused/lin2026-stagewise-benchmarking.pdf` | 2601.02669 | 2026-01 | Towards Comprehensive Stage-wise Benchmarking of Large Language Models in Fact-Checking |
 | `shu2026-tracemem.pdf` | 2602.09712 | 2026-02 | TraceMem: Weaving Narrative Memory Schemata from User Conversational Traces |
 | `jiang2026-agentic-memory-anatomy.pdf` | 2602.19320 | 2026-02 | Anatomy of Agentic Memory: Taxonomy and Empirical Analysis of Evaluation and System Limitations |
 | `sun2026-ocr-robustness-rag.pdf` | 2605.00911 | 2026-04 | When Good OCR Is Not Enough: Benchmarking OCR Robustness for Retrieval-Augmented Generation |
-| `zhang2026-timelinereasoner.pdf` | 2605.12518 | 2026-04 | TimelineReasoner: Advancing Timeline Summarization with Large Reasoning Models |
-| `fu2026-vikingmem.pdf` | 2605.29640 | 2026-05 | VikingMem: A Memory Base Management System for Stateful LLM-based Applications |
+| `_unused/zhang2026-timelinereasoner.pdf` | 2605.12518 | 2026-04 | TimelineReasoner: Advancing Timeline Summarization with Large Reasoning Models |
+| `_unused/fu2026-vikingmem.pdf` | 2605.29640 | 2026-05 | VikingMem: A Memory Base Management System for Stateful LLM-based Applications |
 | `yang2026-asymmetric-capacity-allocation.pdf` | 2608.21345 | 2026-08 | Asymmetric Capacity Allocation in Self-Refinement Pipelines |
 
 ## Evaluation and entity-resolution sources, added 2026-08-28
@@ -164,7 +164,7 @@ or kill earlier candidate claims and the rows say which).
 
 A 2026-08-30 verification pass diffed `papers/` against this manifest and found these
 32 PDFs on disk with no row (landed during working sessions without being logged
-here); 31 get rows below. The 32nd, `tics2016-vol20no7-contents.pdf` -- the TICS 20(7)
+here); 31 get rows below. The 32nd, `_unused/tics2016-vol20no7-contents.pdf` -- the TICS 20(7)
 issue contents page used on 08-27 to verify the kumaran2016 citation -- was since moved
 to `papers/_unused/` by the laptop stream and is deliberately left unindexed.
 Title, authors, and arXiv id were extracted from each PDF's own front matter; venue is
