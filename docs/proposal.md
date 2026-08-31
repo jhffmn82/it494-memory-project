@@ -68,40 +68,56 @@ can check by eye.
 
 ## What gets measured
 
-The claim under test is about extraction order. The published baselines
-extract entities chunk by chunk and reconcile afterward; GraphRAG extracts
-from each text unit separately, and Zep extracts per conversational episode.
-My pipeline reads the whole chapter first, establishes the cast, and
-conditions every downstream step on it. Whether that ordering measurably
-reduces duplicate and fragmented entities is an empirical question with gold
-data available to answer it.
+I checked twelve candidate ideas against published work and every one of them
+is already taken, including the ones I thought were mine. That settles what
+kind of paper this is. The venues that fit this work say novelty is optional
+and rigorous measurement is the price, so the paper is: here is a working
+system, and here is what each part of it is worth. I build it, switch parts
+off one at a time, and report what each costs. The class project and the
+paper are the same work.
 
-Five measurements are committed for this semester.
+One question in the design is genuinely open. Every system I would compare
+against resolves entities using name similarity, embeddings, or a model's
+verdict. Mine also scores co-occurrence, whether the surrounding cast matches,
+and a low-confidence profile inferred from context. Collective entity
+resolution established the idea in 2007; whether the relational signal still
+pays when the base matcher is an embedding and a language model is unmeasured,
+and one of the systems in my comparison table asks for exactly this in its
+future work. That is the measurement I most want to land.
 
-First, entity and coreference accuracy against LitBank, a hand-annotated
-corpus of a hundred Project Gutenberg works, scoring my entity-first pass
-head to head against chunk-first extraction on identical text.
+Five measurements are committed for the semester.
 
-Second, question answering on NarrativeQA, which supplies 345 human-written
-questions over twelve books that are already in my corpora, compared across
-three retrieval arms: plain passage retrieval, my structured store, and both
-together.
+First, question answering on GraphRAG-Bench, a benchmark of 2,010 questions
+with gold answers and gold evidence over twenty pre-1900 novels, where nine
+systems have published numbers under the same reader model. I run the full
+system, a no-context control, and flat retrieval, then once more with the
+per-entity narratives switched off. Their own results give the target: the
+best system spends about a thousand tokens per question and the most
+expensive spends over three hundred thousand, so accuracy per token is where
+a serverless design can show up.
 
-Third, the knowledge-update section of LongMemEval, the public benchmark for
-long-horizon chat memory, where Zep has published numbers against a
-full-context baseline. The point is comparability on the update problem, not
-a contest; long-context models win raw recall, and the store's case is cost,
-provenance, and supersession.
+Second, resolution accuracy against a hand-labelled alias set over one novel,
+built in the first week and scored from the very first ingest.
+
+Third, question answering on NarrativeQA, which happens to include 345
+human-written questions over twelve books already in my corpora, run through
+the same three arms.
 
 Fourth, the instruments that fall out of running the pipeline at all:
 duplicate entities minted per chapter, the rate at which extracted quotes
 fail to appear verbatim in their source, predicate sprawl, token cost per
-stage, and agreement between the chapter-level and entity-level summaries,
-which are independent summaries of the same text and catch each other's
-omissions.
+stage and per model tier, and agreement between the chapter-level and
+entity-level summaries, which describe the same text independently and catch
+each other's omissions.
 
 Fifth, the corpus controls: the OCR tax and the translation tax, each
 isolated by comparing pipeline output over the same content in two forms.
+
+If the schedule holds, one stretch item: LongMemEval, the chat-memory
+benchmark where the nearest commercial system published its numbers. I run
+the full-context arm first to prove my harness reproduces their baseline,
+then the 78 questions that test knowledge updates, which is supersession
+under its benchmark name. The full comparison belongs to spring.
 
 Every model call in the pipeline goes through two narrow interfaces, so
 models swap freely and every run records which tier ran each stage. The
@@ -111,17 +127,22 @@ in the pipeline, calibrated against a hand-labeled sample first.
 
 ## The fall calendar
 
+Dr. Fang approved the topic change in person on August 28; the one-semester
+form is the remaining paperwork. The semester has two open blocks, now
+through September 27 and October 19 through November 15, with three exam
+weeks between them where nothing gets scheduled.
+
 By September 2 a single chapter runs end to end: split, cast identified,
 entities and facts extracted behind the quote gate, chapter and entity
 summaries written, and a small graph rendered. By September 14 all four
-corpora are preprocessed into clean, split, verified units and published as a
-public dataset, which is the reproducibility piece: everything is public
-domain, so anyone can rerun the study. By September 21 the full pipeline has
-run over the first Oz book at three model tiers. By September 28 the LitBank
-comparison is done, by October 5 LongMemEval, by October 12 NarrativeQA and
-the compiled instruments. October 15 is the freeze: every table and figure
-the paper needs, measured and archived. The remainder of the semester writes
-the paper and stands up the wiki demonstration.
+corpora are split into clean, verified units and published as a public
+dataset, which is the reproducibility piece: everything is public domain, so
+anyone can rerun the study. By September 27 the store and pipeline have run
+over the first Oz book at three model tiers and the alias set is scored. The
+benchmark arms and the ablation run October 19 to 26, right after the exam
+block. The dataset gets its DOI by November 10, the paper freezes November
+15, and the preprint goes to arXiv the next day. The wiki demonstration
+stands up alongside the writing.
 
 The spring semester wraps the proven methodology in the desktop product,
 points it at real chat exports, and ships something a person can install.

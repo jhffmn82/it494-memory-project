@@ -1,3 +1,10 @@
+> **BODY SECTIONS ARE STALE, the closing summary table is correct.** Corrected 2026-08-28.
+> The per-corpus sections below still describe the mid-acquisition state (Oz 28 of 28, Greek 13
+> of ~24, Chinese 3 of 4). Actual counts are Oz 29, Greek 32, Holmes 9, Chinese 11, totalling 81
+> files and roughly 6.84M words. Several items still listed as HUNT are on disk: the Woggle-Bug
+> Book, Apollodorus, Pausanias, Quintus, Heroides, Pindar and the extra Euripides. Trust the
+> summary table and `manifest.json`, not these section headers.
+
 # Want list: what each corpus needs to be complete
 
 A corpus assembled opportunistically has no completeness measure. This file defines the target
@@ -6,10 +13,10 @@ meaning behind it, and so that a gap is a recorded decision rather than an overs
 
 Status codes used throughout:
 
-- **HAVE** — downloaded, title-verified, in `data/raw/`
-- **HUNT** — public domain and believed to exist, not yet located or not on Project Gutenberg
-- **BLOCKED** — no public domain English source exists, with the reason recorded
-- **DECIDE** — availability is not the question; whether it belongs in the set is
+- **HAVE**, downloaded, title-verified, in `data/raw/`
+- **HUNT**, public domain and believed to exist, not yet located or not on Project Gutenberg
+- **BLOCKED**, no public domain English source exists, with the reason recorded
+- **DECIDE**, availability is not the question; whether it belongs in the set is
 
 ---
 

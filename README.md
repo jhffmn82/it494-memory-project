@@ -40,48 +40,55 @@ up, we caught the model's weights leaking into the record.
 
 | Borrowed | Built here | Measured against |
 |---|---|---|
-| SQLite and FTS5 | corpus handlers and the ingest gates | Zep's published LongMemEval numbers |
-| an embedding model for candidate lookup | the entity-first cast pass | GraphRAG's chunk-first extraction, on LitBank gold |
-| LitBank, LongMemEval, NarrativeQA | reconciliation by attributes and co-occurrence | full-context and plain-RAG baselines |
-| Gutenberg texts | fact extraction behind the quote gate | NarrativeQA reference answers |
-| | narrative cells and summary folding | |
-| | the assembled wiki renderer | |
+| SQLite and FTS5 | corpus loaders and the split gates | 9 published GraphRAG-Bench baselines, gpt-4o-mini |
+| an embedding model for candidate lookup | resolution by name, co-occurrence, and profile | full-context and flat-retrieval arms |
+| GraphRAG-Bench, LongMemEval, NarrativeQA | fact extraction behind the quote gate | Zep's LongMemEval numbers, parity arm first |
+| Gutenberg texts | narrative cells and summary folding | MemTree's published refold costs |
+| hierarchical summaries (GraphRAG, RAPTOR), dated facts (Zep), per-character summaries (EntSUM) | the assembled wiki renderer | NarrativeQA reference answers on 12 owned works |
 
 The schema is in `SCHEMA.md`, the pipeline rules in `BUILD.md`, and the claim,
 prior art, and measurement plan in `RESEARCH.md`.
 
 ## Fall calendar
 
+Dr. Fang approved the topic change in person on August 28. Two open blocks
+carry everything: now to September 27, and October 19 to November 15. The
+stretch between them is three weeks of exams and nothing gets scheduled there.
+
 | Date | Done means |
 |---|---|
+| Sep 1 | Repo public; endorsement email to Dr. Fang sent |
 | Sep 2 | One chapter of Oz book 1 ingested end to end for Dr. Fang: split, cast, entities, facts, summary, rendered graph |
-| Sep 8 | Proposal filed; plan agreed with Dr. Fang |
-| Sep 14 | All four corpora preprocessed and gated; dataset published |
-| Sep 21 | Pipeline over Oz book 1 at three model tiers; duplicate-minting and rejection numbers |
-| Sep 28 | LitBank run: entity-first versus chunk-first, scored on gold |
-| Oct 5 | LongMemEval run against Zep's published numbers |
-| Oct 12 | NarrativeQA arm on the 12 overlapping works; instruments compiled |
-| Oct 15 | Publishable data frozen: every table and figure the paper needs |
-| Nov 15 | Paper drafted; wiki demo standing |
+| Sep 8 | One-semester proposal form filed |
+| Sep 14 | All four corpora split and gated; dataset published |
+| Sep 21 | Store and pipeline working over Oz book 1 |
+| Sep 27 | Three-tier pilot done; open block ends |
+| Oct 19-26 | GraphRAG-Bench arms and the ablation; NarrativeQA arm; LongMemEval parity and update band |
+| Nov 10 | Dataset DOI minted |
+| Nov 15 | Paper frozen; wiki demo standing; arXiv submission the next day |
 
-Hours are the scarce resource. When something slips, cut corpus scope and keep
+Hours are the scarce resource, and you write the code; AI drafts and argues
+but ships nothing unexamined. When something slips, cut corpus scope and keep
 every measurement.
 
 ## Repo map
 
-    README.md           this plan
-    SCHEMA.md           the five record types and their rules
-    BUILD.md            how the pipeline code behaves
-    RESEARCH.md         claim, prior art, requirements, measurements
-    docs/proposal.md    the three-page project explanation
-    docs/digest.md      one verified paragraph per reference work
-    docs/related-work/  drafted related-work prose, by theme
-    docs/*.json         survey bibliography, with citation corrections
+    README.md                this plan
+    SCHEMA.md                the record types and their rules
+    BUILD.md                 how the pipeline code behaves
+    RESEARCH.md              framing, prior art, measurements, open items
+    docs/proposal.md         the three-page project explanation
+    docs/evaluation-corpus.md  every dataset and what the build owes it
+    docs/entity-resolution.md  the resolution design and its guards
+    docs/references.md       sources behind the schema decisions
+    docs/digest.md           one verified paragraph per reference work
+    docs/related-work/       drafted related-work prose, by theme
+    docs/*.json              survey bibliography, with citation corrections
     advisor-meeting-2026-08-19.md  the meeting record that set the direction
-    build/              the research package delivered in August
-    data/raw/           the four corpora and their manifests
-    data/eval/          benchmark datasets, fetched not committed
-    papers/             the reference library, indexed by MANIFEST.md
-    summaries/          one-pagers for the reference library
-    reading-list.md     what to read and in what order
-    scripts/            corpus, paper, and benchmark fetchers
+    build/                   the delivered research package and proposal
+    data/raw/                the four corpora and their manifests
+    data/benchmarks/         GraphRAG-Bench, LongMemEval, NarrativeQA subset
+    papers/                  the reference library, indexed by MANIFEST.md
+    summaries/               one-pagers for the reference library
+    reading-list.md          what to read and in what order
+    scripts/                 corpus, paper, and benchmark fetchers

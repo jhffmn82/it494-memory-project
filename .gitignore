@@ -13,5 +13,10 @@ build/sections/
 build/preview_*.png
 build/_*.pdf
 
-# benchmark datasets: fetched by scripts/fetch_eval.py, never committed
+# LongMemEval bulk splits: 278 MB and 2.7 GB. Fetch with scripts/fetch_benchmarks.py --all
+data/benchmarks/longmemeval/longmemeval_s.json
+data/benchmarks/longmemeval/longmemeval_s_cleaned.json
+data/benchmarks/longmemeval/longmemeval_m.json
+
+# local benchmark scratch (LitBank clone and other rejected or oversized sets)
 data/eval/
