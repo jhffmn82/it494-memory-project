@@ -1,6 +1,6 @@
 # The datasets, and what each demands of the build
 
-**2026-08-28.** Two are downloaded and verified. This is the list every build step gets checked
+**2026-08-28, amended 2026-08-30.** Three are downloaded and verified. This is the list every build step gets checked
 against: if a stage cannot serve a row here, it is not done.
 
 ## The handle
@@ -13,6 +13,7 @@ against: if a stage cannot serve a row here, it is not done.
 | **BookCoref** | **not fetched** | coreference F1 against published numbers on full books | `Mention.span`, a character offset into the source, plus a CoNLL scorer |
 | **CORE-KG's pipeline** on our corpus | not attempted | duplication rate head to head, same corpus and model | their code, GraphRAG 0.3.2, their seven prompts retyped for narrative |
 | **LongMemEval** | oracle in repo, `_s` on demand | Zep parity, 78 knowledge-update questions, 133 temporal-reasoning | chat loader, `Document.occurred_at` populated, speaker recoverable from unit text |
+| **NarrativeQA subset** | in repo, verified | QA over 12 works we already hold, 345 questions with reference answers | nothing beyond the GraphRAG-Bench paths; same three arms |
 | **The personal archive** | in another repo | nothing. Design rationale only, never evidence | not an input |
 
 ## What that implies for the code
@@ -65,8 +66,9 @@ straight into their table. We cite; we re-run nothing of theirs.
 | LightRAG | 58.62 | 49.07 | 48.85 | 100,832 |
 | MS-GraphRAG (global) | | | | **331,375** |
 
-**The argument comes from their own numbers.** Best accuracy costs 1,008 tokens; the most expensive
-system costs 331,375, a 377x spread. Landing near the top of the accuracy column at the bottom of
+**The argument comes from their own numbers.** The cheapest system spends 879
+tokens per question, the strongest graph system 1,008, and the most expensive
+331,375, a 377-fold spread. Landing near the top of the accuracy column at the bottom of
 the cost column, with no graph database and no server, is the finding.
 
 **Where the cells should pay:** graph methods beat plain RAG on Complex Reasoning and Contextual
@@ -110,13 +112,12 @@ Pass/fail, no benchmark needed, testing what neither benchmark reaches.
 - **NovelQA.** Gold answers held out behind a Codabench leaderboard.
 - **∞Bench En.MC.** 229 questions is underpowered, and no comparable system published on it.
 - **LitBank.** 96 of 100 documents are two chunks long.
-- **BOOKCOREF.** Coreference only, no questions.
 
 ## Reproducing
 
 ```bash
 python scripts/fetch_benchmarks.py         # GraphRAG-Bench + LongMemEval oracle
-python scripts/fetch_benchmarks.py --all   # adds longmemeval_s, 278 MB
+python scripts/fetch_benchmarks.py --all   # adds longmemeval_s and _s_cleaned (278 MB each) and the full NarrativeQA csvs
 ```
 
 Hashes in `data/benchmarks/manifest.json`.

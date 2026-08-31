@@ -73,10 +73,11 @@ perfectly real quote.
 Cells and abstracts are scoped by `scope_id`, so importance is a property of
 the collection, not the entity: a character can be major in one corpus and a
 footnote in another. Every entity gets facts and an abstract; only entities
-above the salience threshold get cells, so no lookup comes back empty and
-nothing is lost below the line, because the chunk summary still recorded it.
+above the salience threshold get cells, so no lookup comes back empty, and
+nothing is lost below the line, because the per-unit summary, a cell on the
+document's own node, still recorded it.
 
-## Rules
+## What the code enforces
 
 1. Raw text is never edited. Ids are content hashes, so a corrected split
    changes one id instead of every id after it.
@@ -91,9 +92,9 @@ nothing is lost below the line, because the chunk summary still recorded it.
    unit's text.
 5. An abstract is a fold over its cells; staleness is a hash comparison,
    never a guess.
-6. A relationship that violates the predicate type table is a rejection, not
-   a stored row.
-7. Model calls, rejections, consults, and costs are logs, not schema.
+6. A relationship that violates the predicate type table is rejected before
+   it is stored.
+7. Model calls, rejections, consults, and costs go to the run log.
 
 Gate 4's proportion clause was added after a real failure: Metamorphoses
 volume 1 split into 7 units taken from its summary section, left 97% of the

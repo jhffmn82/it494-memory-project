@@ -1,6 +1,6 @@
 # Deciding when two names mean one thing
 
-**2026-08-28.** Requirement 2 from `02_requirements_and_testing.md`. This is the one stage where the
+**2026-08-28.** Requirement 2 in `../RESEARCH.md`. This is the one stage where the
 design departs from every system it is measured against, so it gets its own page.
 
 ## The problem
@@ -66,7 +66,7 @@ Every system this is benchmarked against resolves on strings or embeddings plus 
 | AutoSchemaKG | no resolution stage at all |
 | HippoRAG 1 and 2 | never merges; adds synonym edges above cosine 0.8 |
 
-A search across the 46 papers on disk found no LLM knowledge-graph or agent-memory system using
+A search across the resolution-relevant papers on disk, 46 at the time, found no LLM knowledge-graph or agent-memory system using
 co-occurrence as a resolution signal. So the question is not whether collective entity resolution
 works, which was settled in 2007. It is **whether the classical relational signal still pays when
 the candidate scorer is an embedding and an LLM rather than a string metric.** That is measurable,

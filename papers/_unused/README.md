@@ -12,7 +12,7 @@ Nothing here is deleted; move a file back if a document starts citing it.
 
 ## Retired 2026-08-28, second pass: the timeline-summarisation cluster
 
-`01_argument.md` borrows "per-entity chronology from timeline summarisation" in a single clause and
+The argument (now in `RESEARCH.md`) borrows "per-entity chronology from timeline summarisation" in a single clause and
 names no specific paper. That claim needs one citable source, not five. **Ghalandari et al. 2020,
 the survey, was kept and is now cited explicitly**; these four application papers were adding
 nothing to the claim:
@@ -26,7 +26,7 @@ Their one-pagers moved to `summaries/one-pagers/_unused/`.
 
 ## Nearly retired by mistake, and worth recording
 
-`zhang2024-ocr-hinders-rag.pdf` **is OHRBench**, the paper `02_requirements_and_testing.md` had been
+`zhang2024-ocr-hinders-rag.pdf` **is OHRBench**, the paper the requirements doc (now in `RESEARCH.md`) had been
 pointing at by name for the OCR-tax control. An edit earlier the same day replaced that vague
 "prior art in OHRBench" mention with a citation to a different, later paper, which orphaned the
 original and made it look unreferenced. Both are now cited. **A paper looking unused can mean a

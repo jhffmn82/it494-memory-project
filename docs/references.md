@@ -1,6 +1,6 @@
 # Where the schema decisions came from
 
-**2026-08-28.** Six design choices in `03_design.md` came from published work rather than from
+**2026-08-28.** Six design choices in `../SCHEMA.md` came from published work rather than from
 taste. Each citation below was read out of the PDF, not recalled.
 
 ---
