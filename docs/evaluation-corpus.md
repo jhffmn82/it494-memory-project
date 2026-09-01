@@ -113,6 +113,15 @@ Pass/fail, no benchmark needed, testing what neither benchmark reaches.
 - **∞Bench En.MC.** 229 questions is underpowered, and no comparable system published on it.
 - **LitBank.** 96 of 100 documents are two chunks long.
 
+## The published dataset
+
+The split units for Oz, Holmes, and Greek are public at
+kaggle.com/datasets/jhffmn/it494-narrative-corpora-units: 69 documents, 1,301
+units, per-corpus and combined files. Verified 2026-09-01 against the raw
+files in this repo: every document matches its source by sha256, every
+sampled span re-slices byte-exact, positions are contiguous, and the Statius
+Thebaid is excluded on OCR quality as documented. Chinese follows.
+
 ## Reproducing
 
 ```bash
