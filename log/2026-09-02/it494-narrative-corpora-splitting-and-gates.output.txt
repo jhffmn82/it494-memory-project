@@ -1,0 +1,738 @@
+
+## Narrative corpora: raw texts to verified units&#182;
+document  doc_id, source_uri, sha256, ingested_at, occurred_at,
+          provenance {corpus_id, ordinal, handler, flag?, quality?}
+unit      unit_id, doc_id, position, text, span, label
+
+
+# IT494 preprocessing: raw corpora -> verified units, per SCHEMA.md.
+# Input is read-only; everything written goes to /kaggle/working.
+
+import hashlib
+import json
+from pathlib import Path
+
+RAW = Path("/kaggle/input/datasets/jhffmn/it494-narrative-corpora-raw")
+OUT = Path("/kaggle/working")
+CORPORA = ["oz", "holmes", "greek", "chinese"]
+
+for corpus in CORPORA:
+    manifest = json.loads((RAW / corpus / "manifest.json").read_text(encoding="utf-8"))
+    bad = []
+    for work in manifest["works"]:
+        data = (RAW / corpus / work["file"]).read_bytes()
+        if len(data) != work["bytes"] or hashlib.sha256(data).hexdigest() != work["sha256"]:
+            bad.append(work["file"])
+    print(f"{corpus}: {len(manifest['works'])} files", "OK" if not bad else f"MISMATCH {bad}")
+
+oz: 29 files OK
+holmes: 9 files OK
+greek: 32 files OK
+chinese: 11 files OK
+
+import re
+from datetime import datetime, timezone
+
+SRC = RAW / "oz" / "01_55.txt"
+MAX_UNIT_SHARE = 0.35  # proportion clause; Metamorphoses failed at 0.97
+
+raw = SRC.read_bytes()
+sha = hashlib.sha256(raw).hexdigest()
+doc_id = sha[:16]
+
+start_m = re.search(rb"(?m)^\*\*\* START OF THE PROJECT GUTENBERG EBOOK .+ \*\*\*\r?$", raw)
+end_m = re.search(rb"(?m)^\*\*\* END OF THE PROJECT GUTENBERG EBOOK .+ \*\*\*\r?$", raw)
+
+headings = [m for m in re.finditer(rb"(?m)^Chapter [IVXLC]+\r?$", raw)
+            if start_m.end() < m.start() < end_m.start()]
+toc_count = len(re.findall(rb"(?m)^\s+Chapter [IVXLC]+\.", raw[start_m.end():headings[0].start()]))
+
+bounds = [m.start() for m in headings] + [end_m.start()]
+units = []
+for i in range(len(headings)):
+    s, e = bounds[i], bounds[i + 1]
+    units.append({
+        "unit_id": hashlib.sha256(doc_id.encode() + raw[s:e]).hexdigest()[:16],
+        "doc_id": doc_id,
+        "position": i,
+        "text": raw[s:e].decode("utf-8"),
+        "span": [s, e],
+        "label": f"chapter {i + 1}",
+    })
+boilerplate = [[0, bounds[0]], [end_m.start(), len(raw)]]
+
+# gate 1: count vs table of contents
+assert len(units) == toc_count, f"count: {len(units)} units vs {toc_count} TOC entries"
+
+# gate 2: coverage â units + boilerplate tile the file exactly, and no unit dominates
+tiles = sorted(boilerplate + [u["span"] for u in units])
+assert tiles[0][0] == 0 and tiles[-1][1] == len(raw), "coverage: ends not reached"
+assert all(a[1] == b[0] for a, b in zip(tiles, tiles[1:])), "coverage: gap or overlap"
+body = sum(e - s for s, e in (u["span"] for u in units))
+share = max((e - s) / body for s, e in (u["span"] for u in units))
+assert share <= MAX_UNIT_SHARE, f"coverage: one unit holds {share:.0%} of the body"
+
+# gate 3: every span resolves to exactly its unit's text
+assert all(raw[s:e].decode("utf-8") == u["text"] for u in units for s, e in [u["span"]])
+
+print(f"count: {len(units)} units == {toc_count} TOC entries")
+print(f"coverage: tiled 0..{len(raw)}, max unit share {share:.1%}")
+print("round-trip: all spans OK")
+
+doc = {
+    "doc_id": doc_id,
+    "source_uri": "oz/01_55.txt",
+    "sha256": sha,
+    "ingested_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+    "occurred_at": None,
+    "provenance": {"corpus_id": "oz", "ordinal": 1, "handler": "gutenberg_chapter_v1"},
+}
+(OUT / "oz_documents.jsonl").write_text(json.dumps(doc) + "\n", encoding="utf-8")
+with (OUT / "oz_units.jsonl").open("w", encoding="utf-8") as f:
+    for u in units:
+        f.write(json.dumps(u, ensure_ascii=False) + "\n")
+
+for u in (units[0], units[11]):
+    print(f"\n{u['label']}  span={u['span']}")
+    print("head:", repr(u["text"][:80]))
+    print("tail:", repr(u["text"][-80:]))
+
+count: 24 units == 24 TOC entries
+coverage: tiled 0..237232, max unit share 9.1%
+round-trip: all spans OK
+
+chapter 1  span=[3277, 9415]
+head: 'Chapter I\r\nThe Cyclone\r\n\r\n\r\nDorothy lived in the midst of the great Kansas prair'
+tail: 'iling of the wind,\r\nDorothy soon closed her eyes and fell fast asleep.\r\n\r\n\r\n\r\n\r\n'
+
+chapter 12  span=[116497, 136162]
+head: 'Chapter XII\r\nThe Search for the Wicked Witch\r\n\r\n\r\nThe soldier with the green whi'
+tail: ' to an end, and that they were no longer prisoners in a strange\r\nland.\r\n\r\n\r\n\r\n\r\n'
+
+import re
+import difflib
+from datetime import datetime, timezone
+
+MAX_SHARE_FACTOR = 3.0  # a unit may hold at most 3x the mean share; Metamorphoses failed at 23x
+
+def roman(s):
+    vals = {"I": 1, "V": 5, "X": 10, "L": 50, "C": 100}
+    total = 0
+    for a, b in zip(s, s[1:] + " "):
+        total += -vals[a] if b in vals and vals[a] < vals[b] else vals.get(a, 0)
+    return total
+
+def word_numbers():
+    ones = "one two three four five six seven eight nine".split()
+    teens = "ten eleven twelve thirteen fourteen fifteen sixteen seventeen eighteen nineteen".split()
+    w = {word: i + 1 for i, word in enumerate(ones)}
+    w.update({word: i + 10 for i, word in enumerate(teens)})
+    for tens_word, tens_val in (("twenty", 20), ("thirty", 30)):
+        w[tens_word] = tens_val
+        for word, val in list(w.items()):
+            if val <= 9:
+                w[f"{tens_word}-{word}"] = tens_val + val
+    return w
+W2N = word_numbers()
+
+def m_roman(s):
+    m = re.fullmatch(r"\s*Chapter ([IVXLC]+)\s*", s)
+    return roman(m.group(1)) if m else None
+def m_spelled(s):
+    m = re.fullmatch(r"\s*Chapter ([A-Za-z]+(?:[ -][A-Za-z]+)?)\s*", s)
+    return W2N.get(m.group(1).lower().replace(" ", "-")) if m else None
+def m_capsnum(s):
+    m = re.fullmatch(r"\s*CHAPTER\s+(\d+|[IVXLC]+)\s*", s)
+    return None if not m else (int(m.group(1)) if m.group(1).isdigit() else roman(m.group(1)))
+def m_arabic(s):
+    m = re.fullmatch(r"\s*Chapter (\d+)\s*", s)
+    return int(m.group(1)) if m else None
+def m_capstitle(s):
+    m = re.fullmatch(r"\s*CHAPTER (\d+)\s+.+?\s*", s)
+    return int(m.group(1)) if m else None
+def m_capsspelled(s):
+    m = re.fullmatch(r"\s*CHAPTER ([A-Z]+(?:[ -][A-Z]+)?)\s*", s)
+    return W2N.get(m.group(1).lower().replace(" ", "-")) if m else None
+def m_numdot(s):
+    m = re.fullmatch(r"(\d+)\.\s+.+?\s*", s)  # column 0 only: TOC copies are indented
+    return int(m.group(1)) if m else None
+def m_romandot(s):
+    m = re.fullmatch(r"([IVXLC]+)\.\s+.+?\s*", s)  # column 0 only
+    return roman(m.group(1)) if m else None
+def m_capsromandot(s):
+    m = re.fullmatch(r"CHAPTER ([IVXLC]+)\.\s+.+?\s*", s)  # column 0 only
+    return roman(m.group(1)) if m else None
+def m_chapdot(s):
+    m = re.fullmatch(r"\s*Chapter (\d+)\.\s*", s)  # number line alone; title on next line
+    return int(m.group(1)) if m else None
+def m_capsromanbare(s):
+    m = re.fullmatch(r"CHAPTER ([IVXLC]+)\.\s*", s)
+    return roman(m.group(1)) if m else None
+
+TOC_ENTRY = {
+    "locbare":   r"\s{1,4}(?:\d+\s+)?(\S.*?)\s*",  # " Tip Manufactures Pumpkinhead"
+    "paged":     r"\s+(.+?)\s{2,}(\d+)\s*",        # "  Little Dorothy and Toto   39"
+    "numplain":  r"\s+(\d+)\s+(.+?)\s*",           # "  1 Sir Hokus Plans a Quest"
+    "romanplain": r"\s+([IVXLC]+)\s+(.+?)\s*",     # "  I  The Adventure of the Illustrious Client"
+}
+TOC_TITLE_GROUP = {"locbare": 1, "paged": 1, "numplain": 2, "romanplain": 2}
+
+def norm(s):
+    return " ".join(s.split()).casefold()
+
+def parse_toc(lines, lo, hi, shape):
+    pat = re.compile(TOC_ENTRY[shape])
+    marker = None
+    for i in range(lo, hi):
+        s = lines[i][1]
+        if "[Illustration" in s:
+            continue
+        if norm(s) in ("contents", "list of chapters"):
+            marker = i
+            break
+    if marker is None:
+        return None, [], None
+    titles, blanks, last_i = [], 0, marker
+    for i in range(marker + 1, min(marker + 150, hi)):
+        s = lines[i][1]
+        if not s.strip():
+            blanks += 1
+            if titles and blanks >= 2:
+                break
+            continue
+        blanks = 0
+        m = pat.fullmatch(s)
+        if m:
+            titles.append(m.group(TOC_TITLE_GROUP[shape]))
+            last_i = i
+        elif titles:
+            break
+    return marker, titles, last_i
+
+def find_title_line(lines, start_i, hi, title):
+    want = norm(title)
+    for i in range(start_i, hi):
+        if norm(lines[i][1]) == want:
+            return i, "exact"
+    for i in range(start_i, hi):  # fuzzy fallback; never substring
+        s = lines[i][1].strip()
+        if not (3 <= len(s) <= 70):
+            continue
+        if difflib.SequenceMatcher(None, norm(s), want).ratio() >= 0.78:
+            return i, "fuzzy"
+    return None, None
+
+def runs_ok(nums):
+    # monotonic with no gaps, allowing restarts at 1 for multi-part works
+    return bool(nums) and nums[0] == 1 and all(b == a + 1 or b == 1 for a, b in zip(nums, nums[1:]))
+
+def run_corpus(corpus, strategy):
+    manifest = json.loads((RAW / corpus / "manifest.json").read_text(encoding="utf-8"))
+    now = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    all_docs, all_units, report = [], [], []
+    for work in manifest["works"]:
+        raw = (RAW / corpus / work["file"]).read_bytes()
+        sha = hashlib.sha256(raw).hexdigest()
+        doc_id = sha[:16]
+        mech, detail = strategy[work["ordinal"]]
+        row = {"ord": work["ordinal"], "file": work["file"], "mech": mech,
+               "units": 0, "g1": "-", "g2": "-", "g3": "-", "note": ""}
+        try:
+            lines, pos = [], 0
+            for lb in raw.split(b"\n"):
+                lines.append((pos, lb.rstrip(b"\r").decode("utf-8")))
+                pos += len(lb) + 1
+            s_i = next(i for i, (_, s) in enumerate(lines) if s.startswith("*** START OF"))
+            e_i = next(i for i, (_, s) in enumerate(lines) if s.startswith("*** END OF"))
+            end_off = lines[e_i][0]
+            labels, note = [], []
+
+            if mech == "single":
+                bounds = [lines[s_i + 1][0]]
+                labels = ["whole work"]
+                row["g1"] = "single"
+                note.append(detail)
+            elif mech == "regex":
+                hits = [(lines[i][0], detail(lines[i][1]))
+                        for i in range(s_i + 1, e_i) if detail(lines[i][1]) is not None]
+                nums = [n for _, n in hits]
+                restarts = sum(1 for a, b in zip(nums, nums[1:]) if b == 1)
+                row["g1"] = "ok" if runs_ok(nums) else f"FAIL {nums[:8]}..."
+                if restarts:
+                    note.append(f"{restarts + 1} parts")
+                bounds = [off for off, _ in hits]
+                labels = [f"chapter {n}" for n in nums]
+            elif mech == "numdot":
+                hits = [(i, lines[i][0], detail(lines[i][1]))
+                        for i in range(s_i + 1, e_i) if detail(lines[i][1]) is not None]
+                first = hits[0][0] if hits else e_i
+                toc_n = sum(1 for i in range(s_i + 1, first)
+                            if re.fullmatch(r"\s+\d+\.\s+\S.*", lines[i][1]))
+                row["g1"] = "ok" if hits and toc_n == len(hits) else f"FAIL {len(hits)} headings vs {toc_n} TOC"
+                bounds = [off for _, off, _ in hits]
+                labels = [f"chapter {n}" for _, _, n in hits]
+            else:  # toc: match TOC titles to body lines, searching past the TOC block
+                marker, titles, toc_end = parse_toc(lines, s_i + 1, e_i, detail)
+                if not titles:
+                    raise ValueError(f"TOC not parsed (shape {detail})")
+                bounds, prev, misses, fuzz = [], toc_end + 1, [], 0
+                for t in titles:
+                    i, how = find_title_line(lines, prev, e_i, t)
+                    if i is None:
+                        misses.append(t)
+                        continue
+                    fuzz += how == "fuzzy"
+                    bounds.append(lines[i][0])
+                    labels.append(t)
+                    prev = i + 1
+                row["g1"] = "ok" if not misses and len(bounds) == len(titles) else f"FAIL missing {misses[:3]}"
+                if fuzz:
+                    note.append(f"{fuzz} fuzzy")
+
+            units = []
+            edges = bounds + [end_off]
+            for i in range(len(bounds)):
+                b, e = edges[i], edges[i + 1]
+                units.append({"unit_id": hashlib.sha256(doc_id.encode() + raw[b:e]).hexdigest()[:16],
+                              "doc_id": doc_id, "position": i, "text": raw[b:e].decode("utf-8"),
+                              "span": [b, e], "label": labels[i]})
+            row["units"] = len(units)
+
+            tiles = sorted([[0, edges[0]], [end_off, len(raw)]] + [u["span"] for u in units])
+            tiled = tiles[0][0] == 0 and tiles[-1][1] == len(raw) and \
+                    all(a[1] == b[0] for a, b in zip(tiles, tiles[1:]))
+            body = sum(e - b for b, e in (u["span"] for u in units))
+            share_ok = len(units) == 1 or \
+                       max((e - b) / body for b, e in (u["span"] for u in units)) <= MAX_SHARE_FACTOR / len(units)
+            row["g2"] = "ok" if tiled and share_ok else f"FAIL {'tile' if not tiled else 'share'}"
+            row["g3"] = "ok" if all(raw[b:e].decode("utf-8") == u["text"]
+                                    for u in units for b, e in [u["span"]]) else "FAIL"
+
+            if row["g1"] in ("ok", "single") and row["g2"] == "ok" and row["g3"] == "ok":
+                prov = {"corpus_id": corpus, "ordinal": work["ordinal"], "handler": f"{corpus}_{mech}_v1"}
+                if mech == "single":
+                    prov["flag"] = detail
+                all_docs.append({"doc_id": doc_id, "source_uri": f"{corpus}/{work['file']}", "sha256": sha,
+                                 "ingested_at": now, "occurred_at": None, "provenance": prov})
+                all_units.extend(units)
+            row["note"] = "; ".join(note)
+        except Exception as ex:
+            row["note"] = f"ERROR {ex}"
+        report.append(row)
+
+    print(f"{'ord':>3} {'file':<32} {'mech':<6} {'units':>5} {'g1-count':<18} {'g2-cov':<10} {'g3-span':<8} note")
+    for r in report:
+        print(f"{r['ord']:>3} {r['file']:<32} {r['mech']:<6} {r['units']:>5} {r['g1']:<18} {r['g2']:<10} {r['g3']:<8} {r['note']}")
+    print(f"\n{corpus}: passed {len(all_docs)}/{len(manifest['works'])} docs, {len(all_units)} units")
+    with (OUT / f"{corpus}_documents.jsonl").open("w", encoding="utf-8") as f:
+        for d in all_docs:
+            f.write(json.dumps(d, ensure_ascii=False) + "\n")
+    with (OUT / f"{corpus}_units.jsonl").open("w", encoding="utf-8") as f:
+        for u in all_units:
+            f.write(json.dumps(u, ensure_ascii=False) + "\n")
+    return all_docs, all_units
+
+OZ_STRATEGY = {
+    1: ("regex", m_roman), 7: ("regex", m_spelled), 8: ("regex", m_spelled),
+    9: ("regex", m_spelled), 10: ("regex", m_spelled), 12: ("regex", m_spelled),
+    14: ("regex", m_spelled), 11: ("regex", m_capsnum), 16: ("regex", m_capsnum),
+    19: ("regex", m_capsnum), 22: ("regex", m_capsnum), 23: ("regex", m_capsnum),
+    24: ("regex", m_capsnum), 26: ("regex", m_capsnum), 27: ("regex", m_capsnum),
+    20: ("regex", m_arabic), 21: ("regex", m_arabic), 25: ("regex", m_capstitle),
+    28: ("regex", m_capsspelled),
+    3: ("numdot", m_numdot), 4: ("numdot", m_numdot), 5: ("numdot", m_numdot),
+    6: ("numdot", m_numdot), 13: ("numdot", m_numdot), 18: ("numdot", m_numdot),
+    2: ("toc", "locbare"), 17: ("toc", "paged"),
+    15: ("single", "headless edition: only 19 of 22 chapters carry _Chap. N._ captions"),
+    29: ("single", "no chapter structure"),
+}
+
+HOLMES_STRATEGY = {
+    1: ("regex", m_capsromanbare),   # Study in Scarlet: CHAPTER I. TITLE, 2 parts
+    2: ("regex", m_roman),          # Sign of the Four
+    3: ("regex", m_romandot),       # Adventures: I. TITLE flush; TOC indented
+    4: ("regex", m_romandot),       # Memoirs
+    5: ("regex", m_chapdot),        # Hound: "Chapter N." line, title on next line
+    6: ("toc", "locbare"),          # Return: caps title body vs mixed-case TOC
+    7: ("regex", m_roman),          # Valley of Fear: 2 parts
+    8: ("toc", "locbare"),          # His Last Bow
+    9: ("toc", "romanplain"),       # Case-Book: internal "I." section markers forbid regex
+}
+
+oz_docs, oz_units = run_corpus("oz", OZ_STRATEGY)
+holmes_docs, holmes_units = run_corpus("holmes", HOLMES_STRATEGY)
+
+ord file                             mech   units g1-count           g2-cov     g3-span  note
+  1 01_55.txt                        regex     24 ok                 ok         ok       
+  2 02_54.txt                        toc       24 ok                 ok         ok       1 fuzzy
+  3 03_486.txt                       numdot    21 ok                 ok         ok       
+  4 04_420.txt                       numdot    20 ok                 ok         ok       
+  5 05_485.txt                       numdot    24 ok                 ok         ok       
+  6 06_517.txt                       numdot    30 ok                 ok         ok       
+  7 07_955.txt                       regex     28 ok                 ok         ok       
+  8 08_956.txt                       regex     25 ok                 ok         ok       
+  9 09_957.txt                       regex     24 ok                 ok         ok       
+ 10 10_958.txt                       regex     24 ok                 ok         ok       
+ 11 11_959.txt                       regex     26 ok                 ok         ok       
+ 12 12_960.txt                       regex     24 ok                 ok         ok       
+ 13 13_419.txt                       numdot    23 ok                 ok         ok       
+ 14 14_961.txt                       regex     24 ok                 ok         ok       
+ 15 15_48778.txt                     single     1 single             ok         ok       headless edition: only 19 of 22 chapters carry _Chap. N._ captions
+ 16 16_4356.txt                      regex     30 ok                 ok         ok       
+ 17 17_25519.txt                     toc        6 ok                 ok         ok       
+ 18 18_520.txt                       numdot    22 ok                 ok         ok       
+ 19 19_30537.txt                     regex     24 ok                 ok         ok       
+ 20 20_53765.txt                     regex     22 ok                 ok         ok       
+ 21 21_58765.txt                     regex     22 ok                 ok         ok       
+ 22 22_61681.txt                     regex     22 ok                 ok         ok       
+ 23 23_65849.txt                     regex     21 ok                 ok         ok       
+ 24 24_70152.txt                     regex     20 ok                 ok         ok       
+ 25 25_71273.txt                     regex     20 ok                 ok         ok       
+ 26 26_73170.txt                     regex     20 ok                 ok         ok       
+ 27 27_75720.txt                     regex     21 ok                 ok         ok       
+ 28 28_78637.txt                     regex     20 ok                 ok         ok       
+ 29 29_21914.txt                     single     1 single             ok         ok       no chapter structure
+
+oz: passed 29/29 docs, 613 units
+ord file                             mech   units g1-count           g2-cov     g3-span  note
+  1 01_244.txt                       regex     14 ok                 ok         ok       2 parts
+  2 02_2097.txt                      regex     12 ok                 ok         ok       
+  3 03_1661.txt                      regex     12 ok                 ok         ok       
+  4 04_834.txt                       regex     12 ok                 ok         ok       
+  5 05_2852.txt                      regex     15 ok                 ok         ok       
+  6 06_108.txt                       toc       13 ok                 ok         ok       1 fuzzy
+  7 07_3289.txt                      regex     14 ok                 ok         ok       2 parts
+  8 08_2350.txt                      toc        7 ok                 ok         ok       
+  9 09_69700.txt                     toc       12 ok                 ok         ok       
+
+holmes: passed 9/9 docs, 111 units
+
+ORD2N = {w: i + 1 for i, w in enumerate(
+    "first second third fourth fifth sixth seventh eighth ninth tenth "
+    "eleventh twelfth thirteenth fourteenth fifteenth".split())}
+
+def m_bookroman(s):
+    m = re.fullmatch(r"BOOK ([IVXLC]+)[.:]?\s*", s)
+    return roman(m.group(1)) if m else None
+def m_bookroman1(s):
+    m = re.fullmatch(r" BOOK ([IVXLC]+)\.?\s*", s)
+    return roman(m.group(1)) if m else None
+def m_bookspelled(s):
+    m = re.fullmatch(r"BOOK THE ([A-Z]+)\.?\s*", s)
+    return ORD2N.get(m.group(1).lower()) if m else None
+def m_capschapter(s):
+    m = re.fullmatch(r"\s*CHAPTER ([IVXLC]+)\.?\s*", s)
+    return roman(m.group(1)) if m else None
+def m_bareroman(s):
+    m = re.fullmatch(r"\s*([IVXLC]+)\.?\s*", s)
+    return roman(m.group(1)) if m else None
+def m_chapterci(s):
+    m = re.fullmatch(r"(?i)chapter ([ivxlc]+)\s*", s)
+    return roman(m.group(1).upper()) if m else None
+
+TOC_ENTRY["centerbare"] = r"\s{5,}([A-Za-z].*?)\s*"
+TOC_TITLE_GROUP["centerbare"] = 1
+
+def norm_t(s):
+    return norm(s).rstrip(".:").strip()
+
+def find_title_line(lines, start_i, hi, title):
+    want = norm_t(title)
+    for i in range(start_i, hi):
+        if norm_t(lines[i][1]) == want:
+            return i, "exact"
+    for i in range(start_i, hi - 1):  # wrapped two-line headings
+        if lines[i][1].strip() and norm_t(lines[i][1] + " " + lines[i + 1][1]) == want:
+            return i, "joined"
+    for i in range(start_i, hi):  # fuzzy fallback; never substring
+        s = lines[i][1].strip()
+        if not (3 <= len(s) <= 70):
+            continue
+        if difflib.SequenceMatcher(None, norm_t(s), want).ratio() >= 0.78:
+            return i, "fuzzy"
+    return None, None
+
+def runs_split(pairs):
+    runs, cur = [], []
+    for p in pairs:
+        if cur and p[-1] != cur[-1][-1] + 1:
+            runs.append(cur)
+            cur = []
+        cur.append(p)
+    if cur:
+        runs.append(cur)
+    return runs
+
+SHARE_FLOOR = 0.10  # natural chapter-length variance at large n; catastrophes are >>10%
+
+def run_corpus(corpus, strategy):
+    manifest = json.loads((RAW / corpus / "manifest.json").read_text(encoding="utf-8"))
+    now = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    all_docs, all_units, report = [], [], []
+    for work in manifest["works"]:
+        spec = strategy[work["ordinal"]]
+        mech, detail, extra = spec[0], spec[1], (spec[2] if len(spec) > 2 else None)
+        row = {"ord": work["ordinal"], "file": work["file"], "mech": mech,
+               "units": 0, "g1": "-", "g2": "-", "g3": "-", "note": ""}
+        if mech == "exclude":
+            row["g1"] = "excluded"
+            row["note"] = detail
+            report.append(row)
+            continue
+        raw = (RAW / corpus / work["file"]).read_bytes()
+        sha = hashlib.sha256(raw).hexdigest()
+        doc_id = sha[:16]
+        try:
+            lines, pos = [], 0
+            for lb in raw.split(b"\n"):
+                lines.append((pos, lb.rstrip(b"\r").decode("utf-8")))
+                pos += len(lb) + 1
+            s_i = next((i for i, (_, s) in enumerate(lines) if s.startswith("*** START OF")), None)
+            e_i = next((i for i, (_, s) in enumerate(lines) if s.startswith("*** END OF")), None)
+            if s_i is None or e_i is None:
+                if mech != "single":
+                    raise ValueError("no gutenberg markers")
+                s_i, end_off, e_i = -1, len(raw), len(lines)
+            else:
+                end_off = lines[e_i][0]
+            labels, note, body_end = [], [], end_off
+
+            if mech == "single":
+                bounds = [lines[s_i + 1][0]]
+                labels = ["whole work"]
+                row["g1"] = "single"
+                note.append(detail)
+            elif mech in ("regex", "lastrun"):
+                first = extra if isinstance(extra, int) else ((extra or {}).get("first", 1))
+                tail_cut = (extra or {}).get("tail_cut") if isinstance(extra, dict) else None
+                hits = [(i, lines[i][0], detail(lines[i][1]))
+                        for i in range(s_i + 1, e_i) if detail(lines[i][1]) is not None]
+                runs = runs_split(hits)
+                if mech == "regex":
+                    ok = runs and runs[0][0][2] == first and all(r[0][2] == 1 for r in runs[1:])
+                    row["g1"] = "ok" if ok else f"FAIL {[n for _, _, n in hits][:8]}..."
+                    if len(runs) > 1:
+                        note.append(f"{len(runs)} parts")
+                    keep = hits
+                else:  # lastrun: body is the last run; it must start at 1 and dominate
+                    ok = runs and runs[-1][0][2] == 1 and \
+                         len(runs[-1]) > max((len(r) for r in runs[:-1]), default=0)
+                    row["g1"] = "ok" if ok else f"FAIL runs {[len(r) for r in runs]}"
+                    keep = runs[-1] if runs else []
+                if tail_cut and keep:
+                    for i in range(keep[-1][0] + 1, e_i):
+                        if re.fullmatch(tail_cut, lines[i][1]):
+                            body_end = lines[i][0]
+                            note.append("tail cut")
+                            break
+                bounds = [off for _, off, _ in keep]
+                labels = [f"chapter {n}" for _, _, n in keep]
+            elif mech == "titles":  # order-independent: first occurrence each, then sort
+                found, misses, fuzz = [], [], 0
+                for t in detail:
+                    i, how = find_title_line(lines, s_i + 1, e_i, t)
+                    if i is None:
+                        misses.append(t)
+                        continue
+                    fuzz += how == "fuzzy"
+                    found.append((i, t))
+                found.sort()
+                bounds = [lines[i][0] for i, _ in found]
+                labels = [t for _, t in found]
+                dup = len(set(bounds)) != len(bounds)
+                row["g1"] = "ok" if not misses and not dup else f"FAIL missing {misses[:3]}"
+                if fuzz:
+                    note.append(f"{fuzz} fuzzy")
+            elif mech == "numdot":
+                hits = [(i, lines[i][0], detail(lines[i][1]))
+                        for i in range(s_i + 1, e_i) if detail(lines[i][1]) is not None]
+                first_i = hits[0][0] if hits else e_i
+                toc_n = sum(1 for i in range(s_i + 1, first_i)
+                            if re.fullmatch(r"\s+\d+\.\s+\S.*", lines[i][1]))
+                row["g1"] = "ok" if hits and toc_n == len(hits) else f"FAIL {len(hits)} headings vs {toc_n} TOC"
+                bounds = [off for _, off, _ in hits]
+                labels = [f"chapter {n}" for _, _, n in hits]
+            else:  # toc
+                marker, titles, toc_end = parse_toc(lines, s_i + 1, e_i, detail)
+                if not titles:
+                    raise ValueError(f"TOC not parsed (shape {detail})")
+                bounds, prev, misses, fuzz = [], toc_end + 1, [], 0
+                for t in titles:
+                    i, how = find_title_line(lines, prev, e_i, t)
+                    if i is None:
+                        misses.append(t)
+                        continue
+                    fuzz += how == "fuzzy"
+                    bounds.append(lines[i][0])
+                    labels.append(t)
+                    prev = i + 1
+                row["g1"] = "ok" if not misses and len(bounds) == len(titles) else f"FAIL missing {misses[:3]}"
+                if fuzz:
+                    note.append(f"{fuzz} fuzzy")
+
+            units = []
+            edges = bounds + [body_end]
+            for i in range(len(bounds)):
+                b, e = edges[i], edges[i + 1]
+                units.append({"unit_id": hashlib.sha256(doc_id.encode() + raw[b:e]).hexdigest()[:16],
+                              "doc_id": doc_id, "position": i, "text": raw[b:e].decode("utf-8"),
+                              "span": [b, e], "label": labels[i]})
+            row["units"] = len(units)
+
+            tiles = sorted([[0, edges[0]], [body_end, len(raw)]] + [u["span"] for u in units])
+            tiled = tiles[0][0] == 0 and tiles[-1][1] == len(raw) and \
+                    all(a[1] == b[0] for a, b in zip(tiles, tiles[1:]))
+            body = sum(e - b for b, e in (u["span"] for u in units))
+            limit = max(MAX_SHARE_FACTOR / len(units), SHARE_FLOOR) if units else 1
+            share_ok = len(units) == 1 or \
+                       max((e - b) / body for b, e in (u["span"] for u in units)) <= limit
+            row["g2"] = "ok" if tiled and share_ok else f"FAIL {'tile' if not tiled else 'share'}"
+            row["g3"] = "ok" if all(raw[b:e].decode("utf-8") == u["text"]
+                                    for u in units for b, e in [u["span"]]) else "FAIL"
+
+            if row["g1"] in ("ok", "single") and row["g2"] == "ok" and row["g3"] == "ok":
+                prov = {"corpus_id": corpus, "ordinal": work["ordinal"], "handler": f"{corpus}_{mech}_v1"}
+                if mech == "single":
+                    prov["flag"] = detail
+                    if extra:
+                        prov["quality"] = extra
+                all_docs.append({"doc_id": doc_id, "source_uri": f"{corpus}/{work['file']}", "sha256": sha,
+                                 "ingested_at": now, "occurred_at": None, "provenance": prov})
+                all_units.extend(units)
+            row["note"] = "; ".join(note)
+        except Exception as ex:
+            row["note"] = f"ERROR {ex}"
+        report.append(row)
+
+    print(f"{'ord':>3} {'file':<32} {'mech':<7} {'units':>5} {'g1-count':<18} {'g2-cov':<10} {'g3-span':<8} note")
+    for r in report:
+        print(f"{r['ord']:>3} {r['file']:<32} {r['mech']:<7} {r['units']:>5} {r['g1']:<18} {r['g2']:<10} {r['g3']:<8} {r['note']}")
+    n_proc = sum(1 for r in report if r["g1"] != "excluded")
+    print(f"\n{corpus}: passed {len(all_docs)}/{n_proc} docs ({len(report) - n_proc} excluded), {len(all_units)} units")
+    with (OUT / f"{corpus}_documents.jsonl").open("w", encoding="utf-8") as f:
+        for d in all_docs:
+            f.write(json.dumps(d, ensure_ascii=False) + "\n")
+    with (OUT / f"{corpus}_units.jsonl").open("w", encoding="utf-8") as f:
+        for u in all_units:
+            f.write(json.dumps(u, ensure_ascii=False) + "\n")
+    return all_docs, all_units
+
+EURIPIDES_V1 = ["HECUBA", "ORESTES", "MEDEA", "HIPPOLYTUS", "ALCESTIS",
+                "THE BACCHÃ", "THE HERACLIDÃ", "IPHIGENIA IN AULIS",
+                "IPHIGENIA IN TAURIS"]  # PhÅnissÃ¦ listed on the title page but absent from the volume
+
+GREEK_STRATEGY = {
+    1: ("regex", m_bookroman),        # Iliad, 24
+    2: ("regex", m_bookroman),        # Odyssey, 24
+    11: ("regex", m_bookroman),       # Argonautica, 4
+    12: ("regex", m_bookroman1),      # Aeneid: one-space indent; TOC is missing BOOK XI
+    14: ("regex", m_bookroman),       # Fall of Troy, 14 (BOOK I: has a colon)
+    8: ("regex", m_bookspelled),      # Metamorphoses v1: BOOK THE FIRST..SEVENTH
+    9: ("regex", m_bookspelled, 8),   # Metamorphoses v2: EIGHTH..FIFTEENTH
+    15: ("regex", m_capschapter, {"tail_cut": r"\s*INDEX\.?\s*"}),  # Pausanias v1
+    16: ("regex", m_capschapter, {"tail_cut": r"\s*INDEX\.?\s*"}),  # Pausanias v2
+    17: ("regex", m_bareroman),       # Pindar: odes restart per section
+    13: ("lastrun", m_chapterci),     # Bulfinch: TOC shares flush "Chapter N", and is incomplete
+    4: ("toc", "locbare"),            # Sophocles, 3 plays
+    6: ("toc", "locbare"),            # House of Atreus
+    10: ("toc", "locbare"),           # Aeschylus
+    5: ("toc", "centerbare"),         # Seven Plays: centered TOC, wrapped prefatory heading
+    3: ("single", "anthology of many works; segmentation deferred"),
+    7: ("titles", EURIPIDES_V1),      # Buckley Euripides, 9 plays present
+    18: ("single", "play, no internal divisions"),
+    19: ("single", "play, no internal divisions"),
+    20: ("single", "play, no internal divisions"),
+    21: ("single", "play, no internal divisions"),
+    22: ("single", "play, no internal divisions"),
+    23: ("single", "play, no internal divisions"),
+    24: ("single", "play, no internal divisions"),
+    25: ("single", "play, no internal divisions"),
+    26: ("single", "play, no internal divisions"),
+    27: ("single", "archive.org scan, no markers", ["ocr", "bilingual"]),
+    28: ("single", "archive.org scan, no markers", ["ocr", "bilingual"]),
+    30: ("single", "archive.org scan, no markers", ["ocr", "bilingual"]),
+    31: ("single", "archive.org scan, no markers", ["ocr"]),
+    32: ("single", "archive.org scan, no markers", ["ocr"]),
+    29: ("exclude", "USAGE.md ban: long-s OCR corruption"),
+}
+
+greek_docs, greek_units = run_corpus("greek", GREEK_STRATEGY)
+
+ord file                             mech    units g1-count           g2-cov     g3-span  note
+  1 01_2199.txt                      regex      24 ok                 ok         ok       
+  2 02_1727.txt                      regex      24 ok                 ok         ok       
+  3 03_348.txt                       single      1 single             ok         ok       anthology of many works; segmentation deferred
+  4 04_31.txt                        toc         3 ok                 ok         ok       
+  5 05_14484.txt                     toc        10 ok                 ok         ok       
+  6 06_8604.txt                      toc         4 ok                 ok         ok       
+  7 07_15081.txt                     titles      9 ok                 ok         ok       
+  8 08_21765.txt                     regex       7 ok                 ok         ok       
+  9 09_26073.txt                     regex       8 ok                 ok         ok       
+ 10 10_8714.txt                      toc         5 ok                 ok         ok       
+ 11 11_830.txt                       regex       4 ok                 ok         ok       
+ 12 12_228.txt                       regex      12 ok                 ok         ok       
+ 13 13_3327.txt                      lastrun    34 ok                 ok         ok       
+ 14 14_658.txt                       regex      14 ok                 ok         ok       
+ 15 15_68946.txt                     regex     197 ok                 ok         ok       6 parts; tail cut
+ 16 16_68680.txt                     regex     160 ok                 ok         ok       4 parts; tail cut
+ 17 17_10717.txt                     regex      47 ok                 ok         ok       5 parts
+ 18 18_10523.txt                     single      1 single             ok         ok       play, no internal divisions
+ 19 19_14322.txt                     single      1 single             ok         ok       play, no internal divisions
+ 20 20_77336.txt                     single      1 single             ok         ok       play, no internal divisions
+ 21 21_35451.txt                     single      1 single             ok         ok       play, no internal divisions
+ 22 22_35173.txt                     single      1 single             ok         ok       play, no internal divisions
+ 23 23_35171.txt                     single      1 single             ok         ok       play, no internal divisions
+ 24 24_5063.txt                      single      1 single             ok         ok       play, no internal divisions
+ 25 25_35170.txt                     single      1 single             ok         ok       play, no internal divisions
+ 26 26_8418.txt                      single      1 single             ok         ok       play, no internal divisions
+ 27 27_library00apolgoog.txt         single      1 single             ok         ok       archive.org scan, no markers
+ 28 28_apollodoruslibra02apol.txt    single      1 single             ok         ok       archive.org scan, no markers
+ 29 29_thebaidstatius00conggoog.txt  exclude     0 excluded           -          -        USAGE.md ban: long-s OCR corruption
+ 30 30_heroidesamores00ovid.txt      single      1 single             ok         ok       archive.org scan, no markers
+ 31 31_historicallibra00bootgoog.txt single      1 single             ok         ok       archive.org scan, no markers
+ 32 32_historicallibra01bootgoog.txt single      1 single             ok         ok       archive.org scan, no markers
+
+greek: passed 31/31 docs (1 excluded), 577 units
+
+picks = {"greek/13_3327.txt": [0, 33], "greek/15_68946.txt": [196],
+         "greek/07_15081.txt": [0, 5], "greek/17_10717.txt": [0]}
+docs = {d["source_uri"]: d["doc_id"] for d in greek_docs}
+for uri, positions in picks.items():
+    for u in greek_units:
+        if u["doc_id"] == docs[uri] and u["position"] in positions:
+            print(f"{uri} pos {u['position']} {u['label']!r} span={u['span']}")
+            print("  head:", repr(u["text"][:70]))
+            print("  tail:", repr(u["text"][-70:]))
+
+greek/13_3327.txt pos 0 'chapter 1' span=[9515, 36944]
+  head: 'Chapter I\r\n\r\nIntroduction\r\n\r\nThe literature of our time, as of all the'
+  tail: 'e accented syllable, in all words which appear to\r\nrequire it.\r\n\r\n\r\n\r\n'
+greek/13_3327.txt pos 33 'chapter 34' span=[783354, 849952]
+  head: 'Chapter XXXIV\r\n\r\nThe Druids   Iona\r\n\r\nThe Druids were the priests or m'
+  tail: 'atter for the use of the painter and sculptor.\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n'
+greek/15_68946.txt pos 196 'chapter 26' span=[884312, 888714]
+  head: 'CHAPTER XXVI.\r\n\r\n\r\nAnd the old theatre between the market-place and th'
+  tail: ' v. ch. 16.\r\n\r\n[84] v. 395-397.\r\n\r\n[85] Iliad, xv. 518, 519.\r\n\r\n\r\n\r\n\r\n'
+greek/07_15081.txt pos 0 'HECUBA' span=[15488, 90139]
+  head: 'HECUBA.\r\n\r\n       *       *       *       *\r\n\r\nPERSONS REPRESENTED.\r\n\r'
+  tail: 'Î¿Ï Î½Î¹Î½, Îº.Ï.Î».\r\n\r\n       *       *       *       *       *       *\r\n\r\n'
+greek/07_15081.txt pos 5 'THE BACCHÃ' span=[539739, 619178]
+  head: 'THE BACCHÃ.\r\n\r\n       *       *       *       *\r\n\r\nPERSONS REPRESENTED'
+  tail: ' and Alcestis.\r\n\r\n       *       *       *       *       *       *\r\n\r\n'
+greek/17_10717.txt pos 0 'chapter 1' span=[37870, 45361]
+  head: 'I.\r\n\r\nFOR HIERON OF SYRACUSE,\r\n\r\nWINNER IN THE HORSE-RACE.\r\n\r\n       *'
+  tail: 'te 6: Poseidon.]\r\n\r\n[Footnote 7: Sisyphos, Ixion, and Tityos.]\r\n\r\n\r\n\r\n'
+
+docs_all = oz_docs + holmes_docs + greek_docs
+units_all = oz_units + holmes_units + greek_units
+assert len({d["doc_id"] for d in docs_all}) == len(docs_all)
+assert len({u["unit_id"] for u in units_all}) == len(units_all)
+with (OUT / "documents.jsonl").open("w", encoding="utf-8") as f:
+    for d in docs_all:
+        f.write(json.dumps(d, ensure_ascii=False) + "\n")
+with (OUT / "units.jsonl").open("w", encoding="utf-8") as f:
+    for u in units_all:
+        f.write(json.dumps(u, ensure_ascii=False) + "\n")
+print(f"master: {len(docs_all)} documents, {len(units_all)} units")
+
+master: 69 documents, 1301 units
