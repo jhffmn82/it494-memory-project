@@ -81,6 +81,29 @@ one-sentence prompt changes for the first three are in the next version of the n
 Two pairs the judge kept apart are debatable: `Kansas prairies` vs `Kansas`, and
 `Scarecrow's brains` vs `brains`.
 
+## Second run, version 4
+
+Same day, with three prompt sentences changed (event or topic salience, the object never
+repeats the predicate, abstracts cover first unit to last) and the store reworked so the
+document and each unit are nodes and every major entity carries its cells and abstract.
+Saved output: `it494-chapter-ingestion-oz-book-1.v4.output.txt` and `.html`.
+
+| stage | version 3 | version 4 |
+|---|---|---|
+| local entities / facts | 632 / 969 | 644 / 859 |
+| major locals → major entities | 307 → 114 | 357 → 141 |
+| verdicts (same / different) | 976 (326 / 650) | 1,132 (335 / 797) |
+| store | 113 nodes, 866 facts | 139 entity nodes + 25 structural, 791 text facts (437 edges, 354 properties) |
+| predicates | 374 → 334, 6 forks | 355 → 324, 2 forks (`is`, `has`) |
+| cost | $1.26, 171 calls | $1.72, 327 calls (abstracts included) |
+
+What changed for the better: predicate-echo objects are mostly gone (`is_a farmer`, `has a
+long beard` in place of `is_farmer farmer`, `is_gray gray`); `Kansas` absorbed `Kansas
+prairies`; `Scarecrow's brains` joined `brains`; the fork flags now name exactly the two
+conflated predicates. What did not change: 70 of the 141 major entities are still seen in
+one unit only, so the salience sentence did not cut the single-chapter events, and the
+count of majors went up rather than down.
+
 ## Next
 
 - Run the revised notebook and compare rosters.
