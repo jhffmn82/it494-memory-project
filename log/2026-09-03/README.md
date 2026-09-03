@@ -117,7 +117,9 @@ member overlap, never let a community be the only path to a document.
 
 ## Preprocessor rebuild and datasets
 
-Rebuild to take RAW text. AI proposes verbatim marker lines (body start, body end, headings,
+The existing splitting-and-gates notebook is corpus-specific regex per set. It is a source of
+gate code and of fixtures with known answers, not the base for the general splitter, which is a
+rewrite. Rebuild to take RAW text. AI proposes verbatim marker lines (body start, body end, headings,
 topic changes), code cuts, the three gates verify, the split plan is stored per document.
 Preamble metadata becomes quote-backed document facts. Deliverable is the next version of the
 Kaggle units dataset. Loaders for the fall: Gutenberg text, plain text, LongMemEval JSON, arXiv
