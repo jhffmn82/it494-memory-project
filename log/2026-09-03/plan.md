@@ -48,6 +48,12 @@ Deficient against SCHEMA.md and BUILD.md:
   decision time and union() never checks it, so A judged different from C can still end up in one
   cluster via A=B then B=C. Treat a different verdict as a component-level cannot-link and check it
   before every union. (Found by an outside review of the notebook, 2026-09-03; verified in cell 7.)
+  Fix: store cannot-link pairs on LOCAL member ids, not roots; union(a, b) refuses when any member
+  of one cluster is cannot-linked to any member of the other and returns False; a refused same
+  verdict is written to the ledger as a conflict with both dossiers, never dropped silently; the
+  candidate filter uses the same test. In the global merge keep a per-cluster set of forbidden
+  partner clusters merged on union. Fixture: A different C, then A same B, B same C, assert two
+  clusters and one conflict row (the injected-defect test the standing rule requires).
 - The spending stop is checked before a call, so one large final call can overshoot it; reserve an
   estimated maximum before submitting.
 - No embeddings anywhere.
