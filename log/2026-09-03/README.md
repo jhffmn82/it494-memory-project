@@ -144,6 +144,44 @@ provenance fields; the verdict ledger and rejection counts. Re-deriving is real 
 is two thirds of a book's cost), so fix the format on Oz 1 and 2, build the merge on those, then
 batch the rest.
 
+## Later additions (same day, after the plan was written)
+
+**Collision rule, decided by Justin ("that's perfect").** Two facts collide when they share a
+subject and a functional predicate and differ in object. Then one structural test, no model call:
+
+- Same voice, later time: SUPERSEDED. Both facts trace through produced_by to the same author or
+  speaker, and the later one has the later ordering time. Baum in book 2 revises Baum in book 1;
+  you in August revise you in February; v2 of a paper revises v1.
+- Different voices: CONTESTED. Homer and Euripides; two papers with different numbers; the
+  assistant said one thing and the user another. Both stay live, both are served with their source
+  class, higher class listed first. Nothing is invalidated. Only the user adjudicates, via rank.
+
+This REPLACES the earlier "latest wins when both dated" read-time policy above. Undated never
+supersedes dated (SCHEMA) still holds. A series continued by another author becomes contested,
+which is right. The model's own turn can never supersede the user's. Stated difference from
+Graphiti (to verify against source before writing it in a paper): its invalidation lets an
+LLM-judged later edge close an earlier one regardless of speaker.
+
+**Source class on the document, inherited by facts.** canonical, published, record, authored,
+conversation-user-turn, conversation-assistant-turn, tool-output. Set by loader or triage, never
+by the model reading the fact. In transcripts the speaker must be recoverable per unit and the
+fact carries which turn its quote came from. Authority resolves at read time: attribute rather
+than assert below a threshold ("according to your March draft"). Corroboration counts
+independent sources, not mentions. Spreadsheets are a different loader (quote = cell address),
+spring, not a lower class.
+
+**Ingest by watching, never by asking.** The engine watches the transcript directory (and the
+drop folder); turns and attachments land as they are written; an attachment is peeled into its
+own document linked to the session. Session-end hook becomes unnecessary; a content-accepting MCP
+ingest tool stays optional. The packer must exclude the current session's own units.
+
+**Capture everything, derive selectively.** Raw bytes and units are always stored (free). The
+expensive derivation is gated: rules first (sha256 dedup, credential-shape quarantine, unreadable
+media, size cap, source policy), then a cheap triage call on the receipt only (ingest / hold /
+skip with reason and target set, incl. local-only), then the user promotes held items from the
+receipt. Every verdict logged so "held, then needed" is countable. Defaults: conversations and
+drop-folder files derive automatically; attachments and pasted content go through triage.
+
 ## Build order
 
 Layer 0, then merge, then retrieval items 1 to 6, then benchmark. Then packer, consult log,
