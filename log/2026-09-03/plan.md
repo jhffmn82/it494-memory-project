@@ -212,3 +212,20 @@ the next begins.
 The two irreversible items come first: the package format (step 1), because re-deriving costs the
 judge again, and the raw-file blob and offsets (step 0), because a quote that cannot reach bytes
 today cannot be made to later without a re-ingest.
+
+## 5. The final test: one combined store
+
+After the clean per-corpus benchmark numbers exist, replay every package into one store: the
+literature corpus (69 works), the 20 GraphRAG-Bench novels, the LongMemEval sessions, and the
+roughly 90 collected papers as abstracts. Rough size: 3 to 4 million words, 4,000 to 5,000 units,
+150,000 facts, 40,000 cells, 5,000 to 8,000 global nodes, about 200,000 vectors at 384 dimensions
+(300 MB), a 1 to 2 GB SQLite file. Brute-force vector search still holds. Cost is the cross-corpus
+judge only; extraction is not repaid.
+
+What it measures, each with its own answer key: interference (GraphRAG-Bench clean vs combined,
+the same shape as LongMemEval oracle vs _s, so precedent exists and it is not a claim); the Oz
+supersession fixtures with other voices present; cross-corpus homonyms and the disambiguator
+(GraphRAG the system vs GraphRAG-Bench the dataset; every Mary and King); LongMemEval knowledge
+updates in a store a thousand times larger than the oracle split; and the consult log over the
+whole run for the held-but-never-consulted count. Runs on the laptop; API-bound, resumable per
+package.
