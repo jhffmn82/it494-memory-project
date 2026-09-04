@@ -182,6 +182,17 @@ skip with reason and target set, incl. local-only), then the user promotes held 
 receipt. Every verdict logged so "held, then needed" is countable. Defaults: conversations and
 drop-folder files derive automatically; attachments and pasted content go through triage.
 
+**Author capture is mandatory at load (Justin: "for sure").** The collision rule has nothing to
+compare without it. By source: Gutenberg header Author line (quote-backed); arXiv authors field;
+email From (To/Cc as recipients); transcripts per turn (user account entity, model entity with
+model id); own drafts from front matter else the configured owner (confirm in receipt); PDF
+metadata else first page else triage (confirm in receipt); otherwise unknown and flagged. Rules:
+unknown author can be contested but never supersedes; multiple authors are multiple produced_by
+edges and same voice means the identical set, with an explicit same-work link available for
+revisions that add an author; author strings resolve to entities through the merge before that
+document's facts commit ("L. Frank Baum" and "Lyman Frank Baum" must be one node or book 2 cannot
+supersede book 1).
+
 ## Build order
 
 Layer 0, then merge, then retrieval items 1 to 6, then benchmark. Then packer, consult log,
