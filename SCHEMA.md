@@ -12,15 +12,34 @@ manifest carries that order.
 
 ## The source side
 
-    document  doc_id, source_uri, sha256, ingested_at, occurred_at?, provenance
-    unit      unit_id, doc_id, position, text, span, label?
+    document  doc_id, source_uri, sha256, title, author, source_class, text,
+              ingested_at, occurred_at?, loader
+    unit      unit_id, doc_id, position, label?, start, end
 
-A unit is the atom every other record points at. `position` is one integer,
-0-based, no gaps. `text` is verbatim after boilerplate stripping, never
-normalized, because the quote gate is a plain string find against it. `span`
-is byte offsets into the source, a cache; the text is the truth. `label` is a
-free string with no meaning to the system: keep "chapter 4" or "session
+The document holds the text, once: the source decoded to a string at load,
+never normalized, with the sha256 of the original bytes beside it as proof of
+which bytes it came from. A unit is a range in that string, `start` to `end`
+in character offsets, and its text is that slice; nothing stores a second
+copy. Every offset anywhere in the store, on units, mentions, and fact quotes,
+is a document offset in this one coordinate system, so a quote resolves to
+text with a single slice and no join. A unit is the atom every other record
+points at. `position` is one integer, 0-based, no gaps. `label` is a free
+string with no meaning to the system: keep "chapter 4" or "session
 2026-08-12" in it if it helps a human, but nothing branches on it.
+
+`author` and `source_class` are set by the loader, never by the model reading
+the text: the Gutenberg Author line, the arXiv authors field, the speaker of a
+transcript turn. An author string is resolved to an entity through the merge
+before the document's facts commit, because the collision rule has nothing to
+compare without it; an unknown author is flagged and can contest but never
+supersede. Source classes: canonical, published, record, authored,
+conversation-user-turn, conversation-assistant-turn, tool-output.
+
+A document is an entity in its own right: a node whose cells are its unit
+summaries, whose abstract folds from them, with `has_unit` edges in order,
+`produced_by` to its author, and `appears_in` edges from the entities found in
+it. Two documents never merge; the same bytes are the same document by hash,
+and a revision of a work is linked as the same work, not unioned.
 
 `occurred_at` has exactly one meaning: when the source was produced. A chat
 session fills it from the session date, a published work from publication, a
@@ -31,7 +50,7 @@ in-story time lives on facts, because it changes within a document.
 
     node      node_id, name, kind, created_from_unit, provenance
     alias     alias, node_id, first_seen_unit, evidence_quote
-    mention   mention_id, node_id, unit_id, span, surface, resolved_by
+    mention   mention_id, node_id, unit_id, start, end, surface, resolved_by
     profile   node_id, attribute, value, confidence, from_unit
 
 Mentions are what resolution measurements read: duplicate counting needs the
@@ -47,8 +66,8 @@ quote gate a lie.
 
 ## The record side
 
-    fact      fact_id, subject, predicate, object, qualifiers,
-              rank, unit_id, quote, valid_from, valid_to, tier, provenance
+    fact      fact_id, subject, predicate, object, qualifiers, rank, unit_id,
+              quote, quote_start, quote_end, valid_from, valid_to, tier, provenance
     cell      cell_id, node_id, unit_id, scope_id, text, tier, provenance
     abstract  node_id, scope_id, text, children_hash, tier, updated_at
 
@@ -75,25 +94,35 @@ perfectly real quote.
 
 Cells and abstracts are scoped by `scope_id`, so importance is a property of
 the collection, not the entity: a character can be major in one corpus and a
-footnote in another. Every entity gets facts and an abstract; only entities
-above the salience threshold get cells, so no lookup comes back empty, and
-nothing is lost below the line, because the per-unit summary, a cell on the
-document's own node, still recorded it.
+footnote in another. Salience is decided twice. Per unit, it decides who gets
+a cell. Per document, it is reassessed once the document's abstract exists:
+an entity named in the abstract is major, with unit count and fact count as
+tie-breakers, and only document-majors carry a dossier into the merge and
+become global nodes. Minor entities never become nodes: a fact from a major
+to a minor is a property of the major with the minor's name as its value, a
+fact between two minors stays in the unit record, and nothing is lost below
+the line, because the per-unit summary, a cell on the document's own node,
+still recorded it. There is no community layer: groupings the user or a loader
+declares (a series, a thread) exist for ordering and disambiguation scope, and
+nothing is clustered.
 
 ## What the code enforces
 
 1. Raw text is never edited. Ids are content hashes, so a corrected split
    changes one id instead of every id after it.
 2. Nothing is overwritten. Supersession and merges resolve at read time.
-3. Every fact carries a verbatim quote that must appear in its unit. A fact
-   whose quote does not is dropped and logged, never stored.
+3. Every fact carries a verbatim quote that must appear in its unit, and the
+   offsets where it was found. A fact whose quote does not is dropped and
+   logged, never stored. The gate proves the quote exists, not that it
+   supports the fact.
 4. Splitting passes three gates per document. Count: units match the table of
    contents where one exists, else markers are monotonic with no gaps, else
-   the document is one unit. Coverage: concatenated unit text plus stripped
-   boilerplate equals the original, and no single unit holds a wildly
-   disproportionate share. Round-trip: every span resolves to exactly its
-   unit's text.
-5. An abstract is a fold over its cells; staleness is a hash comparison,
+   the document is one unit. Coverage: the unit ranges tile the body between
+   its start and end markers with no gaps and no overlaps, and no single unit
+   holds a wildly disproportionate share. Round-trip: every unit's slice of
+   the document text is identical to what the splitter cut.
+5. An abstract is a fold over its cells and facts; it is rebuilt whenever
+   the hash of its children changes, and staleness is that hash comparison,
    never a guess.
 6. A relationship that violates the predicate type table is rejected before
    it is stored.

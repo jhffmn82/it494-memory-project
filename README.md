@@ -72,7 +72,7 @@ stretch between them is three weeks of exams and nothing gets scheduled there.
 | Sep 1 | Repo public; endorsement email to Dr. Fang sent |
 | Sep 2 | One chapter of Oz book 1 ingested end to end for Dr. Fang: split, cast, entities, facts, summary, rendered graph |
 | Sep 8 | One-semester proposal form filed |
-| Sep 14 | All four corpora split and gated; dataset published. Oz, Holmes, and Greek landed Sep 1 (kaggle.com/datasets/jhffmn/it494-narrative-corpora-units); Chinese remains |
+| Sep 14 | All four corpora split and gated; dataset published. Oz, Holmes, and Greek landed Sep 1 (kaggle.com/datasets/jhffmn/it494-narrative-corpora-units); Chinese remains. Superseded Sep 4: one general extractor over one raw dataset holding every source (Oz, Holmes, Greek, LongMemEval, arXiv abstracts), documents carrying their text and units as ranges; see `log/2026-09-04/` |
 | Sep 21 | Store and pipeline working over Oz book 1 |
 | Sep 27 | Three-tier pilot done; open block ends |
 | Oct 19-26 | GraphRAG-Bench arms and the ablation; NarrativeQA arm; LongMemEval parity and update band |
@@ -138,3 +138,4 @@ November, and a lost week deletes from the bottom:
     summaries/               one-pagers for the reference library
     reading-list.md          what to read and in what order
     scripts/                 corpus, paper, and benchmark fetchers
+    log/                     dated working log: decisions, notebooks as run, saved outputs

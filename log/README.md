@@ -13,3 +13,7 @@ their saved outputs as run.
   build plan with tools, acceptance tests, sizes, and how users feed it documents.
   Search: [claim-search.md](2026-09-03/claim-search.md), adversarial prior-art search on the
   voice-lineage collision rule; verdict partially occupied, two measurements survive.
+- [2026-09-04](2026-09-04/README.md): merge walkthrough after ingestion; community grouping
+  removed; document-level salience at the end of ingestion; documents as entities; the
+  document holds its text once and units are ranges in one coordinate system; the general
+  extractor plan and the all-sources raw dataset; open items.

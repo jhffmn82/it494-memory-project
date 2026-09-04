@@ -6,8 +6,17 @@ The records themselves are defined in SCHEMA.md.
 
 Every dataset enters through a loader that emits documents and units and
 nothing else, and is scored by an evaluator that reads the finished store and
-computes one metric. A loader may fill `occurred_at` and `label`; it may not
-add fields, and the system may not branch on which loader ran. Gold files and
+computes one metric. A loader must fill `author` and `source_class`, may fill
+`occurred_at` and `label`, may not add fields, and the system may not branch
+on which loader ran. The format is sniffed from the bytes, never taken from a
+flag. Structured inputs (a transcript with turns, a metadata record per
+abstract) become units directly with no model call. Unstructured text is
+split by one model call per document that proposes verbatim marker lines
+(body start, body end, headings) from a compressed view of the text; code
+locates the markers and cuts, the three gates verify, and the split plan is
+stored per document so a re-run is a replay. There are no per-work or
+per-corpus rules in the splitter; a document the gates reject is stored as
+one unit and flagged, never dropped. Gold files and
 question sets keep whatever shape they shipped in, because each evaluator is
 dataset-specific by definition. Adding a dataset is one loader plus one
 evaluator; anything that cannot be expressed that way means the schema is
