@@ -85,6 +85,14 @@ source class follows the sniffed format; Kaggle now, desktop tool later; old uni
 reference and Justin's review becomes the fixture; LongMemEval is fall. Question sets are not
 part of Step 0.
 
+Two rulings from the extractor chat's first findings, later in the evening: (a) a reused
+LongMemEval session keeps every date it was assigned, as a `dates` list in first-seen order;
+one date fills the document's `occurred_at`, several leave it null and flag the document
+ambiguous. (b) Units carry a time range, `occurred_at` to `occurred_until`, filled only when
+the file carries times; a unit never spans a day change; a fact's time is the date its text
+states, else its unit's, else its document's, else null. Facts were always meant to have
+dates; novels hid that, chats bring it back. SCHEMA.md and BUILD.md updated.
+
 The living docs were then corrected to the rulings in one commit (README.md, SCHEMA.md,
 BUILD.md, RESEARCH.md, docs/proposal.md, docs/evaluation-corpus.md, data/raw/SOURCES.md,
 USAGE.md, WANTLIST.md): 87 verified edits from a sweep of every living markdown file, each

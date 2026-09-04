@@ -14,7 +14,8 @@ the user or a loader declares carries that order.
 
     document  doc_id, source_uri, sha256, title, author, source_class, text,
               ingested_at, occurred_at?, loader
-    unit      unit_id, doc_id, position, label?, start, end
+    unit      unit_id, doc_id, position, label?, start, end,
+              occurred_at?, occurred_until?
 
 The document holds the text, once: the source decoded to a string at load,
 never normalized, with the sha256 of the original bytes beside it as proof of
@@ -46,6 +47,14 @@ session fills it from the session date, a published work from publication, a
 novel with neither leaves it null. When the story is set is not this field;
 in-story time lives on facts, because it changes within a document.
 
+A unit carries a range, `occurred_at` to `occurred_until`, the time of its
+first piece and of its last, filled by the loader only when the file carries
+times (a turn timestamp, a dated session); otherwise both are null and the
+document's `occurred_at` stands in at read time. When the file carries times,
+a unit never spans a day change: the day cut comes before the size rule, and
+the short-tail merge applies only inside a day. Two sessions that overlap in
+time are ordered fact by fact through their units, not whole against whole.
+
 ## The entity side
 
     node      node_id, name, kind, created_from_unit, provenance
@@ -75,7 +84,8 @@ Facts are append-only. When a predicate is functional, a later fact on the
 same subject and predicate supersedes an earlier one at read time; ruler_of
 collides that way, member_of never does, and the functional list is maintained
 by hand. What "later" means: a fact's ordering time is its `valid_from` when the text
-states one, else its document's `occurred_at`, else null. Dated facts order by
+states one, else its unit's `occurred_at`, else its document's `occurred_at`,
+else null. Dated facts order by
 that time. Undated facts order among themselves by document order in the
 declared grouping and unit position, and an undated fact never supersedes a
 dated one; that collision is flagged for review instead of resolved. Order by
@@ -118,8 +128,8 @@ nothing is clustered.
 4. Splitting passes three gates per document. Count: pieces (chapters, turns, sections) match the table of
    contents where one exists, else markers are monotonic with no gaps, else
    the document is one piece. Units are size-bounded runs of pieces, cut
-   only at piece boundaries, never a lone turn, a short tail merged into the
-   unit before it. Coverage: the unit ranges tile the body, between
+   only at piece boundaries, never a lone turn, never across a day change
+   when the file carries times, a short tail merged into the unit before it. Coverage: the unit ranges tile the body, between
    its start and end markers where the file has them, with no gaps and no overlaps, and no single unit
    holds a wildly disproportionate share. Round-trip: every unit's slice of
    the document text is identical to what the splitter cut.
