@@ -49,6 +49,16 @@ up, we caught the model's weights leaking into the record.
 The schema is in `SCHEMA.md`, the pipeline rules in `BUILD.md`, and the claim,
 prior art, and measurement plan in `RESEARCH.md`.
 
+## How to read this repository
+
+`SCHEMA.md` and `BUILD.md` are the consolidated design and are edited only when a decision is
+settled. Dated folders under `log/` are working notes from design sessions and experiment runs;
+they are provisional, may propose alternatives that contradict the consolidated documents, and
+mark such proposals as PROPOSED until ruled on. Executable prototypes live in linked Kaggle
+notebooks whose code and saved outputs are copied into the matching `log/` folder; accepted
+findings are folded back into `SCHEMA.md` and `BUILD.md` periodically. `log/README.md` is the
+index of sessions and notebooks.
+
 ## Fall calendar
 
 Dr. Fang approved the topic change in person on August 28. Two open blocks
