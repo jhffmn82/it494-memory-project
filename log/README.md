@@ -9,3 +9,5 @@ their saved outputs as run.
 - [2026-09-03](2026-09-03/README.md): design session, no code; merge candidate rule and
   disambiguation, raw text layer, retrieval and engine architecture, preprocessor rebuild and
   dataset list, proposed schema additions for ruling, pick-up checklist for the PC.
+  Plan: [plan.md](2026-09-03/plan.md), a deficiency review of both notebooks and a step-by-step
+  build plan with tools, acceptance tests, sizes, and how users feed it documents.
