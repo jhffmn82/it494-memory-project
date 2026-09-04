@@ -198,3 +198,13 @@ supersede book 1).
 Layer 0, then merge, then retrieval items 1 to 6, then benchmark. Then packer, consult log,
 engine, MCP, hooks, package. Full ranking, MCP, and the installable package do not block the
 benchmark (evaluators read the store directly).
+
+## Naming (evening, after reading the Grok and ChatGPT sessions)
+
+Justin's split, 2026-09-03: **Palimpsest** names the paper and the architecture (nothing erased,
+superseded facts legible under later ones, contested pairs both visible; and the Greek corpus
+wiki is literally a wiki of texts that survived as palimpsests). **FactLedger** names the tool,
+positioned as a lightweight desktop RAG backend. Checked 2026-09-03: no PyPI package named
+factledger (404) and zero GitHub repositories matching factledger. liteRAG rejected (collides with
+LightRAG, a GraphRAG-Bench baseline). QuoteMem rejected (the gate proves presence, not support).
+Heartwood is taken on PyPI as of 2026-09-02. Still to do: say both names to Fang.
