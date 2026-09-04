@@ -18,5 +18,9 @@ data/benchmarks/longmemeval/longmemeval_s.json
 data/benchmarks/longmemeval/longmemeval_s_cleaned.json
 data/benchmarks/longmemeval/longmemeval_m.json
 
+# LongMemEval unpacked to one file per session: 19,206 files, about 250 MB. Rebuild with
+# scripts/unpack_benchmarks.py longmemeval; the Kaggle raw dataset carries the copies.
+data/raw/longmemeval/
+
 # local benchmark scratch (LitBank clone and other rejected or oversized sets)
 data/eval/
