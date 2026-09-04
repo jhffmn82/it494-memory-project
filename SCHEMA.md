@@ -7,8 +7,8 @@ input is a no-op rather than a duplicate.
 
 **Nothing in the schema knows what a novel is.** Books, chat logs, and PDFs
 all arrive the same way: a document holding an ordered run of units. A series
-is several documents in order; so is a year of chat sessions. The corpus
-manifest carries that order.
+is several documents in order; so is a year of chat sessions. The grouping
+the user or a loader declares carries that order.
 
 ## The source side
 
@@ -24,12 +24,12 @@ copy. Every offset anywhere in the store, on units, mentions, and fact quotes,
 is a document offset in this one coordinate system, so a quote resolves to
 text with a single slice and no join. A unit is the atom every other record
 points at. `position` is one integer, 0-based, no gaps. `label` is a free
-string with no meaning to the system: keep "chapter 4" or "session
-2026-08-12" in it if it helps a human, but nothing branches on it.
+string with no meaning to the system: keep "chapter 4" or "turns
+12-30" in it if it helps a human, but nothing branches on it.
 
 `author` and `source_class` are set by the loader, never by the model reading
-the text: the Gutenberg Author line, the arXiv authors field, the speaker of a
-transcript turn. An author string is resolved to an entity through the merge
+the text: the Gutenberg Author line, the first page of a PDF, the role prefix on a
+chat turn; a session itself has no author unless the file names one. An author string is resolved to an entity through the merge
 before the document's facts commit, because the collision rule has nothing to
 compare without it; an unknown author is flagged and can contest but never
 supersede. Source classes: canonical, published, record, authored,
@@ -77,7 +77,7 @@ collides that way, member_of never does, and the functional list is maintained
 by hand. What "later" means: a fact's ordering time is its `valid_from` when the text
 states one, else its document's `occurred_at`, else null. Dated facts order by
 that time. Undated facts order among themselves by document order in the
-corpus manifest and unit position, and an undated fact never supersedes a
+declared grouping and unit position, and an undated fact never supersedes a
 dated one; that collision is flagged for review instead of resolved. Order by
 date alone and a novel corpus supersedes nothing, because almost no fact in a
 novel carries a date. Order by position alone and an undated upload ingested
@@ -115,10 +115,12 @@ nothing is clustered.
    offsets where it was found. A fact whose quote does not is dropped and
    logged, never stored. The gate proves the quote exists, not that it
    supports the fact.
-4. Splitting passes three gates per document. Count: units match the table of
+4. Splitting passes three gates per document. Count: pieces (chapters, turns, sections) match the table of
    contents where one exists, else markers are monotonic with no gaps, else
-   the document is one unit. Coverage: the unit ranges tile the body between
-   its start and end markers with no gaps and no overlaps, and no single unit
+   the document is one piece. Units are size-bounded runs of pieces, cut
+   only at piece boundaries, never a lone turn, a short tail merged into the
+   unit before it. Coverage: the unit ranges tile the body, between
+   its start and end markers where the file has them, with no gaps and no overlaps, and no single unit
    holds a wildly disproportionate share. Round-trip: every unit's slice of
    the document text is identical to what the splitter cut.
 5. An abstract is a fold over its cells and facts; it is rebuilt whenever

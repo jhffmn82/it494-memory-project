@@ -10,16 +10,13 @@
 
 # Raw corpora: where each text came from, and why it is here
 
-Everything in this directory is a verbatim download from Project Gutenberg or, where no
-Gutenberg edition exists, from an institutional scan on Archive.org. Nothing has been
-cleaned, split, or normalised. That is deliberate: the raw layer is the write-ahead log for
+The three literature corpora here (`oz/`, `holmes/`, `greek/`) are verbatim downloads from Project Gutenberg or, where no Gutenberg edition exists, from an institutional scan on Archive.org. `graphrag-bench/` and `longmemeval/` are unpacked by script from their benchmark JSON: one text file per context, written as-is, and one JSON file per distinct non-empty session (session id, date, and turns as role and content; the `has_answer` flag is question data and is dropped). The 142 paper PDFs are raw too, but travel in a private Kaggle dataset. Nothing has been cleaned or normalised; the only split is the unpack of the two benchmark JSON files into per-context and per-session files, which rewrites no text. That is deliberate: the raw layer is the write-ahead log for
 everything downstream, so it stays byte-identical to what the source served and every later
 artifact can be rebuilt from it. Preprocessing into homogeneous datasets is a separate step
 and does not belong in this folder.
 
 Each corpus directory carries a `manifest.json` recording, per work, the source URL, byte
-count, sha256, and whether the title in the Gutenberg header matched what we expected. The
-manifest is what makes a work removable later: excluding it is a filter, not a rebuild.
+count, sha256, and whether the title in the Gutenberg header matched what we expected. The manifest is packaging and the answer key for scoring what the extractor reads off the bytes (title, author, year, translator, ordinal, quality flags); the extractor never reads it. A work leaves the dataset by removing its file, with the provenance and the reason kept here, not by a flag.
 
 ## Why these corpora
 
@@ -43,11 +40,9 @@ written centuries apart, in two languages, that contradict each other on matters
 also breaks the single time axis: source position and story time come apart, which forces the
 bitemporal distinction rather than allowing it to be optional.
 
-**Chinese adds mixed source quality and one real hole.** Three Kingdoms is complete, but three
+**Chinese was to add mixed source quality and one real hole; the folder is out of the dataset and the fall work as of 2026-09-04.** Three Kingdoms is complete, but three
 of its five files are OCR from page scans rather than proofread transcription, and Water Margin
-has no public domain English translation in existence. It is last because it is the corpus whose
-inputs are least trustworthy, and because it carries a deliberate duplicate that turns OCR error
-into something measurable rather than assumed.
+has no public domain English translation in existence. It was last because it is the corpus whose inputs are least trustworthy, and because it carried a deliberate duplicate that turned OCR error into something measurable rather than assumed. The OCR control and the translation control leave with the folder and return only if it does; the provenance below is kept.
 
 ## Oz (29 works, roughly 1,279,000 words)
 
@@ -147,7 +142,9 @@ this project's pipeline does, as a call against an entity page; rendering an ima
 description is a downstream step through the same model interface, and the honest framing is
 that the render displays the result rather than producing it.
 
-## Greek and Roman sources (32 works, roughly 3,363,000 words)
+## Greek and Roman sources (31 works, roughly 3,187,000 words)
+
+**REMOVED 2026-09-04: Statius's *Thebaid*, file 29.** It came from Archive.org rather than Project Gutenberg, identifier `thebaidstatius00conggoog`, a Google library scan of the 1767 Oxford printing: 1,208,168 bytes, about 176,000 words, sha256 `61d04344af12a9025b136d84a09d268261445bc2d0d2947c708b815c31a0be45`. The printing's long-s renders as "f" throughout the OCR ("Verfe", "Fleafure", "perafe"), which makes the text unusable, so the file is removed from the dataset and the corpus is 31 files. The provenance and the reason are kept here; there is no exclusion flag in the manifest or anywhere else.
 
 A shared pantheon across independent authors, translators and centuries. File ordinal here is
 **source position and not story time**, and the gap between those two is the reason this corpus
@@ -193,7 +190,9 @@ within an author. Entity naming will therefore vary by translator as well as by 
 part of the difficulty rather than a defect, but it needs recording before any result is
 reported.
 
-## Chinese classical novels (11 files, roughly 1,577,000 words)
+## Chinese classical novels (11 files, roughly 1,577,000 words; OUT of the dataset as of 2026-09-04)
+
+**OUT 2026-09-04.** The folder leaves the dataset and the fall work. NarrativeQA drops to 11 works and 319 questions (Dream of the Red Chamber, file 6, carried 26); the OCR control (file 1 against file 5) and the translation control (file 4) lose their source and leave the fall slate. All of it returns only if the folder does. The provenance below is kept as recorded.
 
 | # | Work | Source | Detail |
 |---|---|---|---|
@@ -267,7 +266,7 @@ corpus is used.
 
 ## Copyright basis
 
-All works here are public domain in the United States by expiry of term. Project Gutenberg is
+The literature here is public domain in the United States by expiry of term. `graphrag-bench/` and `longmemeval/` come from MIT-licensed benchmarks and each folder carries the copied LICENSE for attribution; the public dataset as a whole is MIT. The papers carry per-paper arXiv licenses, most not redistributable, which is why the PDFs sit in a private dataset. Project Gutenberg is
 United States based and conservative about status, so its hosting a text is itself a reasonable
 signal. This matters because the downstream artifacts are public: a preprint, a Kaggle notebook,
 a distributable harness, and a symposium demonstration.
@@ -282,18 +281,16 @@ later edited version carrying its own copyright.
 
 ---
 
-## The collection as it stands, 2026-08-30
+## The collection as it stands, 2026-09-04
 
-Per-file provenance for every file, including the ones added after the sections
-above were written, lives in each corpus's `manifest.json`: ordinal, Gutenberg or
-Archive.org identifier, verified title, byte count, and sha256. The counts:
+Per-file provenance for every file, including the ones added after the sections above were written, lives in each folder's `manifest.json`, built by the fetch and unpack scripts: ordinal, source URL, title, author, year, translator, quality flags, license, byte count, and sha256. The counts:
 
 **oz** — 29 files: 1 Wonderful Wizard of Oz, 2 Marvelous Land of Oz, 3 Ozma of Oz, 4 Dorothy and the Wizard in Oz, 5 Road to Oz, 6 Emerald City of Oz, 7 Patchwork Girl of Oz, 8 Tik-Tok of Oz, 9 Scarecrow of Oz, 10 Rinkitink in Oz, 11 Lost Princess of Oz, 12 Tin Woodman of Oz, 13 Magic of Oz, 14 Glinda of Oz, 15 Sea Fairies, 16 Sky Island, 17 Little Wizard Stories, 18 Santa Claus, 19 Royal Book of Oz, 20 Kabumpo in Oz, 21 Cowardly Lion of Oz, 22 Grampa in Oz, 23 Lost King of Oz, 24 Hungry Tiger of Oz, 25 Gnome King of Oz, 26 Giant Horse of Oz, 27 Jack Pumpkinhead of Oz, 28 Yellow Knight of Oz, 29 Woggle-Bug.
 
 **holmes** — 9 files: 1 Study in Scarlet, 2 Sign of the Four, 3 Adventures of Sherlock Holmes, 4 Memoirs of Sherlock Holmes, 5 Hound of the Baskervilles, 6 Return of Sherlock Holmes, 7 Valley of Fear, 8 His Last Bow, 9 Case-Book of Sherlock Holmes.
 
-**greek** — 32 files: 1 Iliad, 2 Odyssey, 3 Homeric Hymns, 4 Sophocles, 5 Seven Plays, 6 House of Atreus, 7 Euripides, 8 Metamorphoses, 9 Metamorphoses, 10 Aeschylus, 11 Argonautica, 12 Aeneid, 13 Age of Fable, 14 Fall of Troy, 15 Pausanias, 16 Pausanias, 17 Pindar, 18 Alcestis, 19 Electra, 20 Hecuba, 21 Medea, 22 Bacchae, 23 Trojan Women, 24 Iphigenia, 25 Rhesus, 26 Hippolytus, 27 library, 28 library, 29 Thebaid, 30 Heroides, 31 Diodorus, 32 Diodorus.
+**greek** — 31 files: 1 Iliad, 2 Odyssey, 3 Homeric Hymns, 4 Sophocles, 5 Seven Plays, 6 House of Atreus, 7 Euripides, 8 Metamorphoses, 9 Metamorphoses, 10 Aeschylus, 11 Argonautica, 12 Aeneid, 13 Age of Fable, 14 Fall of Troy, 15 Pausanias, 16 Pausanias, 17 Pindar, 18 Alcestis, 19 Electra, 20 Hecuba, 21 Medea, 22 Bacchae, 23 Trojan Women, 24 Iphigenia, 25 Rhesus, 26 Hippolytus, 27 library, 28 library, 30 Heroides, 31 Diodorus, 32 Diodorus. Ordinal 29 was Statius's Thebaid, removed 2026-09-04 on OCR quality; see the Greek section.
 
-**chinese** — 11 files: 1 San Kuo, 2 San Kuo, 3 mission to heaven, 4 三國, 5 three kingdoms, 6 Hung Lou Meng, 7 Hung Lou Meng, 8 水滸, 9 西遊, 10 紅樓夢, 11 封神.
+**chinese** — out of the dataset as of 2026-09-04 (was 11 files: 1 San Kuo, 2 San Kuo, 3 mission to heaven, 4 三國, 5 three kingdoms, 6 Hung Lou Meng, 7 Hung Lou Meng, 8 水滸, 9 西遊, 10 紅樓夢, 11 封神); see the Chinese section.
 
-81 files in all.
+69 literature files in all: oz 29, holmes 9, greek 31. Beside them in the public dataset sit `graphrag-bench/` (20 text files) and `longmemeval/` (about 18,800 session files), both unpacked by script; the 142 paper PDFs travel in a private dataset.

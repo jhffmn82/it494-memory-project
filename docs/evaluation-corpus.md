@@ -1,6 +1,6 @@
 # The datasets, and what each demands of the build
 
-**2026-08-28, amended 2026-08-30.** Three are downloaded and verified. This is the list every build step gets checked
+**2026-08-28, amended 2026-08-30 and 2026-09-04.** Three are downloaded and verified. This is the list every build step gets checked
 against: if a stage cannot serve a row here, it is not done.
 
 ## The handle
@@ -9,11 +9,11 @@ against: if a stage cannot serve a row here, it is not done.
 |---|---|---|---|
 | **GraphRAG-Bench** novels | in repo, verified | QA accuracy against 9 published baselines, token cost, the cells ablation, resolution arms downstream | plain-text loader, splitting per the unit contract, the retrieval and answer path |
 | **Hand-labelled aliases**, one novel | **does not exist. Build first** | merge precision and recall from the very first ingest | nothing special; it is the day-one smoke test |
-| **Our 81-work corpus** | in repo | the fixtures: Tip becoming Ozma, Watson's wound, the deerstalker, Helen and Troy, clean text against OCR | supersession, `rank: deprecated`, the quote gate |
+| **Our 69-work corpus** | in repo | the fixtures: Tip becoming Ozma, Watson's wound, the deerstalker, Helen and Troy | supersession, `rank: deprecated`, the quote gate |
 | **BookCoref** | **not fetched** | coreference F1 against published numbers on full books | `Mention.span`, a character offset into the source, plus a CoNLL scorer |
 | **CORE-KG's pipeline** on our corpus | not attempted | duplication rate head to head, same corpus and model | their code, GraphRAG 0.3.2, their seven prompts retyped for narrative |
-| **LongMemEval** | oracle in repo, `_s` on demand | Zep parity, 78 knowledge-update questions, 133 temporal-reasoning | chat loader, `Document.occurred_at` populated, speaker recoverable from unit text |
-| **NarrativeQA subset** | in repo, verified | QA over 12 works we already hold, 345 questions with reference answers | nothing beyond the GraphRAG-Bench paths; same three arms |
+| **LongMemEval** | `_s` is the source, unpacked one file per session; oracle unused | Zep parity, 78 knowledge-update questions, 133 temporal-reasoning | chat loader, `Document.occurred_at` populated, speaker recoverable from unit text |
+| **NarrativeQA subset** | in repo, verified | QA over 11 works we already hold, 319 questions with reference answers | nothing beyond the GraphRAG-Bench paths; same three arms |
 | **The personal archive** | in another repo | nothing. Design rationale only, never evidence | not an input |
 
 ## What that implies for the code
@@ -28,12 +28,11 @@ is why none of them can be deferred to an evaluation phase.
 | Per-signal candidate scores, rejects included | every resolution arm, merge precision | one full ingest per arm instead of a replay |
 | Node lineage, mentions to node | duplicate rate, cluster purity | cannot be reconstructed after merging |
 | Per-stage call and token counts by tier | the cost result, requirement 6 | re-run everything |
-| Loader and evaluator as the only dataset-aware code | all six | dataset logic leaks into the pipeline and every new set touches the middle |
+| Fetch and unpack scripts and the evaluator as the only dataset-aware code; the loader sniffs the format from the bytes | all six | dataset logic leaks into the pipeline and every new set touches the middle |
 
 **The order this forces.** The alias set and the fixtures run against the first working ingest. The
 GraphRAG-Bench numbers come next because everything else is scoped by whether the QA path works at
-all. BookCoref and the CORE-KG run are additive and can slip. LongMemEval is spring, and it is the
-only one needing a loader shape we have not built.
+all. BookCoref and the CORE-KG run are additive and can slip. LongMemEval is fall: its session loader is the one to get exactly right, and the parity arm is scored at the evaluation step.
 
 ---
 
@@ -87,7 +86,7 @@ ICLR 2025, **MIT**, `github.com/xiaowu0162/LongMemEval`, HuggingFace `xiaowu0162
 |---|---|
 | Questions | **500**, gold answers, gold answer-session ids |
 | Types | temporal-reasoning 133, multi-session 133, **knowledge-update 78**, single-session-user 70, single-session-assistant 56, single-session-preference 30 |
-| Splits | `oracle` 15 MB (committed), `_s` 278 MB (fetch on demand), `_m` 2.7 GB (not used) |
+| Splits | `_s` 278 MB (the source, unpacked to one JSON file per session, about 18,800); `oracle` 15 MB, `_s_cleaned` 277 MB, `_m` 2.7 GB (not used) |
 
 **Why.** Zep published on `_s`: 63.8% with gpt-4o-mini against a 55.4% full-context baseline. It is
 the parity check against the system this reimplements. And its **78 knowledge-update questions test
@@ -119,14 +118,13 @@ The split units for Oz, Holmes, and Greek are public at
 kaggle.com/datasets/jhffmn/it494-narrative-corpora-units: 69 documents, 1,301
 units, per-corpus and combined files. Verified 2026-09-01 against the raw
 files in this repo: every document matches its source by sha256, every
-sampled span re-slices byte-exact, positions are contiguous, and the Statius
-Thebaid is excluded on OCR quality as documented. Chinese follows.
+sampled span re-slices byte-exact, positions are contiguous, and the Statius Thebaid file is removed from the dataset, provenance and reason in SOURCES.md. chinese/ is out of the dataset.
 
 ## Reproducing
 
 ```bash
-python scripts/fetch_benchmarks.py         # GraphRAG-Bench + LongMemEval oracle
-python scripts/fetch_benchmarks.py --all   # adds longmemeval_s and _s_cleaned (278 MB each) and the full NarrativeQA csvs
+python scripts/fetch_benchmarks.py         # GraphRAG-Bench + LongMemEval oracle (not used; `_s` is the source)
+python scripts/fetch_benchmarks.py --all   # adds longmemeval_s (the source) and _s_cleaned (not used), 278 MB each, and the full NarrativeQA csvs
 ```
 
 Hashes in `data/benchmarks/manifest.json`.

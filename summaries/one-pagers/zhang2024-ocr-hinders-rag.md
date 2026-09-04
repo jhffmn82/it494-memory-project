@@ -27,7 +27,8 @@ at: https://github.com/opendatalab/OHR-Bench
 Kills the input-degradation angle. This is exactly the question of how OCR quality cascades into
 a retrieval-augmented pipeline, with a benchmark. The OCR tax control in this project's Chinese
 corpus is therefore an established method applied to a new setting, not a new instrument -
-weaker as a claim, stronger as science, and now citable.
+weaker as a claim, stronger as science, and now citable. That control left the fall slate with
+chinese/ on 2026-09-04 and returns only if the folder does.
 
 Read from: **abstract only**. Added 2026-08-27 during the novelty reassessment. Full-text read
 outstanding; do not cite specifics beyond the abstract until that is done.

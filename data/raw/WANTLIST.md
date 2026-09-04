@@ -1,7 +1,7 @@
 > **BODY SECTIONS ARE STALE, the closing summary table is correct.** Corrected 2026-08-28.
 > The per-corpus sections below still describe the mid-acquisition state (Oz 28 of 28, Greek 13
-> of ~24, Chinese 3 of 4). Actual counts are Oz 29, Greek 32, Holmes 9, Chinese 11, totalling 81
-> files and roughly 6.84M words. Several items still listed as HUNT are on disk: the Woggle-Bug
+> of ~24, Chinese 3 of 4). Actual counts are Oz 29, Greek 31, Holmes 9, totalling 69
+> files and roughly 5.15M words (recounted 2026-09-04: chinese/ out, the Thebaid removed). Several items still listed as HUNT are on disk: the Woggle-Bug
 > Book, Apollodorus, Pausanias, Quintus, Heroides, Pindar and the extra Euripides. Trust the
 > summary table and `manifest.json`, not these section headers.
 
@@ -96,7 +96,7 @@ two thousand words. Not worth effort unless they turn up free.
 
 ---
 
-## Greek: the hunt closed at 32 files
+## Greek: the hunt closed at 32 files, 31 in the dataset
 
 **Target definition.** Every surviving classical source that asserts facts about the Greek
 pantheon and heroes, available in public domain English. The point of this corpus is
@@ -122,7 +122,7 @@ Every item on the original hunt list except Hyginus was acquired: Apollodorus's
 Bibliotheca in two volumes, nine further Euripides plays beyond volume I,
 Pausanias in two volumes, Quintus Smyrnaeus's Fall of Troy, Ovid's Heroides,
 Pindar's Odes, and Diodorus in two volumes. The Statius Thebaid was downloaded
-and then excluded on OCR quality; the file stays on disk and stays unused.
+and then removed from the dataset on OCR quality; SOURCES.md keeps the provenance and the reason.
 Hyginus remains BLOCKED, no public domain English translation.
 
 ### Decide
@@ -133,7 +133,7 @@ is to exclude them for now and revisit if the Greek set proves too small, which 
 
 ---
 
-## Chinese: 3 of 4 novels present, only 1 of them complete
+## Chinese: out of the dataset since 2026-09-04; 3 of 4 novels acquired, only 1 of them complete
 
 **Target definition.** The Four Great Classical Novels, complete, in English.
 
@@ -157,8 +157,7 @@ whitespace-based rule in the pipeline show itself, since Chinese does not delimi
 spaces. The Three Kingdoms file already demonstrates the problem, reporting 20,000 "words" for
 1.86 MB of text.
 
-**DECIDE.** Whether the Chinese corpus is an English corpus that happens to be incomplete, or a
-Chinese corpus that is complete. It cannot be both.
+**RESOLVED 2026-09-04, out.** chinese/ is out of the dataset; whether it is an English corpus that happens to be incomplete or a Chinese corpus that is complete is asked again only if the folder returns.
 
 ### Also worth considering
 
@@ -171,15 +170,14 @@ to exist and has not been checked.
 
 ## Summary: nothing acquirable is still missing
 
-81 files, roughly 6.8M words. Everything not present is blocked, quality-degraded, or an open
-scope decision. Nothing is merely unfetched.
+69 files, roughly 5.15M words (chinese/ out and the Thebaid removed, 2026-09-04). Everything not present is blocked, quality-degraded, or a scope decision. Nothing is merely unfetched.
 
 | Corpus | Files | Words | State |
 |---|---|---|---|
 | Oz | 29 | ~1.28M | Baum's 14, five companions, the Woggle-Bug Book, Thompson 1921-1930 |
 | Holmes | 9 | ~0.69M | The complete canon of sixty |
-| Greek | 32 | ~3.36M | Every major narrative source in public domain English |
-| Chinese | 11 | ~1.52M | Complete in Chinese, permanently partial in English |
+| Greek | 31 | ~3.19M | Every major narrative source in public domain English |
+| Chinese | 0 | — | Out of the dataset since 2026-09-04; 11 files acquired, complete in Chinese, permanently partial in English |
 
 ### Blocked: no public domain English source exists
 
@@ -197,15 +195,13 @@ scope decision. Nothing is merely unfetched.
 the scan is unusable: 18th century printing uses the long s, which OCR renders as "f"
 throughout. A real line reads "It muft oertoly be an infinite Fleafure to perafe". Entity
 extraction on this would produce garbage. The 1928 Loeb (`volumeiithebaidb0002publ`) is cleaner
-but covers only books 5 to 12 and is bilingual. Recommend excluding Statius unless the Theban
-war becomes load-bearing.
+but covers only books 5 to 12 and is bilingual. Removed from the dataset 2026-09-04 on that basis; SOURCES.md keeps the provenance and the reason.
 
 ### Degraded but usable, recorded so it is not discovered later
 
 Bilingual Loeb editions interleave Greek or Latin with English in their OCR: both Apollodorus
 volumes and Ovid's Heroides. Three of the Chinese files and the Richard Journey to the West are
-OCR from page scans. The Three Kingdoms proofread duplicate exists precisely to put a number on
-what that costs.
+OCR from page scans. The Three Kingdoms proofread duplicate was there to put a number on what that costs; it went out with chinese/ on 2026-09-04 and returns only if the folder does.
 
 ### Open scope decisions, not acquisition problems
 
@@ -214,8 +210,7 @@ what that costs.
 2. **Herodotus, Plutarch, Aristophanes.** They touch the mythological corpus without being
    sources for it. Recommend excluding.
 3. **Holmes apocrypha**, two short pieces, perhaps 2,000 words.
-4. **Machine-translating the Chinese originals.** Three Kingdoms can calibrate the error,
-   because it exists as Chinese original, human English translation, OCR and proofread text.
+4. **Machine-translating the Chinese originals.** RESOLVED 2026-09-04, out: the translation control left with chinese/ and returns only if the folder does. Three Kingdoms was the calibration source, existing as Chinese original, human English translation, OCR and proofread text.
 
 ### On what "comprehensive" means for Greek
 

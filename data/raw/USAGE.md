@@ -2,8 +2,9 @@
 
 Companion to `SOURCES.md`, which records where every file came from, and `WANTLIST.md`, which
 records what is absent and why. This file records what the corpora are *for*: which property
-each one exercises, which controls are deliberately built into them, and how the two known
-error sources, OCR and machine translation, get measured rather than assumed.
+each one exercises, and which controls were designed into them so the two known error sources,
+OCR and machine translation, could be measured rather than assumed. Both controls live in
+chinese/, which left the dataset on 2026-09-04; they return only if the folder does.
 
 Nothing here should be read as a result. These are design notes written before the pipeline
 runs, and the whole point of the controls below is that they turn assumptions into numbers.
@@ -11,14 +12,15 @@ runs, and the whole point of the controls below is that they turn assumptions in
 ## The ladder
 
 The four corpora are ordered so each adds exactly one hard problem to the one before it. That
-ordering is the reason there are four rather than one large pile.
+ordering is the reason there are four rather than one large pile. Three are in the dataset;
+Chinese, the fourth, left it on 2026-09-04 and returns only if the folder does.
 
 | Corpus | Adds | Use it to |
 |---|---|---|
 | **Oz** | Nothing adversarial. One world, one continuous canon | Build the pipeline. Establish that ingest, organize and maintain work at all |
 | **Holmes** | Contradiction inside one author, plus a contamination probe | Test supersession where no reconciling reading exists. Detect the store being bypassed |
 | **Greek** | Contradiction between independent authors, and two clocks | Test corroboration and source weighting. Force the bitemporal model |
-| **Chinese** | Mixed source quality, and a non-English option | Measure OCR and translation error. Test the model-agnostic claim |
+| **Chinese** (out since 2026-09-04) | Mixed source quality, and a non-English option | Measure OCR and translation error. Test the model-agnostic claim. Both wait on the folder's return |
 
 Work in that order. A pipeline that cannot handle Oz will not produce interpretable results on
 Greek, and a failure on Greek would be impossible to attribute.
@@ -74,7 +76,7 @@ sources disagreeing, because authorship is held constant.
 
 ### Greek: disagreement, and the second clock
 
-Thirty-two files spanning roughly a thousand years of authorship and nine translators.
+Thirty-one files spanning roughly a thousand years of authorship and nine translators.
 
 **Cross-language aliasing with free ground truth.** Ovid names in Latin what Homer names in
 Greek. Odysseus and Ulysses, Zeus and Jupiter, Heracles and Hercules. Hundreds of pairs,
@@ -105,7 +107,8 @@ is part of the difficulty rather than a defect, but any result on this corpus mu
 
 ### Chinese: the measurement corpus
 
-Eleven files. Complete in Chinese, permanently partial in English.
+Eleven files, out of the dataset since 2026-09-04 and back only if the folder returns. Complete
+in Chinese, permanently partial in English.
 
 This corpus is where the two error sources that affect everything else become measurable,
 because it is the only place the same content exists in multiple forms. Its literary content is
@@ -119,8 +122,9 @@ alone never provided, since those four share a cosmology but not their mortal ca
 
 ## The controls
 
-Two deliberate redundancies are built into `data/raw/`. Neither is an accident, and neither
-should be deduplicated away by a tidying pass.
+Two deliberate redundancies were built into `data/raw/` through chinese/; both left the fall
+slate with that folder on 2026-09-04 and return only if it does. Neither is an accident, and
+neither should be deduplicated away by a tidying pass.
 
 ### Control 1: the OCR tax
 
@@ -133,9 +137,8 @@ resulting entity set, alias ledger and fact rows is attributable to OCR error, b
 content is otherwise identical. That number is the OCR tax, obtained with no hand annotation.
 
 **Why it matters here.** Several files in this collection are OCR from scans rather than
-proofread transcription: three of the Chinese files, the Richard Journey to the West, both
-Apollodorus volumes, the Diodorus volumes, and the Statius that is being excluded on quality
-grounds. Without this control, any result on those files carries an unquantified error term.
+proofread transcription: both Apollodorus volumes and the Diodorus volumes. The three Chinese
+scans left with chinese/, and the Statius scan was removed from the dataset on quality grounds. Without this control, any result on those files carries an unquantified error term.
 
 ### Control 2: the translation tax
 
@@ -149,8 +152,8 @@ confound: if a fact is missing from the pipeline's output, translation error and
 error are indistinguishable, and for a project whose entire purpose is measuring what the
 pipeline does, that is fatal.
 
-**Why Three Kingdoms resolves it.** It is the only novel in this collection that exists in all
-of these forms at once:
+**Why Three Kingdoms resolves it.** It is the only novel fetched for this project that exists in
+all of these forms at once; every file in the table is in chinese/ and left with it:
 
 | Artifact | File |
 |---|---|
@@ -206,26 +209,29 @@ visible from the text alone.
   (Archive.org). Recorded per work in each corpus manifest via `source_url`.
 - **Bilingual interleaving.** Loeb editions print facing-page originals, so their OCR mixes
   Greek or Latin into the English. Affects both Apollodorus volumes and Ovid's Heroides.
-- **Abridgement.** The Richard Journey to the West is roughly one sixth of the novel. Joly's
-  Dream of the Red Chamber stops at chapter 56 of 120.
+- **Abridgement.** Both known cases are in chinese/ and out with it: the Richard Journey to the
+  West is roughly one sixth of the novel, and Joly's Dream of the Red Chamber stops at chapter 56
+  of 120.
 - **Translator identity.** Not held constant within the Greek corpus, and entity naming follows
   the translator.
-- **Language.** Whitespace word counts are meaningless for the Chinese files. The Three Kingdoms
-  original reports about 20,000 "words" for 1.86 MB. Any length-based rule, including chunk
-  size, needs a per-language definition before it is applied.
+- **Language.** Whitespace word counts are meaningless for the Chinese-language files, which
+  left with chinese/; the Three Kingdoms original reports about 20,000 "words" for 1.86 MB. If
+  the folder returns, any length-based rule, including the unit size cap, needs a per-language
+  definition before it is applied.
 
 ## Things not to do
 
-- **Do not deduplicate `chinese/05_77416.txt`.** It looks like a redundant copy of volume 1 and
-  it is the OCR control.
-- **Do not use `greek/29_thebaidstatius00conggoog.txt`.** The 1767 printing's long-s renders as
-  "f" throughout the OCR. A real line reads "It muft oertoly be an infinite Fleafure to perafe".
-- **Do not quote word counts for the Chinese-language files.** See above.
+- **Do not deduplicate `chinese/05_77416.txt` if chinese/ returns.** It looks like a redundant
+  copy of volume 1 and it is the OCR control.
+- **Do not restore `greek/29_thebaidstatius00conggoog.txt`.** Removed from the dataset on
+  2026-09-04: the 1767 printing's long-s renders as "f" throughout the OCR (a real line reads "It
+  muft oertoly be an infinite Fleafure to perafe"). `SOURCES.md` keeps the provenance and the reason.
+- **Do not quote word counts for the Chinese-language files if chinese/ returns.** See above.
 - **Do not treat Archive.org hosting as evidence of public domain status.** Check the
   `collection` field: institutional programmes such as `cornell`, `americana` and
   `graduatetheologicalunion` carry rights review, while `opensource` and `community` are user
   uploads that carry none.
-- **Do not trust Archive.org catalogue metadata.** Two records in this collection are wrong. The
+- **Do not trust Archive.org catalogue metadata.** Two records among the files fetched for this project are wrong, both in chinese/. The
   San Kuo identifier suffixes are reversed relative to volume order, and *A Mission to Heaven*
   is credited to Li Zhichang, who wrote a different work with the same English title. Both were
   caught by reading content. See `SOURCES.md`.

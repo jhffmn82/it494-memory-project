@@ -85,6 +85,12 @@ source class follows the sniffed format; Kaggle now, desktop tool later; old uni
 reference and Justin's review becomes the fixture; LongMemEval is fall. Question sets are not
 part of Step 0.
 
+The living docs were then corrected to the rulings in one commit (README.md, SCHEMA.md,
+BUILD.md, RESEARCH.md, docs/proposal.md, docs/evaluation-corpus.md, data/raw/SOURCES.md,
+USAGE.md, WANTLIST.md): 87 verified edits from a sweep of every living markdown file, each
+checked against the rulings by a second reader. Dated logs and the paper one-pagers were
+left as historical record, except one note on the OCR control's status.
+
 ## Open
 
 - The unit cap and the tail floor (words), proposed by the extractor chat, ruled by Justin.

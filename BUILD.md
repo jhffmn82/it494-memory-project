@@ -6,20 +6,16 @@ The records themselves are defined in SCHEMA.md.
 
 Every dataset enters through a loader that emits documents and units and
 nothing else, and is scored by an evaluator that reads the finished store and
-computes one metric. A loader must fill `author` and `source_class`, may fill
+computes one metric. A loader must fill `author` (quote-backed from the file bytes, or flagged unknown) and `source_class` (from the sniffed format), may fill
 `occurred_at` and `label`, may not add fields, and the system may not branch
-on which loader ran. The format is sniffed from the bytes, never taken from a
-flag. Structured inputs (a transcript with turns, a metadata record per
-abstract) become units directly with no model call. Unstructured text is
+on which loader ran. The loader sees the file bytes and nothing else: the format is sniffed from them, never taken from a flag, and no manifest, metadata record, or question set is an input. Structured inputs (a chat session with turns) become units with no model call. A paper is the text layer of its PDF, read through one dependency: the whole paper is the document, its sections the units, the abstract first. Unstructured text is
 split by one model call per document that proposes verbatim marker lines
 (body start, body end, headings) from a compressed view of the text; code
-locates the markers and cuts, the three gates verify, and the split plan is
-stored per document so a re-run is a replay. There are no per-work or
+locates the markers and cuts, the three gates verify, and the split plan is stored per document so a re-run is a replay. On either path a unit is a size-bounded run of the document's natural pieces (chapters, turns, sections), cut only at a piece boundary, never a turn alone, with a short tail merged into the unit before it. There are no per-work or
 per-corpus rules in the splitter; a document the gates reject is stored as
 one unit and flagged, never dropped. Gold files and
 question sets keep whatever shape they shipped in, because each evaluator is
-dataset-specific by definition. Adding a dataset is one loader plus one
-evaluator; anything that cannot be expressed that way means the schema is
+dataset-specific by definition. Adding a dataset is one fetch or unpack script that lays raw files and their manifest on disk, one evaluator, and a loader only when the sniffed format is new; anything that cannot be expressed that way means the schema is
 missing a field.
 
 Ingest runs in corpus order. A book loaded all at once is static and tests

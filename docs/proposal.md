@@ -44,9 +44,7 @@ entity under a new name. That is the same event, structurally, as a course
 pivoting or a colleague changing jobs, and it arrives with ground truth
 attached.
 
-Four public-domain corpora are already assembled, 81 files and about 6.9
-million words: the Oz canon, the complete Sherlock Holmes, the major Greek
-mythological sources, and the Chinese classical novels. Oz supplies the
+Three public-domain corpora are already assembled, 69 files and about 5.2 million words: the Oz canon, the complete Sherlock Holmes, and the major Greek mythological sources. Oz supplies the
 supersession fixture and a mid-canon change of author. Holmes contributes a
 contradiction Doyle never reconciled and a contamination probe:
 the deerstalker cap belongs to the illustrations, not the text, so if an
@@ -54,9 +52,7 @@ induced description of Holmes contains one, the description came from the
 model's training and not from my store. The Greek corpus supplies
 irreconcilable disagreement between sources and hundreds of free
 entity-resolution test pairs, since Ovid names in Latin what Homer names in
-Greek. The Chinese corpus holds the same novel as proofread text, raw OCR,
-and machine translation, which lets me measure what OCR error and translation
-error each cost the pipeline.
+Greek.
 
 The visible artifact is a wiki assembled mechanically from the store: infobox
 from fact rows, lead paragraph from the entity summary, biography from the
@@ -101,9 +97,7 @@ a serverless design can show up.
 Second, resolution accuracy against a hand-labeled alias set over one novel,
 built in the first week and scored from the very first ingest.
 
-Third, question answering on NarrativeQA, which happens to include 345
-human-written questions over twelve books already in my corpora, run through
-the same three arms.
+Third, question answering on NarrativeQA, which happens to include 319 human-written questions over eleven books already in my corpora, run through the same three arms.
 
 Fourth, the instruments that fall out of running the pipeline at all:
 duplicate entities minted per chapter, the rate at which extracted quotes
@@ -113,11 +107,7 @@ entity-level summaries, which describe the same text independently and catch
 each other's omissions, and the cost of keeping summaries current as the
 corpus grows, set against published figures for full-rebuild systems.
 
-Fifth, the corpus controls: the OCR tax and the translation tax, each
-isolated by comparing pipeline output over the same content in two forms.
-
-If the schedule holds, one stretch item: LongMemEval, the chat-memory
-benchmark where the nearest commercial system published its numbers. I run
+Fifth, LongMemEval, the chat-memory benchmark where the nearest commercial system published its numbers, one session per document. I run
 the full-context arm first to prove my harness reproduces their baseline,
 then the 78 questions that test knowledge updates, which is supersession
 under its benchmark name. The full comparison belongs to spring.
@@ -137,10 +127,7 @@ weeks between them where nothing gets scheduled.
 
 By September 2 a single chapter runs end to end: split, cast identified,
 entities and facts extracted behind the quote gate, chapter and entity
-summaries written, and a small graph rendered. By September 14 all four
-corpora are split into clean, verified units and published as a public
-dataset, which is the reproducibility piece: everything is public domain, so
-anyone can rerun the study. By September 27 the store and pipeline have run
+summaries written, and a small graph rendered. By September 14 the three corpora are split into clean, verified units and published as a public dataset under MIT, which is the reproducibility piece: everything in it is public domain or MIT-licensed, so anyone can rerun the study. By September 27 the store and pipeline have run
 over the first Oz book at three model tiers and the alias set is scored. The
 benchmark arms and the ablation run October 19 to 26, right after the exam
 block. The dataset gets its DOI by November 10, the paper freezes November
@@ -152,7 +139,7 @@ points it at real chat exports, and ships something a person can install.
 That work is out of scope for the fall.
 
 Hours are the binding constraint; the compute is a few dollars to a few
-hundred at batch rates for the full four-corpus run. The plan in the
+hundred at batch rates for the full three-corpus run. The plan in the
 repository prices every slate item against the open weeks and carries a cut
 order decided now rather than in November. When something slips, I cut from
 the bottom of that order and keep the committed measurements.

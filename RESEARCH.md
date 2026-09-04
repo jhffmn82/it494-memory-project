@@ -91,11 +91,10 @@ The dataset contract, row by row, is `docs/evaluation-corpus.md`. The slate:
 |---|---|---|
 | GraphRAG-Bench novels: full system, no-context control, flat retrieval, then the resolution ablation (co-occurrence and profile signals off, name matching alone) | 9 published gpt-4o-mini baselines, gold answers and evidence, 2,010 questions | the main paid run; the ablation is a replay, since per-signal candidate scores are logged at ingest |
 | Hand-labeled alias set, one novel | merge precision and recall from the first ingest | half an hour of labeling |
-| NarrativeQA, the 345 questions over 12 works we own | reference answers; same three arms | cheap secondary run |
-| LongMemEval, stretch: full-context parity arm, then the 78-question knowledge-update band | Zep's 63.8 over a 55.4 full-context baseline (gpt-4o-mini, original `_s` file) | ~$9 parity, one paid run |
+| NarrativeQA, the 319 questions over 11 works we own | reference answers; same three arms | cheap secondary run |
+| LongMemEval: full-context parity arm, then the 78-question knowledge-update band | Zep's 63.8 over a 55.4 full-context baseline (gpt-4o-mini, original `_s` file) | ~$9 parity, one paid run |
 | Read cost, refold cost, coverage difference | MemTree's published 3,750 / 3,850 / 3.27 calls per insertion; no gold answers needed | free |
 | The free instruments: rejection rate per stage per tier, duplicate mints per chunk, predicate sprawl, quote-gate pass rate, chunk-versus-cell summary agreement, token cost per arm | our own run logs | free |
-| The OCR tax and the translation tax | Three Kingdoms as proofread text, raw OCR, and machine translation of identical content | cheap runs |
 
 GraphRAG-Bench carries the argument in its own baseline table: the cheapest
 system spends 879 tokens per question, the strongest graph system 1,008, and
@@ -111,8 +110,8 @@ not fact retrieval, so the cells ablation has a built-in target. At n=2,010 a
 2.4-point difference is detectable and ablations typically move 2 to 5.
 
 Two LongMemEval files exist because the original was revised: Zep's numbers
-are on the original `_s`, so comparisons run there; our own standalone numbers
-use the cleaned file. Quoting one against the other is invalid. Run the
+are on the original `_s`, so every run uses `_s`; the cleaned file is not
+used. Quoting one against the other is invalid. Run the
 full-context arm first: if it reproduces 55.4, the harness is comparable; if
 not, say so instead of claiming parity.
 
@@ -158,7 +157,7 @@ Never presented as results.
 Rates fetched 2026-08-27 and perishable. Per chunk the pipeline makes one
 entity pass, one fact pass, and N cell calls, each re-sending the chunk text;
 batching the cell calls is 2.3x on total input and 5x on the dominant part,
-so it is built in from the start. Full four-corpus run, batched: $2.30 on the
+so it is built in from the start. Full four-corpus run (costed before the Chinese corpus left), batched: $2.30 on the
 cheapest model, $34 to $168 across the three mainline tiers, $335 at the top,
 a 146-fold spread, which is why tier sensitivity gets measured rather than
 assumed. The pilot is about $2.
@@ -223,8 +222,8 @@ exports carry no stable conversation id, so a re-export mints duplicates
 wholesale and content-hash idempotence alone will not save you. Only the
 newest takeout per vendor gets parsed today, so older archives with unique
 conversations are silently skipped; state the denominator on every corpus
-statistic. The LongMemEval loader must decide what counts as a document, one
-session or the whole haystack, before it is written. The prototype also
+statistic. The LongMemEval loader is fall work and settled: a session is a document,
+unpacked once to one JSON file per distinct non-empty session. The prototype also
 retired one entity layer for being rebuilt nightly and consumed by nothing; an
 entity index earns trust only after it is built from the ledger and wired into
 a recall surface. Re-ingesting the personal archive is the eventual goal and
