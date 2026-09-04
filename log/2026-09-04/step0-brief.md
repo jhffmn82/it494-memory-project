@@ -45,10 +45,13 @@ author is flagged, never guessed.
 
 **1. One raw dataset on Kaggle holding everything.** Folders `oz/`, `holmes/`, `greek/` from
 the existing raw dataset (https://www.kaggle.com/datasets/jhffmn/it494-narrative-corpora-raw),
-plus `longmemeval/` (the JSON from `data/benchmarks/`) and `arxiv/` (abstracts as JSONL for
-the papers in `papers/`, built from arXiv metadata; check redistribution terms and note them
-in the manifest). Each folder carries a manifest with sha256, source URL, and license. Local
-transcripts are not uploaded; they are a local smoke test only.
+plus `graphrag-bench/` (the 20 public-domain novels in `data/benchmarks/graphrag-bench/novel.json`,
+MIT licensed, one document each; this is the primary evaluation corpus), `longmemeval/` (the
+JSON from `data/benchmarks/`), and `arxiv/` (abstracts as JSONL for the papers in `papers/`,
+built from arXiv metadata; check redistribution terms and note them in the manifest). Each
+folder carries a manifest with sha256, source URL, and license. NarrativeQA needs no new text:
+its 12 works are already in the literature folders. Local transcripts are not uploaded; they
+are a local smoke test only.
 
 **2. The extractor**, as a Kaggle notebook first, with the repo holding the copy. Contract:
 `load(path) -> documents, units`. Two paths, chosen by sniffing the bytes: structured inputs
@@ -70,7 +73,8 @@ version of the units dataset and the input to the ingestion notebook.
 ## Acceptance
 
 - Every one of the 69 existing works reproduces its known unit count without a per-work
-  entry, or is flagged with a reason. The eleven works the old splitter left as one unit
+  entry, or is flagged with a reason. The 20 GraphRAG-Bench novels split into chapters or are
+  flagged; their unit counts become the fixture for the next run. The eleven works the old splitter left as one unit
   either split or are recorded as one unit by my decision.
 - LongMemEval sessions and arXiv abstracts load with zero model calls.
 - Every unit's slice of its document text is exactly what the splitter cut; every document's
