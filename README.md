@@ -54,7 +54,9 @@ prior art, and measurement plan in `RESEARCH.md`.
 `SCHEMA.md` and `BUILD.md` are the consolidated design and are edited only when a decision is
 settled. Dated folders under `log/` are working notes from design sessions and experiment runs;
 they are provisional, may propose alternatives that contradict the consolidated documents, and
-mark such proposals as PROPOSED until ruled on. Executable prototypes live in linked Kaggle
+mark such proposals as PROPOSED until ruled on. The same applies to any defect, fix, or rule that
+originates from an assistant or an outside review rather than from the author: it is PROPOSED,
+with the design principle it rests on stated in one sentence, until the author rules. Executable prototypes live in linked Kaggle
 notebooks whose code and saved outputs are copied into the matching `log/` folder; accepted
 findings are folded back into `SCHEMA.md` and `BUILD.md` periodically. `log/README.md` is the
 index of sessions and notebooks.
