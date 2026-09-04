@@ -44,6 +44,12 @@ Deficient against SCHEMA.md and BUILD.md:
   level this is quadratic in documents, and the judge was two thirds of the cost.
 - Reconciliation is whole-document batch; nothing incremental, nothing persists across documents.
   The `different` set dies with the run.
+- A `different` verdict is not a hard constraint. The kept-apart set is keyed by cluster roots at
+  decision time and union() never checks it, so A judged different from C can still end up in one
+  cluster via A=B then B=C. Treat a different verdict as a component-level cannot-link and check it
+  before every union. (Found by an outside review of the notebook, 2026-09-03; verified in cell 7.)
+- The spending stop is checked before a call, so one large final call can overshoot it; reserve an
+  estimated maximum before submitting.
 - No embeddings anywhere.
 - Salience is per unit; 70 of 141 majors were single-unit events. No document-level salience.
 - Cells are generated only for named entities, so unnamed majors ("the house") get no thread.
