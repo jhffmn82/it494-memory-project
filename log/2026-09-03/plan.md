@@ -44,16 +44,15 @@ Deficient against SCHEMA.md and BUILD.md:
   level this is quadratic in documents, and the judge was two thirds of the cost.
 - Reconciliation is whole-document batch; nothing incremental, nothing persists across documents.
   The `different` set dies with the run.
-- A `different` verdict is not a hard constraint. The kept-apart set is keyed by cluster roots at
-  decision time and union() never checks it, so A judged different from C can still end up in one
-  cluster via A=B then B=C. Treat a different verdict as a component-level cannot-link and check it
-  before every union. (Found by an outside review of the notebook, 2026-09-03; verified in cell 7.)
-  Fix: store cannot-link pairs on LOCAL member ids, not roots; union(a, b) refuses when any member
-  of one cluster is cannot-linked to any member of the other and returns False; a refused same
-  verdict is written to the ledger as a conflict with both dossiers, never dropped silently; the
-  candidate filter uses the same test. In the global merge keep a per-cluster set of forbidden
-  partner clusters merged on union. Fixture: A different C, then A same B, B same C, assert two
-  clusters and one conflict row (the injected-defect test the standing rule requires).
+- An outside review (ChatGPT, 2026-09-03) called the transitive case a bug: A judged different
+  from C can still end in one cluster via A=B then B=C. Justin's ruling: NOT a bug, and the
+  cannot-link fix first logged here is WITHDRAWN. The B=C union is itself a judge verdict made on
+  the combined A+B dossier against C, i.e. on strictly more evidence than the early A-C verdict.
+  "We can't use the judgement of the judge to prevent the later judgement of the judge." Rule
+  of record: a different verdict never vetoes; it is recorded with the dossiers it was made on; a
+  later verdict may reverse it only on a strictly larger dossier and the ledger records the
+  reversal pointing at both verdicts; runaway is contained by the existing guards (cluster size
+  cap, merge rate per unit). Instrument: the reversal rate and the evidence delta per reversal.
 - The spending stop is checked before a call, so one large final call can overshoot it; reserve an
   estimated maximum before submitting.
 - No embeddings anywhere.
