@@ -11,3 +11,5 @@ their saved outputs as run.
   dataset list, proposed schema additions for ruling, pick-up checklist for the PC.
   Plan: [plan.md](2026-09-03/plan.md), a deficiency review of both notebooks and a step-by-step
   build plan with tools, acceptance tests, sizes, and how users feed it documents.
+  Search: [claim-search.md](2026-09-03/claim-search.md), adversarial prior-art search on the
+  voice-lineage collision rule; verdict partially occupied, two measurements survive.
