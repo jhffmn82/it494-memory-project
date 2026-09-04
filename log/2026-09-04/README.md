@@ -72,13 +72,24 @@ twenty things, from the `chinese/` folder and the Thebaid exclusion mechanism to
 ingestion notebook's dependence on unit text. The brief was rewritten against it; the twelve
 decisions it raises are Justin's and are listed at the end of the inventory.
 
+## Rulings on the Step 0 inventory (evening)
+
+Justin ruled all twelve, one at a time; the rulings are recorded in full at the end of
+[inventory.md](inventory.md). The governing rule: the extractor sees raw files and nothing
+else. In short: chinese/ out (NarrativeQA 11 works, 319 questions; OCR and translation
+controls leave the slate); the Thebaid file removed; LongMemEval `_s` unpacked to one file per
+session and a session is a document; units everywhere are size-bounded runs of natural pieces
+cut at piece boundaries; GraphRAG-Bench unpacked to 20 text files; papers as raw PDFs in a
+private dataset with the PDF loader moved to fall; public dataset MIT; manifests are packaging;
+source class follows the sniffed format; Kaggle now, desktop tool later; old unit counts are a
+reference and Justin's review becomes the fixture; LongMemEval is fall. Question sets are not
+part of Step 0.
+
 ## Open
 
-- Chat unit granularity in the extractor: a LongMemEval session as one unit, or turn groups cut
-  by length as the desktop case will need.
-- Sub-splitting: cap unit length and sub-split at paragraph openings, or leave long units whole.
-- Where the extractor code lives: Kaggle notebook first with the repo holding the copy, or a
-  `scripts/extract.py` module the notebook imports.
+- The unit cap and the tail floor (words), proposed by the extractor chat, ruled by Justin.
+- The compressed view for a document that is one line, or nearly all short lines: built from
+  substrings rather than lines; the exact rule is the extractor chat's to propose.
 - Cells for entities promoted to document-major after being unit-minor: accept the missing
   cells, or one extra cells call per promoted entity over the units it lacked.
 - From 09-03, still to rule: the set node, the vector table inside SQLite instead of a
