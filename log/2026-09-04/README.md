@@ -33,10 +33,20 @@ Justin's; open items are marked.
   flag. Outputs: `documents.jsonl` (with text), `units.jsonl` (ranges), `split_plans.jsonl`,
   a receipt. Author and source class are captured at load. BUILD.md updated.
 - **All raw text for the project goes into one Kaggle dataset** (`oz/`, `holmes/`, `greek/`,
-  `longmemeval/`, `arxiv/`, each with a manifest of sha256, source URL, license), and the
-  extractor runs over all of it; the output is the next units dataset. Test set for the
-  ingestor afterward: three Oz books, twenty or so abstracts, a handful of LongMemEval
-  sessions, two Greek works, two Holmes collections.
+  `chinese/`, `graphrag-bench/`, `longmemeval/`, `arxiv/`, each with a manifest regenerated to
+  one schema), and the extractor runs over all of it; the output is the next units dataset.
+  Test set for the ingestor afterward, a sampling of every source type: three Oz books, two
+  Greek works, two Holmes collections, a few GraphRAG-Bench contexts, a handful of LongMemEval
+  sessions, and twenty or so abstracts (the abstract sample moves into the fall test set so
+  the abstract ingestor is locked down early; the abstract demo itself stays spring).
+- **NarrativeQA stays the 12-work, 345-question subset.** NarrativeQA holds 1,572 works of its
+  own (Gutenberg books and film scripts); we do not pull them. The gold joins to our raw
+  files by Gutenberg id; NarrativeQA's own copies were different fetches of the same ids
+  (sizes differ), so edition alignment is checked when the arm is scored.
+- **Order of work from here:** (1) the raw extractor solid against every source in the
+  dataset; (2) the document ingestor against a sampling of each source type, with the
+  abstract path as a first-class case; (3) the global merge. Each gets its own chat with a
+  brief from this log.
 
 ## The merge, as walked through (no change to the 09-03 rules)
 
@@ -48,6 +58,19 @@ name collision, kept-apart pairs persisted, `different` never vetoes a later ver
 larger dossier; commit facts unit by unit in position order with the voice-lineage collision
 rule on functional predicates; cells appended; abstracts refolded where the children hash
 changed; vectors and alias FTS refreshed; package marked applied.
+
+## Inventory of what Step 0 must cover
+
+The first draft of the Step 0 brief was checked against the repository, the disk, and Kaggle
+by five sweeps; the findings are in [inventory.md](inventory.md). It had eleven statements
+wrong (among them: NarrativeQA's twelfth work is in `chinese/`; seventeen works were left
+single, not eleven; nine Archive.org scans have no Gutenberg markers or Author line; the
+GraphRAG-Bench contexts are one line each with markers stripped and nine lack a chapter
+token; the manifests have no license field and `cached` for a URL; LongMemEval is three
+files with no per-turn timestamps; the abstracts were ruled spring on 09-03) and left out
+twenty things, from the `chinese/` folder and the Thebaid exclusion mechanism to the
+ingestion notebook's dependence on unit text. The brief was rewritten against it; the twelve
+decisions it raises are Justin's and are listed at the end of the inventory.
 
 ## Open
 

@@ -17,3 +17,6 @@ their saved outputs as run.
   removed; document-level salience at the end of ingestion; documents as entities; the
   document holds its text once and units are ranges in one coordinate system; the general
   extractor plan and the all-sources raw dataset; open items.
+  Inventory: [inventory.md](2026-09-04/inventory.md), every source audited (format, size,
+  license, fixtures), what the Step 0 brief had wrong or missing, twelve decisions to rule.
+  Brief: [step0-brief.md](2026-09-04/step0-brief.md), the opening message for the extractor chat.
