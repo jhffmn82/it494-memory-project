@@ -1,5 +1,11 @@
 {
-  "title": "IT494 Narrative Corpora (Raw)",
+  "title": "IT494 Raw Corpora",
   "id": "jhffmn/it494-narrative-corpora-raw",
-  "licenses": [{"name": "CC0-1.0"}]
+  "subtitle": "69 public-domain books, 20 GraphRAG-Bench novels, 19,206 LongMemEval sessions",
+  "description": "Raw inputs for the IT 494 memory-backend project, byte-identical to what each source served. Nothing is cleaned or split; the only processing is unpacking two benchmark JSON files into one file per document, by the scripts in the project repository.\n\n**Folders**\n\n- `oz/` (29), `holmes/` (9), `greek/` (31): Project Gutenberg texts, plus six Archive.org institutional scans in greek/. Public domain in the United States by expiry of term.\n- `graphrag-bench/` (20): the novel contexts of GraphRAG-Bench (ICLR 2026), one text file each, unpacked from novel.json. MIT, copyright the GraphRAG-Bench authors; LICENSE included. https://github.com/GraphRAG-Bench/GraphRAG-Benchmark\n- `longmemeval/` (19,206): every distinct non-empty session of LongMemEval-S (ICLR 2025), one JSON file each with session_id, dates, and turns as role and content. MIT, copyright 2024 Di Wu; LICENSE included. https://github.com/xiaowu0162/LongMemEval\n\nEach folder carries a `manifest.json` with bytes and sha256 per file. `SOURCES.md` records where every file came from and why it is here; `USAGE.md` records what each corpus is for.\n\nVersion 2 (2026-09-04) adds the two benchmark folders and removes `chinese/` and the Statius Thebaid; version 1 keeps both. The dataset packaging is MIT; the literature is public domain and the benchmark folders keep their own MIT notices.",
+  "licenses": [
+    {
+      "name": "MIT"
+    }
+  ]
 }
