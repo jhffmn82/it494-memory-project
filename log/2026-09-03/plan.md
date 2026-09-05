@@ -151,7 +151,10 @@ Move the notebook into a module behind BUILD's two interfaces.
   budgeted packer with MMR emitting quote, unit id, offsets, and the raw-file reference; consult
   log row per query; scope from seeds and session, boosting not excluding.
 - Injection arms for the benchmark: full system, no-context control, flat retrieval over units,
-  and one ablation with cells off. Evaluators read the store directly and use the dataset's own
+  and the resolution ablation (the Step 2 merge replayed with co-occurrence and profile off, name
+  matching alone, scored through this same path). A cells-off arm only if hours remain; it is
+  third in README.md's cut order. (Corrected 2026-09-04; the original said one ablation with
+  cells off.) Evaluators read the store directly and use the dataset's own
   scorer.
 - Tools: sqlite-vec, numpy, the serving tier's tokenizer or tiktoken for budgets, GraphRAG-Bench
   scorers as shipped.
@@ -232,6 +235,13 @@ roughly 90 collected papers as abstracts. Rough size: 3 to 4 million words, 4,00
 150,000 facts, 40,000 cells, 5,000 to 8,000 global nodes, about 200,000 vectors at 384 dimensions
 (300 MB), a 1 to 2 GB SQLite file. Brute-force vector search still holds. Cost is the cross-corpus
 judge only; extraction is not repaid.
+
+Superseded 2026-09-04 (log/2026-09-04/inventory.md, rulings 3, 5, 6): LongMemEval `_s` is the
+source with one document per session (about 18,800, most one unit), and the 142 papers load as
+whole PDFs with sections as units, so the combined store is roughly 21,000 to 24,000 units and
+about 35 million words, not 4,000 to 5,000 and 3 to 4 million. Facts, cells, vectors (likely
+0.5 to 1 million, at the edge of brute force), and the SQLite size scale with it and are
+re-estimated after the extractor run.
 
 What it measures, each with its own answer key: interference (GraphRAG-Bench clean vs combined,
 the same shape as LongMemEval oracle vs _s, so precedent exists and it is not a claim); the Oz

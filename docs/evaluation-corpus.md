@@ -8,7 +8,7 @@ against: if a stage cannot serve a row here, it is not done.
 | Dataset | Status | What it tests | What the build must support |
 |---|---|---|---|
 | **GraphRAG-Bench** novels | in repo, verified | QA accuracy against 9 published baselines, token cost, the cells ablation, resolution arms downstream | plain-text loader, splitting per the unit contract, the retrieval and answer path |
-| **Hand-labelled aliases**, one novel | **does not exist. Build first** | merge precision and recall from the very first ingest | nothing special; it is the day-one smoke test |
+| **Hand-labelled aliases**, one novel | **does not exist. Build first** | gold-pair candidate recall, then merge precision and recall, from the very first ingest | nothing special; it is the day-one smoke test |
 | **Our 69-work corpus** | in repo | the fixtures: Tip becoming Ozma, Watson's wound, the deerstalker, Helen and Troy | supersession, `rank: deprecated`, the quote gate |
 | **BookCoref** | **not fetched** | coreference F1 against published numbers on full books | `Mention.span`, a character offset into the source, plus a CoNLL scorer |
 | **CORE-KG's pipeline** on our corpus | not attempted | duplication rate head to head, same corpus and model | their code, GraphRAG 0.3.2, their seven prompts retyped for narrative |
