@@ -75,3 +75,48 @@ Execution order across the nine cells; the record shape and `read_splits`; Pytho
 over all 19,206 sessions (19,211 units, 5 multi-unit sessions, 8 over-cap single turns, 3,944
 ambiguous dates); export sizes within Kaggle limits (about 38 MB of records, 240 MB of
 documents).
+
+## Second pass, over the batch
+
+Twenty-four agents: four lenses (do the thirteen claims hold, what did the batch break, the
+standing rules, will it run top to bottom), one reproducing refuter per finding. 20
+confirmed, 0 refuted. Line numbers refer to the 0.4 script.
+
+1. **`clean()` stripped a real "[n] " prefix and a trailing ellipsis** (five findings; bug,
+   a regression). The copy was cleaned, the line was not, so an exact copy of a footnote
+   line or a reference-list entry never matched: 6,569 of 1,052,711 corpus addresses failed
+   an exact copy (5,778 "[n]" lines, of them 4,383 in papers; about 790 short ellipsis
+   lines). Fix: the copy as given is tried first, the cleaned one second.
+2. **A lone last turn at or over the tail floor stayed a one-turn unit** (line 639). Fix: a
+   tail with fewer than two turns joins the unit before it whatever its size.
+3. **A non-dict title, author, source or date was nulled without a count** (line 433), so
+   no gate fired and the receipt never saw it. Fix: counted as unresolved; `meta_unresolved`
+   summed into the receipt.
+4. **Records from the previous notebook had no `file` key** (line 730), so the first run
+   after upgrading would have re-billed every clean document. Fix: the name is derived from
+   the stored path.
+5. **Two papers with identical bytes** (`novelqa-2024.pdf`, `wang2024-novelqa.pdf`): records
+   keyed by sha256 kept one, and the other was re-asked every session. Fix: records keyed by
+   file; identical bytes are exported once and listed in the receipt.
+6. **A region of unknown kind lost its boundary** (line 394): the text after it took the
+   previous region's kind. Fix: the boundary is kept under the model's own word, flagged.
+7. **Multi-date chats (3,944) were re-read every session** because their flag cannot clear.
+   Fix: a chat record is final.
+8. **Every gate that fires on a document's true shape made it a permanent re-ask** (line
+   446). Fix: a flagged document is asked in two sessions, then counted done.
+9. **`to_text` sat outside the per-document try** (line 736): one unreadable file ended the
+   run. Fix: inside; a run-error record; the loop continues.
+10. **The spend stop discarded the in-flight document's paid calls** (line 757). Fix: written
+    as a flagged record, redone next session.
+11. **The year gate nulled a correct date on a Roman-numeral title page** (MCMXXI; three
+    Greek files). Fix: a Roman numeral that converts to the year counts.
+12. **An unverified month and day passed on a verified year** (line 430). Fix: kept only when
+    the line shows the month, else the iso is cut to the year.
+13. **An integer where a list belonged raised into a run error** (line 387 and three others).
+    Fix: read as an empty list, so the existing flags fire.
+14. Nits taken: `'2.0'` as an index; the coverage gate now runs only on a body over the cap
+    (a short two-piece body is not flagged); `subsplit` skips only the too-long document, not
+    every "whole" piece.
+
+Not taken: the day-change branch in `chat_runs` cannot fire while every turn in a session
+shares one time; it stays for a file that carries per-turn times.

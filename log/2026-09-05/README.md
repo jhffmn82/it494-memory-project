@@ -121,8 +121,29 @@ until the run; a document too long for one call lands as one `whole` piece with 
   LongMemEval manifest went through the model. The cost lens measured the run: Luna over
   everything about $2.12; Terra on every flag $10 to $18.
 - The batch applied for those findings: 248 lines in, 131 out, in the script's git diff.
-- A second, smaller pass over the batch (four lenses, one reproducing refuter per finding)
-  was running when this was written; its result goes below when it lands.
+- A second pass over the batch (24 agents: four lenses, one reproducing refuter per finding):
+  20 confirmed, 0 refuted, listed in [review.md](review.md). Two were regressions of the
+  batch itself: `clean()` stripped a leading "[n] " and a trailing ellipsis from the model's
+  copy before comparing it with a line that still had them, so an exact copy of 6,569 corpus
+  lines (footnotes, reference-list entries in most papers, short lines ending in "...")
+  could no longer resolve. The fix tries the copy as given before the cleaned one; every
+  exact copy in the corpus resolves again. The rest: a lone last turn over the tail floor
+  stayed its own unit (merged into the unit before it); a region of unknown kind lost its
+  boundary (kept under the model's own word, flagged); a non-dict title, author, source or
+  date was nulled without a count (counted, and in the receipt); an integer where a list
+  belonged was a run error (degrades to a flag); records from the previous notebook carried
+  no file name, so the first run after upgrading would have re-billed every clean document
+  (the name is derived from the path); the 3,944 multi-date chats were re-read every session
+  because their flag can never clear (chats are final); a flagged document was re-asked in
+  every session (two sessions, then done); two papers with identical bytes collapsed to one
+  record and one was re-asked every session (records keyed by file; identical bytes exported
+  once and listed in the receipt); an unreadable file ended the run (a run-error record, the
+  loop continues); the spend stop discarded the in-flight document's paid calls (written
+  flagged, redone next session); a title page giving the year in Roman numerals (MCMXXI,
+  three Greek files) failed the date check (accepted); a verified year let an unverified
+  month and day through (kept only when the line shows the month). Applied as
+  `factledger-extractor 0.5`; the checks for it are `test_verify.py` in this folder, 25 of
+  25, with the first battery still 39 of 39.
 
 ## Kaggle
 
@@ -142,8 +163,9 @@ until the run; a document too long for one call lands as one `whole` piece with 
 
 - Luna's context window against the 13 documents over 200k listing tokens.
 - The docs patch: correct and apply, then `SCHEMA.md` and `BUILD.md` match the code.
-- The second verification pass (pending).
 - The first full run of the new design, and its receipt against the old run's numbers.
+- The two identical papers (`novelqa-2024.pdf`, `wang2024-novelqa.pdf`): drop one from the
+  private dataset, or leave the receipt to note it each run.
 - From 09-04, unchanged: cells for entities promoted after being unit-minor; the set node;
   the vector table inside SQLite; raw bytes as a blob table.
 

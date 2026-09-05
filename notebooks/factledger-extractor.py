@@ -331,7 +331,8 @@ def cut8(s):
 
 
 def clean(want):
-    """The model's copy, normalized; a leading '[i] ' and a trailing ellipsis are not part of the line."""
+    """The model's copy with a listing prefix '[i] ' and a trailing ellipsis removed; tried
+    only after the copy as given, because a line can begin with '[1]' or end in '...' itself."""
     w = re.sub(r"^\[\d+\]\s*", "", norm(want))
     return re.sub(r"\s*(\.\.\.|…)$", "", w).strip()
 
@@ -348,26 +349,35 @@ def as_int(v):
         return v
     if isinstance(v, float) and v.is_integer():
         return int(v)
-    if isinstance(v, str) and v.strip().lstrip("-").isdigit():
-        return int(v.strip())
+    if isinstance(v, str):
+        try:
+            f = float(v.strip())
+            return int(f) if f.is_integer() else None
+        except ValueError:
+            return None
     return None
+
+
+def as_list(v):
+    return v if isinstance(v, list) else []
 
 
 def resolve(pointer, text, addrs, stats):
     if not isinstance(pointer, dict):
         return None
-    i, want = as_int(pointer.get("index")), clean(pointer.get("text"))
-    if not want:                                     # nothing to check the number against
+    i = as_int(pointer.get("index"))
+    wants = list(dict.fromkeys(w for w in (norm(pointer.get("text")), clean(pointer.get("text"))) if w))
+    if not wants:                                    # nothing to check the number against
         stats["mismatch"] += 1
         stats["unresolved"] += 1
         return None
-    if i is not None and 0 <= i < len(addrs) and matches(text, addrs[i], want):
+    if i is not None and 0 <= i < len(addrs) and any(matches(text, addrs[i], w) for w in wants):
         return addrs[i]
     stats["mismatch"] += 1
     if i is not None:
         for d in range(1, WINDOW + 1):               # nearest first
             for j in (i - d, i + d):
-                if 0 <= j < len(addrs) and matches(text, addrs[j], want):
+                if 0 <= j < len(addrs) and any(matches(text, addrs[j], w) for w in wants):
                     stats["recovered"] += 1
                     return addrs[j]
     stats["unresolved"] += 1
@@ -384,15 +394,15 @@ def words(text, p):
 
 def pieces_from_reply(text, r, addrs, stats):
     regions, unknown = [], []
-    for g in r.get("regions") or []:
+    for g in as_list(r.get("regions")):
         span = resolve(g, text, addrs, stats)
         if span is None:
             continue
         kind = g.get("kind")
-        if kind in KINDS:
-            regions.append((span[0], kind))
-        else:
-            unknown.append(str(kind)[:20])
+        if kind not in KINDS:                            # the boundary is kept under the model's own word, and flagged
+            kind = (norm(kind).replace(" ", "_")[:20] if isinstance(kind, str) and kind.strip() else "unknown")
+            unknown.append(kind)
+        regions.append((span[0], kind))
     regions.sort()
     if not regions:
         regions = [(0, "whole")]
@@ -400,7 +410,7 @@ def pieces_from_reply(text, r, addrs, stats):
     stats["unknown_kinds"] = unknown
     regions[0] = (0, regions[0][1])                      # the first region runs from the first byte
     heads = {}
-    for q in r.get("pieces") or []:
+    for q in as_list(r.get("pieces")):
         span = resolve(q, text, addrs, stats)
         if span is None:
             continue
@@ -418,18 +428,57 @@ def pieces_from_reply(text, r, addrs, stats):
     return pieces
 
 
+MONTHS = ("jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec")
+
+
+def roman(word):
+    vals = {"M": 1000, "D": 500, "C": 100, "L": 50, "X": 10, "V": 5, "I": 1}
+    total, prev = 0, 0
+    for ch in reversed(word.upper()):
+        v = vals.get(ch)
+        if v is None:
+            return None
+        total, prev = (total - v, prev) if v < prev else (total + v, v)
+    return total
+
+
+def year_on(line, year):
+    """The year on the line as digits, or as a Roman numeral on a title page (MCMXXI)."""
+    if year in line:
+        return True
+    return any(roman(w.strip(".,;:()")) == int(year) for w in line.split() if re.fullmatch(r"[MDCLXVI]{2,}[.,;:)]?", w.upper()))
+
+
+def date_ok(line, iso):
+    """The iso to keep: the year must be on the line; a month or day is kept only when the line
+    shows the month; None when the date is not grounded at all."""
+    if not re.fullmatch(r"\d{4}(-\d{2}(-\d{2})?)?", iso) or not year_on(line, iso[:4]):
+        return None
+    if len(iso) > 4:
+        m, low = int(iso[5:7]), line.lower()
+        if not (1 <= m <= 12 and (MONTHS[m - 1] in low or re.search(rf"\b0?{m}\b", low))):
+            return iso[:4]
+    return iso
+
+
 def verify_meta(text, r, addrs, stats):
-    """Title, author, source and date pointers, checked like every other; a failed one is nulled."""
+    """Title, author, source and date pointers, checked like every other; a failed one is nulled
+    and counted, so nothing the model invented is exported."""
     for key in ("title", "author", "source", "date"):
         v = r.get(key)
         if v is None:
             continue
-        span = resolve(v, text, addrs, stats)
+        span = resolve(v, text, addrs, stats) if isinstance(v, dict) else None
+        if span is None and not isinstance(v, dict):
+            stats["mismatch"] += 1
+            stats["unresolved"] += 1
         if span is not None and key == "date":
-            year = str(v.get("iso") or "")[:4]
-            if not (year.isdigit() and year in text[slice(*span)]):
+            kept = date_ok(text[slice(*span)], str(v.get("iso") or ""))
+            if kept is None:
                 span = None
                 stats["unresolved"] += 1
+            else:
+                v["iso"] = kept
         if span is None:
             r[key] = None
             stats["meta_unresolved"] = stats.get("meta_unresolved", 0) + 1
@@ -443,7 +492,7 @@ def gates(pieces, r, stats, text):
     toc = as_int(r.get("toc_count"))
     if toc is not None and stats["headed"] != toc:
         flags.append(f"count: {stats['headed']} headed pieces, contents says {toc}")
-    if body and (len(body) > 1 or sum(words(text, q) for q in body) > CAP_WORDS):
+    if body and sum(words(text, q) for q in body) > CAP_WORDS:
         share = max(q["end"] - q["start"] for q in body) / max(1, sum(q["end"] - q["start"] for q in body))
         if share > 0.6:
             flags.append(f"coverage: one piece holds {share:.0%} of the body")
@@ -487,7 +536,7 @@ def split(doc):
             break
     if best is None:
         return ([piece(0, len(text), "whole document", "whole")], {},
-                [f"too long: about {tokens:,} tokens for one call"], fresh_stats(addrs, None))
+                [f"too long: about {tokens:,} tokens for one call"], {**fresh_stats(addrs, None), "too_long": True})
     return best[1:]
 
 
@@ -506,8 +555,8 @@ def split(doc):
 # A text or PDF unit carries the document's date. Chat pieces are the turns, built from the
 # turn spans block 2 kept, with the role as author and the session date as time when there is
 # one, after a front_matter piece for the header; chat units are runs of at least two turns
-# under the cap that never cross a day change, a short tail merged into the unit before it,
-# with no model call.
+# under the cap that never cross a day change, a short tail or a lone last turn merged into
+# the unit before it, with no model call.
 from datetime import datetime
 
 TAIL_FLOOR = CAP_WORDS // 3
@@ -530,7 +579,7 @@ def line_at(text, span):
 
 def subsplit(text, p, stats, depth=0):
     """The piece, or its parts, each under the cap wherever the model found a break."""
-    if words(text, p) <= CAP_WORDS or depth >= DEPTH or p["kind"] == "whole":
+    if words(text, p) <= CAP_WORDS or depth >= DEPTH:
         return [p]
     addrs = [(p["start"] + s, p["start"] + e) for s, e in addresses(text[p["start"]:p["end"]])]
     cuts = {}
@@ -539,7 +588,7 @@ def subsplit(text, p, stats, depth=0):
             r = generate(SPLIT_PROMPT % (p["label"], words(text, p), CAP_WORDS, listing(text, addrs)))
         except TooLong:
             return [p]
-        for b in (r.get("breaks") if isinstance(r, dict) else None) or []:
+        for b in as_list(r.get("breaks") if isinstance(r, dict) else None):
             span = resolve(b, text, addrs, stats)
             if span and p["start"] < span[0] < p["end"]:
                 cuts[span[0]] = line_at(text, span)
@@ -568,7 +617,7 @@ def group(text, pieces, stats, flags):
         flags.append("grouping: outline too long; one unit per piece")
         return [[i] for i in range(len(pieces))]
     runs, expect = [], 0
-    for u in (r.get("units") if isinstance(r, dict) else None) or []:
+    for u in as_list(r.get("units") if isinstance(r, dict) else None):
         a, b = (as_int(u.get("first")), as_int(u.get("last"))) if isinstance(u, dict) else (None, None)
         if a is None or b is None or a != expect or not a <= b < len(pieces):
             break
@@ -636,7 +685,8 @@ def chat_runs(pieces, text):
         size += w
     if run:
         same_day = runs and day(pieces[run[0]]["occurred_at"]) == day(pieces[runs[-1][-1]]["occurred_at"])
-        if runs and size < TAIL_FLOOR and same_day:
+        lone = sum(1 for j in run if j > 0) < 2
+        if runs and same_day and (size < TAIL_FLOOR or lone):   # a short tail, or a lone turn, joins the unit before it
             runs[-1].extend(run)
         else:
             runs.append(run)
@@ -660,10 +710,11 @@ def units_from_runs(pieces, runs, text):
 # %%
 # Block 8: every document in both datasets, resumable. Each finished document is appended to
 # splits.jsonl as one record: file (dataset-relative), path, sha256, kind, reply, pieces, units,
-# flags, stats, cost. On a rerun, clean documents are skipped by file name before they are
-# read, flagged ones are tried again, and the last record per document wins. Chats need no
-# model call. Texts and PDFs print a full entry; chats print one line per hundred. The spend
-# stop ends the loop; the document in flight is not written and is redone next session.
+# flags, stats, cost. On a rerun a document is skipped by file name before it is read when its
+# last record is clean, or is a chat (a chat's flags cannot change), or it has been asked in two
+# sessions already; otherwise it is tried again, and the last record per file wins. Chats need
+# no model call. Texts and PDFs print a full entry; chats print one line per hundred. The spend
+# stop writes the document in flight as a flagged record, so its cost is kept, and ends the loop.
 SPLITS = Path("/kaggle/working/splits.jsonl")
 LOG = Path("/kaggle/working/splits.log")
 
@@ -686,13 +737,19 @@ def iso_of(reply):
 
 
 def read_splits():
-    latest = {}
+    """The last record per file, each carrying tries: how many records the file has."""
+    latest, tries = {}, {}
     if SPLITS.exists():
         for line in SPLITS.read_text(encoding="utf-8").split("\n"):   # never splitlines(): text can hold U+2028
             if line:
                 record = json.loads(line)
-                if "flags" in record:                                  # rows from an earlier design are skipped
-                    latest[record["sha256"]] = record
+                if "flags" not in record:                              # rows from an earlier design are skipped
+                    continue
+                key = record.get("file") or rel_of(Path(record["path"]))
+                record["file"] = key
+                tries[key] = tries.get(key, 0) + 1
+                record["tries"] = tries[key]
+                latest[key] = record
     return latest
 
 
@@ -727,15 +784,15 @@ paths = sorted(RAW.glob("oz/*.txt")) + sorted(RAW.glob("holmes/*.txt")) + sorted
       + sorted(RAW.glob("graphrag-bench/*.txt")) + sorted(PAPERS.glob("*.pdf")) \
       + sorted(p for p in RAW.glob("longmemeval/*.json") if p.name != "manifest.json")
 latest = read_splits()
-done = {rec["file"] for rec in latest.values() if not rec["flags"] and "file" in rec}
+done = {key for key, rec in latest.items() if not rec["flags"] or rec.get("kind") == "chat" or rec["tries"] >= 2}
 chats = 0
 for path in paths:
     rel = rel_of(path)
     if rel in done:
         continue
-    doc = to_text(path)
-    before = spend()
+    doc, before, stopped = None, spend(), False
     try:
+        doc = to_text(path)
         if doc["kind"] == "chat":
             pieces, flags = chat_pieces(doc)
             reply, stats = {}, {"addresses": None}
@@ -743,7 +800,8 @@ for path in paths:
         else:
             pieces, reply, flags, stats = split(doc)
             unresolved = stats["unresolved"]
-            pieces = [q for p in pieces for q in subsplit(doc["text"], p, stats)]
+            if not stats.get("too_long"):
+                pieces = [q for p in pieces for q in subsplit(doc["text"], p, stats)]
             if stats["unresolved"] > unresolved:
                 flags.append(f"pointers: {stats['unresolved'] - unresolved} break(s) matched no line")
             for q in pieces:
@@ -754,10 +812,14 @@ for path in paths:
         if doc["kind"] != "chat":                    # a text or PDF unit carries the document's date
             for u in units:
                 u["occurred_at"] = u["occurred_until"] = iso_of(reply)
-    except SpendStop as e:
-        print(f"{e}: stopping; {path.name} is not written and will be redone next session")
-        break
+    except SpendStop as e:                       # keep what it cost, flagged; it is redone next session
+        stopped = True
+        pieces = [piece(0, len(doc["text"]), "whole document", kind="whole")]
+        units, reply, stats = units_from_runs(pieces, [[0]], doc["text"]), {}, {}
+        flags = [f"spend stop: {e}; not finished"]
     except Exception as e:                       # one document must not end a two-hour run
+        if doc is None:                          # the file itself could not be read or parsed
+            doc = {"text": "", "sha256": hashlib.sha256(rel.encode("utf-8")).hexdigest(), "kind": "error", "turns": None, "dates": []}
         pieces = [piece(0, len(doc["text"]), "whole document", kind="whole")]
         units, reply, stats = units_from_runs(pieces, [[0]], doc["text"]), {}, {}
         flags = [f"run error: {type(e).__name__}: {str(e)[:200]}"]
@@ -766,6 +828,9 @@ for path in paths:
     with SPLITS.open("a", encoding="utf-8") as f:
         f.write(json.dumps(record, ensure_ascii=False) + "\n")
     done.add(rel)
+    if stopped:
+        print(f"{flags[0]}: stopping; {path.name} is written flagged and will be redone next session")
+        break
     if doc["kind"] == "chat":
         chats += 1
         if flags or chats % 100 == 0:
@@ -791,7 +856,7 @@ from datetime import timezone
 
 OUT = Path("/kaggle/working/export")
 OUT.mkdir(parents=True, exist_ok=True)
-LOADER = "factledger-extractor 0.4"
+LOADER = "factledger-extractor 0.5"
 NOW = datetime.now(timezone.utc).isoformat(timespec="seconds")
 SOURCE_CLASS = {"chat": "record", "pdf": "published"}    # text documents take the model's answer
 SOURCE_CLASSES = {"canonical", "published", "record", "authored", "tool-output"}
@@ -815,16 +880,30 @@ def spent_in(splits):
     return total
 
 
+def load(record):
+    """The document for a record; a file that cannot be read now is an empty error document."""
+    try:
+        return to_text(path_of(record))
+    except Exception:
+        return {"text": "", "sha256": record["sha256"], "kind": "error", "turns": None, "dates": []}
+
+
 records = list(read_splits().values())
 receipt = {"documents": 0, "units": 0, "pieces": 0, "by_kind": {}, "chars_by_kind": {}, "flags_by_kind": {}, "flagged": [],
-           "unknown_author": 0, "unknown_date": 0, "ambiguous_date": 0, "mismatch": 0, "recovered": 0, "unresolved": 0, "duplicate": 0,
+           "duplicate_files": [], "unknown_author": 0, "unknown_date": 0, "ambiguous_date": 0,
+           "mismatch": 0, "recovered": 0, "unresolved": 0, "duplicate": 0, "meta_unresolved": 0,
            "over_cap_units": 0, "total_chars": 0, "cost": round(spent_in(SPLITS), 3)}
 files = {name: (OUT / f"{name}.jsonl").open("w", encoding="utf-8") for name in ("documents", "units", "pieces")}
+exported = {}                                            # doc_id -> file: identical bytes are one document
 
 with ThreadPoolExecutor(max_workers=32) as pool:
-    docs = pool.map(to_text, [path_of(rec) for rec in records])
+    docs = pool.map(load, records)
     for record, doc in zip(records, docs):
         text, doc_id, r = doc["text"], doc["sha256"], record["reply"]
+        if doc_id in exported:                           # same bytes as a file already exported: same doc_id, one row
+            receipt["duplicate_files"].append({"file": record["file"], "same_as": exported[doc_id]})
+            continue
+        exported[doc_id] = record["file"]
         rel = record.get("file") or rel_of(Path(record["path"]))
         src = f"{RAW.name}/{rel[4:]}" if rel.startswith("raw/") else f"{PAPERS.name}/{rel[7:]}"
         title = rendered(r, "title", "title")
@@ -845,7 +924,7 @@ with ThreadPoolExecutor(max_workers=32) as pool:
                                              "author": author, "source_class": source_class, "text": text, "ingested_at": NOW,
                                              "occurred_at": occurred, "loader": LOADER, "flags": flags}, ensure_ascii=False) + "\n")
         ids, seen = [], {}
-        for u in record["units"]:
+        for u in record["units"] if doc["kind"] != "error" else []:     # an unreadable file has no real slice to export
             uid = unit_id(doc_id, text, u["start"], u["end"], seen)
             ids.append(uid)
             assert text[u["start"]:u["end"]].strip(), (src, u)          # round trip: every unit is a real slice
@@ -853,12 +932,12 @@ with ThreadPoolExecutor(max_workers=32) as pool:
                                              "start": u["start"], "end": u["end"], "occurred_at": u["occurred_at"],
                                              "occurred_until": u["occurred_until"]}, ensure_ascii=False) + "\n")
             receipt["over_cap_units"] += u["words"] > CAP_WORDS
-        for position, p in enumerate(record["pieces"]):
+        for position, p in enumerate(record["pieces"] if doc["kind"] != "error" else []):
             files["pieces"].write(json.dumps({"doc_id": doc_id, "unit_id": ids[p.get("unit", 0)], "position": position,
                                               "kind": p["kind"], "start": p["start"], "end": p["end"],
                                               "author": p["author"], "occurred_at": p["occurred_at"]}, ensure_ascii=False) + "\n")
         st = record["stats"]
-        for key in ("mismatch", "recovered", "unresolved", "duplicate"):
+        for key in ("mismatch", "recovered", "unresolved", "duplicate", "meta_unresolved"):
             receipt[key] += st.get(key, 0)
         for p in record["pieces"]:
             receipt["chars_by_kind"][p["kind"]] = receipt["chars_by_kind"].get(p["kind"], 0) + (p["end"] - p["start"])
@@ -881,7 +960,9 @@ for f in files.values():
 receipt["body_share"] = round(receipt["chars_by_kind"].get("body", 0) / max(1, receipt["total_chars"]), 4)
 (OUT / "receipt.json").write_text(json.dumps(receipt, indent=2, ensure_ascii=False), encoding="utf-8")
 print(f"documents {receipt['documents']}  units {receipt['units']}  pieces {receipt['pieces']}  by kind {receipt['by_kind']}")
-print(f"pointers: mismatch {receipt['mismatch']}  recovered {receipt['recovered']}  unresolved {receipt['unresolved']}  duplicate {receipt['duplicate']}")
+print(f"pointers: mismatch {receipt['mismatch']}  recovered {receipt['recovered']}  unresolved {receipt['unresolved']}  duplicate {receipt['duplicate']}  metadata nulled {receipt['meta_unresolved']}")
+if receipt["duplicate_files"]:
+    print(f"identical files exported once: {receipt['duplicate_files']}")
 print(f"chars by kind: {receipt['chars_by_kind']}  body {receipt['body_share']:.1%} of all text")
 print(f"flagged {len(receipt['flagged'])} {receipt['flags_by_kind']}  unknown author {receipt['unknown_author']}  unknown date {receipt['unknown_date']}"
       f"  ambiguous date {receipt['ambiguous_date']}  over-cap units {receipt['over_cap_units']}"
