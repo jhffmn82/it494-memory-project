@@ -20,3 +20,12 @@ their saved outputs as run.
   Inventory: [inventory.md](2026-09-04/inventory.md), every source audited (format, size,
   license, fixtures), what the Step 0 brief had wrong or missing, twelve decisions to rule.
   Brief: [step0-brief.md](2026-09-04/step0-brief.md), the opening message for the extractor chat.
+- [2026-09-05](2026-09-05/README.md): the extractor's wrong turn found (quote matching,
+  chunking) and the rebuild under the day's rulings: the model decides every boundary over
+  the whole numbered document, every byte kept, regions as labels, units grouped and split
+  by the model, no piece dates, no inferred dates; the old design's first full run analysed;
+  a 63-agent review and the fix batch; Kaggle import, CLI, and secret notes; open items.
+  Review: [review.md](2026-09-05/review.md), the confirmed findings consolidated and the
+  measured cost of the run. Docs: [docs-rulings-2026-09-05.patch](2026-09-05/docs-rulings-2026-09-05.patch),
+  the SCHEMA.md and BUILD.md sentences drafted for correction. The old run's log and records
+  as `old-design-run.*`; the offline checks as `test_review.py`.
