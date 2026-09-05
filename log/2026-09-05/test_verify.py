@@ -39,6 +39,8 @@ def generate(prompt, model="luna", effort="low"):
         return {"breaks": [{"index": idx[k], "text": lines[idx[k]][:50]} for k in range(step, len(idx), step)]}
     if prompt.startswith("Below is the outline"):
         return {"units": [{"first": i, "last": i} for i in range(len(lines))]}
+    if prompt.startswith("Below are the pieces"):
+        return {"merges": []}
     raise AssertionError(prompt[:40])
 
 
@@ -85,7 +87,7 @@ print("\n== verify_meta counts a non-dict pointer ==")
 doc = ns["to_text"](Path("data/raw/oz/01_55.txt")); text = doc["text"]; addrs = R("addresses")(text)
 st = R("fresh_stats")(addrs, "luna"); r = {"author": "Doyle", "title": {"index": 0, "text": text[slice(*addrs[0])], "title": "x"}}
 R("verify_meta")(text, r, addrs, st)
-check("string author nulled and counted unresolved", r["author"] is None and st["unresolved"] == 1 and st["meta_unresolved"] == 1, st)
+check("string author nulled and counted as metadata, not as a retryable pointer", r["author"] is None and st["unresolved"] == 0 and st["meta_unresolved"] == 1, st)
 
 print("\n== unknown kind keeps its boundary; int containers ==")
 def oz(lines, kinds=("front_matter", "body", "license"), regions_override=None):
@@ -144,7 +146,7 @@ calls.clear()
 exec(b8, ns)
 recs2 = [json.loads(l) for l in (SCR / "splits.jsonl").read_text(encoding="utf-8").split("\n") if l]
 redone = [r["file"] for r in recs2[len(recs):]]
-check("second run: the flagged chat is final; the flagged PDFs and the missing file get their second try", sorted(redone) == sorted(["papers/novelqa-2024.pdf", "papers/wang2024-novelqa.pdf", "raw/oz/missing.txt"]), redone)
+check("second run: the flagged chat is final, the clean PDFs stay, only the missing file gets its second try", redone == ["raw/oz/missing.txt"], redone)
 calls.clear()
 exec(b8, ns)
 recs2b = [json.loads(l) for l in (SCR / "splits.jsonl").read_text(encoding="utf-8").split("\n") if l]

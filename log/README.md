@@ -28,4 +28,5 @@ their saved outputs as run.
   Review: [review.md](2026-09-05/review.md), the confirmed findings consolidated and the
   measured cost of the run. Docs: [docs-rulings-2026-09-05.patch](2026-09-05/docs-rulings-2026-09-05.patch),
   the SCHEMA.md and BUILD.md sentences drafted for correction. The old run's log and records
-  as `old-design-run.*`; the offline checks as `test_review.py` and `test_verify.py`.
+  as `old-design-run.*`; the offline checks as `test_review.py`, `test_verify.py` and `test_run1.py`, and
+  `py_to_ipynb.py`, which builds the notebook from the script and checks the round trip.

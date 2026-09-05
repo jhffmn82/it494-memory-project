@@ -159,11 +159,88 @@ until the run; a document too long for one call lands as one `whole` piece with 
   batch addresses: four break pointers for The Beryl Coronet did not resolve, and the piece
   stayed whole at 9,686 words with no flag.
 
+## The first run of the new design (afternoon)
+
+Kaggle version 347543245, a Quick Save of the interactive session, so the rendered log was
+read from the results page and the working files (`splits.jsonl`, the export) stayed in the
+session. It reached 87 of the 231 text and PDF documents (Oz, Holmes, Greek, and most of
+GraphRAG-Bench) at $7.71 of the $8 stop; the papers and the chats never ran.
+
+What it showed, with the patch that followed (`factledger-extractor 0.6`):
+
+- **Sub-splitting ran (16 to 36 calls on the big books) and its pointers failed**: 191 break
+  pointers matched no line, and 32 pieces stayed over the cap (Holmes' *Return* at 9,213
+  words, the Argonautica's Book I at 13,721). The main call points at headings, whole short
+  lines, so its copies match; the split call points into wrapped prose, where the model copies
+  the sentence that opens the new part, and that sentence runs past the end of its line.
+  Patch: a copy may run on into the next two lines; the split prompt says a break is the first
+  line of a paragraph; the first six unresolved pointers of a document are kept verbatim in
+  its record and printed, so the next run shows what the model actually sent.
+- **67 pieces under 20 words**, almost all one of two shapes: an "opening" sliver where the
+  body region begins at the title line a few words before `Chapter I`, and a bare `PART I.`
+  pointed at separately from the chapter under it. Justin's ruling: every piece under 100
+  words is offered to the model, which decides whether it joins the piece before, the piece
+  after, or stands alone. Patch: a `merge_short` call per document with those pieces' text; a
+  heading that joins what follows keeps its words in the label. A two-line heading is one
+  piece, said in the main prompt.
+- **Money**: every single-piece play (Alcestis, Medea, the Euripides set) was flagged twice,
+  by the coverage gate (one piece holding a body that has no divisions, which sub-splitting
+  then handled) and by a title, author or date pointer that failed, and each flag bought two
+  more attempts including Terra: $0.10 to $0.13 a play against $0.02. Patch: coverage fires
+  only when a contents list says there are divisions; a failed document pointer is nulled and
+  flagged but buys no retry. Six of the 87 kept answers came from Terra.
+- **Grouping rejoined sub-split parts** (eight dissolves on *His Last Bow* alone). Patch: the
+  outline marks parts with the piece they came from and the prompt says they stay apart.
+- A heading that is a line of dashes (scene breaks in Novel-58553) takes the next line's words
+  as its label.
+- Oz and Holmes came out as the fixture expects: pieces at the contents count, body 89% to
+  97%, no unresolved main pointers on 26 of 29 Oz books.
+
+A third adversarial pass (19 agents, three lenses, one reproducing refuter each) then found 15
+confirmed and 1 refuted against that patch, and two of them were in the new merging code:
+
+- **Merging applied each answer against the list the previous answer had already changed.**
+  When two adjacent short pieces pointed at each other (a two-line heading answering "next"
+  then "previous", the natural reply), the second merge ran first and the first then reached
+  past it and swallowed the following piece, which the model had never named. Merging now
+  reads the answers as edges between original pieces, unions the runs, and rebuilds once, so
+  the result is the model's answer and nothing else.
+- **A merge across a region boundary moved the boundary.** A short piece joining a neighbour
+  took the neighbour's kind, so the last body chapter of Oz book 1 came out as `license` and
+  426 bytes changed region. The model decides region boundaries in the main call; a
+  cross-kind join is now left alone and flagged.
+- A merge that would carry a piece past the cap is left alone and flagged; the over-cap check
+  now runs after merging rather than before it.
+- The retry ranking kept the attempt whose metadata had failed when the retryable flags tied,
+  throwing away a paid call's good title and author. Flag count now breaks the tie.
+- A metadata-only flag still bought a whole re-ask in the next session; the resume test now
+  treats a record with only advisory flags (`metadata:`, `shape:`) as done.
+- The coverage check came back for documents with no contents list, as an advisory `shape:`
+  flag: visible in the log and the receipt, but it buys no calls. 54 of the 89 local text
+  files have no contents line, so without it a missing-pieces answer was invisible for most
+  of the corpus.
+- `previous`, `before`, `prev`, `next`, `after`, `alone`, `keep` and `none` are all understood,
+  case ignored; anything else is counted and flagged.
+- Labels: a rule of dashes is recognised by any letter or digit in any script, not ASCII only
+  (7 Greek files carry thousands of non-Latin short lines), and the same helper now labels
+  sub-split parts, which had kept the rule itself as the label. A two-line heading copied whole
+  resolves at its first line.
+- Metadata pointers no longer take the six sample slots meant for sub-split breaks.
+
+Offline checks: 91 in three batteries, all passing (`test_review.py` 40, `test_verify.py` 25,
+`test_run1.py` 26). `py_to_ipynb.py` in this folder rebuilds the notebook from the script and
+verifies the round trip. The next run resumes from `splits.jsonl` if the session kept it; the
+87 clean records are skipped by name and the flagged ones get their second try under the new
+gates.
+
 ## Open
 
-- Luna's context window against the 13 documents over 200k listing tokens.
+- Luna's context window against the 13 documents over 200k listing tokens (none of the 87
+  came back `too long`; the largest so far were the two Diodorus files at about 500k).
+- `SPEND_STOP` at $8 stops the corpus at about a third; the rest is the papers (cheap) and
+  the chats (free).
 - The docs patch: correct and apply, then `SCHEMA.md` and `BUILD.md` match the code.
-- The first full run of the new design, and its receipt against the old run's numbers.
+- The second run, over the whole corpus, and its receipt against the old run's numbers.
 - The two identical papers (`novelqa-2024.pdf`, `wang2024-novelqa.pdf`): drop one from the
   private dataset, or leave the receipt to note it each run.
 - From 09-04, unchanged: cells for entities promoted after being unit-minor; the set node;

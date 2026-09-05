@@ -284,7 +284,7 @@ PROMPT = """Below is one document as numbered lines. Answer with JSON only. Poin
 
 Regions tile the document in order, each running from its line to the next region's line; the first region begins at line 0. Kinds: "front_matter" (publisher notices, the contents list, transcriber's or translator's notes; an author's own preface or introduction is body), "body" (the work itself), "notes" (footnotes, endnotes, commentary, wherever they fall), "references" (a bibliography or reference list), "appendix" (the work's own appendices), "license" (ebook or license boilerplate). Give every region the document has: a scholarly edition may alternate body and notes several times, and a paper's appendices usually follow its references.
 
-Pieces are the document's own divisions: chapters, acts and scenes, sections, dated entries, poems, stories, in every region that has them. A paper's pieces are its sections, the abstract first, and its appendix sections. Point at the line where each piece begins in the text, never at its entry in the contents list.
+Pieces are the document's own divisions: chapters, acts and scenes, sections, dated entries, poems, stories, in every region that has them. A paper's pieces are its sections, the abstract first, and its appendix sections. Point at the line where each piece begins in the text, never at its entry in the contents list. A heading that runs over two lines (a number on one line, its title on the next) is one piece: point at its first line.
 
 %s
 """
@@ -310,9 +310,10 @@ def ask(text, addrs, model=MODEL):
 #             pointer, and the date's year must appear on its line; one that fails is nulled,
 #             so nothing the model invented is exported.
 #   gates     a body region present, headed pieces against the contents count, coverage (no
-#             body piece holds most of a body over the cap), every pointer resolved, every
-#             region kind known, the first region at line 0. A failed gate is a flag, never
-#             a drop.
+#             body piece holds most of the body when a contents list says there are
+#             divisions), every pointer resolved, every region kind known, the first region
+#             at line 0, and the document pointers. A failed gate is a flag, never a drop;
+#             a metadata or shape flag alone does not buy a retry.
 #   split     addresses, one call, gates; on a flag one more call on the same model, and a
 #             third on the retry model when the document is under RETRY_MAX_TOKENS; the answer
 #             kept is the one with a body region and the fewest flags. A document too long for
@@ -363,25 +364,52 @@ def as_list(v):
 
 
 def resolve(pointer, text, addrs, stats):
+    """A pointer's address span. The copy may be the line, its first eight words, a prefix of
+    five words or more, or a sentence that runs on into the next two lines (the model points
+    into wrapped prose when it splits a long piece)."""
     if not isinstance(pointer, dict):
         return None
     i = as_int(pointer.get("index"))
     wants = list(dict.fromkeys(w for w in (norm(pointer.get("text")), clean(pointer.get("text"))) if w))
+
+    def at(j):
+        if any(matches(text, addrs[j], w) for w in wants):
+            return True
+        two = norm(" ".join(text[slice(*addrs[k])] for k in range(j, min(j + 2, len(addrs)))))
+        run = norm(" ".join(text[slice(*addrs[k])] for k in range(j, min(j + 3, len(addrs)))))
+        return any(w == two or (len(w.split()) >= 5 and run.startswith(w)) for w in wants)
+
     if not wants:                                    # nothing to check the number against
         stats["mismatch"] += 1
         stats["unresolved"] += 1
         return None
-    if i is not None and 0 <= i < len(addrs) and any(matches(text, addrs[i], w) for w in wants):
+    if i is not None and 0 <= i < len(addrs) and at(i):
         return addrs[i]
     stats["mismatch"] += 1
     if i is not None:
         for d in range(1, WINDOW + 1):               # nearest first
             for j in (i - d, i + d):
-                if 0 <= j < len(addrs) and any(matches(text, addrs[j], w) for w in wants):
+                if 0 <= j < len(addrs) and at(j):
                     stats["recovered"] += 1
                     return addrs[j]
     stats["unresolved"] += 1
+    if len(stats.setdefault("unresolved_samples", [])) < 6:   # what the model actually sent, for the log
+        stats["unresolved_samples"].append({"index": pointer.get("index"), "text": str(pointer.get("text") or "")[:80]})
     return None
+
+
+def label_at(text, addrs, k):
+    """The pointed line's words; a rule of dashes or stars, with no letter or digit in any
+    script, takes the next line's words."""
+    label = " ".join(text[slice(*addrs[k])].split())
+    if not re.search(r"[^\W_]", label) and k + 1 < len(addrs):
+        label = " ".join(text[slice(*addrs[k + 1])].split())
+    return label
+
+
+def advisory(flag):
+    """A flag that describes the document rather than a failure a retry could fix."""
+    return flag.startswith(("metadata:", "shape:"))
 
 
 def piece(start, end, label, kind, author=None, occurred_at=None):
@@ -416,7 +444,7 @@ def pieces_from_reply(text, r, addrs, stats):
             continue
         if span[0] in heads:
             stats["duplicate"] += 1
-        heads[span[0]] = " ".join(text[slice(*span)].split())
+        heads[span[0]] = label_at(text, addrs, addrs.index(span))
     starts = sorted({s for s, _ in regions} | set(heads))
     pieces = []
     for s, e in zip(starts, starts[1:] + [len(text)]):
@@ -463,20 +491,21 @@ def date_ok(line, iso):
 
 def verify_meta(text, r, addrs, stats):
     """Title, author, source and date pointers, checked like every other; a failed one is nulled
-    and counted, so nothing the model invented is exported."""
+    and counted, so nothing the model invented is exported. It is flagged, not retried: a
+    retry costs a whole document call and the field is already null."""
     for key in ("title", "author", "source", "date"):
         v = r.get(key)
         if v is None:
             continue
+        before, samples = stats["unresolved"], len(stats.get("unresolved_samples", []))
         span = resolve(v, text, addrs, stats) if isinstance(v, dict) else None
-        if span is None and not isinstance(v, dict):
-            stats["mismatch"] += 1
-            stats["unresolved"] += 1
+        stats["unresolved"] = before                     # a document pointer is flagged and nulled, never retried
+        if "unresolved_samples" in stats:
+            stats["unresolved_samples"] = stats["unresolved_samples"][:samples]
         if span is not None and key == "date":
             kept = date_ok(text[slice(*span)], str(v.get("iso") or ""))
             if kept is None:
                 span = None
-                stats["unresolved"] += 1
             else:
                 v["iso"] = kept
         if span is None:
@@ -494,10 +523,13 @@ def gates(pieces, r, stats, text):
         flags.append(f"count: {stats['headed']} headed pieces, contents says {toc}")
     if body and sum(words(text, q) for q in body) > CAP_WORDS:
         share = max(q["end"] - q["start"] for q in body) / max(1, sum(q["end"] - q["start"] for q in body))
-        if share > 0.6:
-            flags.append(f"coverage: one piece holds {share:.0%} of the body")
+        if share > 0.6:                                  # a retry only when a contents list says there are divisions
+            kind = "coverage" if toc is not None and toc > 1 else "shape"
+            flags.append(f"{kind}: one piece holds {share:.0%} of the body")
     if stats["unresolved"]:
         flags.append(f"pointers: {stats['unresolved']} matched no line")
+    if stats.get("meta_unresolved"):
+        flags.append(f"metadata: {stats['meta_unresolved']} pointer(s) matched no line")
     if stats.get("unknown_kinds"):
         flags.append(f"regions: unknown kind(s) {', '.join(sorted(set(stats['unknown_kinds'])))}")
     if stats.get("first_region_at", 0) > 0:
@@ -529,10 +561,11 @@ def split(doc):
         flags = gates(pieces, r, stats, text)
         assert pieces[0]["start"] == 0 and pieces[-1]["end"] == len(text) \
             and all(a["end"] == b["start"] for a, b in zip(pieces, pieces[1:]))     # the pieces tile the text
-        rank = ("no body region" in flags, len(flags))
+        retry = [f for f in flags if not advisory(f)]
+        rank = ("no body region" in flags, len(retry), len(flags))
         if best is None or rank < best[0]:
             best = (rank, pieces, r, flags, stats)
-        if not flags:
+        if not retry:
             break
     if best is None:
         return ([piece(0, len(text), "whole document", "whole")], {},
@@ -541,10 +574,13 @@ def split(doc):
 
 
 # %%
-# Block 7: units. The model decides these too, in two calls.
+# Block 7: units. The model decides these too, in three calls.
 #   subsplit  a piece over CAP_WORDS is shown to the model as numbered lines and it points at
 #             the natural breaks inside; a part still over the cap is split again, DEPTH times
-#             at most. A piece the model cannot break stays whole; block 8 flags it.
+#             at most. A piece the model cannot break stays whole; block 8 flags it. The parts
+#             carry the piece they came from, so grouping keeps them apart.
+#   merge_short   every piece under SHORT_WORDS is offered to the model with its text; it joins
+#             the piece before, the piece after, or stands alone, as the model says.
 #   group     the outline (every piece with its kind, words, and heading) goes to the model,
 #             which groups consecutive pieces into units: a piece with the pieces under it
 #             (a section with its subsections, a chapter with its scenes, a play with its
@@ -562,19 +598,23 @@ from datetime import datetime
 TAIL_FLOOR = CAP_WORDS // 3
 DEPTH = 3            # rounds of splitting a piece that stays over the cap
 
-SPLIT_PROMPT = """Below is one piece of a document as numbered lines: "%s", about %d words, over the limit of %d words for one unit. Point at the lines where it naturally breaks (a scene change, a section, a new episode, a new topic) so that no part is over the limit, using as few breaks as that allows. Answer with JSON only: {"breaks": [{"index": n, "text": "..."}, ...]}. Point at a line by its number and copy its text exactly as listed (a long line may be cut after its first eight words). Never invent a line.
+SPLIT_PROMPT = """Below is one piece of a document as numbered lines: "%s", about %d words, over the limit of %d words for one unit. Point at the lines where it naturally breaks (a scene change, a section, a new episode, a new topic) so that no part is over the limit, using as few breaks as that allows. A break is the first line of the paragraph where the new part begins. Answer with JSON only: {"breaks": [{"index": n, "text": "..."}, ...]}. Point at a line by its number and copy that line's text exactly as listed (a long line may be cut after its first eight words). Never invent a line.
 
 %s
 """
 
-GROUP_PROMPT = """Below is the outline of one document: its pieces in order, each with its kind, its length in words, and its heading. Group consecutive pieces into units. A unit is one piece together with the pieces that belong under it: a section with its subsections, a chapter with its scenes, a play with the notes that follow it. Never join two peers (two chapters, two top-level sections) merely because they fit. A unit must stay under %d words; a single piece over that stands alone. Every piece belongs to exactly one unit, in order, with no gaps. Answer with JSON only: {"units": [{"first": n, "last": n}, ...]}, where first and last are piece numbers from the list.
+GROUP_PROMPT = """Below is the outline of one document: its pieces in order, each with its kind, its length in words, and its heading. Group consecutive pieces into units. A unit is one piece together with the pieces that belong under it: a section with its subsections, a chapter with its scenes, a play with the notes that follow it. Never join two peers (two chapters, two top-level sections) merely because they fit. Pieces marked (part) are the parts of one piece already split for length: they stay separate and never rejoin. A unit must stay under %d words; a single piece over that stands alone. Every piece belongs to exactly one unit, in order, with no gaps. Answer with JSON only: {"units": [{"first": n, "last": n}, ...]}, where first and last are piece numbers from the list.
 
 %s
 """
 
 
-def line_at(text, span):
-    return " ".join(text[slice(*span)].split())
+SHORT_WORDS = 100    # a piece under this is offered to the model to merge with a neighbour
+
+MERGE_PROMPT = """Below are the pieces of one document in order, each with its kind, its length in words, and its heading; every piece under %d words also shows its whole text. Decide for each short piece whether it belongs with the piece before it, with the piece after it, or stands on its own: a bare heading, a part title, or a title line belongs with what follows it; a closing line or a sliver cut off a paragraph belongs with what precedes it; a short poem, letter, entry, or note that is a piece in its own right stands alone. Answer with JSON only: {"merges": [{"index": n, "into": "previous" or "next" or "alone"}, ...]}, one entry per short piece, index from the list.
+
+%s
+"""
 
 
 def subsplit(text, p, stats, depth=0):
@@ -591,20 +631,104 @@ def subsplit(text, p, stats, depth=0):
         for b in as_list(r.get("breaks") if isinstance(r, dict) else None):
             span = resolve(b, text, addrs, stats)
             if span and p["start"] < span[0] < p["end"]:
-                cuts[span[0]] = line_at(text, span)
+                cuts[span[0]] = label_at(text, addrs, addrs.index(span))
         if cuts:
             break
     if not cuts:
         return [p]
     stats["subsplits"] = stats.get("subsplits", 0) + 1
     starts = [p["start"]] + sorted(cuts)
-    parts = [piece(s, e, p["label"] if s == p["start"] else cuts[s][:80], p["kind"], p["author"], p["occurred_at"])
+    parts = [{**piece(s, e, p["label"] if s == p["start"] else cuts[s][:80], p["kind"], p["author"], p["occurred_at"]),
+              "part": p.get("part") or p["label"][:40]}                  # parts of one piece stay apart in grouping
              for s, e in zip(starts, starts[1:] + [p["end"]])]
     return [q for part in parts for q in subsplit(text, part, stats, depth + 1)]
 
 
-def outline(text, pieces):
-    return "\n".join(f"[{i}] {q['kind']} | {words(text, q)} words | {q['label'][:80]}" for i, q in enumerate(pieces))
+def outline(text, pieces, show_short=False):
+    lines = []
+    for i, q in enumerate(pieces):
+        part = f" (part of {q['part']})" if q.get("part") else ""
+        lines.append(f"[{i}] {q['kind']} | {words(text, q)} words | {q['label'][:80]}{part}")
+        if show_short and words(text, q) < SHORT_WORDS:
+            lines.append("    text: " + " ".join(text[q["start"]:q["end"]].split())[:600])
+    return "\n".join(lines)
+
+
+MERGE_WORDS = {"previous": "previous", "prev": "previous", "before": "previous", "next": "next", "after": "next",
+               "alone": "alone", "keep": "alone", "stay": "alone", "none": "alone", "own": "alone"}
+
+
+def merge_short(text, pieces, stats, flags):
+    """Every piece under SHORT_WORDS is offered to the model to join the piece before or after
+    it. Each answer is an edge between two original pieces; the connected runs are rebuilt
+    once, so no answer is applied against a list another answer already changed. A join
+    across a region boundary, or one that would pass the cap, is left alone and flagged. A
+    heading that joins what follows keeps its words in the label; a sliver that joins a longer
+    neighbour disappears into it."""
+    short = {i for i, q in enumerate(pieces) if words(text, q) < SHORT_WORDS}
+    if not short or len(pieces) == 1:
+        return pieces
+    try:
+        r = generate(MERGE_PROMPT % (SHORT_WORDS, outline(text, pieces, show_short=True)))
+    except TooLong:
+        flags.append("merging: outline too long; short pieces left alone")
+        return pieces
+    answers = as_list(r.get("merges") if isinstance(r, dict) else None)
+    into, odd = {}, 0
+    for m in answers:
+        i = as_int(m.get("index")) if isinstance(m, dict) else None
+        word = norm(m.get("into")).split() if isinstance(m, dict) and m.get("into") else []
+        how = MERGE_WORDS.get(word[0]) if word else None
+        if i in short and how:
+            if how != "alone":
+                into[i] = how
+        else:
+            odd += 1
+    if odd:
+        flags.append(f"merging: {odd} answer(s) not understood")
+
+    parent = list(range(len(pieces)))
+
+    def root(x):
+        while parent[x] != x:
+            x = parent[x]
+        return x
+
+    crossed = 0
+    for i, how in into.items():
+        j = i + 1 if how == "next" else i - 1
+        if not 0 <= j < len(pieces):
+            continue
+        if pieces[j]["kind"] != pieces[i]["kind"]:      # the model's region boundary stands
+            crossed += 1
+            continue
+        parent[root(max(i, j))] = root(min(i, j))
+    if crossed:
+        flags.append(f"merging: {crossed} join(s) across a region boundary left alone")
+    runs = {}
+    for i in range(len(pieces)):
+        runs.setdefault(root(i), []).append(i)
+
+    def synthetic(q):
+        return q["label"] in ("opening", q["kind"].replace("_", " "))
+
+    out = []
+    for idx in sorted(runs.values(), key=lambda run: run[0]):
+        if len(idx) == 1:
+            out.append(pieces[idx[0]])
+            continue
+        if sum(words(text, pieces[k]) for k in idx) > CAP_WORDS:
+            flags.append(f"merging: {pieces[idx[0]]['label'][:40]} .. would pass the cap; left alone")
+            out.extend(pieces[k] for k in idx)
+            continue
+        long_in_run = [k for k in idx if words(text, pieces[k]) >= SHORT_WORDS]
+        anchor = long_in_run[0] if long_in_run else idx[0]
+        labels = [pieces[k]["label"] for k in idx                       # a sliver that joins what precedes it
+                  if not synthetic(pieces[k]) and not (long_in_run and into.get(k) == "previous")]
+        out.append({**pieces[anchor], "start": pieces[idx[0]]["start"], "end": pieces[idx[-1]]["end"],
+                    "label": (" / ".join(labels) or pieces[anchor]["label"])[:120]})
+    stats["merged"] = len(pieces) - len(out)
+    return out
 
 
 def group(text, pieces, stats, flags):
@@ -711,8 +835,9 @@ def units_from_runs(pieces, runs, text):
 # Block 8: every document in both datasets, resumable. Each finished document is appended to
 # splits.jsonl as one record: file (dataset-relative), path, sha256, kind, reply, pieces, units,
 # flags, stats, cost. On a rerun a document is skipped by file name before it is read when its
-# last record is clean, or is a chat (a chat's flags cannot change), or it has been asked in two
-# sessions already; otherwise it is tried again, and the last record per file wins. Chats need
+# last record is clean or carries only advisory flags (metadata, shape), or is a chat (a chat's
+# flags cannot change), or it has been asked in two sessions already; otherwise it is tried
+# again, and the last record per file wins. Chats need
 # no model call. Texts and PDFs print a full entry; chats print one line per hundred. The spend
 # stop writes the document in flight as a flagged record, so its cost is kept, and ends the loop.
 SPLITS = Path("/kaggle/working/splits.jsonl")
@@ -764,8 +889,8 @@ def show(doc, record):
     st = record["stats"]
     lines = [f"{Path(record['path']).name}  {'FLAGGED' if record['flags'] else 'ok'}  pieces {len(pieces)}  units {len(units)}"
              f"  addresses {st.get('addresses')}  mismatch {st.get('mismatch', 0)} recovered {st.get('recovered', 0)}"
-             f" duplicate {st.get('duplicate', 0)}  subsplits {st.get('subsplits', 0)} groups {st.get('groups', 0)}"
-             f"  model {st.get('model', '-')}  ${record['cost']:.3f}",
+             f" duplicate {st.get('duplicate', 0)}  subsplits {st.get('subsplits', 0)} merged {st.get('merged', 0)}"
+             f" groups {st.get('groups', 0)} short units {st.get('short_units', 0)}  model {st.get('model', '-')}  ${record['cost']:.3f}",
              f"    class {r.get('source_class')} | title {rendered(r, 'title', 'title')!r}"
              f" | author {rendered(r, 'author', 'name')!r} | source {rendered(r, 'source', 'name')!r}"
              f" | date {iso_of(r)}"
@@ -774,6 +899,7 @@ def show(doc, record):
         snippet = " ".join(text[p["start"]:p["start"] + 90].split())[:60]
         lines.append(f"    {p['start']:>8} {words(text, p):>6} w  u{p.get('unit', 0):<3} {p['kind'][:12]:<12} {p['label'][:40]:<40} | {snippet}")
     lines += [f"    FLAG {f}" for f in record["flags"]]
+    lines += [f"    unresolved [{u['index']}] {u['text']}" for u in st.get("unresolved_samples", [])]
     entry = "\n".join(lines) + "\n"
     print(entry)
     with LOG.open("a", encoding="utf-8") as f:
@@ -784,7 +910,8 @@ paths = sorted(RAW.glob("oz/*.txt")) + sorted(RAW.glob("holmes/*.txt")) + sorted
       + sorted(RAW.glob("graphrag-bench/*.txt")) + sorted(PAPERS.glob("*.pdf")) \
       + sorted(p for p in RAW.glob("longmemeval/*.json") if p.name != "manifest.json")
 latest = read_splits()
-done = {key for key, rec in latest.items() if not rec["flags"] or rec.get("kind") == "chat" or rec["tries"] >= 2}
+done = {key for key, rec in latest.items()
+        if all(advisory(f) for f in rec["flags"]) or rec.get("kind") == "chat" or rec["tries"] >= 2}
 chats = 0
 for path in paths:
     rel = rel_of(path)
@@ -804,6 +931,7 @@ for path in paths:
                 pieces = [q for p in pieces for q in subsplit(doc["text"], p, stats)]
             if stats["unresolved"] > unresolved:
                 flags.append(f"pointers: {stats['unresolved'] - unresolved} break(s) matched no line")
+            pieces = merge_short(doc["text"], pieces, stats, flags)
             for q in pieces:
                 if words(doc["text"], q) > CAP_WORDS:
                     flags.append(f"over cap: {q['label'][:40]} ({words(doc['text'], q):,} words)")
@@ -812,6 +940,7 @@ for path in paths:
         if doc["kind"] != "chat":                    # a text or PDF unit carries the document's date
             for u in units:
                 u["occurred_at"] = u["occurred_until"] = iso_of(reply)
+            stats["short_units"] = sum(1 for u in units if u["words"] < SHORT_WORDS)
     except SpendStop as e:                       # keep what it cost, flagged; it is redone next session
         stopped = True
         pieces = [piece(0, len(doc["text"]), "whole document", kind="whole")]
@@ -856,7 +985,7 @@ from datetime import timezone
 
 OUT = Path("/kaggle/working/export")
 OUT.mkdir(parents=True, exist_ok=True)
-LOADER = "factledger-extractor 0.5"
+LOADER = "factledger-extractor 0.7"
 NOW = datetime.now(timezone.utc).isoformat(timespec="seconds")
 SOURCE_CLASS = {"chat": "record", "pdf": "published"}    # text documents take the model's answer
 SOURCE_CLASSES = {"canonical", "published", "record", "authored", "tool-output"}
@@ -892,7 +1021,7 @@ records = list(read_splits().values())
 receipt = {"documents": 0, "units": 0, "pieces": 0, "by_kind": {}, "chars_by_kind": {}, "flags_by_kind": {}, "flagged": [],
            "duplicate_files": [], "unknown_author": 0, "unknown_date": 0, "ambiguous_date": 0,
            "mismatch": 0, "recovered": 0, "unresolved": 0, "duplicate": 0, "meta_unresolved": 0,
-           "over_cap_units": 0, "total_chars": 0, "cost": round(spent_in(SPLITS), 3)}
+           "over_cap_units": 0, "short_units": 0, "total_chars": 0, "cost": round(spent_in(SPLITS), 3)}
 files = {name: (OUT / f"{name}.jsonl").open("w", encoding="utf-8") for name in ("documents", "units", "pieces")}
 exported = {}                                            # doc_id -> file: identical bytes are one document
 
@@ -932,6 +1061,7 @@ with ThreadPoolExecutor(max_workers=32) as pool:
                                              "start": u["start"], "end": u["end"], "occurred_at": u["occurred_at"],
                                              "occurred_until": u["occurred_until"]}, ensure_ascii=False) + "\n")
             receipt["over_cap_units"] += u["words"] > CAP_WORDS
+            receipt["short_units"] += u["words"] < SHORT_WORDS and doc["kind"] != "chat"
         for position, p in enumerate(record["pieces"] if doc["kind"] != "error" else []):
             files["pieces"].write(json.dumps({"doc_id": doc_id, "unit_id": ids[p.get("unit", 0)], "position": position,
                                               "kind": p["kind"], "start": p["start"], "end": p["end"],
@@ -965,7 +1095,7 @@ if receipt["duplicate_files"]:
     print(f"identical files exported once: {receipt['duplicate_files']}")
 print(f"chars by kind: {receipt['chars_by_kind']}  body {receipt['body_share']:.1%} of all text")
 print(f"flagged {len(receipt['flagged'])} {receipt['flags_by_kind']}  unknown author {receipt['unknown_author']}  unknown date {receipt['unknown_date']}"
-      f"  ambiguous date {receipt['ambiguous_date']}  over-cap units {receipt['over_cap_units']}"
+      f"  ambiguous date {receipt['ambiguous_date']}  over-cap units {receipt['over_cap_units']}  short units {receipt['short_units']}"
       f"  model cost ${receipt['cost']:.2f}")
 for entry in receipt["flagged"]:
     if "longmemeval/" not in entry["source_uri"]:

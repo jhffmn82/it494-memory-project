@@ -47,6 +47,8 @@ def generate(prompt, model="luna", effort="low"):
         return {"breaks": [{"index": idx[k], "text": lines[idx[k]][:50]} for k in range(step, len(idx), step)]}
     if prompt.startswith("Below is the outline"):
         return script["group"](lines)
+    if prompt.startswith("Below are the pieces"):
+        return script.get("merge", lambda lines: {"merges": []})(lines)
     raise AssertionError(prompt[:40])
 
 
@@ -116,10 +118,13 @@ pieces, reply, flags, stats = R("split")(doc)
 check("fake author nulled", reply["author"] is None, reply.get("author"))
 check("fake date nulled", reply["date"] is None)
 check("real title kept", reply["title"] is not None and reply["title"]["title"] == "The Wonderful Wizard of Oz")
-check("unresolved counted and flagged", any(f.startswith("pointers:") for f in flags), flags)
+check("failed document pointers counted and flagged as metadata", any(f.startswith("metadata:") for f in flags) and stats.get("meta_unresolved") == 2, flags)
 check("tiles", pieces[0]["start"] == 0 and pieces[-1]["end"] == len(text) and all(a["end"] == b["start"] for a, b in zip(pieces, pieces[1:])))
 check("headed 24 = toc 24, no count flag", stats["headed"] == 24 and not any(f.startswith("count") for f in flags), stats["headed"])
-check("retry ran on the same model then terra (small doc? no: 63k tokens < 80k so terra allowed)", [c[0] for c in calls][:3] == ["luna", "luna", "terra"], [c[0] for c in calls])
+check("a metadata flag alone buys no retry: one call", [c[0] for c in calls] == ["luna"], [c[0] for c in calls])
+script["main"] = lambda lines: {**oz_reply(lines, bad_meta=False), "toc_count": 23}    # a count mismatch is retryable
+calls.clear(); R("split")(doc)
+check("a count flag retries on the same model, then terra under 80k tokens", [c[0] for c in calls] == ["luna", "luna", "terra"], [c[0] for c in calls])
 
 script["main"] = lambda lines: oz_reply(lines, bad_meta=False, no_pieces=True)
 pieces, reply, flags, stats = R("split")(doc)
@@ -188,13 +193,13 @@ script["split_first_empty"] = False
 calls.clear(); script["spendstop_at"] = 4                      # doc 1: main + group = 2 calls; doc 2's first call is #3, stop at #4
 exec(b8, ns)
 recs = [json.loads(l) for l in (SCR / "splits.jsonl").read_text(encoding="utf-8").split("\n") if l]
-check("first document written, second not (stop), chat not reached", [r["file"] for r in recs] == ["raw/oz/01_55.txt"], [r["file"] for r in recs])
+check("first document written clean, second written flagged by the stop, chat not reached", [r["file"] for r in recs] == ["raw/oz/01_55.txt", "raw/oz/02_54.txt"] and recs[1]["flags"][0].startswith("spend stop"), [(r["file"], r["flags"][:1]) for r in recs])
 check("record carries a dataset-relative file name", recs[0]["file"] == "raw/oz/01_55.txt")
 check("text/PDF units carry the document date (None here: Oz has no date line)", all(u["occurred_at"] is None for u in recs[0]["units"]))
 script["spendstop_at"] = None
-exec(b8, ns)                                                    # resume: doc 1 skipped by name, doc 2 and the chat run
+exec(b8, ns)                                                    # resume: doc 1 skipped by name, doc 2 redone, the chat run
 recs = [json.loads(l) for l in (SCR / "splits.jsonl").read_text(encoding="utf-8").split("\n") if l]
-check("resume skipped the clean document by name and finished the rest", [r["file"] for r in recs] == ["raw/oz/01_55.txt", "raw/oz/02_54.txt", "raw/longmemeval/sharegpt_yywfIrx_0.json"], [r["file"] for r in recs])
+check("resume skipped the clean document by name, redid the stopped one, finished the rest", [r["file"] for r in recs] == ["raw/oz/01_55.txt", "raw/oz/02_54.txt", "raw/oz/02_54.txt", "raw/longmemeval/sharegpt_yywfIrx_0.json"] and not recs[2]["flags"][:1] == recs[1]["flags"][:1], [r["file"] for r in recs])
 b9 = block[9].replace('Path("/kaggle/working/export")', f'Path(r"{SCR / "export"}")')
 exec(b9, ns)
 docs = [json.loads(l) for l in (SCR / "export" / "documents.jsonl").read_text(encoding="utf-8").split("\n") if l]
