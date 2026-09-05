@@ -93,6 +93,19 @@ the file carries times; a unit never spans a day change; a fact's time is the da
 states, else its unit's, else its document's, else null. Facts were always meant to have
 dates; novels hid that, chats bring it back. SCHEMA.md and BUILD.md updated.
 
+A design review Justin brought in late in the evening raised six points; five held against the
+files and one partly. Rulings: (A) voice lives on the piece. The split plan is the piece table
+(kind, range, unit, `author` when the file names a speaker, time when it carries one); a fact's
+voice at read time is its piece's author, else the document's; one word, `author`, at every
+level, no `speaker`. Turn-as-unit was considered and declined: 246,930 units and 740,000 derive
+calls against 19,000 and 57,000, and the exchange context lost. (B) Minor entities stay mentions
+inside their document, `node_id` null, never merged: a minor is minor because the text gave too
+little to disambiguate it, and hundreds per work make a global merge on no evidence not worth
+its cost. (C) Two instruments added: the long-tail count of surfaces recurring across N
+documents with no node, and gold-pair candidate recall before merge precision and recall.
+(D) plan.md corrected: the resolution ablation is the benchmark's fourth arm, and the combined
+store estimate is superseded by the 09-04 counts.
+
 The living docs were then corrected to the rulings in one commit (README.md, SCHEMA.md,
 BUILD.md, RESEARCH.md, docs/proposal.md, docs/evaluation-corpus.md, data/raw/SOURCES.md,
 USAGE.md, WANTLIST.md): 87 verified edits from a sweep of every living markdown file, each

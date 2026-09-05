@@ -132,6 +132,13 @@ cluster purity, and downstream accuracy on GraphRAG-Bench. Duplicate rate uses t
 LINK-KG protocol: fuzzy match at 75 percent within type, connected components, manual review, then
 count the sum over components of size minus one, normalized by node count.
 
+Resolution misses divide the way retrieval misses do in BUILD.md: never a candidate (the gold
+match was outside the nearest-k and shared no exact surface, so no judge ran) against judged
+apart (nominated, then ruled different). The alias set is scored for gold-pair candidate recall
+first, the share of must-merge pairs that appear together in some nominated set, and merge
+precision and recall are reported against that denominator. A pair never nominated leaves no
+candidate row, so the number comes from joining the gold pairs against the nomination log.
+
 ## This is a build instrument before it is a paper instrument
 
 Resolution is not one test among five. It is the **gate on the other four**. Cells are per-entity

@@ -90,11 +90,11 @@ The dataset contract, row by row, is `docs/evaluation-corpus.md`. The slate:
 | Measurement | Against | Cost |
 |---|---|---|
 | GraphRAG-Bench novels: full system, no-context control, flat retrieval, then the resolution ablation (co-occurrence and profile signals off, name matching alone) | 9 published gpt-4o-mini baselines, gold answers and evidence, 2,010 questions | the main paid run; the ablation is a replay, since per-signal candidate scores are logged at ingest |
-| Hand-labeled alias set, one novel | merge precision and recall from the first ingest | half an hour of labeling |
+| Hand-labeled alias set, one novel | gold-pair candidate recall first, then merge precision and recall, from the first ingest | half an hour of labeling |
 | NarrativeQA, the 319 questions over 11 works we own | reference answers; same three arms | cheap secondary run |
 | LongMemEval: full-context parity arm, then the 78-question knowledge-update band | Zep's 63.8 over a 55.4 full-context baseline (gpt-4o-mini, original `_s` file) | ~$9 parity, one paid run |
 | Read cost, refold cost, coverage difference | MemTree's published 3,750 / 3,850 / 3.27 calls per insertion; no gold answers needed | free |
-| The free instruments: rejection rate per stage per tier, duplicate mints per chunk, predicate sprawl, quote-gate pass rate, chunk-versus-cell summary agreement, token cost per arm | our own run logs | free |
+| The free instruments: rejection rate per stage per tier, duplicate mints per chunk, predicate sprawl, quote-gate pass rate, chunk-versus-cell summary agreement, token cost per arm, and the long-tail count: surface forms occurring in N or more distinct documents that resolve to no node, at N = 2, 3, 5 | our own run logs and the mention table | free |
 
 GraphRAG-Bench carries the argument in its own baseline table: the cheapest
 system spends 879 tokens per question, the strongest graph system 1,008, and

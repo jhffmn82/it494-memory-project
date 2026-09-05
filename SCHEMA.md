@@ -16,6 +16,7 @@ the user or a loader declares carries that order.
               ingested_at, occurred_at?, loader
     unit      unit_id, doc_id, position, label?, start, end,
               occurred_at?, occurred_until?
+    piece     doc_id, unit_id, position, kind, start, end, author?, occurred_at?
 
 The document holds the text, once: the source decoded to a string at load,
 never normalized, with the sha256 of the original bytes beside it as proof of
@@ -34,7 +35,8 @@ chat turn; a session itself has no author unless the file names one. An author s
 before the document's facts commit, because the collision rule has nothing to
 compare without it; an unknown author is flagged and can contest but never
 supersede. Source classes: canonical, published, record, authored,
-conversation-user-turn, conversation-assistant-turn, tool-output.
+tool-output. The voice of a chat turn is its piece's `author`, not a
+document class; user and assistant are piece kinds.
 
 A document is an entity in its own right: a node whose cells are its unit
 summaries, whose abstract folds from them, with `has_unit` edges in order,
@@ -55,17 +57,30 @@ a unit never spans a day change: the day cut comes before the size rule, and
 the short-tail merge applies only inside a day. Two sessions that overlap in
 time are ordered fact by fact through their units, not whole against whole.
 
+The split plan is the piece table: one row per natural piece the loader cut
+(a chapter, a turn, a section), with its range, its unit, its `kind`, its
+`author` when the file names a speaker (the role prefix on a chat turn), and
+its time when the file carries one. Written by code at load, never by the
+model. Unit ranges and the day cut derive from it. It is also where voice
+lives: a fact's voice at read time is the `author` of the piece holding its
+quote, else the document's `author`, else unknown, the same shape as the
+ordering rule for time.
+
 ## The entity side
 
     node      node_id, name, kind, created_from_unit, provenance
     alias     alias, node_id, first_seen_unit, evidence_quote
-    mention   mention_id, node_id, unit_id, start, end, surface, resolved_by
+    mention   mention_id, node_id?, unit_id, start, end, surface, resolved_by
     profile   node_id, attribute, value, confidence, from_unit
 
 Mentions are what resolution measurements read: duplicate counting needs the
 node link, cluster purity needs the full set per node, and coreference scoring
 against gold needs the character span. Without spans, that whole class of test
-requires a re-ingest, which is why the field exists from day one.
+requires a re-ingest, which is why the field exists from day one. `node_id`
+is null when the mention names a minor entity: the mention keeps its surface
+and span inside its document and never enters the merge. A minor is minor
+because the text gave too little to disambiguate it, so tracking it across
+documents would mean merging hundreds of names per work on no evidence.
 
 The profile is not a fact. It holds low-confidence attributes the model
 inferred from context (gender, age band, animacy, role), read only by the
@@ -83,7 +98,9 @@ quote gate a lie.
 Facts are append-only. When a predicate is functional, a later fact on the
 same subject and predicate supersedes an earlier one at read time; ruler_of
 collides that way, member_of never does, and the functional list is maintained
-by hand. What "later" means: a fact's ordering time is its `valid_from` when the text
+by hand. Supersession needs the same voice: the `author` of the piece holding
+each quote, else the document's `author`. Different voices are contested, and
+both facts are served with their source. What "later" means: a fact's ordering time is its `valid_from` when the text
 states one, else its unit's `occurred_at`, else its document's `occurred_at`,
 else null. Dated facts order by
 that time. Undated facts order among themselves by document order in the
@@ -110,9 +127,9 @@ an entity named in the abstract is major, with unit count and fact count as
 tie-breakers, and only document-majors carry a dossier into the merge and
 become global nodes. Minor entities never become nodes: a fact from a major
 to a minor is a property of the major with the minor's name as its value, a
-fact between two minors stays in the unit record, and nothing is lost below
-the line, because the per-unit summary, a cell on the document's own node,
-still recorded it. There is no community layer: groupings the user or a loader
+fact between two minors is not stored, and nothing is lost below the line,
+because the per-unit summary, a cell on the document's own node, still
+recorded it and every mention keeps its surface and span. There is no community layer: groupings the user or a loader
 declares (a series, a thread) exist for ordering and disambiguation scope, and
 nothing is clustered.
 
