@@ -424,6 +424,8 @@ def locate(text, quote, cache=None):
     ntext, back = normalised_of(text, cache)
     nq, _ = normalised(q)
     nwords = nq.split()
+    if not nwords:                                       # a quote of nothing but soft hyphens normalises to nothing
+        return None, None, "not_found"
     m = re.search(r"\s+".join(re.escape(w) for w in nwords), ntext)
     if m:
         return back[m.start()], back[m.end() - 1] + 1, "normalised"
@@ -917,7 +919,7 @@ def reconcile(doc, records, ctx):
                 unit_ids.append(l["unit_id"])
         entities.append({"name": name, "kinds": sorted({l["kind"] for l in ks}), "named": any(l["named"] for l in ks),
                          "partitions": sorted({l["partition"] for l in ks}),
-                         "units": sorted({l["ui"] for l in ks}), "unit_ids": unit_ids,
+                         "units": sorted({l["ui"] for l in ks}), "unit_ids": unit_ids, "first_unit": unit_ids[0],
                          "names": sorted({l["name"] for l in ks}), "surfaces": sorted({s for l in ks for s in l["surfaces"]}),
                          "first_unit_of": first_unit_of,
                          "members": [(l["ui"], l["name"]) for l in ks], "n_facts": sum(l["n_facts"] for l in ks),
@@ -938,7 +940,7 @@ def fold(what, children, ctx, stage="fold", model=LUNA, allowed=None):
     are names the prompt itself supplies (the entity being summarised), which count as present."""
     child_words = sum(word_count(c) for c in children)
     limit = min(400, max(1, child_words // 2))
-    prompt = fold_prompt(what, children, max(10, limit * 9 // 10))     # asked for a little under the bound code enforces
+    prompt = fold_prompt(what, children, limit if limit < 12 else limit * 9 // 10)     # asked for a little under the bound code enforces, never over it
     for attempt in range(2):
         reply = generate(prompt, FOLD_SCHEMA, stage, model=model, ctx=ctx)
         if not reply:
@@ -978,7 +980,7 @@ def fold_document(doc, records, entities, ctx):
     a = (text or "").casefold()
     ranked = []
     for e in entities:
-        in_abstract = any(whole_word(s, a) for s in e["surfaces"] if len(s) > 2) if text else None
+        in_abstract = any(whole_word(s, a) for s in e["surfaces"] if len(s) >= 2) if text else None     # whole words, so "Oz" counts
         major = in_abstract if text else (len(e["units"]) >= 2 or e["n_facts"] >= 2)
         ranked.append((major, len(e["units"]), e["n_facts"], in_abstract, e))
     ranked.sort(key=lambda t: (not t[0], -t[1], -t[2]))
@@ -987,26 +989,29 @@ def fold_document(doc, records, entities, ctx):
         e["rank"] = {"in_abstract": in_abstract, "units": nu, "facts": nf}
         (out["majors"] if major else out["minors"]).append(e)
 
-    # dossiers and per-entity abstracts for the majors
+    # dossiers and per-entity abstracts for the majors; clusters are keyed by their index, not
+    # their name, because two clusters the judge kept apart can share a name
     cells_of, facts_of = {}, {}
-    member_names = {(ui, n): e["name"] for e in entities for ui, n in e["members"]}
+    for i, e in enumerate(entities):
+        e["index"] = i
+    member_of = {(ui, n): e["index"] for e in entities for ui, n in e["members"]}
     for r in records:
         for c in r["cells"]:
-            key = member_names.get((r["position"], c["entity"]))
-            if key:
+            key = member_of.get((r["position"], c["entity"]))
+            if key is not None:
                 cells_of.setdefault(key, []).append(f"[{r['label']}] {c['text']}")
         for f in r["facts"]:
-            key = member_names.get((r["position"], f["subject"]))
-            if key:
+            key = member_of.get((r["position"], f["subject"]))
+            if key is not None:
                 facts_of.setdefault(key, []).append(f"{f['predicate']} {f['object']}" + (f" [{f['qualifiers']}]" if f["qualifiers"] else ""))
     texts = []
     for e in out["majors"]:
-        children = list(dict.fromkeys(facts_of.get(e["name"], []))) + cells_of.get(e["name"], [])
+        children = list(dict.fromkeys(facts_of.get(e["index"], []))) + cells_of.get(e["index"], [])
         d = "\n".join([f"name: {e['name']}", f"also: {', '.join(n for n in e['names'] if n != e['name'])[:300]}",
                        f"kinds: {', '.join(e['kinds'])}", f"is: {', '.join(e['is_a'][:6])}",
-                       f"facts: {'; '.join(list(dict.fromkeys(facts_of.get(e['name'], [])))[:20])}",
-                       f"cells: {' '.join(cells_of.get(e['name'], []))[:1500]}"])
-        out["dossiers"].append({"entity": e["name"], "text": d, "children": children})
+                       f"facts: {'; '.join(list(dict.fromkeys(facts_of.get(e['index'], [])))[:20])}",
+                       f"cells: {' '.join(cells_of.get(e['index'], []))[:1500]}"])
+        out["dossiers"].append({"entity": e["name"], "first_unit": e["first_unit"], "text": d, "children": children})
         texts.append(d)
     if texts and KEY:
         for dossier, vec in zip(out["dossiers"], embed(texts, ctx=ctx)):
@@ -1020,7 +1025,7 @@ def fold_document(doc, records, entities, ctx):
         else:
             atext, missing, _ = fold(f"one entity, {e['name']}", children, ctx, stage="entity_abstract", allowed=e["names"] + e["surfaces"])
         if atext:
-            out["entity_abstracts"].append({"entity": e["name"], "text": atext, "children_hash": children_hash(children)})
+            out["entity_abstracts"].append({"entity": e["name"], "first_unit": e["first_unit"], "text": atext, "children_hash": children_hash(children)})
         else:
             out["entity_abstract_rejected"].append({"entity": e["name"], "missing": missing})
     return out
@@ -1069,7 +1074,7 @@ def write_package(doc, records, entities, folded, ledger, candidates, stats):
                   "created_from_unit": doc["units"][0]["unit_id"] if doc["units"] else None, "provenance": {"ingestor": INGESTOR}})
     position_of = {u["unit_id"]: u["position"] for u in doc["units"]}
     for e in entities:
-        nid = h(doc["doc_id"], e["name"]) if e["major"] else None
+        nid = h(doc["doc_id"], e["name"], e["first_unit"]) if e["major"] else None     # name plus first unit: two clusters kept apart may share a name
         for ui, n in e["members"]:
             node_of[(ui, n)] = nid
         if e["major"]:
@@ -1123,10 +1128,10 @@ def write_package(doc, records, entities, folded, ledger, candidates, stats):
         lines.append({"record": "abstract", "node_id": doc_node, "scope_id": scope, "text": folded["abstract"]["text"],
                       "children_hash": folded["abstract"]["children_hash"], "tier": LUNA, "updated_at": lines[0]["written_at"]})
     for a in folded["entity_abstracts"]:
-        lines.append({"record": "abstract", "node_id": h(doc["doc_id"], a["entity"]), "scope_id": scope, "text": a["text"],
+        lines.append({"record": "abstract", "node_id": h(doc["doc_id"], a["entity"], a["first_unit"]), "scope_id": scope, "text": a["text"],
                       "children_hash": a["children_hash"], "tier": LUNA, "updated_at": lines[0]["written_at"]})
     for d in folded["dossiers"]:
-        lines.append({"record": "dossier", "node_id": h(doc["doc_id"], d["entity"]), "text": d["text"],
+        lines.append({"record": "dossier", "node_id": h(doc["doc_id"], d["entity"], d["first_unit"]), "text": d["text"],
                       "embedding_model": EMBED_MODEL if "embedding" in d else None, "embedding": d.get("embedding")})
     lines += [{"record": "ledger", **row} for row in ledger]
     lines += [{"record": "candidate", **row} for row in candidates]
