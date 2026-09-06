@@ -41,11 +41,17 @@ frameworks. I must be able to read and defend every line to my advisor. Never re
   read `u["text"]` and must be changed.
 - **The chapter-ingestion demo** (`log/2026-09-02/it494-chapter-ingestion-oz-book-1.ipynb`,
   Kaggle `jhffmn/it494-chapter-ingestion-oz-book-1`) is the working proof of the derive,
-  reconciliation, predicate consolidation, cells, abstracts and graph over one book. It ran
-  at $1.26 to $1.72 a book. **Read it for what worked, do not extend it.** It predates the
-  schema: it has no mention record, no piece table, no offsets on facts, no profile, no
-  scope, and its reconciliation is bottom-up inside one book rather than the document-package
-  shape the merge now expects.
+  reconciliation, predicate consolidation, cells, abstracts and graph over one book. Its real
+  runs: v3 at $1.26 (632 local entities, 969 facts, 307 majors reconciled to 114) and v4 at
+  $1.72 (644, 859, 357 to 141, with 70 majors seen in only one unit). **Start by revisiting
+  it with me**, because it is the last thing that actually produced entities and facts and I
+  want to keep what worked. Then rebuild; do not extend it. What it already got right: three
+  cheap calls per unit (entities, facts, summary and cells), the quote gate, rolling a minor
+  into its parent entity, bottom-up reconciliation with a judge and a ledger, predicate
+  consolidation with fork flags in one call, abstracts spanning first unit to last. What it
+  predates: the schema. It has no mention record, no piece table, no offsets on facts, no
+  profile, no scope, no document-level salience, and its reconciliation is bottom-up inside
+  one book rather than the document-package shape the merge now expects.
 
 This stage is a rebuild against the schema, not a port.
 
@@ -159,5 +165,16 @@ the abstract ingestor gets locked down, and the chat path is what the product ac
 3. Where the package is written and what one file per document looks like, given the merge
    replays it.
 
-Start by reading the files, then tell me in one paragraph what you understood, and put the
-three questions to me one at a time with your recommendation for each. Limited prose.
+## The shape of tomorrow
+
+1. Revisit the Oz chapter-1 ingestion with me: what it produced, what was good, what the
+   schema now demands instead.
+2. Rebuild against the schema, one block at a time, the way the extractor was built.
+3. Test over the variety above, the paper and chat paths first-class, not one book.
+4. Clean it up, so I can read and defend every line.
+5. Produce an ingested set: the document packages the global merge will replay. That set is
+   the deliverable, not the notebook.
+
+Start by reading the files and the Oz demo, then tell me in one paragraph what you
+understood, and put the three questions to me one at a time with your recommendation for
+each. Limited prose.
