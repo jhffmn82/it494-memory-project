@@ -30,3 +30,12 @@ their saved outputs as run.
   the SCHEMA.md and BUILD.md sentences drafted for correction. The old run's log and records
   as `old-design-run.*`; the offline checks as `test_review.py`, `test_verify.py` and `test_run1.py`, and
   `py_to_ipynb.py`, which builds the notebook from the script and checks the round trip.
+- [2026-09-06](2026-09-06/README.md): audit day. The saved 0.9 notebook audited against the
+  schema and the rulings, then 1.0 to 1.4: the audit applied (grouped chat units restored,
+  19,206 against 198,961); the debugging accretions cut (164 lines, a synonym table, a Roman
+  numeral parser, a duplicate finder, a union-find); a real regression caught by a run and
+  fixed in the resolver; the run parallelised and one kind per unit enforced; and three cost
+  defects, including a no-credits 429 that walked the whole corpus and a per-document cost
+  that counted every other thread.
+  Audit: [audit.md](2026-09-06/audit.md). Changes: [final-run-changes.md](2026-09-06/final-run-changes.md).
+  Brief: [ingestor-brief.md](2026-09-06/ingestor-brief.md), the opening message for the ingestor chat.

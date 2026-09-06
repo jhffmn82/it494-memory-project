@@ -18,6 +18,11 @@ count gate became one-sided, the resume redoes any record an older loader wrote,
 words or more now names its line wherever it begins, and the over-cap merge flag was reworded.
 Each is now asserted in its new form with the reason in a comment.
 
+**1.0 was not the end of the day.** 1.1 cut the debugging accretions, 1.2 fixed a real
+regression a run caught, 1.3 parallelised the run and enforced one kind per unit, and 1.4
+fixed three cost defects. Those are in [README.md](README.md); the checks below are the
+audit's five, applied first.
+
 ## 1. Restore grouped chat units (blocker)
 
 In block 7, put back `day()` and the 0.7 `chat_runs`, and restore `TAIL_FLOOR` beside

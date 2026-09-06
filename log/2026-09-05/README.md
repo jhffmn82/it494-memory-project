@@ -277,43 +277,12 @@ counted by side; a publication becomes the author only when no person was named.
 The Kaggle notebook was saved at 0.9 and is now committed here as
 `notebooks/factledger-extractor.{py,ipynb}`; the two round-trip to identical code.
 
-## The audit (2026-09-06)
+## The audit, and everything after
 
-A full audit of the saved 0.9 notebook, run against the real corpus rather than read:
-[audit.md](audit.md), with the changes it proposes in
-[final-run-changes.md](final-run-changes.md). In short: the design is right and most of it is
-sound, with one blocker.
-
-- **Blocker.** Chat units are one per turn. Measured over 3,000 real sessions and scaled:
-  198,961 units against 19,206, 90% of them a single turn, median 76 words, 106,913 of them
-  under the hundred-word floor the text path spends three model calls to avoid, and 596,884
-  downstream derive calls against 57,618. SCHEMA.md forbids a lone turn in the sentence that
-  defines the day cut, and the thread's own unapplied docs patch says "a run of at least two
-  turns". The author problem that grouping used to raise is already solved by the piece table:
-  every turn is its own piece with its own `author`, and a fact's voice is the author of the
-  piece holding its quote. Fix: restore the thirteen-line 0.7 `chat_runs`.
-- **Major.** Two of the five offline batteries no longer run: `test_review.py` and
-  `test_verify.py` crash on the `chat_runs` signature, and the check that crashes is titled
-  "never a lone turn". `test_run1.py` is 24 of 26, both stale rather than broken. The log's
-  "91 in three batteries, all passing" is stale; with the blocker reverted it is 153 in five.
-- **Major.** The run cannot finish under `SPEND_STOP`: 231 text and PDF documents at the first
-  run's $0.089 each is about $20.50 against an $8 stop. Raise it to $25 for the final run.
-- **Minor.** `flags` on the document record is not in SCHEMA.md, which BUILD.md forbids a
-  loader to add. Declare it, or move it out of the export.
-- **Minor.** `ids[p.get("unit", 0)]` in block 9 silently attaches an ungrouped piece to unit 0.
-
-Verified as right, by reproduction rather than reading: pieces tile with zero gaps over 3,000
-sessions; the merge and group repairs hold against the mutual-point, cross-region, gap and
-overlap cases; the exported `unit` and `piece` records match the schema field for field.
-
-**Applied the same day as `factledger-extractor 1.0`** (all but the SCHEMA.md edit, which
-stays PROPOSED): grouped chat units restored, the spending stop at $25, `ids[p["unit"]]`, and
-the notebook regenerated with an exact round trip. Measured after: 19,206 chat units, zero
-tiling defects, six lone-turn units (one-turn sessions), one over-cap unit (a single long
-turn), median 1,704 words. Re-baselining the batteries surfaced **six checks that had been
-failing unnoticed** while two batteries were crashing, all stale expectations from 0.8 and
-0.9 rather than defects. All five batteries now pass together for the first time since 0.7:
-154 checks.
+The saved notebook was audited the next morning and taken from 0.9 to 1.4. That work,
+including the audit itself, has its own day: [log/2026-09-06/](../2026-09-06/README.md),
+with [audit.md](../2026-09-06/audit.md) and
+[final-run-changes.md](../2026-09-06/final-run-changes.md).
 
 ## Open
 
