@@ -373,6 +373,20 @@ def as_list(v):
     return v if isinstance(v, list) else []
 
 
+def wrapped_hit(text, addrs, wants):
+    """The address holding a copy that wraps across lines. The line-by-line checks cannot see
+    it, so the text itself is searched once, whitespace-flexibly, and only a copy of five words
+    or more appearing exactly once places a boundary."""
+    for w in wants:
+        parts = w.split()[:12]
+        if len(parts) < 5:
+            continue
+        hits = list(re.finditer(r"\s+".join(re.escape(p) for p in parts), text, re.I))
+        if len(hits) == 1:
+            return max((a for a in addrs if a[0] <= hits[0].start()), default=None)
+    return None
+
+
 def resolve(pointer, text, addrs, stats, loose=False):
     """A pointer's address span. The copy may be the line, its first eight words, a prefix of
     five words or more, or a sentence that runs on into the next two lines (the model points
@@ -385,13 +399,21 @@ def resolve(pointer, text, addrs, stats, loose=False):
 
     def at(j):
         """The copy names line j: the line itself, the next line joined to it (a heading written
-        over two lines), or the opening of the next three (the model copies a sentence, and a
-        sentence wraps across lines)."""
+        over two lines), or a copy of five words or more that begins inside line j and wraps
+        into the next two. The model is asked for a line and answers with a sentence, and a
+        sentence both starts mid line and runs on; beginning inside line j is what makes this
+        line the answer rather than the one the sentence ends in."""
         if any(matches(text, addrs[j], w, loose) for w in wants):
             return True
         two = norm(" ".join(text[slice(*addrs[k])] for k in range(j, min(j + 2, len(addrs)))))
         three = norm(" ".join(text[slice(*addrs[k])] for k in range(j, min(j + 3, len(addrs)))))
-        return any(w == two or (len(w.split()) >= 5 and three.startswith(w)) for w in wants)
+        here = len(norm(text[slice(*addrs[j])]))
+        for w in wants:
+            if w == two:
+                return True
+            if len(w.split()) >= 5 and 0 <= three.find(w) < here:
+                return True
+        return False
 
     if not wants:                                    # nothing to check the number against
         stats["mismatch"] += 1
@@ -410,6 +432,10 @@ def resolve(pointer, text, addrs, stats, loose=False):
     if len(hits) == 1:                               # strictly, so a one-word copy cannot wander
         stats["recovered"] += 1
         return addrs[hits[0]]
+    span = wrapped_hit(text, addrs, wants)           # the copy is a sentence, and a sentence wraps
+    if span is not None:
+        stats["recovered"] += 1
+        return span
     stats["unresolved"] += 1
     if len(stats.setdefault("unresolved_samples", [])) < 6:   # what the model actually sent, for the log
         stats["unresolved_samples"].append({"index": pointer.get("index"), "text": str(pointer.get("text") or "")[:80]})
