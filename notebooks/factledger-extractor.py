@@ -6,6 +6,7 @@
 # rules it follows are in BUILD.md. Built one block at a time. Inputs: the public raw dataset
 # and the private papers dataset, both attached to this notebook.
 
+
 # %%
 # Block 1: inputs and integrity.
 # Mount both datasets, count files per folder, and check every file's sha256 against the
@@ -54,6 +55,7 @@ for name, key in [("oz", "works"), ("holmes", "works"), ("greek", "works"),
                   ("graphrag-bench", "files"), ("longmemeval", "files")]:
     check(RAW / name, key)
 check(PAPERS, "files")
+
 
 # %%
 # Block 2: file type, then raw text.
@@ -149,6 +151,7 @@ for path in [RAW / "oz" / "01_55.txt", RAW / "graphrag-bench" / "Novel-30752.txt
     print(f"{path.name:<26} {d['kind']:<5} {len(d['text']):>8,} chars  turns {turns:>3}  dates {d['dates']}")
     print("    " + repr(d["text"][:70]))
 
+
 # %%
 # Block 3: the model call.
 import json
@@ -161,7 +164,7 @@ MODEL = "gpt-5.6-luna"
 RETRY = "gpt-5.6-terra"
 RETRY_MAX_TOKENS = 80_000     # Terra is ten times Luna's price: only a document under this many tokens gets it
 PRICE = {"gpt-5.6-luna": (0.20, 1.20), "gpt-5.6-terra": (2.00, 12.00)}   # $ per M tokens in, out
-SPEND_STOP = 8.00                                                        # dollars; the run halts past this
+SPEND_STOP = 25.00                                                       # dollars; the run halts past this
 try:
     KEY = UserSecretsClient().get_secret("OPENAI_API_KEY")
 except Exception:                        # a 400 here means the secret is not attached to this notebook
@@ -227,6 +230,7 @@ def generate(prompt, model=MODEL, effort="low"):
 
 print(f"model {MODEL}, retry {MODEL} then {RETRY} under {RETRY_MAX_TOKENS:,} tokens, spend stop ${SPEND_STOP:.2f}, key {'present' if KEY else 'MISSING'}")
 
+
 # %%
 # Block 4: the address list. Every non-blank line of the document, numbered. The model points
 # at lines by number; code never decides where a break may be. A document without lines (a
@@ -263,6 +267,7 @@ for path in [RAW / "oz" / "01_55.txt", RAW / "greek" / "03_348.txt", RAW / "grap
     n = len(listing(d["text"], a))
     print(f"{path.name:<26} {len(d['text']):>9,} chars  {len(a):>6,} addresses  {n:>9,} chars to the model  (~{n // 4:,} tokens)")
 
+
 # %%
 # Block 5: the question. One call per document, the whole document in it. Every pointer is a
 # number and the line's text, so the number can be checked and, when it is off by a few,
@@ -293,6 +298,7 @@ Pieces are the document's own divisions: chapters, acts and scenes, sections, da
 def ask(text, addrs, model=MODEL):
     return generate(PROMPT % listing(text, addrs), model)
 
+
 # %%
 # Block 6: pieces from the answer, and the gates.
 #   resolve   a pointer becomes an address span: its index when the text there matches, else
@@ -321,6 +327,7 @@ def ask(text, addrs, model=MODEL):
 KINDS = ("front_matter", "body", "notes", "references", "appendix", "license")
 WINDOW = 5          # addresses either side searched when an index and its text disagree
 CAP_WORDS = 4000    # a unit stays under this; block 7 splits and groups against it
+TAIL_FLOOR = CAP_WORDS // 3   # a last run of turns under this joins the unit before it
 
 
 def norm(s):
@@ -610,6 +617,7 @@ def split(doc):
                 [f"too long: about {tokens:,} tokens for one call"], {**fresh_stats(addrs, None), "too_long": True})
     return best[1:]
 
+
 # %%
 # Block 7: units. The model decides these too, in three calls.
 #   subsplit  a piece over CAP_WORDS is shown to the model as numbered lines and it points at
@@ -627,9 +635,12 @@ def split(doc):
 #             outline is dropped for one unit per piece and flagged.
 # A text or PDF unit carries the document's date. Chat pieces are the turns, built from the
 # turn spans block 2 kept, with the role as author and the session date as time when there is
-# one, after a front_matter piece for the header. A chat unit is one turn, with no model call;
-# the header opens the first turn's unit. A session the benchmark reused carries several dates
-# and takes the one it started on, on the document, its units and its turns alike.
+# one, after a front_matter piece for the header. A chat unit is a run of at least two turns
+# under the cap, never across a day change, the short tail merged into the unit before it, with
+# no model call; the header opens the first turn's unit. Voice does not depend on where a unit
+# ends: every turn is its own piece and carries its own author. A session the benchmark reused
+# carries several dates and takes the one it started on, on the document, its units and its
+# turns alike.
 from datetime import datetime
 
 DEPTH = 3            # rounds of splitting a piece that stays over the cap
@@ -841,10 +852,32 @@ def chat_pieces(doc):
     return pieces, flags
 
 
-def chat_runs(pieces):
-    """One unit per turn. The header has no turn of its own, so it opens the first turn's unit
-    and every byte of the session still belongs to one."""
-    return [[0, 1]] + [[i] for i in range(2, len(pieces))] if len(pieces) > 1 else [[0]]
+def day(t):
+    return (t or "")[:10]
+
+
+def chat_runs(pieces, text):
+    """Runs of piece indices: at least two turns each unless a day changes, under the cap where
+    two turns allow it, the short tail merged into the unit before it. Index 0 is the header,
+    which has no turn of its own and so opens the first turn's unit."""
+    runs, run, size = [], [], 0
+    for i, q in enumerate(pieces):
+        w = words(text, q)
+        turns = sum(1 for j in run if j > 0)
+        new_day = bool(run) and day(q["occurred_at"]) != day(pieces[run[-1]]["occurred_at"])
+        if run and (new_day or (size + w > CAP_WORDS and turns >= 2)):
+            runs.append(run)
+            run, size = [], 0
+        run.append(i)
+        size += w
+    if run:
+        same_day = runs and day(pieces[run[0]]["occurred_at"]) == day(pieces[runs[-1][-1]]["occurred_at"])
+        lone = sum(1 for j in run if j > 0) < 2
+        if runs and same_day and (size < TAIL_FLOOR or lone):   # a short tail, or a lone turn, joins the unit before it
+            runs[-1].extend(run)
+        else:
+            runs.append(run)
+    return runs
 
 
 def units_from_runs(pieces, runs, text):
@@ -860,6 +893,7 @@ def units_from_runs(pieces, runs, text):
             q["unit"] = i
     return units
 
+
 # %%
 # Block 8: every document in both datasets, resumable. Each finished document is appended to
 # splits.jsonl as one record: file (dataset-relative), path, sha256, kind, reply, pieces, units,
@@ -872,7 +906,7 @@ def units_from_runs(pieces, runs, text):
 # stop writes the document in flight as a flagged record, so its cost is kept, and ends the loop.
 SPLITS = Path("/kaggle/working/splits.jsonl")
 LOG = Path("/kaggle/working/splits.log")
-LOADER = "factledger-extractor 0.9"     # a record says which loader wrote it; a rerun redoes older ones
+LOADER = "factledger-extractor 1.0"     # a record says which loader wrote it; a rerun redoes older ones
 
 
 def rel_of(path):
@@ -954,7 +988,7 @@ for path in paths:
         if doc["kind"] == "chat":
             pieces, flags = chat_pieces(doc)
             reply, stats = {}, {"addresses": None}
-            runs = chat_runs(pieces)
+            runs = chat_runs(pieces, doc["text"])
         else:
             pieces, reply, flags, stats = split(doc)
             unresolved = stats["unresolved"]
@@ -999,6 +1033,7 @@ for path in paths:
     else:
         show(doc, record)
 print(f"{len(done)} documents in {SPLITS.name}, ${spend():.2f} spent this session")
+
 
 # %%
 # Block 9: export in the schema, plus the receipt. Last record per document wins.
@@ -1102,7 +1137,7 @@ with ThreadPoolExecutor(max_workers=32) as pool:
             receipt[f"over_cap_{side}"] += u["words"] > CAP_WORDS
             receipt[f"short_{side}"] += u["words"] < SHORT_WORDS
         for position, p in enumerate(record["pieces"] if doc["kind"] != "error" else []):
-            files["pieces"].write(json.dumps({"doc_id": doc_id, "unit_id": ids[p.get("unit", 0)], "position": position,
+            files["pieces"].write(json.dumps({"doc_id": doc_id, "unit_id": ids[p["unit"]], "position": position,
                                               "kind": p["kind"], "start": p["start"], "end": p["end"],
                                               "author": p["author"], "occurred_at": p["occurred_at"]}, ensure_ascii=False) + "\n")
         st = record["stats"]

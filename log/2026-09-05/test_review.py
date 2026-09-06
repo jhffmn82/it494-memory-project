@@ -122,7 +122,9 @@ check("failed document pointers counted and flagged as metadata", any(f.startswi
 check("tiles", pieces[0]["start"] == 0 and pieces[-1]["end"] == len(text) and all(a["end"] == b["start"] for a, b in zip(pieces, pieces[1:])))
 check("headed 24 = toc 24, no count flag", stats["headed"] == 24 and not any(f.startswith("count") for f in flags), stats["headed"])
 check("a metadata flag alone buys no retry: one call", [c[0] for c in calls] == ["luna"], [c[0] for c in calls])
-script["main"] = lambda lines: {**oz_reply(lines, bad_meta=False), "toc_count": 23}    # a count mismatch is retryable
+script["main"] = lambda lines: {**oz_reply(lines, bad_meta=False), "toc_count": 25}    # fewer headed than the contents count is retryable
+# 2026-09-06: 0.9 made the count gate one-sided, so a toc BELOW the headed count no longer
+# flags (Bulfinch, 32 headed against a contents list of 24, is correct). 25 > 24 still does.
 calls.clear(); R("split")(doc)
 check("a count flag retries on the same model, then terra under 80k tokens", [c[0] for c in calls] == ["luna", "luna", "terra"], [c[0] for c in calls])
 

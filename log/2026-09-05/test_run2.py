@@ -53,17 +53,21 @@ def check(name, cond, detail=""):
     print(f"  {'PASS' if cond else 'FAIL'}  {name}{('  ' + str(detail)) if detail else ''}")
 
 
-print("== chat units are single turns; the session's first date on document, unit and turn ==")
+print("== chat units are runs of turns; the session's first date on document, unit and turn ==")
 multi = json.loads((Path("data/raw/longmemeval") / "001cefa7_2.json").read_text(encoding="utf-8"))
 doc = ns["to_text"](Path("data/raw/longmemeval/001cefa7_2.json"))
 pieces, flags = R("chat_pieces")(doc)
-runs = R("chat_runs")(pieces)
+runs = R("chat_runs")(pieces, doc["text"])
 units = R("units_from_runs")(pieces, runs, doc["text"])
 turns = len(doc["turns"])
-check("one unit per turn", len(units) == turns, (len(units), turns))
+# 2026-09-06: 0.8 made a unit one turn; the audit restored the ruled rule, so these three
+# checks now assert it. SCHEMA.md: never a lone turn, never across a day change, under the cap.
+check("fewer units than turns: they are grouped", len(units) < turns, (len(units), turns))
 check("the header opens the first unit and no unit is turn-less",
-      runs[0] == [0, 1] and all(any(j > 0 for j in run) for run in runs))
-check("every unit holds exactly one turn", all(sum(1 for j in run if j > 0) == 1 for run in runs))
+      runs[0][:2] == [0, 1] and all(any(j > 0 for j in run) for run in runs))
+check("no unit is a lone turn", all(sum(1 for j in run if j > 0) >= 2 for run in runs), [len(r) for r in runs])
+check("no unit is over the cap unless one turn is", all(
+      u["words"] <= R("CAP_WORDS") or sum(1 for j in run if j > 0) == 1 for u, run in zip(units, runs)))
 earliest = min(t for t in (R("parse_time")(d) for d in doc["dates"]) if t)
 check("the session's earliest date is kept, not the first listed",
       earliest == "2023-05-20T02:38:00" and doc["dates"][0] == "2023/05/22 (Mon) 15:34", (earliest, doc["dates"]))

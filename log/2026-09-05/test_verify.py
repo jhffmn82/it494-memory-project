@@ -138,8 +138,11 @@ calls.clear(); script["spendstop_at"] = None
 exec(b8, ns)
 recs = [json.loads(l) for l in (SCR / "splits.jsonl").read_text(encoding="utf-8").split("\n") if l]
 new = [r["file"] for r in recs[3:]]
-check("old clean record skipped by derived name; twice-flagged record skipped", "raw/oz/01_55.txt" not in new and "raw/oz/02_54.txt" not in new, new)
-check("chat, two identical PDFs and the missing file all got records", new == ["raw/longmemeval/001cefa7_2.json", "papers/novelqa-2024.pdf", "papers/wang2024-novelqa.pdf", "raw/oz/missing.txt"], new)
+# 2026-09-06: 0.9 redoes every record an older loader wrote, which is what these seeded
+# records are (they carry no "loader"), so both are re-asked rather than skipped. The
+# older-loader rule itself is checked in test_diag.py.
+check("a record from an older loader is redone, not skipped", "raw/oz/01_55.txt" in new and "raw/oz/02_54.txt" in new, new)
+check("every path got a record, in order", new == ["raw/oz/01_55.txt", "raw/oz/02_54.txt", "raw/longmemeval/001cefa7_2.json", "papers/novelqa-2024.pdf", "papers/wang2024-novelqa.pdf", "raw/oz/missing.txt"], new)
 err = next(r for r in recs if r.get("file") == "raw/oz/missing.txt")
 check("unreadable file is a run-error record, kind error, loop continued", err["kind"] == "error" and err["flags"][0].startswith("run error"), err["flags"])
 calls.clear()

@@ -116,7 +116,8 @@ m = R("merge_short")(t, pcs, {}, fl)
 check("a merge that would itself carry a piece past the cap is still refused", len(m) == 2 and any(f.startswith("merging: over cap") for f in fl), fl)
 
 print("\n== 1. a record carries its loader, and a rerun redoes what an older loader left ==")
-check("the loader is defined in block 8, before the record is written", "LOADER" in ns and ns["LOADER"].endswith("0.9"), ns.get("LOADER"))
+check("the loader is defined in block 8, before the record is written",
+      "LOADER" in ns and ns["LOADER"].startswith("factledger-extractor "), ns.get("LOADER"))
 old = {"file": "raw/oz/01_55.txt", "path": "x", "sha256": "s1", "kind": "chat", "flags": [], "units": [], "pieces": [], "stats": {}, "cost": 0}
 cur = {**old, "file": "raw/oz/02_54.txt", "sha256": "s2", "loader": ns["LOADER"]}
 (SCR / "splits.jsonl").write_text("\n".join(json.dumps(x) for x in (old, cur)) + "\n", encoding="utf-8")
@@ -141,7 +142,7 @@ check("a publication becomes the author only when no person was named",
 print("\n== the chat date rule end to end ==")
 doc = ns["to_text"](Path("data/raw/longmemeval/001cefa7_2.json"))
 pieces, flags = R("chat_pieces")(doc)
-units = R("units_from_runs")(pieces, R("chat_runs")(pieces), doc["text"])
+units = R("units_from_runs")(pieces, R("chat_runs")(pieces, doc["text"]), doc["text"])
 dates = sorted(t for t in (R("parse_time")(d) for d in doc["dates"]) if t)
 check("the file lists its dates out of order", doc["dates"][0] > doc["dates"][-1], doc["dates"])
 check("block 7 gives every unit the earliest", all(u["occurred_at"] == dates[0] for u in units), dates[0])

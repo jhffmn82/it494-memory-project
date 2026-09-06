@@ -59,8 +59,12 @@ st = R("fresh_stats")(a, "luna")
 check("a sentence that runs past its first line resolves at that line",
       R("resolve")({"index": 0, "text": "It was a cold morning of the early spring, and we sat after breakfast on either side of a cheery fire"}, t, a, st) == a[0])
 st = R("fresh_stats")(a, "luna")
-check("a copy that begins mid-line does not resolve, and is kept as a sample",
-      R("resolve")({"index": 1, "text": "on either side of a cheery fire in the old room"}, t, a, st) is None and st["unresolved_samples"][0]["index"] == 1, st.get("unresolved_samples"))
+# 2026-09-06: 0.9 matches a run of five words or more anywhere inside the line, not only as
+# its prefix, so a copy that begins mid-line now names its line instead of failing. A copy
+# under five words is still strict, which the next check holds.
+check("a copy of five words or more names its line wherever it begins",
+      R("resolve")({"index": 1, "text": "on either side of a cheery fire in the old room"}, t, a, st) is not None
+      and not st["unresolved"], st.get("unresolved_samples"))
 st = R("fresh_stats")(a, "luna")
 check("a four-word copy still needs an exact line", R("resolve")({"index": 3, "text": "houses."}, t, a, st) == a[3] and R("resolve")({"index": 2, "text": "Baker Street. A thick"}, t, a, R("fresh_stats")(a, "luna")) is None)
 
@@ -157,7 +161,8 @@ t, pcs = pcs_from([("Big", 3990, "body"), ("tail", 30, "body")])
 script["merge"] = lambda l: {"merges": [{"index": 1, "into": "before"}]}
 fl = []
 m = R("merge_short")(t, pcs, {}, fl)
-check("a join that would pass the cap is left alone and flagged; 'before' understood", len(m) == 2 and any("pass the cap" in f for f in fl), fl)
+# 2026-09-06: 0.9 reworded the flag to "merging: over cap, left alone: ...".
+check("a join that would pass the cap is left alone and flagged; 'before' understood", len(m) == 2 and any("over cap" in f for f in fl), fl)
 t, pcs = pcs_from([("A", 200, "body"), ("h", 2, "body"), ("B", 200, "body")])
 script["merge"] = lambda l: {"merges": [{"index": 1, "into": "After"}, {"index": 0, "into": "next"}, {"index": 1, "into": "sideways"}]}
 fl, stt = [], {}

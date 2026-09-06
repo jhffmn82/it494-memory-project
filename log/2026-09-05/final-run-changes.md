@@ -1,8 +1,22 @@
-# Proposed changes before the final run
+# Changes made before the final run
 
-Five edits, from [audit.md](audit.md). Nothing here is applied; they are for Justin to rule on
-and apply to `notebooks/factledger-extractor.py`, after which `py_to_ipynb.py` regenerates the
-notebook and it goes back to Kaggle. Line numbers are the 0.9 script's.
+**APPLIED 2026-09-06 as `factledger-extractor 1.0`**, from [audit.md](audit.md), and the
+notebook regenerated with `py_to_ipynb.py` (round trip exact). All five offline batteries pass
+together for the first time since 0.7: 154 checks (`test_review` 40, `test_verify` 25,
+`test_run1` 26, `test_run2` 41, `test_diag` 22). What follows is what changed and why; only
+the SCHEMA.md edit in 4 is still PROPOSED and unapplied.
+
+Measured after the change, over 3,000 real sessions scaled to the corpus: **19,206 chat units**
+(was 198,961), zero tiling defects, six lone-turn units (sessions with one turn in total), one
+over-cap unit (a single turn over the cap, which stands alone by design), median unit 1,704
+words.
+
+Re-baselining the batteries surfaced something worth recording: **six checks had been failing
+unnoticed** because two batteries were crashing on the `chat_runs` signature, so 0.8 and 0.9
+changed behaviour that nothing was watching. All six were stale expectations, not defects: the
+count gate became one-sided, the resume redoes any record an older loader wrote, a copy of five
+words or more now names its line wherever it begins, and the over-cap merge flag was reworded.
+Each is now asserted in its new form with the reason in a comment.
 
 ## 1. Restore grouped chat units (blocker)
 
@@ -46,7 +60,7 @@ Effect: 19,206 chat units instead of 198,961, none a lone turn, none under the h
 floor the text path enforces. Voice is unaffected: it lives on the piece, and every turn is
 still its own piece with its own `author`.
 
-## 2. Re-run the batteries, re-baseline the two stale checks
+## 2. Re-run the batteries, re-baseline the stale checks
 
 With 1 applied, `test_review.py` and `test_verify.py` run again. In `test_run1.py` two
 expectations are superseded and should be updated rather than fixed:
@@ -56,7 +70,7 @@ expectations are superseded and should be updated rather than fixed:
 - "a join that would pass the cap is left alone and flagged": the message is now
   `merging: over cap, left alone: ...`. Match the new wording.
 
-Then all five batteries pass together, 153 checks, and that is the number the log should carry.
+All five batteries now pass together: 154 checks.
 
 ## 3. Raise the spending stop for the final run
 

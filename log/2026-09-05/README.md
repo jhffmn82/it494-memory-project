@@ -306,6 +306,15 @@ Verified as right, by reproduction rather than reading: pieces tile with zero ga
 sessions; the merge and group repairs hold against the mutual-point, cross-region, gap and
 overlap cases; the exported `unit` and `piece` records match the schema field for field.
 
+**Applied the same day as `factledger-extractor 1.0`** (all but the SCHEMA.md edit, which
+stays PROPOSED): grouped chat units restored, the spending stop at $25, `ids[p["unit"]]`, and
+the notebook regenerated with an exact round trip. Measured after: 19,206 chat units, zero
+tiling defects, six lone-turn units (one-turn sessions), one over-cap unit (a single long
+turn), median 1,704 words. Re-baselining the batteries surfaced **six checks that had been
+failing unnoticed** while two batteries were crashing, all stale expectations from 0.8 and
+0.9 rather than defects. All five batteries now pass together for the first time since 0.7:
+154 checks.
+
 ## Open
 
 
