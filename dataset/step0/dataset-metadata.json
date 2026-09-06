@@ -13,5 +13,6 @@
     "text",
     "literature",
     "text mining"
-  ]
+  ],
+  "expectedUpdateFrequency": "never"
 }

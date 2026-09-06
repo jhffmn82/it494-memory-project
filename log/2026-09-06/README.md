@@ -283,6 +283,10 @@ body, not 40.
 
 - **Turn `REDO_ALL` back to False.** It was on for the clean pass; leaving it on re-bills the
   corpus on the next code change.
+- **Two things on the dataset page need the browser.** Kaggle's usability score sits at 0.5 and
+  the two points left are a cover image and per-file descriptions, neither of which the API
+  accepts on an existing dataset: `datasets metadata --update` silently drops `resources`. Title,
+  subtitle, description, MIT license, tags and update frequency all went up through the CLI.
 - **The old units dataset is now stale.** `it494-narrative-corpora-units` is public, holds the
   hand-rolled splitter's output from 09-01, and shares file names with the new dataset while
   meaning something else. It should be retitled as superseded or unpublished.
