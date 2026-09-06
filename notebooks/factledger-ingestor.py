@@ -155,8 +155,9 @@ if not KEY and Path("/kaggle").exists():
     try:
         from kaggle_secrets import UserSecretsClient
         KEY = UserSecretsClient().get_secret("OPENAI_API_KEY")
-    except Exception:
+    except Exception:                        # a 400 here means the secret is not attached to this notebook
         KEY = None
+        print("OPENAI_API_KEY is not attached to this notebook: Add-ons > Secrets, tick Attach; Settings > Internet on")
 CALLS = []                       # every call this session: stage, model, in, out, seconds, cost, doc, unit
 REJECTIONS = []                  # every rejected reply this session: stage, category, doc, unit, detail
 
@@ -1467,64 +1468,19 @@ def targets(spec):
     return [u for s in spec for u in BY_URI if u.endswith(s)]
 
 # %%
-# Block 12: Oz book 1, watched chapter by chapter, against the 09-02 demo. RUN names the
-# documents; DIAG says what to print per unit (block 10 lists the flags); SPEND_STOP ends the
-# run past that many dollars, the document in flight keeping its finished units in a sidecar.
-# After the run, one table per document lines each unit up with the demo's two runs on the same
-# chapter: entities, facts kept, facts dropped (v3: 632 entities, 969 facts, 53 dropped, $1.26;
-# v4: 644, 859, 157, $1.72). Later runs set RUN to "sample" (the test variety) or "all".
-# Locally: `python factledger-ingestor.py --sample`, `--sample 2`, or source_uri suffixes.
+# Block 12: the run. RUN names the documents by the end of their source_uri; DIAG says what to
+# print as each unit lands (block 10 lists the flags); SPEND_STOP ends the run past that many
+# dollars, the document in flight keeping its finished units in a sidecar for next time.
+# For reference, the 09-02 demo on Oz book 1: v3 632 entities, 969 facts, 53 dropped, $1.26;
+# v4 644, 859, 157, $1.72. Later: RUN = "sample" for the test variety, "all" for the corpus.
 RUN = ["/oz/01_55.txt"]
 DIAG = dict(DIAG_ALL)
-ON_KAGGLE = Path("/kaggle/working").exists()
-if ON_KAGGLE:
-    SPEND_STOP = 5.00
+SPEND_STOP = 5.00
 
-DEMO = {   # per chapter of Oz book 1: (entities, facts kept, facts dropped), from log/2026-09-02
-    "v3": [(16, 57, 1), (27, 51, 1), (21, 36, 4), (25, 43, 1), (29, 36, 1), (31, 40, 1), (38, 48, 3), (24, 34, 6), (21, 28, 5), (28, 63, 3), (34, 49, 0), (30, 56, 2), (30, 39, 5), (22, 49, 2), (38, 38, 7), (19, 21, 1), (32, 34, 0), (30, 45, 2), (23, 30, 1), (29, 48, 1), (21, 37, 1), (26, 36, 1), (30, 45, 2), (8, 6, 2)],
-    "v4": [(17, 53, 0), (34, 47, 3), (24, 41, 3), (30, 41, 3), (30, 50, 7), (28, 37, 2), (24, 42, 5), (28, 44, 10), (18, 26, 7), (36, 47, 2), (32, 37, 33), (32, 0, 54), (32, 39, 0), (30, 41, 4), (33, 48, 2), (15, 18, 2), (31, 32, 1), (29, 38, 2), (21, 29, 3), (35, 44, 0), (28, 25, 2), (22, 35, 4), (28, 39, 6), (7, 6, 2)],
-}
-
-
-def roman(word):
-    vals = {"M": 1000, "D": 500, "C": 100, "L": 50, "X": 10, "V": 5, "I": 1}
-    total, prev = 0, 0
-    for ch in reversed(word.upper()):
-        v = vals.get(ch)
-        if v is None:
-            return None
-        total, prev = (total - v, prev) if v < prev else (total + v, v)
-    return total
-
-
-def compare(uri, records, counts, stats):
-    """The new run beside the demo, one row per unit; a unit labelled 'Chapter N' lines up with
-    the demo's chapter N, the others (front matter, license) stand alone."""
-    say(f"\n{uri}: new run {counts['entities']} entities ({counts['majors']} major), {counts['facts_kept']} facts kept,"
-        f" {counts['facts_rejected']} rejected, ${stats['cost']:.2f}; demo v3 632 / 969 / 53 / $1.26, v4 644 / 859 / 157 / $1.72")
-    say(f"    {'unit':<28} {'new: ent':>8} {'kept':>5} {'rej':>4}   {'v3: ent':>8} {'kept':>5} {'drop':>4}   {'v4: ent':>8} {'kept':>5} {'drop':>4}")
-    tot = [0, 0, 0]
-    for r in records:
-        m = re.match(r"\s*chapter\s+([ivxlcdm]+)\b", r["label"], re.I)
-        n = roman(m.group(1)) if m else None
-        row = f"    {r['label'][:28]:<28} {len(r['entities']):>8} {len(r['facts']):>5} {len(r['rejected_facts']):>4}"
-        for tag in ("v3", "v4"):
-            d = DEMO[tag][n - 1] if n and 1 <= n <= len(DEMO[tag]) else None
-            row += f"   {d[0]:>8} {d[1]:>5} {d[2]:>4}" if d else f"   {'-':>8} {'-':>5} {'-':>4}"
-        say(row)
-        tot[0] += len(r["entities"]); tot[1] += len(r["facts"]); tot[2] += len(r["rejected_facts"])
-    say(f"    {'total':<28} {tot[0]:>8} {tot[1]:>5} {tot[2]:>4}   {632:>8} {969:>5} {53:>4}   {644:>8} {859:>5} {157:>4}")
-
-
-if __name__ == "__main__" and not ON_KAGGLE and len(sys.argv) > 1:
-    RUN = sample(int(sys.argv[2])) if sys.argv[1] == "--sample" and len(sys.argv) > 2 else "sample" if sys.argv[1] == "--sample" else sys.argv[1:]
-if ON_KAGGLE or (__name__ == "__main__" and len(sys.argv) > 1):
+if __name__ == "__main__":
     uris = targets(RUN)
-    print(f"ingesting {len(uris)} documents, stop at ${SPEND_STOP:.2f}, diagnostics {[k for k, v in DIAG.items() if v]}")
+    print(f"ingesting {len(uris)} documents, stop at ${SPEND_STOP:.2f}")
     try:
         run(uris, diag=DIAG)
     finally:
-        for uri, records, counts, stats in RESULTS:
-            if "/oz/" in uri:
-                compare(uri, records, counts, stats)
-        print(json.dumps(receipt(), indent=1)[:3000])
+        print(json.dumps(receipt(), indent=1))
