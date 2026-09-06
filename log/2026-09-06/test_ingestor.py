@@ -60,7 +60,7 @@ def first_sentence_with(text, name):
 def stub_generate(prompt, schema, stage, model=None, effort="low", ctx=None):
     if script["stop_at"] is not None and len(ns["CALLS"]) >= script["stop_at"]:
         raise ns["SpendStop"]("test stop")
-    ns["logged"]({"stage": stage, "model": model or "stub", "in": len(prompt) // 4, "out": 50, "seconds": 0.0, "cost": 0.001, **(ctx or {})})
+    ns["log_call"]({"stage": stage, "model": model or "stub", "in": len(prompt) // 4, "out": 50, "seconds": 0.0, "cost": 0.001, **(ctx or {})})
     text = unit_text_of(prompt)
     if stage == "entities":
         if len(text.split()) < 20:                              # a chat header: nothing to name, as the model would find
@@ -132,7 +132,7 @@ t = "The ﬁrst “quoted” line—done.\nSecond   line here."
 s, e, how = locate(t, "quoted")
 check("locate exact", (s, e, how) == (t.index("quoted"), t.index("quoted") + 6, "exact"))
 s, e, how = locate(t, "Second line here")
-check("locate across whitespace", how == "whitespace" and t[s:e] == "Second   line here")
+check("locate across whitespace, on the normalised path", how == "normalised" and t[s:e] == "Second   line here")
 s, e, how = locate(t, 'the FIRST "quoted" line-done')
 check("locate through NFKC, curly quotes, dash and case, offsets in the original", how == "normalised" and t[s:e] == "The ﬁrst “quoted” line—done", repr(t[s:e] if s is not None else how))
 check("locate paraphrase classified", locate(t, "Second line here today")[2] == "paraphrase")
@@ -176,7 +176,7 @@ check("facts stored", len(facts) > 0, len(facts))
 check("every fact's offsets slice to exactly its quote", all(text[f["quote_start"]:f["quote_end"]] == f["quote"] for f in facts))
 unit_range = {u["unit_id"]: (u["start"], u["end"]) for u in doc["units"]}
 check("every quote lies inside its unit", all(unit_range[f["unit_id"]][0] <= f["quote_start"] < f["quote_end"] <= unit_range[f["unit_id"]][1] for f in facts))
-check("three match paths all exercised", set(stats["matched_by"]) >= {"exact", "whitespace", "normalised"}, stats["matched_by"])
+check("both match paths exercised", set(stats["matched_by"]) >= {"exact", "normalised"}, stats["matched_by"])
 check("rejections classified: paraphrase, not_found, unlisted_subject, duplicate", set(stats["rejected_by"]) >= {"paraphrase", "not_found", "unlisted_subject", "duplicate"}, stats["rejected_by"])
 check("predicate normalised to snake_case", any(f["predicate"] == "has_trait" for f in facts))
 check("valid_from kept only when the quote states the year", all(f["valid_from"] is None for f in facts if "1900" not in f["quote"]))

@@ -8,31 +8,29 @@
 # a narrative cell per entity per unit, the document's abstract, and a dossier per major entity
 # for the merge that comes next. Nothing here looks at a second document.
 #
-# Every stage is a function that returns something you can read: what the model said, what
-# code kept, what it rejected and why. Blocks 1 to 3 are plumbing. Block 4 is the quote gate.
-# Blocks 5 to 7 derive one unit. Block 8 folds a document. Block 9 writes the package. Block 10
-# runs the corpus, resumable. Block 11 names the test variety and block 12 is the run. The
-# script form (`# %%` cells) is the thing to edit; the notebook is generated from it.
+# Every step is a function. Block 1 finds the files. Block 2 is the model interface and block 3
+# tests the connection. Block 4 is ids and helpers. Block 5 is the quote gate. Blocks 6 to 8
+# derive one unit and reconcile a document. Block 9 folds the abstract. Block 10 writes the
+# package. Block 11 is the pipeline as one function, with flags that print each step as it
+# happens. Block 12 names documents and block 13 is the run.
 #
-# **On Kaggle:** attach the extractor's export as a dataset (a folder holding
-# `documents.jsonl`, `units.jsonl`, `pieces.jsonl`; block 1 finds it anywhere under
-# `/kaggle/input`), attach `OPENAI_API_KEY` under Add-ons > Secrets, turn Internet on under
-# Settings, set `RUN` and `SPEND_STOP` in block 12, and Save & Run All so the packages under
-# `/kaggle/working/packages` are kept as the version's output. To continue a run that stopped,
-# attach that version's output as an input (Add Input > Your Work) before the next Save & Run
-# All: finished packages are copied in and skipped, and only the unfinished documents are paid
-# for. Every model call is logged to `calls.jsonl` as it is made; the stop is checked before
-# each one.
+# **On Kaggle:** attach the export dataset (`jhffmn/it494-factledger-step0`), attach
+# `OPENAI_API_KEY` under Add-ons > Secrets, turn Internet on under Settings, run block 3 to see
+# the connection work, set `RUN` and `SPEND_STOP` in block 13, and Save & Run All. The packages
+# land under `/kaggle/working/packages` and are kept as the version's output. To continue a
+# stopped run, make a dataset from that output and attach it: finished packages are copied in
+# and skipped.
 
 # %%
-# Block 1: inputs. The export lives under /kaggle/input on Kaggle or wherever EXPORT points
-# locally; packages go under /kaggle/working or OUT. Records are read lazily by document, since
-# documents.jsonl carries every byte of the corpus. A previous version's output attached as an
-# input seeds OUT, so a run continues where the last one stopped.
+# Block 1: where things are, and how a document is read.
+#
+# The export is read from the first of these that exists: the EXPORT environment variable,
+# the Kaggle dataset, the local folder. Packages are written under OUT. documents.jsonl holds
+# every byte of the corpus, so it is indexed once (doc_id, title, byte offset per document)
+# and a document is read back with one seek when it is wanted.
 import hashlib
 import json
 import os
-import re
 import shutil
 import sys
 import time
@@ -40,42 +38,64 @@ import unicodedata
 from datetime import datetime, timezone
 from pathlib import Path
 
-INGESTOR = "factledger-ingestor 0.2"
-if hasattr(sys.stdout, "reconfigure"):                       # a console that is not UTF-8 must not end the run
+INGESTOR = "factledger-ingestor 0.3"
+KAGGLE_EXPORT = Path("/kaggle/input/datasets/jhffmn/it494-factledger-step0")
+LOCAL_EXPORT = Path("data/export")
+KAGGLE_OUT = Path("/kaggle/working/packages")
+LOCAL_OUT = Path("data/packages")
+
+if hasattr(sys.stdout, "reconfigure"):            # a console that is not UTF-8 must not end the run
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
 
-def find_export():
-    env = os.environ.get("EXPORT")
-    if env:
-        return Path(env)
-    for root in (Path("/kaggle/input"), Path("data/export")):
-        hits = sorted(root.rglob("units.jsonl")) if root.exists() else []
-        if hits:
-            return hits[0].parent
-    raise SystemExit("no export found: set EXPORT to the folder holding documents.jsonl, units.jsonl, pieces.jsonl")
+def choose_export():
+    if os.environ.get("EXPORT"):
+        return Path(os.environ["EXPORT"])
+    if KAGGLE_EXPORT.exists():
+        return KAGGLE_EXPORT
+    if LOCAL_EXPORT.exists():
+        return LOCAL_EXPORT
+    raise SystemExit("no export found: attach the dataset on Kaggle, or set EXPORT to a folder holding documents.jsonl")
 
 
-EXPORT = find_export()
-OUT = Path(os.environ.get("OUT") or ("/kaggle/working/packages" if Path("/kaggle/working").exists() else "data/packages"))
+def choose_out():
+    if os.environ.get("OUT"):
+        return Path(os.environ["OUT"])
+    if Path("/kaggle/working").exists():
+        return KAGGLE_OUT
+    return LOCAL_OUT
+
+
+EXPORT = choose_export()
+OUT = choose_out()
 OUT.mkdir(parents=True, exist_ok=True)
 
 
+def read_jsonl(path):
+    """One dict per non-empty line."""
+    rows = []
+    with path.open(encoding="utf-8") as f:
+        for line in f:
+            if line.strip():
+                rows.append(json.loads(line))
+    return rows
+
+
 def seed_from_prior_output():
-    """Every package (and every partial-document sidecar) under a 'packages' folder attached as
-    an input is copied into OUT when OUT does not have it yet; the run logs of that session are
-    not, since they belong to it. Returns how many files were copied."""
-    root = Path("/kaggle/input")
+    """On Kaggle a new session starts with an empty working folder. If an earlier run's output
+    was attached as a dataset, its packages are copied in first, so they are skipped rather than
+    paid for again. The earlier run's own logs are not copied. Returns how many files came in."""
     copied = 0
+    root = Path("/kaggle/input")
     if not root.exists():
         return copied
-    for prior in root.rglob("packages"):
-        if not prior.is_dir():
+    for folder in root.rglob("packages"):
+        if not folder.is_dir():
             continue
-        for src in prior.rglob("*.jsonl"):
+        for src in folder.rglob("*.jsonl"):
             if src.name in ("manifest.jsonl", "calls.jsonl", "rejections.jsonl"):
                 continue
-            dst = OUT / src.relative_to(prior)
+            dst = OUT / src.relative_to(folder)
             if not dst.exists():
                 dst.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copyfile(src, dst)
@@ -83,83 +103,115 @@ def seed_from_prior_output():
     return copied
 
 
-SEEDED = seed_from_prior_output()
-
-
-def read_jsonl(path):
-    with path.open(encoding="utf-8") as f:
-        for line in f:                          # never splitlines(): document text can hold U+2028
-            if line.strip():
-                yield json.loads(line)
-
-
-def index_export():
-    """source_uri -> doc_id, plus units and pieces grouped by doc_id, without holding any text."""
-    units, pieces, by_uri = {}, {}, {}
-    for u in read_jsonl(EXPORT / "units.jsonl"):
-        units.setdefault(u["doc_id"], []).append(u)
-    for p in read_jsonl(EXPORT / "pieces.jsonl"):
-        pieces.setdefault(p["doc_id"], []).append(p)
-    with (EXPORT / "documents.jsonl").open("rb") as f:          # bytes, so the offset seeks exactly on any line ending
-        offset = 0
+def index_documents():
+    """source_uri -> {doc_id, title, author, offset}. Each line is parsed once and its text is
+    dropped; the byte offset lets load_document seek straight to it later."""
+    index = {}
+    offset = 0
+    with (EXPORT / "documents.jsonl").open("rb") as f:
         for raw in f:
-            head = raw[:400].decode("utf-8", errors="replace")
-            m = re.search(r'"doc_id": "([0-9a-f]{64})", "source_uri": "([^"]*)"', head)
-            if m:
-                by_uri[m.group(2)] = (m.group(1), offset)
+            if raw.strip():
+                doc = json.loads(raw.decode("utf-8"))
+                index[doc["source_uri"]] = {"doc_id": doc["doc_id"], "title": doc["title"],
+                                            "author": doc["author"], "offset": offset}
             offset += len(raw)
-    for d in units.values():
-        d.sort(key=lambda u: u["position"])
-    for d in pieces.values():
-        d.sort(key=lambda p: p["position"])
-    return by_uri, units, pieces
+    return index
+
+
+def position_of_row(row):
+    return row["position"]
+
+
+def group_by_document(rows):
+    """The units (or pieces) of the export grouped by doc_id, each group in position order."""
+    grouped = {}
+    for row in rows:
+        grouped.setdefault(row["doc_id"], []).append(row)
+    for group in grouped.values():
+        group.sort(key=position_of_row)
+    return grouped
 
 
 def load_document(uri, by_uri, units, pieces):
     """The document with its text, its units in order and its pieces in order. One seek."""
-    doc_id, offset = by_uri[uri]
+    entry = by_uri[uri]
     with (EXPORT / "documents.jsonl").open("rb") as f:
-        f.seek(offset)
+        f.seek(entry["offset"])
         doc = json.loads(f.readline().decode("utf-8"))
-    assert doc["doc_id"] == doc_id
-    doc["units"] = units.get(doc_id, [])
-    doc["pieces"] = pieces.get(doc_id, [])
-    text = doc["text"]
-    for u in doc["units"]:                                  # round trip: every unit is a real slice
-        assert 0 <= u["start"] < u["end"] <= len(text) and text[u["start"]:u["end"]].strip(), (uri, u["position"])
+    assert doc["doc_id"] == entry["doc_id"]
+    doc["units"] = units.get(doc["doc_id"], [])
+    doc["pieces"] = pieces.get(doc["doc_id"], [])
+    for u in doc["units"]:                        # every unit must be a real slice of the text
+        assert 0 <= u["start"] < u["end"] <= len(doc["text"]), (uri, u["position"])
+        assert doc["text"][u["start"]:u["end"]].strip(), (uri, u["position"])
     return doc
 
 
-BY_URI, UNITS, PIECES = index_export()
-print(f"export {EXPORT}: {len(BY_URI)} documents, {sum(map(len, UNITS.values()))} units, {sum(map(len, PIECES.values()))} pieces;"
-      f" packages to {OUT}" + (f", {SEEDED} files seeded from a previous run" if SEEDED else ""))
+def find_document(name):
+    """The source_uri of the document called `name`: by title (case ignored, an exact title
+    first, then a title containing it), else by the end of its source_uri. None when nothing
+    matches; when several titles match, they are listed and the first is taken."""
+    wanted = name.casefold()
+    exact, partial = [], []
+    for uri, entry in BY_URI.items():
+        title = (entry["title"] or "").casefold()
+        if title == wanted:
+            exact.append(uri)
+        elif wanted in title:
+            partial.append(uri)
+    matches = exact or partial
+    if len(matches) > 1:
+        print(f"{name!r} matches {len(matches)} titles; taking the first: {[BY_URI[u]['title'] for u in matches]}")
+    if matches:
+        return matches[0]
+    for uri in BY_URI:
+        if uri.endswith(name):
+            return uri
+    return None
+
+
+SEEDED = seed_from_prior_output()
+BY_URI = index_documents()
+UNITS = group_by_document(read_jsonl(EXPORT / "units.jsonl"))
+PIECES = group_by_document(read_jsonl(EXPORT / "pieces.jsonl"))
+print(f"export {EXPORT}: {len(BY_URI)} documents, {sum(len(g) for g in UNITS.values())} units,"
+      f" {sum(len(g) for g in PIECES.values())} pieces; packages to {OUT}")
+if SEEDED:
+    print(f"{SEEDED} files seeded from a previous run's output")
 
 # %%
-# Block 2: the two model interfaces, generate(prompt, schema) and embed(texts). Raw HTTP; the
-# API rejects temperature, so reasoning_effort steers it. Every call is appended to CALLS and to
-# calls.jsonl on disk the moment it returns, with model, tokens, latency and cost, so a killed
-# session loses nothing. A reply that fails the schema is asked for once more with the error
-# appended, then counted as a rejection. A timeout, connection error, truncated body, 429 or
-# 5xx is retried three times; a 429 for exhausted quota ends the run like the spend stop; any
-# other non-200 raises with the response body. The stop is checked before every call.
+# Block 2: the model interface: generate(prompt, schema) and embed(texts).
+#
+# The key comes from the OPENAI_API_KEY environment variable, else from the Kaggle secret of
+# that name. Raw HTTP to the API. The API rejects temperature, so reasoning_effort steers it.
+# Every call is appended to CALLS and to calls.jsonl on disk the moment it returns, with model,
+# tokens, latency and cost. A reply that does not fit its schema is asked for once more with
+# the error appended, then counted as a rejection. A timeout, a dropped connection, a 429 or a
+# 5xx is retried three times; a 429 for exhausted quota ends the run like the spend stop. The
+# stop is checked before every call.
 import http.client
 import urllib.error
 import urllib.request
 
-LUNA, TERRA = "gpt-5.6-luna", "gpt-5.6-terra"
+LUNA = "gpt-5.6-luna"                      # derive, fold
+TERRA = "gpt-5.6-terra"                    # the judge
 EMBED_MODEL = "text-embedding-3-small"
-PRICE = {LUNA: (0.20, 1.20), TERRA: (2.00, 12.00), EMBED_MODEL: (0.02, 0.0)}   # $ per M tokens in, out
+PRICE = {LUNA: (0.20, 1.20), TERRA: (2.00, 12.00), EMBED_MODEL: (0.02, 0.0)}   # $ per million tokens in, out
 SPEND_STOP = float(os.environ.get("SPEND_STOP", "25"))
+
 KEY = os.environ.get("OPENAI_API_KEY")
-if not KEY and Path("/kaggle").exists():
+if not KEY:
     try:
         from kaggle_secrets import UserSecretsClient
         KEY = UserSecretsClient().get_secret("OPENAI_API_KEY")
-    except Exception:                        # a 400 here means the secret is not attached to this notebook
+    except ImportError:                      # not on Kaggle
+        KEY = None
+    except Exception:                        # on Kaggle, but the secret is not attached to this notebook
         KEY = None
         print("OPENAI_API_KEY is not attached to this notebook: Add-ons > Secrets, tick Attach; Settings > Internet on")
-CALLS = []                       # every call this session: stage, model, in, out, seconds, cost, doc, unit
-REJECTIONS = []                  # every rejected reply this session: stage, category, doc, unit, detail
+
+CALLS = []                                 # every call this session
+REJECTIONS = []                            # every reply rejected this session
 
 
 class SpendStop(Exception):
@@ -181,12 +233,12 @@ def spend():
 
 
 def check_schema(value, schema, path="$"):
-    """A small validator for the reply shapes below: type, required keys, item type, enum,
-    nullable. Raises SchemaError naming the path, which goes back to the model on the retry."""
-    types = {"object": dict, "array": list, "string": str, "number": (int, float), "integer": int, "boolean": bool, "null": type(None)}
+    """A small validator for the reply shapes in block 6: type, required keys, item type, enum.
+    Raises SchemaError naming the path, which goes back to the model on the retry."""
     allowed = schema.get("type", "object")
-    allowed = allowed if isinstance(allowed, list) else [allowed]
-    if not any(isinstance(value, types[t]) and not (t in ("number", "integer") and isinstance(value, bool)) for t in allowed):
+    if not isinstance(allowed, list):
+        allowed = [allowed]
+    if not any(is_of_type(value, t) for t in allowed):
         raise SchemaError(f"{path}: expected {'/'.join(allowed)}, got {type(value).__name__}")
     if "enum" in schema and value not in schema["enum"]:
         raise SchemaError(f"{path}: {value!r} is not one of {schema['enum']}")
@@ -202,35 +254,56 @@ def check_schema(value, schema, path="$"):
             check_schema(item, schema["items"], f"{path}[{i}]")
 
 
-def post(url, payload, timeout=300):
-    req = urllib.request.Request(url, data=json.dumps(payload).encode("utf-8"),
-                                 headers={"Authorization": f"Bearer {KEY}", "Content-Type": "application/json"})
-    with urllib.request.urlopen(req, timeout=timeout) as r:
-        return r.status, r.read().decode("utf-8")
+def is_of_type(value, name):
+    if name == "object":
+        return isinstance(value, dict)
+    if name == "array":
+        return isinstance(value, list)
+    if name == "string":
+        return isinstance(value, str)
+    if name == "boolean":
+        return isinstance(value, bool)
+    if name == "null":
+        return value is None
+    if name == "integer":
+        return isinstance(value, int) and not isinstance(value, bool)
+    if name == "number":
+        return isinstance(value, (int, float)) and not isinstance(value, bool)
+    return False
 
 
-def logged(row):
+def post(url, payload):
+    """One HTTP POST; the status and the body text."""
+    data = json.dumps(payload).encode("utf-8")
+    headers = {"Authorization": f"Bearer {KEY}", "Content-Type": "application/json"}
+    request = urllib.request.Request(url, data=data, headers=headers)
+    with urllib.request.urlopen(request, timeout=300) as response:
+        return response.status, response.read().decode("utf-8")
+
+
+def log_call(row):
     CALLS.append(row)
     record("calls.jsonl", row)
 
 
 def call(url, payload, model, stage, ctx, prompt_chars):
-    """One HTTP exchange with the retry policy; returns the parsed body. Cost is logged here."""
+    """One exchange with the API under the retry policy; the parsed body. Cost is logged here."""
     if not KEY:
         raise RuntimeError("no OPENAI_API_KEY in the environment (or attached as a Kaggle secret)")
     if spend() >= SPEND_STOP:
         raise SpendStop(f"spending stop: ${spend():.2f} of ${SPEND_STOP:.2f}")
-    p_in, p_out = PRICE[model]
-    t0 = time.time()
+    price_in, price_out = PRICE[model]
+    started = time.time()
     for attempt in range(3):
         try:
             status, text = post(url, payload)
-        except urllib.error.HTTPError as e:
-            status, text = e.code, e.read().decode("utf-8", errors="replace")
+        except urllib.error.HTTPError as error:
+            status, text = error.code, error.read().decode("utf-8", errors="replace")
         except (urllib.error.URLError, TimeoutError, OSError, http.client.HTTPException):
             # the server may have finished and billed the request: count the input as spent
-            logged({"stage": stage, "model": model, "in": prompt_chars // 4, "out": 0, "seconds": round(time.time() - t0, 1),
-                    "cost": prompt_chars // 4 * p_in / 1e6, "timeout": True, **ctx})
+            log_call({"stage": stage, "model": model, "in": prompt_chars // 4, "out": 0,
+                      "seconds": round(time.time() - started, 1), "cost": prompt_chars // 4 * price_in / 1e6,
+                      "timeout": True, **ctx})
             if attempt == 2:
                 raise
             time.sleep(15 * (attempt + 1))
@@ -246,27 +319,31 @@ def call(url, payload, model, stage, ctx, prompt_chars):
             raise RuntimeError(f"OpenAI {status}: {text}")
         break
     body = json.loads(text)
-    u = body.get("usage", {})
-    n_in, n_out = u.get("prompt_tokens", 0), u.get("completion_tokens", 0)
-    logged({"stage": stage, "model": body.get("model", model), "in": n_in, "out": n_out,
-            "seconds": round(time.time() - t0, 1), "cost": (n_in * p_in + n_out * p_out) / 1e6, **ctx})
+    usage = body.get("usage", {})
+    tokens_in = usage.get("prompt_tokens", 0)
+    tokens_out = usage.get("completion_tokens", 0)
+    log_call({"stage": stage, "model": body.get("model", model), "in": tokens_in, "out": tokens_out,
+              "seconds": round(time.time() - started, 1),
+              "cost": (tokens_in * price_in + tokens_out * price_out) / 1e6, **ctx})
     return body
 
 
 def generate(prompt, schema, stage, model=LUNA, effort="low", ctx=None):
-    """The reply as a dict that passes `schema`, or None after one retry with the error appended
-    (the rejection is logged). Every prompt asks for JSON; the API's JSON mode guarantees a parse
-    when there is content; a refusal has none and is treated as a bad shape."""
+    """The reply as a dict that fits `schema`, or None after one retry with the error appended
+    (the rejection is logged). Every prompt asks for JSON, and JSON mode guarantees a parse when
+    there is content; a refusal has no content and is treated as a bad shape."""
     ctx = ctx or {}
+    error = ""
     for attempt in range(2):
         body = call("https://api.openai.com/v1/chat/completions",
                     {"model": model, "reasoning_effort": effort, "response_format": {"type": "json_object"},
-                     "messages": [{"role": "user", "content": prompt}]}, model, stage, ctx, len(prompt))
+                     "messages": [{"role": "user", "content": prompt}]},
+                    model, stage, ctx, len(prompt))
         try:
-            msg = body["choices"][0]["message"]
-            if not msg.get("content"):
-                raise SchemaError("empty reply" + (f" (refusal: {str(msg.get('refusal'))[:120]})" if msg.get("refusal") else ""))
-            reply = json.loads(msg["content"])
+            message = body["choices"][0]["message"]
+            if not message.get("content"):
+                raise SchemaError("empty reply" + (f" (refusal: {message.get('refusal')})" if message.get("refusal") else ""))
+            reply = json.loads(message["content"])
             check_schema(reply, schema)
             return reply
         except (SchemaError, ValueError, TypeError, KeyError, IndexError) as e:
@@ -279,29 +356,42 @@ def generate(prompt, schema, stage, model=LUNA, effort="low", ctx=None):
     return None
 
 
+def embedding_index(row):
+    return row["index"]
+
+
 def embed(texts, stage="embed", ctx=None):
-    """One vector per text, from the embedding endpoint, in batches the endpoint accepts (at
-    most 256 texts and about 200,000 tokens a request), each request logged like any call."""
-    out = []
-    batch, size = [], 0
-    for t in list(texts) + [None]:
-        if t is None or (batch and (len(batch) >= 256 or size + len(t) // 4 > 200_000)):
-            if batch:
-                body = call("https://api.openai.com/v1/embeddings", {"model": EMBED_MODEL, "input": batch},
-                            EMBED_MODEL, stage, ctx or {}, sum(len(x) for x in batch))
-                out += [d["embedding"] for d in sorted(body["data"], key=lambda d: d["index"])]
-            batch, size = [], 0
-        if t is not None:
-            batch.append(t)
-            size += len(t) // 4
-    return out
+    """One vector per text, in batches of a hundred, each request logged like any call."""
+    vectors = []
+    for start in range(0, len(texts), 100):
+        batch = texts[start:start + 100]
+        body = call("https://api.openai.com/v1/embeddings", {"model": EMBED_MODEL, "input": batch},
+                    EMBED_MODEL, stage, ctx or {}, sum(len(t) for t in batch))
+        for row in sorted(body["data"], key=embedding_index):
+            vectors.append(row["embedding"])
+    return vectors
 
 
 print(f"models {LUNA} (derive), {TERRA} (judge), {EMBED_MODEL}; key {'present' if KEY else 'MISSING'}")
 
 # %%
-# Block 3: ids and text helpers. Every id is a content hash, so re-deriving unchanged input
-# mints the same ids and a corrected unit changes one id and not every id after it.
+# Block 3: test the connection before anything spends. One tiny call to each endpoint; the
+# reply, the tokens and the cost are printed. If this cell fails, fix the secret or the
+# Internet setting before running block 13.
+if __name__ == "__main__":
+    if not KEY:
+        print("no key: attach OPENAI_API_KEY under Add-ons > Secrets, then rerun this cell")
+    else:
+        ping = generate('Reply with exactly the JSON object {"ok": true}.', {"type": "object", "required": ["ok"]},
+                        "ping", ctx={"doc": "connection test"})
+        vector = embed(["connection test"], ctx={"doc": "connection test"})
+        print(f"chat reply {ping}; embedding of {len(vector[0])} dimensions; {len(CALLS)} calls, ${spend():.5f}")
+
+# %%
+# Block 4: ids and small text helpers.
+#
+# Every id is a content hash, so re-deriving unchanged input mints the same ids, and a
+# corrected unit changes one id and not every id after it.
 
 
 def h(*parts):
@@ -309,6 +399,7 @@ def h(*parts):
 
 
 def norm(s):
+    """One space between words, case folded."""
     return " ".join(str(s or "").split()).casefold()
 
 
@@ -316,37 +407,72 @@ def word_count(s):
     return len(s.split())
 
 
+def is_word_char(ch):
+    return ch.isalnum() or ch == "_"
+
+
+def snake_case(s):
+    """A predicate name as lowercase_snake_case: letters, digits and underscores only."""
+    out = []
+    for ch in s.lower():
+        if ch.isalnum():
+            out.append(ch)
+        elif out and out[-1] != "_":
+            out.append("_")
+    return "".join(out).strip("_") or "related_to"
+
+
 def names_in(text):
-    """Capitalised runs in a summary or abstract: the names it emits, for the fabrication check.
-    A one-word run that opens a sentence counts as a name only when the same word also appears
-    capitalised inside a sentence, so 'The' and 'Then' are not names and a name that only ever
-    opens a sentence is missed rather than invented."""
-    runs = [(m.start(), m.group(1)) for m in re.finditer(r"(?<![\w'’])([A-Z][\w'’\-]*(?:\s+[A-Z][\w'’\-]*)*)", text)]
-    opens = {m.start(1) for m in re.finditer(r"(?:^|[.!?]\s+)([A-Z])", text)}
-    names, heads = set(), []
-    for at, r in runs:
-        if at in opens:                       # the first word opens a sentence; what follows it is inside one
-            head, _, rest = r.partition(" ")
-            heads.append(head)
-            if rest:
-                names.add(rest)
-        else:
-            names.add(r)
-    inside = {w for n in names for w in n.split()}
-    names |= {hd for hd in heads if hd in inside}
-    return sorted(names)
+    """The names a summary or abstract emits, for the fabrication check: runs of capitalised
+    words. A run that opens a sentence is counted from its second word; its first word counts
+    only when it also appears capitalised inside some sentence, so 'The' and 'Then' are never
+    names and a name that only ever opens a sentence is missed rather than invented."""
+    names, openers = [], []
+    run, run_opens, at_sentence_start = [], False, True
+    for token in text.split():
+        word = token.strip("\"'“”‘’(),;:")
+        ends_sentence = token.endswith((".", "!", "?", ".\"", ".”", "!\"", "!”", "?\"", "?”"))
+        if word[:1].isupper():
+            if not run:
+                run_opens = at_sentence_start
+            run.append(word.rstrip(".!?"))
+        if run and (not word[:1].isupper() or ends_sentence):
+            (openers if run_opens else names).append(run)
+            run = []
+        at_sentence_start = ends_sentence
+    if run:
+        (openers if run_opens else names).append(run)
+    found = {" ".join(r) for r in names}
+    heads = []
+    for r in openers:
+        heads.append(r[0])
+        if len(r) > 1:
+            found.add(" ".join(r[1:]))
+    inside = {w for name in found for w in name.split()}
+    for head in heads:
+        if head in inside:
+            found.add(head)
+    return sorted(found)
 
 
 def missing_names(text, children):
-    """Names emitted by a fold that appear in none of its children, case-insensitively."""
+    """Names emitted by a fold that appear in none of its children, case ignored."""
     pool = " ".join(children).casefold()
-    return [n for n in names_in(text) if n.casefold() not in pool]
+    return [name for name in names_in(text) if name.casefold() not in pool]
 
 
 def whole_word(needle, haystack):
-    """The needle's words in order, as whole words, anywhere in the haystack."""
-    pattern = r"(?<!\w)" + r"\s+".join(re.escape(w) for w in needle.split()) + r"(?!\w)"
-    return re.search(pattern, haystack) is not None
+    """Is `needle` in `haystack` as whole words (case as given)?"""
+    start = 0
+    while True:
+        i = haystack.find(needle, start)
+        if i < 0:
+            return False
+        before = haystack[i - 1] if i > 0 else " "
+        after = haystack[i + len(needle)] if i + len(needle) < len(haystack) else " "
+        if not is_word_char(before) and not is_word_char(after):
+            return True
+        start = i + 1
 
 
 # The partitions of a document, from the piece table's `kind` (the extractor's regions, or the
@@ -364,45 +490,74 @@ def unit_kind(doc, unit):
     for p in doc["pieces"]:
         if p["unit_id"] == unit["unit_id"]:
             chars[p["kind"]] = chars.get(p["kind"], 0) + p["end"] - p["start"]
-    return max(chars, key=chars.get) if chars else "body"
+    if not chars:
+        return "body"
+    return max(chars, key=chars.get)
 
 
 def partition_of(kind):
-    return "work" if kind in WORK_KINDS else kind
+    if kind in WORK_KINDS:
+        return "work"
+    return kind
 
 # %%
-# Block 4: the quote gate. locate(unit_text, quote) returns (start, end) inside the unit, or a
-# rejection category. Three ways to match, tried in order and each named, so the receipt says
-# how many quotes needed which: exact substring; the same words across any whitespace; the same
-# characters after NFKC, straight quotes, one dash, a hyphenated line break closed up, and case
-# folding, matched on a normalised copy of the unit whose every character maps back to an
-# offset in the original. The stored offsets always index the original text. A quote that
-# matches none is classified: paraphrase when most of its words are there in order, else not
-# found. Nothing here reaches the store.
+# Block 5: the quote gate.
+#
+# locate(unit_text, quote) returns where the quote is inside the unit, or why it is not. Two
+# ways to match, each named so the receipt says how many quotes needed which: the exact
+# substring; else the same text after normalising both sides (one space for any run of
+# whitespace, NFKC, straight quotes, one kind of dash, a hyphenated line break closed up,
+# case folded). The normalised copy of the unit carries, for each of its characters, the
+# offset of the original character it came from, so a match maps back to offsets in the
+# original text. The stored offsets always index the original. A quote that matches neither
+# way is classified: 'paraphrase' when most of its words are there in order, else 'not_found'.
 
-QUOTES = {"‘": "'", "’": "'", "“": '"', "”": '"', "–": "-", "—": "-", "‒": "-", "−": "-", "‐": "-", "‑": "-",
-          "­": "", " ": " "}
-HYPHEN_BREAK = re.compile(r"[^\W\d_]-\r?\n(?=[^\W\d_])")   # 'recon-\nciliation': a word wrapped at a hyphen
+REPLACEMENTS = {"‘": "'", "’": "'", "“": '"', "”": '"', "–": "-", "—": "-", "‒": "-", "−": "-", "‐": "-", "‑": "-",
+                "­": "", " ": " "}
+
+
+def hyphen_breaks(text):
+    """The offsets of the hyphen and line-break characters in every 'word-\\nword' run, so a
+    word the PDF wrapped at a hyphen reads whole. A letter must stand on both sides."""
+    skip = set()
+    for marker in ("-\n", "-\r\n"):
+        i = text.find(marker)
+        while i >= 0:
+            before = text[i - 1] if i > 0 else ""
+            after = text[i + len(marker)] if i + len(marker) < len(text) else ""
+            if before.isalpha() and after.isalpha():
+                skip.update(range(i, i + len(marker)))
+            i = text.find(marker, i + 1)
+    return skip
 
 
 def normalised(text):
-    """(normalised string, map from each normalised index to an original index). NFKC can expand
-    one character to several (a ligature to two letters), so the map is built per character; a
-    soft hyphen and a hyphenated line break inside a word emit nothing."""
-    skip = set()
-    for m in HYPHEN_BREAK.finditer(text):
-        skip.update(range(m.start() + 1, m.end()))
+    """(normalised string, map from each of its characters to an offset in the original)."""
+    skip = hyphen_breaks(text)
     out, back = [], []
+    in_space = True                                 # leading whitespace is dropped
     for i, ch in enumerate(text):
         if i in skip:
             continue
-        for c in unicodedata.normalize("NFKC", QUOTES.get(ch, ch)).casefold():
+        ch = REPLACEMENTS.get(ch, ch)
+        if ch.isspace():
+            if not in_space:
+                out.append(" ")
+                back.append(i)
+                in_space = True
+            continue
+        in_space = False
+        for c in unicodedata.normalize("NFKC", ch).casefold():     # one character can become several
             out.append(c)
             back.append(i)
+    if out and out[-1] == " ":                      # trailing whitespace is dropped
+        out.pop()
+        back.pop()
     return "".join(out), back
 
 
-def normalised_of(text, cache):
+def normalised_unit(text, cache):
+    """The unit's normalised copy, computed once per unit."""
     if cache is None:
         return normalised(text)
     if "norm" not in cache:
@@ -410,57 +565,79 @@ def normalised_of(text, cache):
     return cache["norm"]
 
 
+def words_only(s):
+    """The words of s with punctuation stripped, empty ones dropped."""
+    words = []
+    for token in s.split():
+        word = "".join(ch for ch in token if is_word_char(ch))
+        if word:
+            words.append(word)
+    return words
+
+
+def classify_miss(ntext, nquote):
+    """'paraphrase' when at least seven in ten of the quote's words appear in order in the unit,
+    punctuation aside, else 'not_found'."""
+    wanted = words_only(nquote)
+    matched = 0
+    for word in words_only(ntext):
+        if matched < len(wanted) and word == wanted[matched]:
+            matched += 1
+    if matched >= 0.7 * max(1, len(wanted)):
+        return "paraphrase"
+    return "not_found"
+
+
 def locate(text, quote, cache=None):
-    """(start, end, how) with offsets into `text`, or (None, None, category)."""
-    q = (quote or "").strip()
-    if not q:
+    """(start, end, 'exact' or 'normalised') with offsets into `text`, or (None, None, why)."""
+    quote = (quote or "").strip()
+    if not quote:
         return None, None, "empty"
-    i = text.find(q)
+    i = text.find(quote)
     if i >= 0:
-        return i, i + len(q), "exact"
-    words = q.split()
-    m = re.search(r"\s+".join(re.escape(w) for w in words), text)
-    if m:
-        return m.start(), m.end(), "whitespace"
-    ntext, back = normalised_of(text, cache)
-    nq, _ = normalised(q)
-    nwords = nq.split()
-    if not nwords:                                       # a quote of nothing but soft hyphens normalises to nothing
+        return i, i + len(quote), "exact"
+    ntext, back = normalised_unit(text, cache)
+    nquote, _ = normalised(quote)
+    if not nquote:
         return None, None, "not_found"
-    m = re.search(r"\s+".join(re.escape(w) for w in nwords), ntext)
-    if m:
-        return back[m.start()], back[m.end() - 1] + 1, "normalised"
-    # classification of the miss: how much of the quote is there, in order, punctuation aside
-    bare = re.findall(r"\w+", nq)
-    j = 0
-    for w in re.findall(r"\w+", ntext):
-        if j < len(bare) and w == bare[j]:
-            j += 1
-    share = j / max(1, len(bare))
-    return None, None, "paraphrase" if share >= 0.7 else "not_found"
+    i = ntext.find(nquote)
+    if i >= 0:
+        return back[i], back[i + len(nquote) - 1] + 1, "normalised"
+    return None, None, classify_miss(ntext, nquote)
 
 
 def occurrences(text, found):
-    """Every start offset at which the located string recurs verbatim, the first one included."""
-    return [m.start() for m in re.finditer(re.escape(found), text)] if found else []
+    """Every offset at which the located string recurs verbatim, the first one included."""
+    if not found:
+        return []
+    starts = []
+    i = text.find(found)
+    while i >= 0:
+        starts.append(i)
+        i = text.find(found, i + 1)
+    return starts
 
 
 def surface_spans(text, surface, cache=None):
-    """Every occurrence of a surface form in the unit, as (start, end) pairs, whole words only."""
-    s = (surface or "").strip()
-    if not s:
+    """Every whole-word occurrence of a surface form in the unit, as (start, end) offsets into
+    the original text, found on the normalised copy so case and quotes do not matter."""
+    nsurface, _ = normalised(surface or "")
+    if not nsurface:
         return []
-    pattern = r"(?<!\w)" + r"\s+".join(re.escape(w) for w in s.split()) + r"(?!\w)"
-    hits = [(m.start(), m.end()) for m in re.finditer(pattern, text)]
-    if hits:
-        return hits
-    ntext, back = normalised_of(text, cache)
-    ns, _ = normalised(s)
-    pattern = r"(?<!\w)" + r"\s+".join(re.escape(w) for w in ns.split()) + r"(?!\w)"
-    return [(back[m.start()], back[m.end() - 1] + 1) for m in re.finditer(pattern, ntext)]
+    ntext, back = normalised_unit(text, cache)
+    spans = []
+    i = ntext.find(nsurface)
+    while i >= 0:
+        j = i + len(nsurface)
+        before = ntext[i - 1] if i > 0 else " "
+        after = ntext[j] if j < len(ntext) else " "
+        if not is_word_char(before) and not is_word_char(after):
+            spans.append((back[i], back[j - 1] + 1))
+        i = ntext.find(nsurface, i + 1)
+    return spans
 
 # %%
-# Block 5: the prompts. Three per unit (entities with their surface forms and profile, facts
+# Block 6: the prompts. Three per unit (entities with their surface forms and profile, facts
 # with quotes, summary and cells), one judge, one fold. None of them knows what kind of
 # document it is reading. The roster is what the document has established so far: entities
 # that earned a place (a fact or a second mention) and the predicates already in use, both
@@ -497,9 +674,14 @@ ROSTER_SHOWN = 60
 def roster_text(roster):
     if not roster["entities"]:
         return ""
-    lines = [f"- {e['name']} ({e['kind']}; forms: {', '.join(e['forms'][:5])}" + (f"; is: {', '.join(e['is_a'][:3])}" if e["is_a"] else "") + ")"
-             for e in roster["entities"][:ROSTER_SHOWN]]
-    return "\n\nESTABLISHED SO FAR IN THIS DOCUMENT (continue one of these when the text means the same thing; name a new one when it does not):\n" + "\n".join(lines)
+    lines = []
+    for e in roster["entities"][:ROSTER_SHOWN]:
+        line = f"- {e['name']} ({e['kind']}; forms: {', '.join(e['forms'][:5])}"
+        if e["is_a"]:
+            line += f"; is: {', '.join(e['is_a'][:3])}"
+        lines.append(line + ")")
+    return ("\n\nESTABLISHED SO FAR IN THIS DOCUMENT (continue one of these when the text means the same thing;"
+            " name a new one when it does not):\n" + "\n".join(lines))
 
 
 def entity_prompt(unit, roster):
@@ -518,8 +700,10 @@ Return JSON {{"entities": [{{"name", "named", "kind", "surface_forms", "continue
 
 
 def fact_prompt(unit, names, predicates):
-    used = ("\n\nPREDICATES THIS DOCUMENT HAS USED (reuse one when it means the same relation; coin a new one when none does): "
-            + ", ".join(predicates[:80])) if predicates else ""
+    used = ""
+    if predicates:
+        used = ("\n\nPREDICATES THIS DOCUMENT HAS USED (reuse one when it means the same relation; coin a new one when none does): "
+                + ", ".join(predicates[:80]))
     return f"""TEXT ({unit['label']}):
 {unit['text']}
 
@@ -539,7 +723,9 @@ ENTITIES: {", ".join(names)}{used}"""
 
 
 def cells_prompt(unit, names, previous):
-    context = f"\n\nTHE PREVIOUS UNIT, SUMMARISED (for resolving references only; do not restate it):\n{previous}" if previous else ""
+    context = ""
+    if previous:
+        context = f"\n\nTHE PREVIOUS UNIT, SUMMARISED (for resolving references only; do not restate it):\n{previous}"
     return f"""TEXT ({unit['label']}):
 {unit['text']}
 
@@ -568,10 +754,12 @@ RECORDS:
 {chr(10).join(children)}"""
 
 # %%
-# Block 6: derive one unit. Three calls, every gate applied by code, one record back with
-# everything the model said and everything code kept or rejected, so a unit can be diagnosed
-# on its own. Offsets are document offsets: the unit's start is added to every span. A span is
-# one mention: when two entities claim the same occurrence, the first listed keeps it.
+# Block 7: derive one unit.
+#
+# Three calls, every gate applied by code, and one record back with everything the model
+# said and everything code kept or rejected, so a unit can be read on its own. Offsets are
+# document offsets: the unit's start is added to every span. A span is one mention: when two
+# entities claim the same occurrence, the first one listed keeps it.
 
 
 def derive_unit(doc, unit, roster, previous_summary, ctx):
@@ -584,42 +772,44 @@ def derive_unit(doc, unit, roster, previous_summary, ctx):
            "profile": [], "summary": None, "cells": [], "dropped_cells": [], "agreement": None,
            "shared_spans": 0, "ambiguous_voice": 0, "empty": False}
 
-    # 1. entities, with every surface form located; a form not in the unit is dropped
+    # 1. entities, each surface form located; a form that is not in the unit is dropped
     reply = generate(entity_prompt(unit, roster), ENTITY_SCHEMA, "entities", ctx=ctx)
     roster_names = {e["name"] for e in roster["entities"]}
     seen_names = set()
-    claimed = {}                                             # (start, end) -> the entity that got the span
+    claimed = {}                                  # (start, end) -> the entity that got the span
     for e in (reply or {}).get("entities", []):
         name = " ".join(e["name"].split())
         if not name or name in seen_names:
             continue
-        forms, spans, found = [], [], False
-        for s in dict.fromkeys([f for f in e["surface_forms"] if isinstance(f, str)] + [name]):
-            all_hits = surface_spans(text, s, cache)
-            found = found or bool(all_hits)
-            hits = [ab for ab in all_hits if ab not in claimed and ab not in spans]
-            rec["shared_spans"] += sum(1 for ab in all_hits if ab in claimed)
-            if hits:
-                forms.append(s)
-                spans.extend(hits)
+        forms, spans, found_any = [], [], False
+        candidates = [s for s in e["surface_forms"] if isinstance(s, str)] + [name]
+        for surface in dict.fromkeys(candidates):
+            all_hits = surface_spans(text, surface, cache)
+            found_any = found_any or bool(all_hits)
+            free_hits = [span for span in all_hits if span not in claimed and span not in spans]
+            rec["shared_spans"] += sum(1 for span in all_hits if span in claimed)
+            if free_hits:
+                forms.append(surface)
+                spans.extend(free_hits)
         if not spans:
-            why = "every span already claimed by an earlier entity" if found else "no surface form in unit"
+            why = "every span already claimed by an earlier entity" if found_any else "no surface form in unit"
             rec["dropped_entities"].append({"name": name, "why": why, "forms": e["surface_forms"][:5]})
             continue
         seen_names.add(name)
-        for ab in spans:
-            claimed[ab] = name
+        for span in spans:
+            claimed[span] = name
         continues = e.get("continues") if e.get("continues") in roster_names else None
-        prof = e.get("profile") if isinstance(e.get("profile"), dict) else {}
+        profile = e.get("profile") if isinstance(e.get("profile"), dict) else {}
         rec["entities"].append({"name": name, "named": bool(e["named"]), "kind": str(e["kind"]).lower(),
                                 "forms": forms, "continues": continues, "mentions": len(spans)})
-        for a, b in sorted(spans):
-            rec["mentions"].append({"mention_id": h(unit["unit_id"], base + a, base + b), "entity": name,
-                                    "unit_id": unit["unit_id"], "start": base + a, "end": base + b,
-                                    "surface": text[a:b], "resolved_by": "surface"})
-        for attr, val in prof.items():
-            if val not in (None, "", "null", "unknown"):
-                rec["profile"].append({"entity": name, "attribute": str(attr), "value": str(val), "confidence": 0.5, "from_unit": unit["unit_id"]})
+        for start, end in sorted(spans):
+            rec["mentions"].append({"mention_id": h(unit["unit_id"], base + start, base + end), "entity": name,
+                                    "unit_id": unit["unit_id"], "start": base + start, "end": base + end,
+                                    "surface": text[start:end], "resolved_by": "surface"})
+        for attribute, value in profile.items():
+            if value not in (None, "", "null", "unknown"):
+                rec["profile"].append({"entity": name, "attribute": str(attribute), "value": str(value),
+                                       "confidence": 0.5, "from_unit": unit["unit_id"]})
     names = [e["name"] for e in rec["entities"]]
     if not names:
         rec["empty"] = True
@@ -630,61 +820,85 @@ def derive_unit(doc, unit, roster, previous_summary, ctx):
     name_set = set(names)
     seen_facts = set()
     for f in (reply or {}).get("facts", []):
-        subject, predicate, obj = f["subject"].strip(), f["predicate"].strip(), str(f["object"]).strip()
-        predicate = re.sub(r"[^a-z0-9_]+", "_", predicate.lower()).strip("_") or "related_to"
+        subject = f["subject"].strip()
+        predicate = snake_case(f["predicate"])
+        obj = str(f["object"]).strip()
+        rejection = {"subject": subject, "predicate": predicate, "object": obj, "quote": f["quote"][:160]}
         start, end, how = locate(text, f["quote"], cache)
         if subject not in name_set:
-            rec["rejected_facts"].append({"category": "unlisted_subject", "subject": subject, "predicate": predicate, "object": obj, "quote": f["quote"][:160]})
+            rec["rejected_facts"].append({"category": "unlisted_subject", **rejection})
             continue
         if start is None:
-            rec["rejected_facts"].append({"category": how, "subject": subject, "predicate": predicate, "object": obj, "quote": f["quote"][:160]})
+            rec["rejected_facts"].append({"category": how, **rejection})
             continue
         key = (subject, predicate, norm(obj))
         if key in seen_facts:
-            rec["rejected_facts"].append({"category": "duplicate", "subject": subject, "predicate": predicate, "object": obj, "quote": f["quote"][:160]})
+            rec["rejected_facts"].append({"category": "duplicate", **rejection})
             continue
         seen_facts.add(key)
         quote = text[start:end]
         voices = {author_at(doc, base + at) for at in occurrences(text, quote)}
-        ambiguous = len(voices) > 1                          # the same words in two voices: no voice is claimed
-        author = None if ambiguous else next(iter(voices), author_at(doc, base + start))
+        ambiguous = len(voices) > 1                    # the same words in two voices: no voice is claimed
+        author = None if ambiguous else author_at(doc, base + start)
         rec["ambiguous_voice"] += ambiguous
-        valid_from, valid_to = stated_date(f.get("valid_from"), quote), stated_date(f.get("valid_to"), quote)
         rec["facts"].append({"fact_id": h(unit["unit_id"], subject, predicate, obj, base + start, base + end),
                              "subject": subject, "predicate": predicate, "object": obj,
                              "object_is_entity": obj in name_set, "qualifiers": f.get("qualifiers") or None,
                              "unit_id": unit["unit_id"], "quote": quote, "quote_start": base + start, "quote_end": base + end,
-                             "matched_by": how, "valid_from": valid_from, "valid_to": valid_to,
+                             "matched_by": how, "valid_from": stated_date(f.get("valid_from"), quote),
+                             "valid_to": stated_date(f.get("valid_to"), quote),
                              "author": author, "voice_ambiguous": ambiguous, "tier": LUNA})
 
     # 3. summary and cells, one call, for the entities with a fact in this unit
-    with_fact = [n for n in names if any(f["subject"] == n or (f["object_is_entity"] and f["object"] == n) for f in rec["facts"])]
+    with_fact = []
+    for name in names:
+        for f in rec["facts"]:
+            if f["subject"] == name or (f["object_is_entity"] and f["object"] == name):
+                with_fact.append(name)
+                break
     reply = generate(cells_prompt(unit, with_fact or names[:1], previous_summary), CELLS_SCHEMA, "cells", ctx=ctx)
     if reply:
         rec["summary"] = " ".join(reply["summary"].split())
-        wanted = set(with_fact)
         for c in reply["cells"]:
-            if c["entity"] in wanted and c["text"].strip():
+            if c["entity"] in with_fact and c["text"].strip():
                 rec["cells"].append({"entity": c["entity"], "text": " ".join(c["text"].split())})
             else:
                 rec["dropped_cells"].append({"entity": c["entity"], "why": "not an above-threshold entity"})
-        # the agreement check: which above-threshold entities the summary names, and vice versa
-        s = rec["summary"].casefold()
-        named_in_summary = [n for n in with_fact if any(whole_word(fm.casefold(), s) for fm in next(e["forms"] for e in rec["entities"] if e["name"] == n))]
-        celled = {c["entity"] for c in rec["cells"]}
-        rec["agreement"] = {"above_threshold": len(with_fact), "cells": len(celled), "named_in_summary": len(named_in_summary),
-                            "in_summary_without_cell": sorted(set(named_in_summary) - celled),
-                            "cell_without_summary_name": sorted(celled - set(named_in_summary))}
+        rec["agreement"] = agreement(rec, with_fact)
     rec["empty"] = not rec["facts"] and not rec["cells"]
     return rec
 
 
+def agreement(rec, with_fact):
+    """Which above-threshold entities the unit summary names, against which got a cell."""
+    summary = rec["summary"].casefold()
+    forms_of = {e["name"]: e["forms"] for e in rec["entities"]}
+    named = []
+    for name in with_fact:
+        if any(whole_word(form.casefold(), summary) for form in forms_of[name]):
+            named.append(name)
+    celled = {c["entity"] for c in rec["cells"]}
+    return {"above_threshold": len(with_fact), "cells": len(celled), "named_in_summary": len(named),
+            "in_summary_without_cell": sorted(set(named) - celled),
+            "cell_without_summary_name": sorted(celled - set(named))}
+
+
 def stated_date(value, quote):
-    """An ISO date the model claims the quote states: kept only when its year is in the quote."""
-    if not isinstance(value, str) or not re.fullmatch(r"\d{4}(-\d{2}(-\d{2})?)?", value.strip()):
+    """An ISO date the model claims the quote states (YYYY, YYYY-MM or YYYY-MM-DD): kept only
+    when its year appears in the quote."""
+    if not isinstance(value, str):
         return None
     value = value.strip()
-    return value if value[:4] in quote else None
+    well_formed = False
+    for shape in ("%Y", "%Y-%m", "%Y-%m-%d"):
+        try:
+            datetime.strptime(value, shape)
+            well_formed = True
+        except ValueError:
+            pass
+    if well_formed and value[:4] in quote:
+        return value
+    return None
 
 
 def author_at(doc, offset):
@@ -695,10 +909,13 @@ def author_at(doc, offset):
     return doc.get("author")
 
 
+def roster_order(entry):
+    return (-entry["last_unit"], -entry["units"])
+
+
 def advance_roster(roster, rec):
     """Entities that earned a place (a fact, or two mentions) and every predicate used, carried
-    to the next unit as suggestions, the most recently seen first so the previous unit's new
-    entities are always in the window."""
+    to the next unit as suggestions, the most recently seen first."""
     facts_of = {}
     for f in rec["facts"]:
         facts_of.setdefault(f["subject"], []).append(f)
@@ -716,49 +933,67 @@ def advance_roster(roster, rec):
             roster["entities"].append(entry)
         entry["units"] += 1
         entry["last_unit"] = rec["position"]
-        for s in e["forms"] + ([e["name"]] if e["name"] != key else []):
-            if s not in entry["forms"]:
-                entry["forms"].append(s)
+        for form in e["forms"] + ([e["name"]] if e["name"] != key else []):
+            if form not in entry["forms"]:
+                entry["forms"].append(form)
         for f in facts_of.get(e["name"], []):
             if f["predicate"] == "is_a" and f["object"] not in entry["is_a"]:
                 entry["is_a"].append(f["object"])
-    roster["entities"].sort(key=lambda e: (-e["last_unit"], -e["units"]))
-    roster["predicates"] = sorted(roster["predicate_counts"], key=lambda p: -roster["predicate_counts"][p])
+    roster["entities"].sort(key=roster_order)
+    roster["predicates"] = sorted(roster["predicate_counts"], key=roster["predicate_counts"].get, reverse=True)
 
 # %%
-# Block 7: reconcile the document's unit-local entities into document entities. Every local
-# starts alone. A declared continuation of a named entity, or two units using the same proper
-# name, unites without a judge; every other candidate pair is scored on name, co-occurrence and
-# profile, each logged separately; the ambiguous band goes to the judge, ten pairs a call, every
-# cluster's dossier sent once. Every decision is a ledger row with its evidence, so a merge can
-# be measured and revoked. An unnamed role ("the boy") is never united on its name alone.
+# Block 8: reconcile the document's unit-local entities into document entities.
+#
+# Every local starts alone. A declared continuation of a named entity, or two units using the
+# same proper name, unites without a judge; every other candidate pair is scored on name,
+# co-occurrence and profile, each logged separately; the ambiguous band goes to the judge,
+# ten pairs a call, every cluster's dossier sent once. Every decision is a ledger row with its
+# evidence, so a merge can be measured and revoked. An unnamed role ("the boy") is never
+# united on its name alone, and nothing crosses a partition except a proper name or a declared
+# continuation.
 import difflib
 
 HIGH, LOW = 0.85, 0.35        # combined score: at or above HIGH unite, below LOW stay apart, between: judge
-PARENTHETICAL = re.compile(r"^(.+?)\s*\((.*)\)\s*$")
 
 
 def name_score(a, b):
     return difflib.SequenceMatcher(None, norm(a), norm(b)).ratio()
 
 
-def words_of(n):
-    return {w for w in re.findall(r"[a-z]+", n.casefold()) if len(w) > 3}
+def name_words(name):
+    """The words of a name longer than three letters, case folded, punctuation stripped."""
+    words = set()
+    for token in name.casefold().split():
+        word = "".join(ch for ch in token if ch.isalpha())
+        if len(word) > 3:
+            words.add(word)
+    return words
 
 
 def anchored(x, y):
     """x is an unnamed thing anchored to y by its parenthetical ("car (Sam's car)" and "Sam"):
-    the anchor's name is inside the parenthetical and nothing else is shared, so the two are
-    not candidates for being the same thing."""
-    m = PARENTHETICAL.match(x["name"])
-    if not m or not y["named"]:
+    y's name is inside the parenthetical and nothing else is shared, so they are not
+    candidates for being the same thing."""
+    name = x["name"]
+    if not y["named"] or not name.endswith(")") or "(" not in name:
         return False
-    head, inner = m.group(1), m.group(2).casefold()
-    return norm(y["name"]) in inner and not (words_of(head) & words_of(y["name"])) and not (x["surfaces"] & y["surfaces"])
+    head, inner = name[:-1].rsplit("(", 1)
+    if norm(y["name"]) not in inner.casefold():
+        return False
+    return not (name_words(head) & name_words(y["name"])) and not (x["surfaces"] & y["surfaces"])
 
 
-def reconcile(doc, records, ctx):
-    locals_ = []
+def fact_text(f):
+    text = f"{f['predicate']} {f['object']}"
+    if f["qualifiers"]:
+        text += f" [{f['qualifiers']}]"
+    return text
+
+
+def locals_of(records):
+    """One record per entity per unit, with what the unit said about it."""
+    out = []
     for rec in records:
         facts_of = {}
         for f in rec["facts"]:
@@ -766,18 +1001,68 @@ def reconcile(doc, records, ctx):
         profile_of = {}
         for p in rec["profile"]:
             profile_of.setdefault(p["entity"], {})[p["attribute"]] = p["value"].casefold()
-        cooc = {e["name"] for e in rec["entities"]}
+        names_here = {e["name"] for e in rec["entities"]}
         for e in rec["entities"]:
-            fs = facts_of.get(e["name"], [])
-            locals_.append({"id": len(locals_), "ui": rec["position"], "unit_id": rec["unit_id"], "name": e["name"],
-                            "partition": rec["partition"],
-                            "kind": e["kind"], "named": e["named"], "continues": e["continues"],
-                            "forms": list(dict.fromkeys(e["forms"] + [e["name"]])),
-                            "surfaces": {s.casefold() for s in e["forms"]} | {e["name"].casefold()},
-                            "is_a": [f["object"] for f in fs if f["predicate"] == "is_a"],
-                            "facts": [f"{f['predicate']} {f['object']}" + (f" [{f['qualifiers']}]" if f["qualifiers"] else "") for f in fs],
-                            "relations": [f"{f['predicate']} {f['object']}" for f in fs if f["object_is_entity"]],
-                            "profile": profile_of.get(e["name"], {}), "cooc": cooc - {e["name"]}, "n_facts": len(fs)})
+            facts = facts_of.get(e["name"], [])
+            out.append({"id": len(out), "ui": rec["position"], "unit_id": rec["unit_id"], "name": e["name"],
+                        "partition": rec["partition"], "kind": e["kind"], "named": e["named"], "continues": e["continues"],
+                        "forms": list(dict.fromkeys(e["forms"] + [e["name"]])),
+                        "surfaces": {s.casefold() for s in e["forms"]} | {e["name"].casefold()},
+                        "is_a": [f["object"] for f in facts if f["predicate"] == "is_a"],
+                        "facts": [fact_text(f) for f in facts],
+                        "relations": [f"{f['predicate']} {f['object']}" for f in facts if f["object_is_entity"]],
+                        "profile": profile_of.get(e["name"], {}), "cooc": names_here - {e["name"]}, "n_facts": len(facts)})
+    return out
+
+
+def candidate_reason(a, b):
+    """Why two locals from different units might be the same thing, or None."""
+    if norm(a["continues"] or "") == norm(b["name"]) or norm(b["continues"] or "") == norm(a["name"]):
+        return "declared"
+    if a["surfaces"] & b["surfaces"]:
+        return "shared_surface"
+    if name_words(a["name"]) & name_words(b["name"]):
+        return "shared_word"
+    if any(x.casefold() in b["surfaces"] for x in a["is_a"]) or any(x.casefold() in a["surfaces"] for x in b["is_a"]):
+        return "is_a_link"
+    return None
+
+
+def score_pair(a, b, reason):
+    """(name, co-occurrence, profile, combined) scores, each kept separately for the ledger."""
+    name = name_score(a["name"], b["name"])
+    if reason in ("declared", "shared_surface"):
+        name = 1.0
+    both = a["cooc"] | b["cooc"]
+    cooc = len(a["cooc"] & b["cooc"]) / len(both) if both else 0.0
+    shared_keys = set(a["profile"]) & set(b["profile"])
+    if shared_keys:
+        profile = sum(a["profile"][k] == b["profile"][k] for k in shared_keys) / len(shared_keys)
+    else:
+        profile = 0.5
+    combined = 0.6 * name + 0.25 * cooc + 0.15 * profile
+    return name, cooc, profile, combined
+
+
+def combined_of(item):
+    return -item[1][3]
+
+
+def unit_of_local(l):
+    return l["ui"]
+
+
+def best_name(counts):
+    """The most used name, the longest on a tie."""
+    best = None
+    for name, n in counts.items():
+        if best is None or (n, len(name)) > (counts[best], len(best)):
+            best = name
+    return best
+
+
+def reconcile(doc, records, ctx):
+    locals_ = locals_of(records)
     parent = list(range(len(locals_)))
 
     def find(i):
@@ -803,71 +1088,70 @@ def reconcile(doc, records, ctx):
     for l in locals_:
         by_name.setdefault(norm(l["name"]), []).append(l)
     for l in locals_:
-        if l["continues"]:
-            earlier = [t for t in by_name.get(norm(l["continues"]), []) if t["ui"] < l["ui"]]
-            named = [t for t in earlier if t["named"]]
-            if named:
-                unite(named[-1]["id"], l["id"], "declared", f"unit {l['ui']} continued {l['continues']!r}")
-            elif earlier:
-                row(earlier[-1]["id"], l["id"], "candidate", "declared", f"unit {l['ui']} continued the unnamed {l['continues']!r}; scored instead")
+        if not l["continues"]:
+            continue
+        earlier = [t for t in by_name.get(norm(l["continues"]), []) if t["ui"] < l["ui"]]
+        named = [t for t in earlier if t["named"]]
+        if named:
+            unite(named[-1]["id"], l["id"], "declared", f"unit {l['ui']} continued {l['continues']!r}")
+        elif earlier:
+            row(earlier[-1]["id"], l["id"], "candidate", "declared", f"unit {l['ui']} continued the unnamed {l['continues']!r}; scored instead")
     for group in by_name.values():
         for a, b in zip(group, group[1:]):
             if a["named"] and b["named"] and find(a["id"]) != find(b["id"]):
                 across = "" if a["partition"] == b["partition"] else f", across {a['partition']} and {b['partition']}"
                 unite(a["id"], b["id"], "same_name", f"{a['name']!r} in units {a['ui']} and {b['ui']}{across}")
 
-    # 2. candidates across units inside one partition: a shared surface form, a declared
-    #    continuation of an unnamed entity, an is_a link, or a shared name word; never a
-    #    possession against its own anchor, never across partitions (only an exact proper name
-    #    or a declared continuation crosses, above)
+    # 2. every other candidate pair inside a partition, scored
     pairs = {}
     for a in locals_:
         for b in locals_:
-            if a["id"] >= b["id"] or a["ui"] == b["ui"] or find(a["id"]) == find(b["id"]) or a["partition"] != b["partition"]:
+            if a["id"] >= b["id"] or a["ui"] == b["ui"] or a["partition"] != b["partition"]:
                 continue
-            declared = norm(a["continues"] or "") == norm(b["name"]) or norm(b["continues"] or "") == norm(a["name"])
-            if not (declared or a["surfaces"] & b["surfaces"] or words_of(a["name"]) & words_of(b["name"])
-                    or any(x.casefold() in b["surfaces"] for x in a["is_a"]) or any(x.casefold() in a["surfaces"] for x in b["is_a"])):
+            if find(a["id"]) == find(b["id"]):
                 continue
-            if anchored(a, b) or anchored(b, a):
+            reason = candidate_reason(a, b)
+            if reason is None or anchored(a, b) or anchored(b, a):
                 continue
-            ns = max(name_score(a["name"], b["name"]), 1.0 if (a["surfaces"] & b["surfaces"] or declared) else 0.0)
-            ca, cb = a["cooc"], b["cooc"]
-            cs = len(ca & cb) / len(ca | cb) if (ca | cb) else 0.0
-            keys = set(a["profile"]) & set(b["profile"])
-            ps = (sum(a["profile"][k] == b["profile"][k] for k in keys) / len(keys)) if keys else 0.5
-            combined = 0.6 * ns + 0.25 * cs + 0.15 * ps
-            pairs[(a["id"], b["id"])] = (ns, cs, ps, combined)
+            pairs[(a["id"], b["id"])] = score_pair(a, b, reason)
     to_judge = []
-    for (i, j), (ns, cs, ps, combined) in sorted(pairs.items(), key=lambda kv: -kv[1][3]):
-        decision = "unite" if combined >= HIGH else "apart" if combined < LOW else "judge"
+    for (i, j), (name, cooc, profile, combined) in sorted(pairs.items(), key=combined_of):
+        if combined >= HIGH:
+            decision = "unite"
+        elif combined < LOW:
+            decision = "apart"
+        else:
+            decision = "judge"
         candidates.append({"a": locals_[i]["name"], "a_unit": locals_[i]["ui"], "b": locals_[j]["name"], "b_unit": locals_[j]["ui"],
-                           "name_score": round(ns, 3), "cooc_score": round(cs, 3), "profile_score": round(ps, 3),
+                           "name_score": round(name, 3), "cooc_score": round(cooc, 3), "profile_score": round(profile, 3),
                            "combined": round(combined, 3), "threshold": [LOW, HIGH], "decision": decision})
         if decision == "unite":
             unite(i, j, "scored", f"combined {combined:.2f}")
         elif decision == "judge":
             to_judge.append((i, j))
 
-    # 3. the judge, on the ambiguous band, strongest first, dossiers sent once per call
+    # 3. the judge, on the ambiguous band, strongest first, each dossier sent once per call
     def members(root):
         return [l for l in locals_ if find(l["id"]) == root]
 
     def dossier(root):
         ks = members(root)
-        take = lambda key, n: sorted({x for l in ks for x in l[key]})[:n]
-        return "\n".join([f"names: {', '.join(sorted({l['name'] for l in ks}))}",
-                          f"forms: {', '.join(sorted({s for l in ks for s in l['surfaces']})[:12])}",
-                          f"kinds: {', '.join(sorted({l['kind'] for l in ks}))}",
-                          f"is: {', '.join(take('is_a', 6)) or '(nothing stated)'}",
-                          f"facts: {'; '.join(take('facts', 10)) or '(none)'}",
-                          f"relations: {'; '.join(take('relations', 10)) or '(none)'}",
-                          f"units: {', '.join(str(u) for u in sorted({l['ui'] for l in ks}))}"])
+        return "\n".join([
+            f"names: {', '.join(sorted({l['name'] for l in ks}))}",
+            f"forms: {', '.join(sorted({s for l in ks for s in l['surfaces']})[:12])}",
+            f"kinds: {', '.join(sorted({l['kind'] for l in ks}))}",
+            f"is: {', '.join(sorted({x for l in ks for x in l['is_a']})[:6]) or '(nothing stated)'}",
+            f"facts: {'; '.join(sorted({x for l in ks for x in l['facts']})[:10]) or '(none)'}",
+            f"relations: {'; '.join(sorted({x for l in ks for x in l['relations']})[:10]) or '(none)'}",
+            f"units: {', '.join(str(u) for u in sorted({l['ui'] for l in ks}))}"])
 
-    kept_apart = []                                   # (local, local) pairs the judge ruled different, read through find()
+    kept_apart = []                                # pairs the judge ruled different, read through find()
 
     def ruled_apart(ra, rb):
-        return any({find(x), find(y)} == {ra, rb} for x, y in kept_apart)
+        for x, y in kept_apart:
+            if {find(x), find(y)} == {ra, rb}:
+                return True
+        return False
 
     k = 0
     while k < len(to_judge):
@@ -883,8 +1167,8 @@ def reconcile(doc, records, ctx):
             continue
         roots = sorted({r for pair in batch for r in pair})
         number = {r: n for n, r in enumerate(roots, 1)}
-        prompt = JUDGE_PROMPT + "\nDOSSIERS\n" + "\n\n".join(f"[{number[r]}]\n{dossier(r)}" for r in roots) \
-            + "\n\nPAIRS\n" + "\n".join(f"PAIR {n}: [{number[a]}] and [{number[b]}]" for n, (a, b) in enumerate(batch, 1))
+        prompt = (JUDGE_PROMPT + "\nDOSSIERS\n" + "\n\n".join(f"[{number[r]}]\n{dossier(r)}" for r in roots)
+                  + "\n\nPAIRS\n" + "\n".join(f"PAIR {n}: [{number[a]}] and [{number[b]}]" for n, (a, b) in enumerate(batch, 1)))
         reply = generate(prompt, JUDGE_SCHEMA, "judge", model=TERRA, effort="medium", ctx=ctx)
         verdicts = {}
         for v in (reply or {}).get("verdicts", []):
@@ -900,48 +1184,51 @@ def reconcile(doc, records, ctx):
                 kept_apart.append((ra, rb))
                 row(ra, rb, verdict, "judged", reason)
 
-    # 4. the document entities
+    # 4. the document entities, one per cluster
     clusters = {}
     for l in locals_:
         clusters.setdefault(find(l["id"]), []).append(l)
     entities = []
     for ks in clusters.values():
-        ks.sort(key=lambda l: l["ui"])
+        ks.sort(key=unit_of_local)
         named = [l for l in ks if l["named"]] or ks
         counts = {}
         for l in named:
             counts[l["name"]] = counts.get(l["name"], 0) + 1
-        name = max(counts, key=lambda n: (counts[n], len(n)))
         first_unit_of, unit_ids = {}, []
         for l in ks:
-            for f in l["forms"]:
-                first_unit_of.setdefault(f, l["unit_id"])
+            for form in l["forms"]:
+                first_unit_of.setdefault(form, l["unit_id"])
             if l["unit_id"] not in unit_ids:
                 unit_ids.append(l["unit_id"])
-        entities.append({"name": name, "kinds": sorted({l["kind"] for l in ks}), "named": any(l["named"] for l in ks),
+        entities.append({"name": best_name(counts), "kinds": sorted({l["kind"] for l in ks}), "named": any(l["named"] for l in ks),
                          "partitions": sorted({l["partition"] for l in ks}),
                          "units": sorted({l["ui"] for l in ks}), "unit_ids": unit_ids, "first_unit": unit_ids[0],
                          "names": sorted({l["name"] for l in ks}), "surfaces": sorted({s for l in ks for s in l["surfaces"]}),
-                         "first_unit_of": first_unit_of,
-                         "members": [(l["ui"], l["name"]) for l in ks], "n_facts": sum(l["n_facts"] for l in ks),
-                         "is_a": sorted({x for l in ks for x in l["is_a"]}), "profile": [l["profile"] for l in ks if l["profile"]]})
+                         "first_unit_of": first_unit_of, "members": [(l["ui"], l["name"]) for l in ks],
+                         "n_facts": sum(l["n_facts"] for l in ks), "is_a": sorted({x for l in ks for x in l["is_a"]}),
+                         "profile": [l["profile"] for l in ks if l["profile"]]})
     return entities, ledger, candidates, len(locals_), len(pairs), len(to_judge)
 
 # %%
-# Block 8: fold the document. The abstract folds from the unit summaries under BUILD's bound
-# (at most half the child words, capped at 400) with the fabrication check; a rejected fold is
-# asked for once more with the missing names listed, then left unstamped. Salience is
-# reassessed against the abstract: named there, as whole words, is major, unit count then fact
-# count break ties; with no abstract the tie-breakers decide alone, and the node says so. Majors
-# get a dossier with an embedding and their own abstract with children_hash.
+# Block 9: fold the document.
+#
+# The abstract folds from the work's unit summaries under BUILD's bound (at most half the
+# child words, capped at 400) with the fabrication check; a rejected fold is asked for once
+# more with the missing names listed, then left unstamped. Salience is reassessed against the
+# abstract: named there, as whole words, is major, unit count then fact count break ties; with
+# no abstract the tie-breakers decide alone, and the node says so. Majors get a dossier with an
+# embedding and their own abstract with children_hash.
 
 
 def fold(what, children, ctx, stage="fold", model=LUNA, allowed=None):
-    """(text, missing names, limit) — text is None when the fold was rejected twice. `allowed`
+    """(text, missing names, limit); text is None when the fold was rejected twice. `allowed`
     are names the prompt itself supplies (the entity being summarised), which count as present."""
     child_words = sum(word_count(c) for c in children)
     limit = min(400, max(1, child_words // 2))
-    prompt = fold_prompt(what, children, limit if limit < 12 else limit * 9 // 10)     # asked for a little under the bound code enforces, never over it
+    asked = limit if limit < 12 else limit * 9 // 10        # a little under the bound, never over it
+    prompt = fold_prompt(what, children, asked)
+    missing = []
     for attempt in range(2):
         reply = generate(prompt, FOLD_SCHEMA, stage, model=model, ctx=ctx)
         if not reply:
@@ -952,9 +1239,12 @@ def fold(what, children, ctx, stage="fold", model=LUNA, allowed=None):
         if not missing and not over:
             return text, [], limit
         if attempt == 0:
-            prompt += ("\n\nYour previous summary " + (f"used names that do not appear in the records ({', '.join(missing[:8])})" if missing else "")
-                       + (" and " if missing and over else "") + (f"ran to {word_count(text)} words against a limit of {limit}" if over else "")
-                       + ". Write it again using only names from the records, within the limit.")
+            complaint = []
+            if missing:
+                complaint.append(f"used names that do not appear in the records ({', '.join(missing[:8])})")
+            if over:
+                complaint.append(f"ran to {word_count(text)} words against a limit of {limit}")
+            prompt += "\n\nYour previous summary " + " and ".join(complaint) + ". Write it again using only names from the records, within the limit."
     return None, missing or ["(over length)"], limit
 
 
@@ -962,11 +1252,21 @@ def children_hash(children):
     return h(*children)
 
 
+def salience_order(item):
+    major, units, facts = item[0], item[1], item[2]
+    return (not major, -units, -facts)
+
+
 def fold_document(doc, records, entities, ctx):
-    out = {"abstract": None, "abstract_rejected": None, "majors": [], "minors": [], "dossiers": [], "entity_abstracts": [], "entity_abstract_rejected": []}
-    work = [r for r in records if r["summary"] and r["partition"] == "work"] or [r for r in records if r["summary"]]
-    summaries = [f"[{r['label']}] {r['summary']}" for r in work]         # the work alone shapes the abstract
-    if len(summaries) == 1:                                   # one summarised unit: its summary is the abstract, no call
+    out = {"abstract": None, "abstract_rejected": None, "majors": [], "minors": [], "dossiers": [],
+           "entity_abstracts": [], "entity_abstract_rejected": []}
+
+    # the abstract, from the work partition's summaries alone
+    work = [r for r in records if r["summary"] and r["partition"] == "work"]
+    if not work:
+        work = [r for r in records if r["summary"]]
+    summaries = [f"[{r['label']}] {r['summary']}" for r in work]
+    if len(summaries) == 1:                       # one summarised unit: its summary is the abstract, no call
         text, missing, limit = work[0]["summary"], [], None
     elif summaries:
         text, missing, limit = fold("one document", summaries, ctx)
@@ -978,24 +1278,34 @@ def fold_document(doc, records, entities, ctx):
         out["abstract_rejected"] = missing
 
     # salience against the abstract; without one, the tie-breakers decide and the node says so
-    a = (text or "").casefold()
+    abstract = (text or "").casefold()
     ranked = []
     for e in entities:
-        in_abstract = any(whole_word(s, a) for s in e["surfaces"] if len(s) >= 2) if text else None     # whole words, so "Oz" counts
-        major = in_abstract if text else (len(e["units"]) >= 2 or e["n_facts"] >= 2)
+        if text:
+            in_abstract = any(whole_word(s, abstract) for s in e["surfaces"] if len(s) >= 2)
+            major = in_abstract
+        else:
+            in_abstract = None
+            major = len(e["units"]) >= 2 or e["n_facts"] >= 2
         ranked.append((major, len(e["units"]), e["n_facts"], in_abstract, e))
-    ranked.sort(key=lambda t: (not t[0], -t[1], -t[2]))
-    for major, nu, nf, in_abstract, e in ranked:
+    ranked.sort(key=salience_order)
+    for major, n_units, n_facts, in_abstract, e in ranked:
         e["major"] = major
-        e["rank"] = {"in_abstract": in_abstract, "units": nu, "facts": nf}
-        (out["majors"] if major else out["minors"]).append(e)
+        e["rank"] = {"in_abstract": in_abstract, "units": n_units, "facts": n_facts}
+        if major:
+            out["majors"].append(e)
+        else:
+            out["minors"].append(e)
 
-    # dossiers and per-entity abstracts for the majors; clusters are keyed by their index, not
-    # their name, because two clusters the judge kept apart can share a name
-    cells_of, facts_of = {}, {}
+    # dossiers and per-entity abstracts for the majors; clusters are keyed by their index,
+    # not their name, because two clusters the judge kept apart can share a name
     for i, e in enumerate(entities):
         e["index"] = i
-    member_of = {(ui, n): e["index"] for e in entities for ui, n in e["members"]}
+    member_of = {}
+    for e in entities:
+        for ui, local_name in e["members"]:
+            member_of[(ui, local_name)] = e["index"]
+    cells_of, facts_of = {}, {}
     for r in records:
         for c in r["cells"]:
             key = member_of.get((r["position"], c["entity"]))
@@ -1004,47 +1314,53 @@ def fold_document(doc, records, entities, ctx):
         for f in r["facts"]:
             key = member_of.get((r["position"], f["subject"]))
             if key is not None:
-                facts_of.setdefault(key, []).append(f"{f['predicate']} {f['object']}" + (f" [{f['qualifiers']}]" if f["qualifiers"] else ""))
+                facts_of.setdefault(key, []).append(fact_text(f))
     texts = []
     for e in out["majors"]:
-        children = list(dict.fromkeys(facts_of.get(e["index"], []))) + cells_of.get(e["index"], [])
-        d = "\n".join([f"name: {e['name']}", f"also: {', '.join(n for n in e['names'] if n != e['name'])[:300]}",
-                       f"kinds: {', '.join(e['kinds'])}", f"is: {', '.join(e['is_a'][:6])}",
-                       f"facts: {'; '.join(list(dict.fromkeys(facts_of.get(e['index'], [])))[:20])}",
-                       f"cells: {' '.join(cells_of.get(e['index'], []))[:1500]}"])
-        out["dossiers"].append({"entity": e["name"], "first_unit": e["first_unit"], "text": d, "children": children})
-        texts.append(d)
+        facts = list(dict.fromkeys(facts_of.get(e["index"], [])))
+        cells = cells_of.get(e["index"], [])
+        others = [n for n in e["names"] if n != e["name"]]
+        dossier = "\n".join([f"name: {e['name']}", f"also: {', '.join(others)[:300]}",
+                             f"kinds: {', '.join(e['kinds'])}", f"is: {', '.join(e['is_a'][:6])}",
+                             f"facts: {'; '.join(facts[:20])}", f"cells: {' '.join(cells)[:1500]}"])
+        out["dossiers"].append({"entity": e["name"], "first_unit": e["first_unit"], "text": dossier, "children": facts + cells})
+        texts.append(dossier)
     if texts and KEY:
-        for dossier, vec in zip(out["dossiers"], embed(texts, ctx=ctx)):
-            dossier["embedding"] = vec
+        for dossier, vector in zip(out["dossiers"], embed(texts, ctx=ctx)):
+            dossier["embedding"] = vector
     for e, dossier in zip(out["majors"], out["dossiers"]):
         children = dossier["children"]
         if not children:
             continue
-        if len(children) <= 2:                                    # too little to fold: the children stand as the abstract
-            atext, missing = " ".join(c.split("] ", 1)[-1] for c in children), []
+        if len(children) <= 2:                    # too little to fold: the children stand as the abstract
+            text = " ".join(c.split("] ", 1)[-1] for c in children)
+            missing = []
         else:
-            atext, missing, _ = fold(f"one entity, {e['name']}", children, ctx, stage="entity_abstract", allowed=e["names"] + e["surfaces"])
-        if atext:
-            out["entity_abstracts"].append({"entity": e["name"], "first_unit": e["first_unit"], "text": atext, "children_hash": children_hash(children)})
+            text, missing, _ = fold(f"one entity, {e['name']}", children, ctx, stage="entity_abstract",
+                                    allowed=e["names"] + e["surfaces"])
+        if text:
+            out["entity_abstracts"].append({"entity": e["name"], "first_unit": e["first_unit"], "text": text,
+                                            "children_hash": children_hash(children)})
         else:
             out["entity_abstract_rejected"].append({"entity": e["name"], "missing": missing})
     return out
 
 # %%
-# Block 9: the package. One JSONL file per document, mirroring the raw layout
-# (raw/oz/01_55.txt -> packages/oz/01_55.jsonl), every line one record with a "record" field
-# naming its type, written in the order the merge applies them, ending in a completion record
-# whose input_hash says which extractor output it was derived from. Ids are content hashes;
-# minors have no node and their mentions carry node_id null. A fact from a major to a minor is
-# a property with the minor's name as its value; a fact between two minors is not stored. Two
-# locals of one unit that reconcile into one node yield one cell for that unit.
+# Block 10: the package.
+#
+# One JSONL file per document, mirroring the raw layout (raw/oz/01_55.txt becomes
+# packages/oz/01_55.jsonl), every line one record with a "record" field naming its type, in the
+# order the merge applies them, ending in a completion record whose input_hash says which
+# extractor output it came from. Minors have no node and their mentions carry node_id null. A
+# fact from a major to a minor is a property with the minor's name as its value; a fact between
+# two minors is not stored. Two locals of one unit reconciled into one node yield one cell.
 
 
 def package_path(doc):
     parts = doc["source_uri"].split("/")
     group = parts[-2] if len(parts) > 1 else "misc"
-    group = "papers" if group.startswith("it494-reference-papers") or doc["source_uri"].endswith(".pdf") else group
+    if doc["source_uri"].endswith(".pdf"):
+        group = "papers"
     return OUT / group / (Path(parts[-1]).stem + ".jsonl")
 
 
@@ -1058,84 +1374,14 @@ def input_hash(doc):
     return h(doc["doc_id"], *[u["unit_id"] for u in doc["units"]], INGESTOR)
 
 
-def write_package(doc, records, entities, folded, ledger, candidates, stats):
-    path = package_path(doc)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    scope = doc["doc_id"]
-    node_of = {}                                                     # (unit position, local name) -> node_id or None
-    lines = [{"record": "package", "doc_id": doc["doc_id"], "source_uri": doc["source_uri"], "ingestor": INGESTOR,
-              "loader": doc.get("loader"), "input_hash": input_hash(doc), "written_at": datetime.now(timezone.utc).isoformat(timespec="seconds")},
-             {"record": "document", **{k: doc[k] for k in ("doc_id", "source_uri", "sha256", "title", "author", "source_class",
-                                                          "ingested_at", "occurred_at", "loader")}, "flags": doc.get("flags", []),
-              "text_length": len(doc["text"])}]
-    lines += [{"record": "unit", **u} for u in doc["units"]]
-    lines += [{"record": "piece", **p} for p in doc["pieces"]]
-    doc_node = h(doc["doc_id"], "document")
-    lines.append({"record": "node", "node_id": doc_node, "name": doc.get("title") or doc["source_uri"], "kind": "document",
-                  "created_from_unit": doc["units"][0]["unit_id"] if doc["units"] else None, "provenance": {"ingestor": INGESTOR}})
-    position_of = {u["unit_id"]: u["position"] for u in doc["units"]}
-    for e in entities:
-        nid = h(doc["doc_id"], e["name"], e["first_unit"]) if e["major"] else None     # name plus first unit: two clusters kept apart may share a name
-        for ui, n in e["members"]:
-            node_of[(ui, n)] = nid
-        if e["major"]:
-            first = min(e["unit_ids"], key=lambda uid: position_of[uid])
-            lines.append({"record": "node", "node_id": nid, "name": e["name"], "kind": e["kinds"][0] if len(e["kinds"]) == 1 else "/".join(e["kinds"]),
-                          "created_from_unit": first,
-                          "provenance": {"ingestor": INGESTOR, "salience": e["rank"], "names": e["names"][:12]}})
-            for s, uid in e["first_unit_of"].items():
-                lines.append({"record": "alias", "alias": s, "node_id": nid, "first_seen_unit": uid, "evidence_quote": None})
-            lines.append({"record": "edge", "predicate": "appears_in", "subject": nid, "object": doc_node, "units": e["unit_ids"]})
-    for u in doc["units"]:
-        lines.append({"record": "edge", "predicate": "has_unit", "subject": doc_node, "object": u["unit_id"], "position": u["position"]})
-    dropped_minor = 0
-    for r in records:
-        for m in r["mentions"]:
-            lines.append({"record": "mention", "mention_id": m["mention_id"], "node_id": node_of.get((r["position"], m["entity"])),
-                          "unit_id": m["unit_id"], "start": m["start"], "end": m["end"], "surface": m["surface"], "resolved_by": m["resolved_by"]})
-        seen_profile = set()
-        for p in r["profile"]:
-            nid = node_of.get((r["position"], p["entity"]))
-            key = (nid, p["attribute"], p["value"])
-            if nid and key not in seen_profile:
-                seen_profile.add(key)
-                lines.append({"record": "profile", "node_id": nid, "attribute": p["attribute"], "value": p["value"],
-                              "confidence": p["confidence"], "from_unit": p["from_unit"]})
-        for f in r["facts"]:
-            s_node = node_of.get((r["position"], f["subject"]))
-            o_node = node_of.get((r["position"], f["object"])) if f["object_is_entity"] else None
-            if s_node is None:
-                dropped_minor += 1
-                continue
-            lines.append({"record": "fact", "fact_id": f["fact_id"], "subject": s_node, "predicate": f["predicate"],
-                          "object": o_node or f["object"], "object_is_node": o_node is not None, "qualifiers": f["qualifiers"],
-                          "rank": "active", "unit_id": f["unit_id"], "quote": f["quote"], "quote_start": f["quote_start"],
-                          "quote_end": f["quote_end"], "valid_from": f["valid_from"], "valid_to": f["valid_to"], "tier": f["tier"],
-                          "author": f["author"], "provenance": {"ingestor": INGESTOR, "matched_by": f["matched_by"], "subject_name": f["subject"],
-                                                                "voice_ambiguous": f["voice_ambiguous"]}})
-        if r["summary"]:
-            lines.append({"record": "cell", "cell_id": h(doc_node, r["unit_id"]), "node_id": doc_node, "unit_id": r["unit_id"],
-                          "scope_id": scope, "text": r["summary"], "tier": LUNA, "provenance": {"ingestor": INGESTOR, "kind": "unit_summary"}})
-        by_node = {}
-        for c in r["cells"]:
-            nid = node_of.get((r["position"], c["entity"]))
-            if nid:
-                by_node.setdefault(nid, []).append(c)
-        for nid, cs in by_node.items():
-            lines.append({"record": "cell", "cell_id": h(nid, r["unit_id"]), "node_id": nid, "unit_id": r["unit_id"],
-                          "scope_id": scope, "text": " ".join(c["text"] for c in cs), "tier": LUNA,
-                          "provenance": {"ingestor": INGESTOR, "entity_names": [c["entity"] for c in cs]}})
-    if folded["abstract"]:
-        lines.append({"record": "abstract", "node_id": doc_node, "scope_id": scope, "text": folded["abstract"]["text"],
-                      "children_hash": folded["abstract"]["children_hash"], "tier": LUNA, "updated_at": lines[0]["written_at"]})
-    for a in folded["entity_abstracts"]:
-        lines.append({"record": "abstract", "node_id": h(doc["doc_id"], a["entity"], a["first_unit"]), "scope_id": scope, "text": a["text"],
-                      "children_hash": a["children_hash"], "tier": LUNA, "updated_at": lines[0]["written_at"]})
-    for d in folded["dossiers"]:
-        lines.append({"record": "dossier", "node_id": h(doc["doc_id"], d["entity"], d["first_unit"]), "text": d["text"],
-                      "embedding_model": EMBED_MODEL if "embedding" in d else None, "embedding": d.get("embedding")})
-    lines += [{"record": "ledger", **row} for row in ledger]
-    lines += [{"record": "candidate", **row} for row in candidates]
+def node_id_of(doc, entity):
+    """Name plus first unit: two clusters the judge kept apart may share a name."""
+    return h(doc["doc_id"], entity["name"], entity["first_unit"])
+
+
+def predicate_census(records):
+    """Every predicate the document used, with its count, sample objects and qualifiers, for
+    the merge's consolidation across documents."""
     census = {}
     for r in records:
         for f in r["facts"]:
@@ -1146,17 +1392,117 @@ def write_package(doc, records, entities, folded, ledger, candidates, stats):
                 c["objects"].append(f["object"])
             if f["qualifiers"] and f["qualifiers"] not in c["qualifiers"] and len(c["qualifiers"]) < 4:
                 c["qualifiers"].append(f["qualifiers"])
-    lines.append({"record": "predicate_census", "predicates": census})
+    return census
+
+
+def write_package(doc, records, entities, folded, ledger, candidates, stats):
+    path = package_path(doc)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    scope = doc["doc_id"]
+    written_at = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    doc_node = h(doc["doc_id"], "document")
+    lines = []
+    lines.append({"record": "package", "doc_id": doc["doc_id"], "source_uri": doc["source_uri"], "ingestor": INGESTOR,
+                  "loader": doc.get("loader"), "input_hash": input_hash(doc), "written_at": written_at})
+    lines.append({"record": "document", "doc_id": doc["doc_id"], "source_uri": doc["source_uri"], "sha256": doc["sha256"],
+                  "title": doc["title"], "author": doc["author"], "source_class": doc["source_class"],
+                  "ingested_at": doc["ingested_at"], "occurred_at": doc["occurred_at"], "loader": doc["loader"],
+                  "flags": doc.get("flags", []), "text_length": len(doc["text"])})
+    for u in doc["units"]:
+        lines.append({"record": "unit", **u})
+    for p in doc["pieces"]:
+        lines.append({"record": "piece", **p})
+    lines.append({"record": "node", "node_id": doc_node, "name": doc.get("title") or doc["source_uri"], "kind": "document",
+                  "created_from_unit": doc["units"][0]["unit_id"] if doc["units"] else None, "provenance": {"ingestor": INGESTOR}})
+
+    # nodes, aliases and edges for the majors; the map from a unit-local name to its node
+    node_of = {}
+    position_of = {u["unit_id"]: u["position"] for u in doc["units"]}
+    for e in entities:
+        nid = node_id_of(doc, e) if e["major"] else None
+        for ui, local_name in e["members"]:
+            node_of[(ui, local_name)] = nid
+        if not e["major"]:
+            continue
+        first = min(e["unit_ids"], key=position_of.get)
+        kind = e["kinds"][0] if len(e["kinds"]) == 1 else "/".join(e["kinds"])
+        lines.append({"record": "node", "node_id": nid, "name": e["name"], "kind": kind, "created_from_unit": first,
+                      "provenance": {"ingestor": INGESTOR, "salience": e["rank"], "names": e["names"][:12]}})
+        for form, uid in e["first_unit_of"].items():
+            lines.append({"record": "alias", "alias": form, "node_id": nid, "first_seen_unit": uid, "evidence_quote": None})
+        lines.append({"record": "edge", "predicate": "appears_in", "subject": nid, "object": doc_node, "units": e["unit_ids"]})
+    for u in doc["units"]:
+        lines.append({"record": "edge", "predicate": "has_unit", "subject": doc_node, "object": u["unit_id"], "position": u["position"]})
+
+    # per unit: mentions, profiles, facts, the summary cell, the entity cells
+    dropped_minor = 0
+    for r in records:
+        for m in r["mentions"]:
+            lines.append({"record": "mention", "mention_id": m["mention_id"], "node_id": node_of.get((r["position"], m["entity"])),
+                          "unit_id": m["unit_id"], "start": m["start"], "end": m["end"], "surface": m["surface"],
+                          "resolved_by": m["resolved_by"]})
+        seen_profile = set()
+        for p in r["profile"]:
+            nid = node_of.get((r["position"], p["entity"]))
+            key = (nid, p["attribute"], p["value"])
+            if nid and key not in seen_profile:
+                seen_profile.add(key)
+                lines.append({"record": "profile", "node_id": nid, "attribute": p["attribute"], "value": p["value"],
+                              "confidence": p["confidence"], "from_unit": p["from_unit"]})
+        for f in r["facts"]:
+            subject_node = node_of.get((r["position"], f["subject"]))
+            object_node = node_of.get((r["position"], f["object"])) if f["object_is_entity"] else None
+            if subject_node is None:
+                dropped_minor += 1
+                continue
+            lines.append({"record": "fact", "fact_id": f["fact_id"], "subject": subject_node, "predicate": f["predicate"],
+                          "object": object_node or f["object"], "object_is_node": object_node is not None,
+                          "qualifiers": f["qualifiers"], "rank": "active", "unit_id": f["unit_id"], "quote": f["quote"],
+                          "quote_start": f["quote_start"], "quote_end": f["quote_end"], "valid_from": f["valid_from"],
+                          "valid_to": f["valid_to"], "tier": f["tier"], "author": f["author"],
+                          "provenance": {"ingestor": INGESTOR, "matched_by": f["matched_by"], "subject_name": f["subject"],
+                                         "voice_ambiguous": f["voice_ambiguous"]}})
+        if r["summary"]:
+            lines.append({"record": "cell", "cell_id": h(doc_node, r["unit_id"]), "node_id": doc_node, "unit_id": r["unit_id"],
+                          "scope_id": scope, "text": r["summary"], "tier": LUNA,
+                          "provenance": {"ingestor": INGESTOR, "kind": "unit_summary"}})
+        cells_by_node = {}
+        for c in r["cells"]:
+            nid = node_of.get((r["position"], c["entity"]))
+            if nid:
+                cells_by_node.setdefault(nid, []).append(c)
+        for nid, cells in cells_by_node.items():
+            lines.append({"record": "cell", "cell_id": h(nid, r["unit_id"]), "node_id": nid, "unit_id": r["unit_id"],
+                          "scope_id": scope, "text": " ".join(c["text"] for c in cells), "tier": LUNA,
+                          "provenance": {"ingestor": INGESTOR, "entity_names": [c["entity"] for c in cells]}})
+
+    # the document level: abstracts, dossiers, the ledger, the candidates, the census, rejections
+    if folded["abstract"]:
+        lines.append({"record": "abstract", "node_id": doc_node, "scope_id": scope, "text": folded["abstract"]["text"],
+                      "children_hash": folded["abstract"]["children_hash"], "tier": LUNA, "updated_at": written_at})
+    for a in folded["entity_abstracts"]:
+        lines.append({"record": "abstract", "node_id": h(doc["doc_id"], a["entity"], a["first_unit"]), "scope_id": scope,
+                      "text": a["text"], "children_hash": a["children_hash"], "tier": LUNA, "updated_at": written_at})
+    for d in folded["dossiers"]:
+        lines.append({"record": "dossier", "node_id": h(doc["doc_id"], d["entity"], d["first_unit"]), "text": d["text"],
+                      "embedding_model": EMBED_MODEL if "embedding" in d else None, "embedding": d.get("embedding")})
+    for entry in ledger:
+        lines.append({"record": "ledger", **entry})
+    for entry in candidates:
+        lines.append({"record": "candidate", **entry})
+    lines.append({"record": "predicate_census", "predicates": predicate_census(records)})
     for r in records:
         for x in r["rejected_facts"]:
             lines.append({"record": "rejection", "stage": "facts", "unit_id": r["unit_id"], **x})
         for x in r["dropped_entities"]:
-            lines.append({"record": "rejection", "stage": "entities", "category": "no_surface_form" if x["why"].startswith("no ") else "span_claimed",
-                          "unit_id": r["unit_id"], **x})
+            category = "no_surface_form" if x["why"].startswith("no ") else "span_claimed"
+            lines.append({"record": "rejection", "stage": "entities", "category": category, "unit_id": r["unit_id"], **x})
+
     counts = {"units": len(records), "entities": len(entities), "majors": len(folded["majors"]), "minors": len(folded["minors"]),
               "mentions": sum(len(r["mentions"]) for r in records), "facts_kept": sum(len(r["facts"]) for r in records),
               "facts_stored": sum(1 for l in lines if l["record"] == "fact"), "facts_minor_subject": dropped_minor,
-              "facts_rejected": sum(len(r["rejected_facts"]) for r in records), "cells": sum(1 for l in lines if l["record"] == "cell"),
+              "facts_rejected": sum(len(r["rejected_facts"]) for r in records),
+              "cells": sum(1 for l in lines if l["record"] == "cell"),
               "shared_spans": sum(r["shared_spans"] for r in records), "ambiguous_voice": sum(r["ambiguous_voice"] for r in records),
               "empty_units": sum(r["empty"] for r in records), "abstract": folded["abstract"] is not None}
     lines.append({"record": "completion", "doc_id": doc["doc_id"], "input_hash": input_hash(doc), "ingestor": INGESTOR,
@@ -1172,15 +1518,20 @@ def completed(doc):
     path = package_path(doc)
     if not path.exists():
         return None
-    last = None
-    for line in read_jsonl(path):
-        last = line
-    return last if last and last.get("record") == "completion" and last.get("input_hash") == input_hash(doc) else None
+    rows = read_jsonl(path)
+    if not rows:
+        return None
+    last = rows[-1]
+    if last.get("record") == "completion" and last.get("input_hash") == input_hash(doc):
+        return last
+    return None
 
 # %%
-# Block 10: the pipeline as one function, ingest(doc, diag), calling the steps in order:
-# derive_unit for each unit, then reconcile, fold_document, write_package. `diag` is a dict
-# of flags naming what to print as it happens, so a document can be watched unit by unit:
+# Block 11: the pipeline as one function, ingest(doc, diag).
+#
+# It calls the steps in order: derive_unit for each unit, then reconcile, fold_document,
+# write_package. `diag` is a dict of flags naming what to print as it happens, so a document
+# can be watched unit by unit:
 #   units        one line per unit as it finishes: counts, match paths, rejections, cost
 #   entities     every entity kept in the unit, with its forms and what it continues
 #   facts        every fact kept, with its match path and quote
@@ -1206,131 +1557,142 @@ def checkpointed(doc):
     side = sidecar_path(doc)
     if not side.exists():
         return []
-    rows = [r for r in read_jsonl(side) if r.get("ingestor") == INGESTOR and r.get("input_hash") == input_hash(doc)]
     ids = [u["unit_id"] for u in doc["units"]]
     kept = []
-    for r in rows:
-        if len(kept) < len(ids) and r["rec"]["unit_id"] == ids[len(kept)]:
-            kept.append(r["rec"])
+    for row in read_jsonl(side):
+        if row.get("ingestor") != INGESTOR or row.get("input_hash") != input_hash(doc):
+            continue
+        if len(kept) < len(ids) and row["rec"]["unit_id"] == ids[len(kept)]:
+            kept.append(row["rec"])
     return kept
 
 
-def say(text):
-    print(text)
+def counts_text(counter):
+    """'exact 6, normalised 2' from a dict of counts; 'none' when empty."""
+    if not counter:
+        return "none"
+    return ", ".join(f"{k} {v}" for k, v in counter.items())
 
 
 def show_unit(rec, unit, diag, unit_cost, total_cost):
     """One unit as it lands, in the demo's shape so the two runs read side by side."""
-    by_cat = {}
+    by_category, by_path = {}, {}
     for x in rec["rejected_facts"]:
-        by_cat[x["category"]] = by_cat.get(x["category"], 0) + 1
-    by_how = {}
+        by_category[x["category"]] = by_category.get(x["category"], 0) + 1
     for f in rec["facts"]:
-        by_how[f["matched_by"]] = by_how.get(f["matched_by"], 0) + 1
-    say(f"[{rec['position']}] {rec['label'][:40]} ({rec['kind']}, {rec['partition']}): {word_count(unit['text']):,} words; {len(rec['entities'])} entities"
-        f" ({len(rec['dropped_entities'])} dropped), {len(rec['mentions'])} mentions; {len(rec['facts'])} facts kept"
-        f" ({', '.join(f'{k} {v}' for k, v in by_how.items()) or 'none'}), {len(rec['rejected_facts'])} rejected"
-        f" ({', '.join(f'{k} {v}' for k, v in by_cat.items()) or 'none'}); {len(rec['cells'])} cells;"
-        f" ${unit_cost:.3f} this unit, ${total_cost:.3f} so far")
+        by_path[f["matched_by"]] = by_path.get(f["matched_by"], 0) + 1
+    print(f"[{rec['position']}] {rec['label'][:40]} ({rec['kind']}, {rec['partition']}): {word_count(unit['text']):,} words;"
+          f" {len(rec['entities'])} entities ({len(rec['dropped_entities'])} dropped), {len(rec['mentions'])} mentions;"
+          f" {len(rec['facts'])} facts kept ({counts_text(by_path)}), {len(rec['rejected_facts'])} rejected ({counts_text(by_category)});"
+          f" {len(rec['cells'])} cells; ${unit_cost:.3f} this unit, ${total_cost:.3f} so far")
     if diag.get("entities"):
         for e in rec["entities"]:
-            say(f"    {e['name'][:34]:<34} {e['kind'][:9]:<9} {'named' if e['named'] else 'unnamed':<8} x{e['mentions']:<3}"
-                f" {('= ' + e['continues'][:24]) if e['continues'] else '':<27} forms: {' | '.join(e['forms'][:4])[:60]}")
+            continues = f"= {e['continues'][:24]}" if e["continues"] else ""
+            print(f"    {e['name'][:34]:<34} {e['kind'][:9]:<9} {'named' if e['named'] else 'unnamed':<8} x{e['mentions']:<3}"
+                  f" {continues:<27} forms: {' | '.join(e['forms'][:4])[:60]}")
         for d in rec["dropped_entities"]:
-            say(f"    DROPPED {d['name'][:34]}: {d['why']} {d['forms'][:3]}")
+            print(f"    DROPPED {d['name'][:34]}: {d['why']} {d['forms'][:3]}")
     if diag.get("facts"):
         for f in rec["facts"]:
-            q = f" [{f['qualifiers']}]" if f["qualifiers"] else ""
-            v = ", voice ambiguous" if f["voice_ambiguous"] else ""
-            say(f"    {f['subject']} -{f['predicate']}-> {f['object']}{q}  ({f['matched_by']}{v})  \"{' '.join(f['quote'].split())[:90]}\"")
+            qualifiers = f" [{f['qualifiers']}]" if f["qualifiers"] else ""
+            voice = ", voice ambiguous" if f["voice_ambiguous"] else ""
+            print(f"    {f['subject']} -{f['predicate']}-> {f['object']}{qualifiers}  ({f['matched_by']}{voice})  \"{' '.join(f['quote'].split())[:90]}\"")
     if diag.get("rejections"):
         for x in rec["rejected_facts"]:
-            say(f"    REJECTED {x['category']}: {x['subject']} -{x['predicate']}-> {x['object']}  \"{' '.join(x['quote'].split())[:90]}\"")
+            print(f"    REJECTED {x['category']}: {x['subject']} -{x['predicate']}-> {x['object']}  \"{' '.join(x['quote'].split())[:90]}\"")
     if diag.get("cells") and rec["summary"]:
-        say(f"    SUMMARY {rec['summary']}")
+        print(f"    SUMMARY {rec['summary']}")
         for c in rec["cells"]:
-            say(f"    [{c['entity']}] {c['text']}")
+            print(f"    [{c['entity']}] {c['text']}")
         a = rec["agreement"]
         if a:
-            say(f"    agreement: {a['above_threshold']} above threshold, {a['cells']} cells, {a['named_in_summary']} named in the summary;"
-                f" in summary without a cell {a['in_summary_without_cell']}; cell not named in summary {a['cell_without_summary_name']}")
+            print(f"    agreement: {a['above_threshold']} above threshold, {a['cells']} cells, {a['named_in_summary']} named in the summary;"
+                  f" in summary without a cell {a['in_summary_without_cell']}; cell not named in summary {a['cell_without_summary_name']}")
 
 
 def show_reconcile(entities, ledger, candidates, n_locals, n_pairs, n_judged, diag):
-    how = {}
-    for r in ledger:
-        key = f"{r['how']} {r['verdict']}"
-        how[key] = how.get(key, 0) + 1
-    decisions = {}
+    by_how, by_decision = {}, {}
+    for entry in ledger:
+        key = f"{entry['how']} {entry['verdict']}"
+        by_how[key] = by_how.get(key, 0) + 1
     for c in candidates:
-        decisions[c["decision"]] = decisions.get(c["decision"], 0) + 1
-    say(f"reconcile: {n_locals} unit-locals -> {len(entities)} document entities; ledger {', '.join(f'{k} {v}' for k, v in sorted(how.items()))};"
-        f" {n_pairs} scored pairs ({', '.join(f'{k} {v}' for k, v in sorted(decisions.items()))}), {n_judged} sent to the judge")
+        by_decision[c["decision"]] = by_decision.get(c["decision"], 0) + 1
+    print(f"reconcile: {n_locals} unit-locals -> {len(entities)} document entities; ledger {counts_text(by_how)};"
+          f" {n_pairs} scored pairs ({counts_text(by_decision)}), {n_judged} sent to the judge")
     if diag.get("ledger"):
-        for r in ledger:
-            say(f"    {r['verdict']:<9} {r['how']:<10} {r['a'][:28]:<28} (u{r['a_unit']}) ~ {r['b'][:28]:<28} (u{r['b_unit']})  {str(r['evidence'])[:70]}")
+        for entry in ledger:
+            print(f"    {entry['verdict']:<9} {entry['how']:<10} {entry['a'][:28]:<28} (u{entry['a_unit']}) ~ {entry['b'][:28]:<28} (u{entry['b_unit']})"
+                  f"  {str(entry['evidence'])[:70]}")
 
 
 def show_fold(folded, diag):
     if folded["abstract"]:
         a = folded["abstract"]
-        say(f"abstract ({word_count(a['text'])} words, limit {a['limit']}): {a['text']}")
+        print(f"abstract ({word_count(a['text'])} words, limit {a['limit']}): {a['text']}")
     else:
-        say(f"abstract REJECTED: {folded['abstract_rejected']}")
-    say(f"salience: {len(folded['majors'])} major, {len(folded['minors'])} minor;"
-        f" {len(folded['entity_abstracts'])} entity abstracts, {len(folded['entity_abstract_rejected'])} rejected")
+        print(f"abstract REJECTED: {folded['abstract_rejected']}")
+    print(f"salience: {len(folded['majors'])} major, {len(folded['minors'])} minor;"
+          f" {len(folded['entity_abstracts'])} entity abstracts, {len(folded['entity_abstract_rejected'])} rejected")
     for e in folded["majors"]:
-        why = "in abstract" if e["rank"]["in_abstract"] else "by tie-break" if e["rank"]["in_abstract"] is None else "?"
-        say(f"    {e['name'][:34]:<34} {'/'.join(e['kinds'])[:16]:<16} units {len(e['units']):>3} facts {e['n_facts']:>3}  {why}"
-            f"  {'/'.join(e['partitions'])}  {('also: ' + ', '.join(n for n in e['names'] if n != e['name'])[:60]) if len(e['names']) > 1 else ''}")
+        if e["rank"]["in_abstract"]:
+            why = "in abstract"
+        elif e["rank"]["in_abstract"] is None:
+            why = "by tie-break"
+        else:
+            why = "?"
+        others = [n for n in e["names"] if n != e["name"]]
+        also = f"also: {', '.join(others)[:60]}" if others else ""
+        print(f"    {e['name'][:34]:<34} {'/'.join(e['kinds'])[:16]:<16} units {len(e['units']):>3} facts {e['n_facts']:>3}"
+              f"  {why}  {'/'.join(e['partitions'])}  {also}")
 
 
 def ingest(doc, ctx=None, diag=None):
     """One document, start to finish: the steps in order, each printed as the flags ask."""
     diag = diag or {}
     ctx = {"doc": doc["source_uri"], **(ctx or {})}
-    before_calls, before_spend = len(CALLS), spend()
-    rosters, previous = {}, {}                                       # one roster and one previous summary per partition
+    calls_before, spend_before = len(CALLS), spend()
+    rosters, previous = {}, {}                    # one roster and one previous summary per partition
 
-    def roster_for(part):
-        return rosters.setdefault(part, {"entities": [], "predicates": [], "predicate_counts": {}})
+    def roster_for(partition):
+        return rosters.setdefault(partition, {"entities": [], "predicates": [], "predicate_counts": {}})
 
     records = checkpointed(doc)
-    for rec in records:                                              # replay what the sidecar holds
+    for rec in records:                           # replay what the sidecar holds
         advance_roster(roster_for(rec["partition"]), rec)
         previous[rec["partition"]] = rec["summary"] or previous.get(rec["partition"])
     if records and diag.get("units"):
-        say(f"resuming {doc['source_uri']} from {len(records)} checkpointed units")
+        print(f"resuming {doc['source_uri']} from {len(records)} checkpointed units")
     side = sidecar_path(doc)
     if not records and side.exists():
         side.unlink()
     for u in doc["units"][len(records):]:
         unit = {**u, "text": doc["text"][u["start"]:u["end"]], "kind": unit_kind(doc, u)}
-        part = partition_of(unit["kind"])
-        at = spend()
-        rec = derive_unit(doc, unit, roster_for(part), previous.get(part), {**ctx, "unit": u["position"]})
+        partition = partition_of(unit["kind"])
+        spend_at = spend()
+        rec = derive_unit(doc, unit, roster_for(partition), previous.get(partition), {**ctx, "unit": u["position"]})
         records.append(rec)
         side.parent.mkdir(parents=True, exist_ok=True)
         with side.open("a", encoding="utf-8") as f:
             f.write(json.dumps({"ingestor": INGESTOR, "input_hash": input_hash(doc), "rec": rec}, ensure_ascii=False) + "\n")
-        advance_roster(roster_for(part), rec)
-        previous[part] = rec["summary"] or previous.get(part)
+        advance_roster(roster_for(partition), rec)
+        previous[partition] = rec["summary"] or previous.get(partition)
         if diag.get("units"):
-            show_unit(rec, unit, diag, spend() - at, spend() - before_spend)
+            show_unit(rec, unit, diag, spend() - spend_at, spend() - spend_before)
+
     entities, ledger, candidates, n_locals, n_pairs, n_judged = reconcile(doc, records, ctx)
     if diag.get("reconcile"):
         show_reconcile(entities, ledger, candidates, n_locals, n_pairs, n_judged, diag)
     folded = fold_document(doc, records, entities, ctx)
     if diag.get("fold"):
         show_fold(folded, diag)
+
     work = roster_for("work")
     stats = {"locals": n_locals, "candidate_pairs": n_pairs, "judged_pairs": n_judged,
-             "calls": len(CALLS) - before_calls, "cost": round(spend() - before_spend, 4),
+             "calls": len(CALLS) - calls_before, "cost": round(spend() - spend_before, 4),
              "matched_by": {}, "rejected_by": {}, "roster_size": len(work["entities"]), "predicates": len(work["predicates"]),
              "units_by_partition": {}}
     for r in records:
         stats["units_by_partition"][r["partition"]] = stats["units_by_partition"].get(r["partition"], 0) + 1
-    for r in records:
         for f in r["facts"]:
             stats["matched_by"][f["matched_by"]] = stats["matched_by"].get(f["matched_by"], 0) + 1
         for x in r["rejected_facts"]:
@@ -1339,18 +1701,23 @@ def ingest(doc, ctx=None, diag=None):
     if side.exists():
         side.unlink()
     if diag.get("package"):
-        say(f"package {path}: {counts}")
+        print(f"package {path}: {counts}")
     RESULTS.append((doc["source_uri"], records, counts, stats))
     return path, counts, stats, records, entities, folded
 
 
 def show(doc, counts, stats, entities, folded, path):
     """The end-of-document entry, always printed and appended to ingest.log."""
+    if folded["abstract"]:
+        abstract = folded["abstract"]["text"][:200]
+    else:
+        abstract = f"REJECTED {folded['abstract_rejected']}"
     lines = [f"{doc['source_uri']}  units {counts['units']}  entities {counts['entities']} ({counts['majors']} major)"
              f"  mentions {counts['mentions']}  facts {counts['facts_kept']} kept / {counts['facts_rejected']} rejected"
              f" / {counts['facts_stored']} stored  cells {counts['cells']}  calls {stats['calls']}  ${stats['cost']:.3f}",
-             f"    matched {stats['matched_by']}  rejected {stats['rejected_by']}  locals {stats['locals']} pairs {stats['candidate_pairs']} judged {stats['judged_pairs']}",
-             f"    abstract: {(folded['abstract'] or {}).get('text', 'REJECTED ' + str(folded['abstract_rejected']))[:200]}"]
+             f"    matched {stats['matched_by']}  rejected {stats['rejected_by']}  locals {stats['locals']}"
+             f" pairs {stats['candidate_pairs']} judged {stats['judged_pairs']}",
+             f"    abstract: {abstract}"]
     for e in folded["majors"][:12]:
         lines.append(f"    {e['name'][:36]:<36} {'/'.join(e['kinds'])[:16]:<16} units {len(e['units']):>3} facts {e['n_facts']:>3}")
     lines.append(f"    -> {path}")
@@ -1367,28 +1734,31 @@ def note(text):
 
 
 def run(uris, diag=None, stop_on_error=False):
-    if not KEY and generate.__module__ == __name__:          # the real generate with no key: say so once, not per document
+    if not KEY:
         raise SystemExit("no OPENAI_API_KEY: set it in the environment, or attach it as a Kaggle secret")
     done = skipped = 0
     for uri in uris:
         if uri not in BY_URI:
             note(f"not in export: {uri}")
             continue
-        before = spend()
+        spend_before = spend()
         try:
             doc = load_document(uri, BY_URI, UNITS, PIECES)
             if completed(doc):
                 skipped += 1
                 continue
             if diag and diag.get("units"):
-                say(f"\n=== {uri}: {len(doc['units'])} units, {len(doc['text']):,} chars, author {doc.get('author')!r}, date {doc.get('occurred_at')} ===")
+                print(f"\n=== {uri}: {len(doc['units'])} units, {len(doc['text']):,} chars,"
+                      f" author {doc.get('author')!r}, date {doc.get('occurred_at')} ===")
             path, counts, stats, records, entities, folded = ingest(doc, diag=diag)
             with MANIFEST.open("a", encoding="utf-8") as f:
-                f.write(json.dumps({"doc_id": doc["doc_id"], "source_uri": uri, "package": str(path.relative_to(OUT)).replace("\\", "/"),
+                f.write(json.dumps({"doc_id": doc["doc_id"], "source_uri": uri,
+                                    "package": str(path.relative_to(OUT)).replace("\\", "/"),
                                     "input_hash": input_hash(doc), "counts": counts, "cost": stats["cost"]}) + "\n")
             show(doc, counts, stats, entities, folded, path)
         except SpendStop as e:
-            note(f"{uri}: {e} after ${spend() - before:.3f} on this document; its finished units are checkpointed and the run stops here")
+            note(f"{uri}: {e} after ${spend() - spend_before:.3f} on this document;"
+                 " its finished units are checkpointed and the run stops here")
             break
         except Exception as e:
             if stop_on_error:
@@ -1403,21 +1773,21 @@ def run(uris, diag=None, stop_on_error=False):
 def receipt():
     """Sums over every package on disk, plus the calls this session logged to calls.jsonl."""
     rec = {"ingestor": INGESTOR, "documents": 0, "by_group": {}, "counts": {}, "matched_by": {}, "rejected_by": {},
-           "cost_of_packages": 0.0, "cost_this_session": round(spend(), 4), "calls_this_session": len(CALLS), "calls_by_stage": {},
-           "schema_rejections_this_session": len(REJECTIONS), "empty_completions": 0, "abstract_rejected": 0, "in_flight_sidecars": []}
+           "cost_of_packages": 0.0, "cost_this_session": round(spend(), 4), "calls_this_session": len(CALLS),
+           "calls_by_stage": {}, "schema_rejections_this_session": len(REJECTIONS), "empty_completions": 0,
+           "abstract_rejected": 0, "in_flight_sidecars": []}
     for c in CALLS:
         rec["calls_by_stage"][c["stage"]] = rec["calls_by_stage"].get(c["stage"], 0) + 1
     for path in sorted(OUT.rglob("*.jsonl")):
-        if path.parent == OUT:
+        if path.parent == OUT:                    # the run's own logs
             continue
         if path.name.endswith(".units.jsonl"):
             rec["in_flight_sidecars"].append(str(path.relative_to(OUT)).replace("\\", "/"))
             continue
-        last = None
-        for line in read_jsonl(path):
-            last = line
-        if not last or last.get("record") != "completion":
+        rows = read_jsonl(path)
+        if not rows or rows[-1].get("record") != "completion":
             continue
+        last = rows[-1]
         rec["documents"] += 1
         group = path.parent.name
         rec["by_group"][group] = rec["by_group"].get(group, 0) + 1
@@ -1435,51 +1805,59 @@ def receipt():
     return rec
 
 # %%
-# Block 11: the test variety. A sampling of every source type the extractor produces, the
-# paper and chat paths first-class: three hundred LongMemEval sessions, twenty papers, two
-# GraphRAG-Bench texts, three Oz books (the regression fixture against the 09-02 demo), two
-# Holmes collections, two Greek works: 329 documents, 1,177 units (a chat is two units, its
-# header and its turns). The cheap documents come first, so a run that hits the stop has
-# finished the chat and paper paths before the books, where the judge spends most.
+# Block 12: naming documents, and the test variety.
+#
+# targets(spec) turns what a run names into source_uris: "sample" for the test variety, "all"
+# for the export, or a list of titles or source_uri endings, looked up by find_document. The
+# test variety samples every source type the extractor produces, the paper and chat paths
+# first-class: three hundred LongMemEval sessions, twenty papers, two GraphRAG-Bench texts,
+# three Oz books (the regression fixture against the 09-02 demo), two Holmes collections and
+# two Greek works, cheapest first, so a run that hits the stop has finished the chat and paper
+# paths before the books, where the judge spends most.
 
 
 def sample(per_group=None):
-    def pick(suffixes, n):
-        found = [u for s in suffixes for u in BY_URI if u.endswith(s)]
-        return found[:n] if n else found
-    groups = [
-        sorted(u for u in BY_URI if "/longmemeval/" in u)[:per_group or 300],
-        sorted(u for u in BY_URI if u.endswith(".pdf"))[:per_group or 20],
-        pick(["/graphrag-bench/Novel-30752.txt", "/graphrag-bench/Novel-40700.txt"], per_group),
-        pick(["/oz/01_55.txt", "/oz/02_54.txt", "/oz/03_486.txt"], per_group),
-        pick(["/holmes/03_1661.txt", "/holmes/05_2852.txt"], per_group),
-        pick(["/greek/03_348.txt", "/greek/11_830.txt"], per_group),
-    ]
-    return [u for g in groups for u in g]
+    chats = sorted(u for u in BY_URI if "/longmemeval/" in u)
+    papers = sorted(u for u in BY_URI if u.endswith(".pdf"))
+    books = ["/graphrag-bench/Novel-30752.txt", "/graphrag-bench/Novel-40700.txt",
+             "/oz/01_55.txt", "/oz/02_54.txt", "/oz/03_486.txt",
+             "/holmes/03_1661.txt", "/holmes/05_2852.txt",
+             "/greek/03_348.txt", "/greek/11_830.txt"]
+    book_uris = [find_document(b) for b in books]
+    if per_group:
+        return chats[:per_group] + papers[:per_group] + book_uris[:per_group]
+    return chats[:300] + papers[:20] + book_uris
 
 
 def targets(spec):
-    """The documents a run names: "sample" (block 11), "all" (the whole export), or a list of
-    source_uri suffixes such as ["/oz/01_55.txt"]."""
     if spec == "sample":
         return sample()
     if spec == "all":
         return sorted(BY_URI)
-    return [u for s in spec for u in BY_URI if u.endswith(s)]
+    uris = []
+    for name in spec:
+        uri = find_document(name)
+        if uri is None:
+            print(f"no document called {name!r}")
+        else:
+            uris.append(uri)
+    return uris
 
 # %%
-# Block 12: the run. RUN names the documents by the end of their source_uri; DIAG says what to
-# print as each unit lands (block 10 lists the flags); SPEND_STOP ends the run past that many
-# dollars, the document in flight keeping its finished units in a sidecar for next time.
-# For reference, the 09-02 demo on Oz book 1: v3 632 entities, 969 facts, 53 dropped, $1.26;
-# v4 644, 859, 157, $1.72. Later: RUN = "sample" for the test variety, "all" for the corpus.
-RUN = ["/oz/01_55.txt"]
+# Block 13: the run.
+#
+# RUN names the documents, by title or by the end of their source_uri; DIAG says what to print
+# as each unit lands (block 11 lists the flags); SPEND_STOP ends the run past that many dollars,
+# the document in flight keeping its finished units in a sidecar for next time. For reference,
+# the 09-02 demo on Oz book 1: v3 632 entities, 969 facts, 53 dropped, $1.26; v4 644, 859, 157,
+# $1.72. Later: RUN = "sample" for the test variety, "all" for the corpus.
+RUN = ["The Wonderful Wizard of Oz"]
 DIAG = dict(DIAG_ALL)
 SPEND_STOP = 5.00
 
 if __name__ == "__main__":
     uris = targets(RUN)
-    print(f"ingesting {len(uris)} documents, stop at ${SPEND_STOP:.2f}")
+    print(f"ingesting {len(uris)} documents, stop at ${SPEND_STOP:.2f}: {[BY_URI[u]['title'] or u for u in uris]}")
     try:
         run(uris, diag=DIAG)
     finally:
