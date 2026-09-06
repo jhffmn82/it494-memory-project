@@ -195,13 +195,62 @@ the session held a mix of old and new definitions. Worth knowing, not a defect I
 **The kind rule works where it ran.** The 138 read documents processed at 1.4 have zero
 cross-kind units. The 231 in the final pass have 181, because that pass was 1.2.
 
+## The clean pass, 1.5, Save & Run All
+
+The whole corpus in one pass, one loader, no redo, saved as a version so the working files came
+down with it. Kept here: [run15-receipt.json](run15-receipt.json) and
+[run15-read-documents.jsonl](run15-read-documents.jsonl), the record for each of the 231 text
+and PDF documents. The export itself is 340 MB and stays on Kaggle.
+
+**It is clean.** 19,437 files, no run errors, every record written by `factledger-extractor 1.5`.
+19,436 documents exported: the two byte-identical papers collapse to one, which the receipt
+names. **$7.72**, median $0.013 a document, most expensive Diodorus at $0.421, and no negative
+costs, so the per-document billing holds.
+
+Checked against the schema and the text rather than taken on trust:
+
+| check | result |
+|---|---|
+| `unit` and `piece` fields, in order | exact |
+| unit ids unique, positions 0-based with no gaps | yes |
+| every piece points at a real unit | yes |
+| pieces tile every document; units tile every document | 0 defects |
+| every unit's slice of its document is non-empty, last unit ends at EOF | 19,436 of 19,436 |
+| units mixing a region kind with anything else | **0** |
+
+44,262 units and 227,100 pieces. Piece kinds: 100,522 assistant, 99,119 user, 19,567 front
+matter, 5,900 body, 1,062 appendix, 642 notes, 209 references, 79 license. Body is 82% of the
+48.6 M characters read from text and PDF.
+
+**The kind rule fires on real documents**, not only in tests: two papers report a group cut
+where the kind changed, and Apollodorus volume 2 refused 89 cross-region joins on its own.
+
+**The two zero-body regressions are gone.** Metamorphoses I-VII went from 0% body to **91%**,
+and the Loeb Apollodorus volume 1 from 0% to **90%**. No document is at zero now, and the
+median is 79%. The 40 below half are the Loeb scans and the papers, where notes, references
+and appendices are genuinely most of the file.
+
+**Flags**, 4,016 documents, of which 3,944 are the advisory reused-session date note. The
+remaining 72: 38 merging, 19 pointers, 9 shape, 8 metadata, 8 merging answer, 7 count, 7
+grouping, 6 over cap, 4 author-is-a-publication. Pointers: 370 mismatches, 291 recovered, 79
+unresolved, 4 duplicates, 8 metadata pointers nulled.
+
+**The unresolved pointers are the classes already diagnosed**, unchanged and expected: short
+copies naming an ambiguous line (`CHORUS.`, `BOOK XXXIV.`, `CHAP. II.`, `XVIII.`) and OCR or
+Greek text the model repaired as it copied. Nothing in the matcher reaches either.
+
+**Metadata came off the page even where the file has no Author line.** The Archive.org scans
+resolved to Apollodorus, Ovid and Diodorus Siculus with their titles; a GraphRAG text with no
+byline resolved to its publisher, flagged as a publication. `unknown_author` is 0. 52 read
+documents carry no date, which is the no-inferred-dates rule doing its job on Gutenberg files
+whose preamble gives only a release date.
+
 ## Open
 
-- **The corpus needs one more pass at 1.5.** The records on disk were written by 1.2, so 181 of
-  the 231 read documents still hold cross-kind units and every chat holds one. The loader bump
-  to 1.5 will redo the flagged documents; `REDO_ALL = True` for one run redoes the clean ones
-  too, which is what applies the kind rule everywhere. At the measured $0.013 median that pass
-  is a few dollars, not twenty, now that it runs in parallel and bills per document.
+- **Turn `REDO_ALL` back to False.** It was on for the clean pass; leaving it on re-bills the
+  corpus on the next code change.
+- **The export is the ingestor's input** and is on Kaggle as the version's output. It should
+  become the next version of the units dataset before the ingestor chat starts.
 - **Re-asking is not reliably better.** In the second pass, Metamorphoses I-VII went from 91% body
   to 0% with everything labelled notes, and Apollodorus volume 2 from 49% to 0%. The region
   answer is the model's, not the code's.
