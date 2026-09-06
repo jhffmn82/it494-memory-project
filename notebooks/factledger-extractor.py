@@ -34,9 +34,9 @@ def sha256(path):
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
-def check(folder, rows_key):
+def check(folder):
     manifest = json.loads((folder / "manifest.json").read_text(encoding="utf-8"))
-    rows = manifest[rows_key]
+    rows = manifest.get("works") or manifest["files"]      # the literature manifests say "works"
     on_disk = {p.name for p in folder.iterdir() if p.name not in ("manifest.json", "LICENSE")}
     listed = {r["file"] for r in rows}
     # Kaggle inputs are a network filesystem: one file at a time, 19,206 files take tens of
@@ -49,12 +49,9 @@ def check(folder, rows_key):
     return bad
 
 
-# The three literature manifests keep their original "works" key; the unpacked folders
-# and the papers use "files".
-for name, key in [("oz", "works"), ("holmes", "works"), ("greek", "works"),
-                  ("graphrag-bench", "files"), ("longmemeval", "files")]:
-    check(RAW / name, key)
-check(PAPERS, "files")
+for name in ("oz", "holmes", "greek", "graphrag-bench", "longmemeval"):
+    check(RAW / name)
+check(PAPERS)
 
 
 # %%
@@ -350,12 +347,11 @@ def words_of(s):
 
 
 def matches(text, span, want, loose=False):
-    """The copy names this line: the same line, its first eight words, or a run of five words
-    or more inside it. Punctuation and spacing need not agree, because a model drops the
-    opening quotation mark, skips a line-number marker, and rounds off the end; five words
-    keeps a short heading strict, so "CHAPTER I" cannot answer for "CHAPTER II". A title, an
-    author or a date is one to four words by nature, so those are matched loosely, and only
-    against the line the model actually pointed at or its near neighbours."""
+    """Does the copy name this line? Three ways, in order: it is the line, it is the line's
+    first eight words (the prompt allows a long line to be cut there), or its words are a run
+    of five or more inside the line. Five keeps a short heading strict, so "CHAPTER I" cannot
+    answer for "CHAPTER II". `loose` allows a substring and is used only for the title, author
+    and date, which are a few words inside a longer line."""
     if not want:
         return False
     line = norm(text[slice(*span)])
@@ -366,34 +362,15 @@ def matches(text, span, want, loose=False):
 
 
 def as_int(v):
-    if isinstance(v, bool):
-        return None
-    if isinstance(v, int):
+    """A line number from the model: an integer, or a string of digits. Anything else is not a
+    number and the caller counts it."""
+    if isinstance(v, int) and not isinstance(v, bool):
         return v
-    if isinstance(v, float) and v.is_integer():
-        return int(v)
-    if isinstance(v, str):
-        try:
-            f = float(v.strip())
-            return int(f) if f.is_integer() else None
-        except ValueError:
-            return None
-    return None
+    return int(v) if isinstance(v, str) and v.strip().isdigit() else None
 
 
 def as_list(v):
     return v if isinstance(v, list) else []
-
-
-def find_text(text, start, end, want):
-    """Where the model's copy begins between start and end, however the whitespace falls.
-    Five words at least, so a common phrase cannot place a boundary; None when it is not there
-    or appears more than once."""
-    words_ = clean(want).split()[:12]
-    if len(words_) < 5:
-        return None
-    hits = list(re.finditer(r"\s+".join(re.escape(w) for w in words_), text[start:end], re.I))
-    return start + hits[0].start() if len(hits) == 1 else None
 
 
 def resolve(pointer, text, addrs, stats, loose=False):
@@ -407,11 +384,14 @@ def resolve(pointer, text, addrs, stats, loose=False):
     wants = list(dict.fromkeys(w for w in (norm(pointer.get("text")), clean(pointer.get("text"))) if w))
 
     def at(j):
+        """The copy names line j: the line itself, the next line joined to it (a heading written
+        over two lines), or the opening of the next three (the model copies a sentence, and a
+        sentence wraps across lines)."""
         if any(matches(text, addrs[j], w, loose) for w in wants):
             return True
         two = norm(" ".join(text[slice(*addrs[k])] for k in range(j, min(j + 2, len(addrs)))))
-        run = norm(" ".join(text[slice(*addrs[k])] for k in range(j, min(j + 3, len(addrs)))))
-        return any(w == two or (len(w.split()) >= 5 and run.startswith(w)) for w in wants)
+        three = norm(" ".join(text[slice(*addrs[k])] for k in range(j, min(j + 3, len(addrs)))))
+        return any(w == two or (len(w.split()) >= 5 and three.startswith(w)) for w in wants)
 
     if not wants:                                    # nothing to check the number against
         stats["mismatch"] += 1
@@ -445,15 +425,15 @@ def label_at(text, addrs, k):
     return label
 
 
-ADVISORY = ("metadata:", "shape:", "dates:", "too long:", "merging: join", "merging: over cap",
-            "merging: outline", "grouping: dissolved", "grouping: outline")
+# Every flag reads "kind: what happened". These kinds describe the document, or record a
+# fallback that is a fine answer in itself, so they buy no call in this session or the next.
+# The kinds not listed are the model answering badly, which another sample may fix: "pointers",
+# "count", "coverage", "regions", "over cap", and the two "... answer" kinds below.
+ADVISORY = {"metadata", "shape", "dates", "too long", "merging", "grouping"}
 
 
 def advisory(flag):
-    """A flag that describes the document, or an outcome code handled, rather than a failure
-    another sample of the model could fix. An advisory flag buys no call, in this session or
-    the next."""
-    return flag.startswith(ADVISORY)
+    return flag.split(":")[0] in ADVISORY
 
 
 def piece(start, end, label, kind, author=None, occurred_at=None):
@@ -465,6 +445,7 @@ def words(text, p):
 
 
 def pieces_from_reply(text, r, addrs, stats):
+    at_index = {start: i for i, (start, _) in enumerate(addrs)}
     regions, unknown = [], []
     for g in as_list(r.get("regions")):
         span = resolve(g, text, addrs, stats)
@@ -478,7 +459,7 @@ def pieces_from_reply(text, r, addrs, stats):
     regions.sort()
     if not regions:
         regions = [(0, "whole")]
-    stats["first_region_at"] = next((i for i, (a, _) in enumerate(addrs) if a == regions[0][0]), 0)   # its line number
+    stats["first_region_at"] = at_index.get(regions[0][0], 0)              # its line number
     stats["unknown_kinds"] = unknown
     regions[0] = (0, regions[0][1])                      # the first region runs from the first byte
     heads = {}
@@ -488,7 +469,7 @@ def pieces_from_reply(text, r, addrs, stats):
             continue
         if span[0] in heads:
             stats["duplicate"] += 1
-        heads[span[0]] = label_at(text, addrs, addrs.index(span))
+        heads[span[0]] = label_at(text, addrs, at_index[span[0]])
     starts = sorted({s for s, _ in regions} | set(heads))
     pieces = []
     for s, e in zip(starts, starts[1:] + [len(text)]):
@@ -503,28 +484,11 @@ def pieces_from_reply(text, r, addrs, stats):
 MONTHS = ("jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec")
 
 
-def roman(word):
-    vals = {"M": 1000, "D": 500, "C": 100, "L": 50, "X": 10, "V": 5, "I": 1}
-    total, prev = 0, 0
-    for ch in reversed(word.upper()):
-        v = vals.get(ch)
-        if v is None:
-            return None
-        total, prev = (total - v, prev) if v < prev else (total + v, v)
-    return total
-
-
-def year_on(line, year):
-    """The year on the line as digits, or as a Roman numeral on a title page (MCMXXI)."""
-    if year in line:
-        return True
-    return any(roman(w.strip(".,;:()")) == int(year) for w in line.split() if re.fullmatch(r"[MDCLXVI]{2,}[.,;:)]?", w.upper()))
-
-
 def date_ok(line, iso):
-    """The iso to keep: the year must be on the line; a month or day is kept only when the line
-    shows the month; None when the date is not grounded at all."""
-    if not re.fullmatch(r"\d{4}(-\d{2}(-\d{2})?)?", iso) or not year_on(line, iso[:4]):
+    """The iso to keep, checked against the line the model read it from: the year must be on
+    that line as digits, and a month or day is kept only when the line names the month. None
+    when the year is not there, so a date the model inferred from elsewhere is never stored."""
+    if not re.fullmatch(r"\d{4}(-\d{2}(-\d{2})?)?", iso) or iso[:4] not in line:
         return None
     if len(iso) > 4:
         m, low = int(iso[5:7]), line.lower()
@@ -533,19 +497,19 @@ def date_ok(line, iso):
     return iso
 
 
+def fresh_stats(addrs, model):
+    return {"addresses": len(addrs), "mismatch": 0, "recovered": 0, "unresolved": 0, "duplicate": 0, "model": model}
+
+
 def verify_meta(text, r, addrs, stats):
-    """Title, author, source and date pointers, checked like every other; a failed one is nulled
-    and counted, so nothing the model invented is exported. It is flagged, not retried: a
-    retry costs a whole document call and the field is already null."""
+    """Title, author, source and date pointers, checked like every other, but counted into a
+    scratch dict so a failure here is flagged and nulled rather than bought back with a whole
+    document call. Nothing the model invented is exported."""
     for key in ("title", "author", "source", "date"):
         v = r.get(key)
         if v is None:
             continue
-        before, samples = stats["unresolved"], len(stats.get("unresolved_samples", []))
-        span = resolve(v, text, addrs, stats, loose=True) if isinstance(v, dict) else None
-        stats["unresolved"] = before                     # a document pointer is flagged and nulled, never retried
-        if "unresolved_samples" in stats:
-            stats["unresolved_samples"] = stats["unresolved_samples"][:samples]
+        span = resolve(v, text, addrs, fresh_stats(addrs, None), loose=True) if isinstance(v, dict) else None
         if span is not None and key == "date":
             kept = date_ok(text[slice(*span)], str(v.get("iso") or ""))
             if kept is None:
@@ -580,10 +544,6 @@ def gates(pieces, r, stats, text):
     if stats.get("first_region_at", 0) > 0:
         flags.append(f"regions: first begins at line {stats['first_region_at']}, not 0")
     return flags
-
-
-def fresh_stats(addrs, model):
-    return {"addresses": len(addrs), "mismatch": 0, "recovered": 0, "unresolved": 0, "duplicate": 0, "model": model}
 
 
 def split(doc):
@@ -669,6 +629,7 @@ def subsplit(text, p, stats, depth=0):
     if words(text, p) <= CAP_WORDS or depth >= DEPTH:
         return [p]
     addrs = [(p["start"] + s, p["start"] + e) for s, e in addresses(text[p["start"]:p["end"]])]
+    at_index = {start: i for i, (start, _) in enumerate(addrs)}
     cuts = {}
     for attempt in range(2):                             # one more try when no break resolved
         try:
@@ -677,20 +638,8 @@ def subsplit(text, p, stats, depth=0):
             return [p]
         for b in as_list(r.get("breaks") if isinstance(r, dict) else None):
             span = resolve(b, text, addrs, stats)
-            if span:
-                cut, label = span[0], label_at(text, addrs, addrs.index(span))
-            else:                                        # a scene break begins mid line: cut at the sentence
-                copy = b.get("text") if isinstance(b, dict) else None
-                cut = find_text(text, p["start"], p["end"], copy)
-                if cut is None:
-                    continue
-                stats["unresolved"] -= 1                 # resolve counted it; the words are there after all
-                if stats.get("unresolved_samples"):
-                    stats["unresolved_samples"].pop()
-                stats["by_text"] = stats.get("by_text", 0) + 1
-                label = " ".join(str(copy).split())[:80]
-            if p["start"] < cut < p["end"]:
-                cuts[cut] = label
+            if span and p["start"] < span[0] < p["end"]:
+                cuts[span[0]] = label_at(text, addrs, at_index[span[0]])
         if cuts:
             break
     if not cuts:
@@ -713,17 +662,12 @@ def outline(text, pieces, show_short=False):
     return "\n".join(lines)
 
 
-MERGE_WORDS = {"previous": "previous", "prev": "previous", "before": "previous", "next": "next", "after": "next",
-               "alone": "alone", "keep": "alone", "stay": "alone", "none": "alone", "own": "alone"}
-
-
 def merge_short(text, pieces, stats, flags):
-    """Every piece under SHORT_WORDS is offered to the model to join the piece before or after
-    it. Each answer is an edge between two original pieces; the connected runs are rebuilt
-    once, so no answer is applied against a list another answer already changed. A join
-    across a region boundary, or one that would pass the cap, is left alone and flagged. A
-    heading that joins what follows keeps its words in the label; a sliver that joins a longer
-    neighbour disappears into it."""
+    """Every piece under SHORT_WORDS is offered to the model, which joins it to the piece
+    before, to the piece after, or leaves it alone. A join is always between neighbours, so
+    the answers mark which gaps close and one sweep rebuilds the list; no answer is applied
+    against a list another answer already changed. A join across a region boundary, or one
+    that would carry a piece past the cap, is left alone and flagged."""
     short = {i for i, q in enumerate(pieces) if words(text, q) < SHORT_WORDS}
     if not short or len(pieces) == 1:
         return pieces
@@ -732,62 +676,58 @@ def merge_short(text, pieces, stats, flags):
     except TooLong:
         flags.append("merging: outline too long; short pieces left alone")
         return pieces
-    answers = as_list(r.get("merges") if isinstance(r, dict) else None)
-    into, odd, odd_words = {}, 0, []
-    for m in answers:
+    closes = [False] * len(pieces)                   # closes[i]: pieces i and i+1 become one
+    back = set()                                     # a piece that asked to join what precedes it
+    crossed, odd = 0, []
+    for m in as_list(r.get("merges") if isinstance(r, dict) else None):
         i = as_int(m.get("index")) if isinstance(m, dict) else None
-        word = norm(m.get("into")).split() if isinstance(m, dict) and m.get("into") else []
-        how = MERGE_WORDS.get(word[0]) if word else None
-        if i in short and how:
-            if how != "alone":
-                into[i] = how
-        else:
-            odd += 1
-            odd_words.append(str(m.get("into") if isinstance(m, dict) else m)[:20])
+        how = norm(m.get("into")) if isinstance(m, dict) else ""
+        if i not in short or how not in ("previous", "next", "alone"):
+            odd.append(str(m.get("into") if isinstance(m, dict) else m)[:20])
+        elif how != "alone":
+            j = i + 1 if how == "next" else i - 1
+            if not 0 <= j < len(pieces):
+                continue
+            if pieces[j]["kind"] != pieces[i]["kind"]:      # the model's region boundary stands
+                crossed += 1
+            else:
+                closes[min(i, j)] = True
+                if how == "previous":
+                    back.add(i)
     if odd:
-        flags.append(f"merging: {odd} answer(s) not understood: {', '.join(sorted(set(odd_words))[:4])}")
-
-    parent = list(range(len(pieces)))
-
-    def root(x):
-        while parent[x] != x:
-            x = parent[x]
-        return x
-
-    crossed = 0
-    for i, how in into.items():
-        j = i + 1 if how == "next" else i - 1
-        if not 0 <= j < len(pieces):
-            continue
-        if pieces[j]["kind"] != pieces[i]["kind"]:      # the model's region boundary stands
-            crossed += 1
-            continue
-        parent[root(max(i, j))] = root(min(i, j))
+        flags.append(f"merging answer: {len(odd)} not understood: {', '.join(sorted(set(odd))[:4])}")
     if crossed:
         flags.append(f"merging: join across a region boundary left alone, {crossed}")
-    runs = {}
-    for i in range(len(pieces)):
-        runs.setdefault(root(i), []).append(i)
 
-    def synthetic(q):
-        return q["label"] in ("opening", q["kind"].replace("_", " "))
+    runs, run = [], [0]
+    for i in range(len(pieces) - 1):
+        if closes[i]:
+            run.append(i + 1)
+        else:
+            runs.append(run)
+            run = [i + 1]
+    runs.append(run)
 
     out = []
-    for idx in sorted(runs.values(), key=lambda run: run[0]):
+    for idx in runs:
         if len(idx) == 1:
             out.append(pieces[idx[0]])
             continue
-        over = [k for k in idx if words(text, pieces[k]) > CAP_WORDS]
-        if sum(words(text, pieces[k]) for k in idx) > CAP_WORDS and not over:   # the merge is what carries it past
+        already_over = any(words(text, pieces[k]) > CAP_WORDS for k in idx)
+        if not already_over and sum(words(text, pieces[k]) for k in idx) > CAP_WORDS:
             flags.append(f"merging: over cap, left alone: {pieces[idx[0]]['label'][:40]}")
             out.extend(pieces[k] for k in idx)
             continue
-        long_in_run = [k for k in idx if words(text, pieces[k]) >= SHORT_WORDS]
-        anchor = long_in_run[0] if long_in_run else idx[0]
-        labels = [pieces[k]["label"] for k in idx                       # a sliver that joins what precedes it
-                  if not synthetic(pieces[k]) and not (long_in_run and into.get(k) == "previous")]
-        out.append({**pieces[anchor], "start": pieces[idx[0]]["start"], "end": pieces[idx[-1]]["end"],
-                    "label": (" / ".join(labels) or pieces[anchor]["label"])[:120]})
+        # Every piece in a run shares its kind, and text and PDF pieces carry no author or
+        # time, so the first piece's fields stand for the run; only the label is composed. A
+        # heading that joins what follows keeps its words. A sliver that joins a longer
+        # neighbour disappears into it, but two short pieces joining each other (a heading
+        # written over two lines) both keep theirs. A label code gave a piece is dropped.
+        has_long = any(words(text, pieces[k]) >= SHORT_WORDS for k in idx)
+        named = [pieces[k]["label"] for k in idx if not (has_long and k in back)
+                 and pieces[k]["label"] not in ("opening", pieces[k]["kind"].replace("_", " "))]
+        out.append({**pieces[idx[0]], "end": pieces[idx[-1]]["end"],
+                    "label": (" / ".join(named) or pieces[idx[0]]["label"])[:120]})
     stats["merged"] = len(pieces) - len(out)
     return out
 
@@ -809,7 +749,7 @@ def group(text, pieces, stats, flags):
         runs.append(list(range(a, b + 1)))
         expect = b + 1
     if expect != len(pieces):
-        flags.append(f"grouping: covered {expect} of {len(pieces)} pieces; one unit per piece")
+        flags.append(f"grouping answer: covered {expect} of {len(pieces)} pieces; one unit per piece")
         return [[i] for i in range(len(pieces))]
     out = []
     for run in runs:
@@ -1052,8 +992,8 @@ from datetime import timezone
 OUT = Path("/kaggle/working/export")
 OUT.mkdir(parents=True, exist_ok=True)
 NOW = datetime.now(timezone.utc).isoformat(timespec="seconds")
-SOURCE_CLASS = {"chat": "record", "pdf": "published"}    # text documents take the model's answer
-SOURCE_CLASSES = {"canonical", "published", "record", "authored", "tool-output"}
+BY_KIND = {"chat": "record", "pdf": "published"}         # a text document takes the model's answer
+CLASSES = {"canonical", "published", "record", "authored", "tool-output"}   # SCHEMA.md
 
 
 def unit_id(doc_id, text, start, end, seen):
@@ -1074,10 +1014,6 @@ def spent_in(splits):
     return total
 
 
-def st_of(record):
-    return record.get("stats") or {}
-
-
 def load(record):
     """The document for a record; a file that cannot be read now is an empty error document."""
     try:
@@ -1090,9 +1026,8 @@ records = list(read_splits().values())
 receipt = {"documents": 0, "units": 0, "pieces": 0, "by_kind": {}, "chars_by_kind": {}, "flags_by_kind": {}, "flagged": [],
            "duplicate_files": [], "unknown_author": 0, "unknown_date": 0, "ambiguous_date": 0,
            "mismatch": 0, "recovered": 0, "unresolved": 0, "duplicate": 0, "meta_unresolved": 0,
-           "over_cap_units": 0, "short_units": 0, "over_cap_read": 0, "over_cap_chat": 0,
-           "short_read": 0, "short_chat": 0, "total_chars": 0, "read_chars": 0, "by_text": 0,
-           "cost": round(spent_in(SPLITS), 3)}
+           "over_cap_read": 0, "over_cap_chat": 0, "short_read": 0, "short_chat": 0,
+           "total_chars": 0, "read_chars": 0, "cost": round(spent_in(SPLITS), 3)}
 files = {name: (OUT / f"{name}.jsonl").open("w", encoding="utf-8") for name in ("documents", "units", "pieces")}
 exported = {}                                            # doc_id -> file: identical bytes are one document
 
@@ -1110,14 +1045,15 @@ with ThreadPoolExecutor(max_workers=32) as pool:
         author = rendered(r, "author", "name")
         occurred = iso_of(r) or None
         flags = list(record["flags"])
-        if author is None and "author" not in st_of(record).get("meta_nulled", []) and rendered(r, "source", "name"):
+        if author is None and "author" not in (record.get("stats") or {}).get("meta_nulled", []) \
+                and rendered(r, "source", "name"):
             author = rendered(r, "source", "name")     # no person named at all: the publication is the voice
             flags.append("author is a publication")
         if doc["kind"] == "chat":                        # the date it started on, as block 7 gives its units
             dates = sorted(t for t in (parse_time(d) for d in doc["dates"]) if t)
             occurred = dates[0] if dates else None
-        source_class = SOURCE_CLASS.get(doc["kind"], r.get("source_class") if isinstance(r, dict) else None)
-        if source_class not in SOURCE_CLASSES:
+        source_class = BY_KIND.get(doc["kind"], r.get("source_class") if isinstance(r, dict) else None)
+        if source_class not in CLASSES:
             flags.append("source_class unknown")
             source_class = None
         files["documents"].write(json.dumps({"doc_id": doc_id, "source_uri": src, "sha256": doc_id, "title": title,
@@ -1132,8 +1068,6 @@ with ThreadPoolExecutor(max_workers=32) as pool:
                                              "start": u["start"], "end": u["end"], "occurred_at": u["occurred_at"],
                                              "occurred_until": u["occurred_until"]}, ensure_ascii=False) + "\n")
             side = "chat" if doc["kind"] == "chat" else "read"
-            receipt["over_cap_units"] += u["words"] > CAP_WORDS
-            receipt["short_units"] += u["words"] < SHORT_WORDS
             receipt[f"over_cap_{side}"] += u["words"] > CAP_WORDS
             receipt[f"short_{side}"] += u["words"] < SHORT_WORDS
         for position, p in enumerate(record["pieces"] if doc["kind"] != "error" else []):
@@ -1141,7 +1075,7 @@ with ThreadPoolExecutor(max_workers=32) as pool:
                                               "kind": p["kind"], "start": p["start"], "end": p["end"],
                                               "author": p["author"], "occurred_at": p["occurred_at"]}, ensure_ascii=False) + "\n")
         st = record["stats"]
-        for key in ("mismatch", "recovered", "unresolved", "duplicate", "meta_unresolved", "by_text"):
+        for key in ("mismatch", "recovered", "unresolved", "duplicate", "meta_unresolved"):
             receipt[key] += st.get(key, 0)
         for p in record["pieces"]:
             receipt["chars_by_kind"][p["kind"]] = receipt["chars_by_kind"].get(p["kind"], 0) + (p["end"] - p["start"])
@@ -1165,7 +1099,7 @@ for f in files.values():
 receipt["body_share"] = round(receipt["chars_by_kind"].get("body", 0) / max(1, receipt["read_chars"]), 4)
 (OUT / "receipt.json").write_text(json.dumps(receipt, indent=2, ensure_ascii=False), encoding="utf-8")
 print(f"documents {receipt['documents']}  units {receipt['units']}  pieces {receipt['pieces']}  by kind {receipt['by_kind']}")
-print(f"pointers: mismatch {receipt['mismatch']}  recovered {receipt['recovered']}  by text {receipt['by_text']}"
+print(f"pointers: mismatch {receipt['mismatch']}  recovered {receipt['recovered']}"
       f"  unresolved {receipt['unresolved']}  duplicate {receipt['duplicate']}  metadata nulled {receipt['meta_unresolved']}")
 if receipt["duplicate_files"]:
     print(f"identical files exported once: {receipt['duplicate_files']}")

@@ -111,9 +111,9 @@ check("the piece is cut at the line, so the opening quotation mark stays with it
       len(parts) == 2 and parts[1]["start"] == pos - 1 and text[parts[1]["start"]] == "“", [q["start"] for q in parts])
 check("the cut is counted as recovered, not unresolved", st["recovered"] == 1 and st["unresolved"] == 0, st)
 check("the part is labelled with the line's own words", parts[1]["label"].startswith("“In Worcestershire"), parts[1]["label"][:40])
-check("find_text still locates a copy at its exact offset", R("find_text")(text, 0, len(text), probe) == pos)
-check("four words is too few for find_text to place a break", R("find_text")(text, 0, len(text), "the life of a") is None)
-check("a phrase that is not there returns nothing", R("find_text")(text, 0, len(text), "the quick brown llama jumps over") is None)
+# 2026-09-06: find_text was deleted. The three checks that exercised it directly are gone; the
+# three above show the same probe resolving through resolve(), which is how subsplit reached it
+# all along.
 
 print("\n== a wrong index whose copy names exactly one line ==")
 t2 = "alpha\nbravo\ncharlie\nThe unique sentence that appears once here\ndelta\n"
@@ -135,8 +135,8 @@ for f, want in [("metadata: 1 pointer(s) matched no line", True), ("shape: one p
                 ("merging: outline too long; short pieces left alone", True),
                 ("grouping: dissolved a group over the cap: A .. B", True),
                 ("grouping: outline too long, one unit per piece", True),
-                ("merging: 1 answer(s) not understood: sideways", False),
-                ("grouping: covered 2 of 5 pieces; one unit per piece", False),
+                ("merging answer: 1 not understood: sideways", False),
+                ("grouping answer: covered 2 of 5 pieces; one unit per piece", False),
                 ("count: 3 headed pieces, contents says 24", False),
                 ("coverage: one piece holds 90% of the body", False),
                 ("pointers: 2 matched no line", False), ("no body region", False),

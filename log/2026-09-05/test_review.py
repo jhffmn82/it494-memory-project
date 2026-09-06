@@ -159,7 +159,7 @@ check("subsplit asked twice when the first answer had no break, then cut", scrip
 over = [q for q in pieces if R("words")(t2, q) > 4000]
 check("no piece over the cap after recursion", not over, len(over))
 runs = R("group")(t2, pieces, stats, flags)
-check("list reply to group -> one unit per piece and a grouping flag", len(runs) == len(pieces) and any(f.startswith("grouping:") for f in flags), flags)
+check("list reply to group -> one unit per piece and a grouping flag", len(runs) == len(pieces) and any(f.startswith("grouping answer:") for f in flags), flags)
 script["group"] = lambda lines: {"units": [{"first": "0", "last": "1"}] + [{"first": i, "last": i} for i in range(2, len(lines))]}
 flags = []
 runs = R("group")(t2, pieces, stats, flags)

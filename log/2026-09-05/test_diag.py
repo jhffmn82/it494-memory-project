@@ -74,12 +74,12 @@ oz = ns["to_text"](Path("data/raw/oz/01_55.txt"))
 check("an ordinary book is still addressed by line", len(R("addresses")(oz["text"])) == 3812, len(R("addresses")(oz["text"])))
 
 print("\n== 4. a title, author, source or date verifies inside its line at any length ==")
-t = "net IMPRESSIONS OF THEOPHRASTUS SUCH GEORGE ELIOT Second Edition William Blackwood and Sons Edinburgh MDCCCLXXIX and more words follow here\nsecond line\n"
+t = "net IMPRESSIONS OF THEOPHRASTUS SUCH GEORGE ELIOT Second Edition William Blackwood and Sons Edinburgh 1879 and more words follow here\nsecond line\n"
 a = R("addresses")(t)
 r = {"title": {"index": 0, "text": "IMPRESSIONS OF THEOPHRASTUS SUCH", "title": "Impressions of Theophrastus Such"},
      "author": {"index": 0, "text": "GEORGE ELIOT", "name": "George Eliot"},
      "source": {"index": 0, "text": "William Blackwood and Sons", "name": "William Blackwood and Sons"},
-     "date": {"index": 0, "text": "MDCCCLXXIX", "iso": "1879"}}
+     "date": {"index": 0, "text": "1879", "iso": "1879"}}
 st = R("fresh_stats")(a, "luna")
 R("verify_meta")(t, r, a, st)
 check("four values inside one long address all verify", all(r[k] is not None for k in ("title", "author", "source", "date")), {k: (r[k] is not None) for k in r})
@@ -133,11 +133,12 @@ check("a chat document takes the earliest date, sorted", 'dates = sorted(t for t
       and 'occurred = dates[0] if dates else None' in b9)
 check("the reused-date counter reads the flag key, not a prefix",
       'f.split(":")[0] in ("dates", "ambiguous date")' in b9)
-check("short and over-cap units are both split by kind, neither excluding chats",
+# 2026-09-06: the receipt kept a total beside its two halves; the halves are the answer.
+check("short and over-cap units are counted by side, neither excluding chats",
       'receipt[f"over_cap_{side}"]' in b9 and 'receipt[f"short_{side}"]' in b9
-      and 'receipt["short_units"] += u["words"] < SHORT_WORDS\n' in b9)
+      and 'receipt["short_units"]' not in b9)
 check("a publication becomes the author only when no person was named",
-      '"author" not in st_of(record).get("meta_nulled", [])' in b9)
+      '"author" not in (record.get("stats") or {}).get("meta_nulled", [])' in b9)
 
 print("\n== the chat date rule end to end ==")
 doc = ns["to_text"](Path("data/raw/longmemeval/001cefa7_2.json"))

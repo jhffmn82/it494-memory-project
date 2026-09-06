@@ -78,7 +78,10 @@ for name in ["greek/07_15081.txt", "holmes/01_244.txt"]:
 check("every exact copy in two real files resolves", bad == 0, bad)
 
 print("\n== dates ==")
-check("Roman numeral year accepted", R("date_ok")("LONDON: WILLIAM HEINEMANN MCMXXI", "1921") == "1921")
+# 2026-09-06: the Roman-numeral parser was deleted. The year must be on the line as digits,
+# so a title page giving only MCMXXI yields no date and the document is counted unknown-date.
+check("a year only in Roman numerals is not accepted", R("date_ok")("LONDON: WILLIAM HEINEMANN MCMXXI", "1921") is None)
+check("the same year in digits is", R("date_ok")("LONDON: WILLIAM HEINEMANN 1921", "1921") == "1921")
 check("month kept when on the line", R("date_ok")("Chicago, April, 1900.", "1900-04") == "1900-04")
 check("month dropped when not on the line", R("date_ok")("Original publication: 1886", "1886-05") == "1886")
 check("bad iso rejected", R("date_ok")("1886", "18860") is None and R("date_ok")("no year here", "1886") is None)

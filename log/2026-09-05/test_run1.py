@@ -161,13 +161,16 @@ t, pcs = pcs_from([("Big", 3990, "body"), ("tail", 30, "body")])
 script["merge"] = lambda l: {"merges": [{"index": 1, "into": "before"}]}
 fl = []
 m = R("merge_short")(t, pcs, {}, fl)
-# 2026-09-06: 0.9 reworded the flag to "merging: over cap, left alone: ...".
-check("a join that would pass the cap is left alone and flagged; 'before' understood", len(m) == 2 and any("over cap" in f for f in fl), fl)
+# 2026-09-06: the synonym table was deleted; the prompt asks for "previous", "next" or
+# "alone", and anything else is counted and named. "before" is now a counted miss, so the
+# join never happens and the cap check has nothing to refuse.
+check("a synonym is not applied; it is counted and named", len(m) == 2 and any("merging answer" in f and "before" in f for f in fl), fl)
 t, pcs = pcs_from([("A", 200, "body"), ("h", 2, "body"), ("B", 200, "body")])
 script["merge"] = lambda l: {"merges": [{"index": 1, "into": "After"}, {"index": 0, "into": "next"}, {"index": 1, "into": "sideways"}]}
 fl, stt = [], {}
 m = R("merge_short")(t, pcs, stt, fl)
-check("'After' applied, a non-short index and an unknown word counted", stt["merged"] == 1 and any("2 answer(s) not understood" in f for f in fl), (stt, fl))
+check("only the three words are applied; the rest are counted and named",
+      stt["merged"] == 0 and any("3 not understood" in f and "After" in f and "sideways" in f for f in fl), (stt, fl))
 script["merge"] = lambda l: {"merges": []}
 fl, stt = [], {}
 m = R("merge_short")(t, pcs, stt, fl)
