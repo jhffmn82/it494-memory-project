@@ -1330,10 +1330,10 @@ def targets(spec):
 # calls.jsonl. Locally the same thing is `python factledger-ingestor.py --sample`, `--sample 2`
 # for two of every group, or one or more source_uri suffixes; the stop comes from the
 # SPEND_STOP environment variable, default $25.
-RUN = "sample"
+RUN = ["/oz/01_55.txt"]          # Oz book 1 alone first; then "sample", then "all"
 ON_KAGGLE = Path("/kaggle/working").exists()
 if ON_KAGGLE:
-    SPEND_STOP = 25.00
+    SPEND_STOP = 5.00
 
 if __name__ == "__main__" and not ON_KAGGLE and len(sys.argv) > 1:
     RUN = sample(int(sys.argv[2])) if sys.argv[1] == "--sample" and len(sys.argv) > 2 else "sample" if sys.argv[1] == "--sample" else sys.argv[1:]
