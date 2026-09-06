@@ -1,11 +1,10 @@
 # %% [markdown]
 # # FactLedger extractor
-#
+# #
 # `load(path) -> documents, units` over raw files and nothing else. The extractor sniffs the
 # format from the bytes and writes document and unit JSON in the shapes of SCHEMA.md; the
 # rules it follows are in BUILD.md. Built one block at a time. Inputs: the public raw dataset
 # and the private papers dataset, both attached to this notebook.
-
 
 # %%
 # Block 1: inputs and integrity.
@@ -55,7 +54,6 @@ for name, key in [("oz", "works"), ("holmes", "works"), ("greek", "works"),
                   ("graphrag-bench", "files"), ("longmemeval", "files")]:
     check(RAW / name, key)
 check(PAPERS, "files")
-
 
 # %%
 # Block 2: file type, then raw text.
@@ -151,7 +149,6 @@ for path in [RAW / "oz" / "01_55.txt", RAW / "graphrag-bench" / "Novel-30752.txt
     print(f"{path.name:<26} {d['kind']:<5} {len(d['text']):>8,} chars  turns {turns:>3}  dates {d['dates']}")
     print("    " + repr(d["text"][:70]))
 
-
 # %%
 # Block 3: the model call.
 import json
@@ -230,7 +227,6 @@ def generate(prompt, model=MODEL, effort="low"):
 
 print(f"model {MODEL}, retry {MODEL} then {RETRY} under {RETRY_MAX_TOKENS:,} tokens, spend stop ${SPEND_STOP:.2f}, key {'present' if KEY else 'MISSING'}")
 
-
 # %%
 # Block 4: the address list. Every non-blank line of the document, numbered. The model points
 # at lines by number; code never decides where a break may be. A document without lines (a
@@ -240,7 +236,12 @@ import re
 
 
 def addresses(text):
-    has_lines = text.count("\n") >= len(text) / 500
+    """Line spans, or sentence spans when the file has no lines to speak of, or when its lines
+    are one word each: a PDF text layer that breaks every word onto its own line is not giving
+    us lines, and numbering them costs more than the text it numbers."""
+    lines = [l for l in text.split("\n") if l.strip()]
+    per_line = sum(len(l.split()) for l in lines) / max(1, len(lines))
+    has_lines = text.count("\n") >= len(text) / 500 and per_line >= 2
     if not has_lines:
         return [(m.start(), m.end()) for m in re.finditer(r"[^.!?]+[.!?]*", text) if m.group().strip()]
     out, start = [], 0
@@ -261,7 +262,6 @@ for path in [RAW / "oz" / "01_55.txt", RAW / "greek" / "03_348.txt", RAW / "grap
     a = addresses(d["text"])
     n = len(listing(d["text"], a))
     print(f"{path.name:<26} {len(d['text']):>9,} chars  {len(a):>6,} addresses  {n:>9,} chars to the model  (~{n // 4:,} tokens)")
-
 
 # %%
 # Block 5: the question. One call per document, the whole document in it. Every pointer is a
@@ -293,14 +293,14 @@ Pieces are the document's own divisions: chapters, acts and scenes, sections, da
 def ask(text, addrs, model=MODEL):
     return generate(PROMPT % listing(text, addrs), model)
 
-
 # %%
 # Block 6: pieces from the answer, and the gates.
 #   resolve   a pointer becomes an address span: its index when the text there matches, else
 #             the nearest address within WINDOW whose text matches (counted as recovered),
-#             else nothing (counted as unresolved). A copy matches its line whole, or as the
-#             line's first eight words, or as a prefix of five words or more, so a short copy
-#             like "CHAPTER I" must match exactly; an empty copy verifies nothing.
+#             else nothing (counted as unresolved). A copy matches its line whole, as the
+#             line's first eight words, or as a run of five words or more inside it, so a
+#             short copy like "CHAPTER I" must match exactly while a longer one may drop the
+#             line's opening quotation mark or marker; an empty copy verifies nothing.
 #             Two pointers on one line count as duplicate.
 #   pieces_from_reply   every region start and every piece start is a boundary; the spans
 #             between consecutive boundaries are the pieces, each with the kind of the region
@@ -309,7 +309,7 @@ def ask(text, addrs, model=MODEL):
 #   verify_meta   title, author, source and date go through the same check as every other
 #             pointer, and the date's year must appear on its line; one that fails is nulled,
 #             so nothing the model invented is exported.
-#   gates     a body region present, headed pieces against the contents count, coverage (no
+#   gates     a body region present, fewer headed pieces than the contents count, coverage (no
 #             body piece holds most of the body when a contents list says there are
 #             divisions), every pointer resolved, every region kind known, the first region
 #             at line 0, and the document pointers. A failed gate is a flag, never a drop;
@@ -338,9 +338,24 @@ def clean(want):
     return re.sub(r"\s*(\.\.\.|…)$", "", w).strip()
 
 
-def matches(text, span, want):
+def words_of(s):
+    return re.findall(r"[^\W_]+", s)
+
+
+def matches(text, span, want, loose=False):
+    """The copy names this line: the same line, its first eight words, or a run of five words
+    or more inside it. Punctuation and spacing need not agree, because a model drops the
+    opening quotation mark, skips a line-number marker, and rounds off the end; five words
+    keeps a short heading strict, so "CHAPTER I" cannot answer for "CHAPTER II". A title, an
+    author or a date is one to four words by nature, so those are matched loosely, and only
+    against the line the model actually pointed at or its near neighbours."""
+    if not want:
+        return False
     line = norm(text[slice(*span)])
-    return bool(want) and (want == line or want == cut8(line) or (len(want.split()) >= 5 and line.startswith(want)))
+    if want == line or want == cut8(line) or (loose and want in line):
+        return True
+    w, l = words_of(want), words_of(line)
+    return len(w) >= 5 and any(l[i:i + len(w)] == w for i in range(len(l) - len(w) + 1))
 
 
 def as_int(v):
@@ -363,17 +378,29 @@ def as_list(v):
     return v if isinstance(v, list) else []
 
 
-def resolve(pointer, text, addrs, stats):
+def find_text(text, start, end, want):
+    """Where the model's copy begins between start and end, however the whitespace falls.
+    Five words at least, so a common phrase cannot place a boundary; None when it is not there
+    or appears more than once."""
+    words_ = clean(want).split()[:12]
+    if len(words_) < 5:
+        return None
+    hits = list(re.finditer(r"\s+".join(re.escape(w) for w in words_), text[start:end], re.I))
+    return start + hits[0].start() if len(hits) == 1 else None
+
+
+def resolve(pointer, text, addrs, stats, loose=False):
     """A pointer's address span. The copy may be the line, its first eight words, a prefix of
     five words or more, or a sentence that runs on into the next two lines (the model points
-    into wrapped prose when it splits a long piece)."""
+    into wrapped prose when it splits a long piece). A wrong index still resolves when the copy
+    names exactly one line in the document."""
     if not isinstance(pointer, dict):
         return None
     i = as_int(pointer.get("index"))
     wants = list(dict.fromkeys(w for w in (norm(pointer.get("text")), clean(pointer.get("text"))) if w))
 
     def at(j):
-        if any(matches(text, addrs[j], w) for w in wants):
+        if any(matches(text, addrs[j], w, loose) for w in wants):
             return True
         two = norm(" ".join(text[slice(*addrs[k])] for k in range(j, min(j + 2, len(addrs)))))
         run = norm(" ".join(text[slice(*addrs[k])] for k in range(j, min(j + 3, len(addrs)))))
@@ -392,6 +419,10 @@ def resolve(pointer, text, addrs, stats):
                 if 0 <= j < len(addrs) and at(j):
                     stats["recovered"] += 1
                     return addrs[j]
+    hits = [j for j in range(len(addrs)) if any(matches(text, addrs[j], w) for w in wants)]
+    if len(hits) == 1:                               # strictly, so a one-word copy cannot wander
+        stats["recovered"] += 1
+        return addrs[hits[0]]
     stats["unresolved"] += 1
     if len(stats.setdefault("unresolved_samples", [])) < 6:   # what the model actually sent, for the log
         stats["unresolved_samples"].append({"index": pointer.get("index"), "text": str(pointer.get("text") or "")[:80]})
@@ -407,9 +438,15 @@ def label_at(text, addrs, k):
     return label
 
 
+ADVISORY = ("metadata:", "shape:", "dates:", "too long:", "merging: join", "merging: over cap",
+            "merging: outline", "grouping: dissolved", "grouping: outline")
+
+
 def advisory(flag):
-    """A flag that describes the document rather than a failure a retry could fix."""
-    return flag.startswith(("metadata:", "shape:"))
+    """A flag that describes the document, or an outcome code handled, rather than a failure
+    another sample of the model could fix. An advisory flag buys no call, in this session or
+    the next."""
+    return flag.startswith(ADVISORY)
 
 
 def piece(start, end, label, kind, author=None, occurred_at=None):
@@ -498,7 +535,7 @@ def verify_meta(text, r, addrs, stats):
         if v is None:
             continue
         before, samples = stats["unresolved"], len(stats.get("unresolved_samples", []))
-        span = resolve(v, text, addrs, stats) if isinstance(v, dict) else None
+        span = resolve(v, text, addrs, stats, loose=True) if isinstance(v, dict) else None
         stats["unresolved"] = before                     # a document pointer is flagged and nulled, never retried
         if "unresolved_samples" in stats:
             stats["unresolved_samples"] = stats["unresolved_samples"][:samples]
@@ -511,6 +548,7 @@ def verify_meta(text, r, addrs, stats):
         if span is None:
             r[key] = None
             stats["meta_unresolved"] = stats.get("meta_unresolved", 0) + 1
+            stats.setdefault("meta_nulled", []).append(key)
 
 
 def gates(pieces, r, stats, text):
@@ -519,7 +557,7 @@ def gates(pieces, r, stats, text):
     if not body:
         flags.append("no body region")
     toc = as_int(r.get("toc_count"))
-    if toc is not None and stats["headed"] != toc:
+    if toc is not None and stats["headed"] < toc:     # more pieces than the contents lists is not an error:
         flags.append(f"count: {stats['headed']} headed pieces, contents says {toc}")
     if body and sum(words(text, q) for q in body) > CAP_WORDS:
         share = max(q["end"] - q["start"] for q in body) / max(1, sum(q["end"] - q["start"] for q in body))
@@ -572,7 +610,6 @@ def split(doc):
                 [f"too long: about {tokens:,} tokens for one call"], {**fresh_stats(addrs, None), "too_long": True})
     return best[1:]
 
-
 # %%
 # Block 7: units. The model decides these too, in three calls.
 #   subsplit  a piece over CAP_WORDS is shown to the model as numbered lines and it points at
@@ -590,12 +627,11 @@ def split(doc):
 #             outline is dropped for one unit per piece and flagged.
 # A text or PDF unit carries the document's date. Chat pieces are the turns, built from the
 # turn spans block 2 kept, with the role as author and the session date as time when there is
-# one, after a front_matter piece for the header; chat units are runs of at least two turns
-# under the cap that never cross a day change, a short tail or a lone last turn merged into
-# the unit before it, with no model call.
+# one, after a front_matter piece for the header. A chat unit is one turn, with no model call;
+# the header opens the first turn's unit. A session the benchmark reused carries several dates
+# and takes the one it started on, on the document, its units and its turns alike.
 from datetime import datetime
 
-TAIL_FLOOR = CAP_WORDS // 3
 DEPTH = 3            # rounds of splitting a piece that stays over the cap
 
 SPLIT_PROMPT = """Below is one piece of a document as numbered lines: "%s", about %d words, over the limit of %d words for one unit. Point at the lines where it naturally breaks (a scene change, a section, a new episode, a new topic) so that no part is over the limit, using as few breaks as that allows. A break is the first line of the paragraph where the new part begins. Answer with JSON only: {"breaks": [{"index": n, "text": "..."}, ...]}. Point at a line by its number and copy that line's text exactly as listed (a long line may be cut after its first eight words). Never invent a line.
@@ -630,8 +666,20 @@ def subsplit(text, p, stats, depth=0):
             return [p]
         for b in as_list(r.get("breaks") if isinstance(r, dict) else None):
             span = resolve(b, text, addrs, stats)
-            if span and p["start"] < span[0] < p["end"]:
-                cuts[span[0]] = label_at(text, addrs, addrs.index(span))
+            if span:
+                cut, label = span[0], label_at(text, addrs, addrs.index(span))
+            else:                                        # a scene break begins mid line: cut at the sentence
+                copy = b.get("text") if isinstance(b, dict) else None
+                cut = find_text(text, p["start"], p["end"], copy)
+                if cut is None:
+                    continue
+                stats["unresolved"] -= 1                 # resolve counted it; the words are there after all
+                if stats.get("unresolved_samples"):
+                    stats["unresolved_samples"].pop()
+                stats["by_text"] = stats.get("by_text", 0) + 1
+                label = " ".join(str(copy).split())[:80]
+            if p["start"] < cut < p["end"]:
+                cuts[cut] = label
         if cuts:
             break
     if not cuts:
@@ -674,7 +722,7 @@ def merge_short(text, pieces, stats, flags):
         flags.append("merging: outline too long; short pieces left alone")
         return pieces
     answers = as_list(r.get("merges") if isinstance(r, dict) else None)
-    into, odd = {}, 0
+    into, odd, odd_words = {}, 0, []
     for m in answers:
         i = as_int(m.get("index")) if isinstance(m, dict) else None
         word = norm(m.get("into")).split() if isinstance(m, dict) and m.get("into") else []
@@ -684,8 +732,9 @@ def merge_short(text, pieces, stats, flags):
                 into[i] = how
         else:
             odd += 1
+            odd_words.append(str(m.get("into") if isinstance(m, dict) else m)[:20])
     if odd:
-        flags.append(f"merging: {odd} answer(s) not understood")
+        flags.append(f"merging: {odd} answer(s) not understood: {', '.join(sorted(set(odd_words))[:4])}")
 
     parent = list(range(len(pieces)))
 
@@ -704,7 +753,7 @@ def merge_short(text, pieces, stats, flags):
             continue
         parent[root(max(i, j))] = root(min(i, j))
     if crossed:
-        flags.append(f"merging: {crossed} join(s) across a region boundary left alone")
+        flags.append(f"merging: join across a region boundary left alone, {crossed}")
     runs = {}
     for i in range(len(pieces)):
         runs.setdefault(root(i), []).append(i)
@@ -717,8 +766,9 @@ def merge_short(text, pieces, stats, flags):
         if len(idx) == 1:
             out.append(pieces[idx[0]])
             continue
-        if sum(words(text, pieces[k]) for k in idx) > CAP_WORDS:
-            flags.append(f"merging: {pieces[idx[0]]['label'][:40]} .. would pass the cap; left alone")
+        over = [k for k in idx if words(text, pieces[k]) > CAP_WORDS]
+        if sum(words(text, pieces[k]) for k in idx) > CAP_WORDS and not over:   # the merge is what carries it past
+            flags.append(f"merging: over cap, left alone: {pieces[idx[0]]['label'][:40]}")
             out.extend(pieces[k] for k in idx)
             continue
         long_in_run = [k for k in idx if words(text, pieces[k]) >= SHORT_WORDS]
@@ -738,7 +788,7 @@ def group(text, pieces, stats, flags):
     try:
         r = generate(GROUP_PROMPT % (CAP_WORDS, outline(text, pieces)))
     except TooLong:
-        flags.append("grouping: outline too long; one unit per piece")
+        flags.append("grouping: outline too long, one unit per piece")
         return [[i] for i in range(len(pieces))]
     runs, expect = [], 0
     for u in as_list(r.get("units") if isinstance(r, dict) else None):
@@ -753,7 +803,7 @@ def group(text, pieces, stats, flags):
     out = []
     for run in runs:
         if len(run) > 1 and sum(words(text, pieces[i]) for i in run) > CAP_WORDS:
-            flags.append(f"grouping: group over the cap dissolved: {pieces[run[0]]['label'][:40]} .. {pieces[run[-1]]['label'][:40]}")
+            flags.append(f"grouping: dissolved a group over the cap: {pieces[run[0]]['label'][:40]} .. {pieces[run[-1]]['label'][:40]}")
             out.extend([[i] for i in run])
         else:
             out.append(run)
@@ -778,43 +828,23 @@ def parse_time(value):
 
 def chat_pieces(doc):
     """The header as front matter, then one piece per turn. The role is read back from the
-    'role: ' prefix block 2 wrote."""
+    'role: ' prefix block 2 wrote. A session reused by the benchmark carries several dates;
+    the document, its units and its turns take the one it started on."""
     text = doc["text"]
-    dates = [t for t in (parse_time(d) for d in doc["dates"]) if t]
-    when = dates[0] if len(dates) == 1 else None
+    dates = sorted(t for t in (parse_time(d) for d in doc["dates"]) if t)
+    when = dates[0] if dates else None
     pieces = [piece(0, doc["turns"][0][0], "front matter", "front_matter", occurred_at=when)]   # the header block 2 wrote
     for i, (s, e) in enumerate(doc["turns"]):
         role = text[s:e].split(":", 1)[0].strip()
         pieces.append(piece(s, e, f"turn {i + 1}", kind=role, author=role, occurred_at=when))
-    flags = ["ambiguous date: several session dates"] if len(dates) > 1 else []
+    flags = [f"dates: {len(dates)} session dates, {when[:10]} kept"] if len(dates) > 1 else []
     return pieces, flags
 
 
-def day(t):
-    return (t or "")[:10]
-
-
-def chat_runs(pieces, text):
-    """Runs of piece indices: at least two turns each unless a day changes, under the cap where
-    two turns allow it, the short tail merged into the unit before it. Index 0 is the header."""
-    runs, run, size = [], [], 0
-    for i, q in enumerate(pieces):
-        w = words(text, q)
-        turns = sum(1 for j in run if j > 0)
-        new_day = bool(run) and day(q["occurred_at"]) != day(pieces[run[-1]]["occurred_at"])
-        if run and (new_day or (size + w > CAP_WORDS and turns >= 2)):
-            runs.append(run)
-            run, size = [], 0
-        run.append(i)
-        size += w
-    if run:
-        same_day = runs and day(pieces[run[0]]["occurred_at"]) == day(pieces[runs[-1][-1]]["occurred_at"])
-        lone = sum(1 for j in run if j > 0) < 2
-        if runs and same_day and (size < TAIL_FLOOR or lone):   # a short tail, or a lone turn, joins the unit before it
-            runs[-1].extend(run)
-        else:
-            runs.append(run)
-    return runs
+def chat_runs(pieces):
+    """One unit per turn. The header has no turn of its own, so it opens the first turn's unit
+    and every byte of the session still belongs to one."""
+    return [[0, 1]] + [[i] for i in range(2, len(pieces))] if len(pieces) > 1 else [[0]]
 
 
 def units_from_runs(pieces, runs, text):
@@ -830,18 +860,19 @@ def units_from_runs(pieces, runs, text):
             q["unit"] = i
     return units
 
-
 # %%
 # Block 8: every document in both datasets, resumable. Each finished document is appended to
 # splits.jsonl as one record: file (dataset-relative), path, sha256, kind, reply, pieces, units,
 # flags, stats, cost. On a rerun a document is skipped by file name before it is read when its
-# last record is clean or carries only advisory flags (metadata, shape), or is a chat (a chat's
-# flags cannot change), or it has been asked in two sessions already; otherwise it is tried
-# again, and the last record per file wins. Chats need
+# last record was written by this loader AND is clean or carries only advisory flags (metadata,
+# shape), or is a chat (a chat's flags cannot change), or it has been asked in two sessions
+# already; otherwise it is tried again, and the last record per file wins. A record an older
+# loader wrote is always redone, because a code change is exactly what a resume must not keep. Chats need
 # no model call. Texts and PDFs print a full entry; chats print one line per hundred. The spend
 # stop writes the document in flight as a flagged record, so its cost is kept, and ends the loop.
 SPLITS = Path("/kaggle/working/splits.jsonl")
 LOG = Path("/kaggle/working/splits.log")
+LOADER = "factledger-extractor 0.9"     # a record says which loader wrote it; a rerun redoes older ones
 
 
 def rel_of(path):
@@ -910,8 +941,8 @@ paths = sorted(RAW.glob("oz/*.txt")) + sorted(RAW.glob("holmes/*.txt")) + sorted
       + sorted(RAW.glob("graphrag-bench/*.txt")) + sorted(PAPERS.glob("*.pdf")) \
       + sorted(p for p in RAW.glob("longmemeval/*.json") if p.name != "manifest.json")
 latest = read_splits()
-done = {key for key, rec in latest.items()
-        if all(advisory(f) for f in rec["flags"]) or rec.get("kind") == "chat" or rec["tries"] >= 2}
+done = {key for key, rec in latest.items() if rec.get("loader") == LOADER
+        and (all(advisory(f) for f in rec["flags"]) or rec.get("kind") == "chat" or rec["tries"] >= 2)}
 chats = 0
 for path in paths:
     rel = rel_of(path)
@@ -923,7 +954,7 @@ for path in paths:
         if doc["kind"] == "chat":
             pieces, flags = chat_pieces(doc)
             reply, stats = {}, {"addresses": None}
-            runs = chat_runs(pieces, doc["text"])
+            runs = chat_runs(pieces)
         else:
             pieces, reply, flags, stats = split(doc)
             unresolved = stats["unresolved"]
@@ -952,8 +983,9 @@ for path in paths:
         pieces = [piece(0, len(doc["text"]), "whole document", kind="whole")]
         units, reply, stats = units_from_runs(pieces, [[0]], doc["text"]), {}, {}
         flags = [f"run error: {type(e).__name__}: {str(e)[:200]}"]
-    record = {"file": rel, "path": str(path), "sha256": doc["sha256"], "kind": doc["kind"], "reply": reply,
-              "pieces": pieces, "units": units, "flags": flags, "stats": stats, "cost": round(spend() - before, 4)}
+    record = {"file": rel, "path": str(path), "sha256": doc["sha256"], "kind": doc["kind"], "loader": LOADER,
+              "reply": reply, "pieces": pieces, "units": units, "flags": flags, "stats": stats,
+              "cost": round(spend() - before, 4)}
     with SPLITS.open("a", encoding="utf-8") as f:
         f.write(json.dumps(record, ensure_ascii=False) + "\n")
     done.add(rel)
@@ -968,7 +1000,6 @@ for path in paths:
         show(doc, record)
 print(f"{len(done)} documents in {SPLITS.name}, ${spend():.2f} spent this session")
 
-
 # %%
 # Block 9: export in the schema, plus the receipt. Last record per document wins.
 #   documents.jsonl  doc_id, source_uri, sha256, title, author, source_class, text, ingested_at,
@@ -977,15 +1008,14 @@ print(f"{len(done)} documents in {SPLITS.name}, ${spend():.2f} spent this sessio
 #   pieces.jsonl     the piece table of SCHEMA.md: doc_id, unit_id, position, kind, start, end,
 #                    author, occurred_at
 #   receipt.json     counts by kind, chars by piece kind, flags by kind, unknown authors and dates,
-#                    ambiguous dates, pointer mismatches, recoveries and duplicates, over-cap units,
-#                    cost of every call this file holds, not only the winning records
+#                    reused session dates, pointer mismatches, recoveries and duplicates, over-cap
+#                    units, cost of every call this file holds, not only the winning records
 # Files are read 32 at a time: one at a time, 19,206 chats take tens of minutes on Kaggle's
 # network filesystem (block 1's own measurement).
 from datetime import timezone
 
 OUT = Path("/kaggle/working/export")
 OUT.mkdir(parents=True, exist_ok=True)
-LOADER = "factledger-extractor 0.7"
 NOW = datetime.now(timezone.utc).isoformat(timespec="seconds")
 SOURCE_CLASS = {"chat": "record", "pdf": "published"}    # text documents take the model's answer
 SOURCE_CLASSES = {"canonical", "published", "record", "authored", "tool-output"}
@@ -1009,6 +1039,10 @@ def spent_in(splits):
     return total
 
 
+def st_of(record):
+    return record.get("stats") or {}
+
+
 def load(record):
     """The document for a record; a file that cannot be read now is an empty error document."""
     try:
@@ -1021,7 +1055,9 @@ records = list(read_splits().values())
 receipt = {"documents": 0, "units": 0, "pieces": 0, "by_kind": {}, "chars_by_kind": {}, "flags_by_kind": {}, "flagged": [],
            "duplicate_files": [], "unknown_author": 0, "unknown_date": 0, "ambiguous_date": 0,
            "mismatch": 0, "recovered": 0, "unresolved": 0, "duplicate": 0, "meta_unresolved": 0,
-           "over_cap_units": 0, "short_units": 0, "total_chars": 0, "cost": round(spent_in(SPLITS), 3)}
+           "over_cap_units": 0, "short_units": 0, "over_cap_read": 0, "over_cap_chat": 0,
+           "short_read": 0, "short_chat": 0, "total_chars": 0, "read_chars": 0, "by_text": 0,
+           "cost": round(spent_in(SPLITS), 3)}
 files = {name: (OUT / f"{name}.jsonl").open("w", encoding="utf-8") for name in ("documents", "units", "pieces")}
 exported = {}                                            # doc_id -> file: identical bytes are one document
 
@@ -1039,12 +1075,12 @@ with ThreadPoolExecutor(max_workers=32) as pool:
         author = rendered(r, "author", "name")
         occurred = iso_of(r) or None
         flags = list(record["flags"])
-        if author is None and rendered(r, "source", "name"):      # no person named: the publication is the voice
-            author = rendered(r, "source", "name")
+        if author is None and "author" not in st_of(record).get("meta_nulled", []) and rendered(r, "source", "name"):
+            author = rendered(r, "source", "name")     # no person named at all: the publication is the voice
             flags.append("author is a publication")
-        if doc["kind"] == "chat":
-            dates = [t for t in (parse_time(d) for d in doc["dates"]) if t]
-            occurred = dates[0] if len(dates) == 1 else None
+        if doc["kind"] == "chat":                        # the date it started on, as block 7 gives its units
+            dates = sorted(t for t in (parse_time(d) for d in doc["dates"]) if t)
+            occurred = dates[0] if dates else None
         source_class = SOURCE_CLASS.get(doc["kind"], r.get("source_class") if isinstance(r, dict) else None)
         if source_class not in SOURCE_CLASSES:
             flags.append("source_class unknown")
@@ -1060,14 +1096,17 @@ with ThreadPoolExecutor(max_workers=32) as pool:
             files["units"].write(json.dumps({"unit_id": uid, "doc_id": doc_id, "position": u["position"], "label": u["label"],
                                              "start": u["start"], "end": u["end"], "occurred_at": u["occurred_at"],
                                              "occurred_until": u["occurred_until"]}, ensure_ascii=False) + "\n")
+            side = "chat" if doc["kind"] == "chat" else "read"
             receipt["over_cap_units"] += u["words"] > CAP_WORDS
-            receipt["short_units"] += u["words"] < SHORT_WORDS and doc["kind"] != "chat"
+            receipt["short_units"] += u["words"] < SHORT_WORDS
+            receipt[f"over_cap_{side}"] += u["words"] > CAP_WORDS
+            receipt[f"short_{side}"] += u["words"] < SHORT_WORDS
         for position, p in enumerate(record["pieces"] if doc["kind"] != "error" else []):
             files["pieces"].write(json.dumps({"doc_id": doc_id, "unit_id": ids[p.get("unit", 0)], "position": position,
                                               "kind": p["kind"], "start": p["start"], "end": p["end"],
                                               "author": p["author"], "occurred_at": p["occurred_at"]}, ensure_ascii=False) + "\n")
         st = record["stats"]
-        for key in ("mismatch", "recovered", "unresolved", "duplicate", "meta_unresolved"):
+        for key in ("mismatch", "recovered", "unresolved", "duplicate", "meta_unresolved", "by_text"):
             receipt[key] += st.get(key, 0)
         for p in record["pieces"]:
             receipt["chars_by_kind"][p["kind"]] = receipt["chars_by_kind"].get(p["kind"], 0) + (p["end"] - p["start"])
@@ -1077,8 +1116,9 @@ with ThreadPoolExecutor(max_workers=32) as pool:
         receipt["by_kind"][doc["kind"]] = receipt["by_kind"].get(doc["kind"], 0) + 1
         receipt["unknown_author"] += author is None and doc["kind"] != "chat"
         receipt["unknown_date"] += occurred is None and doc["kind"] != "chat"
-        receipt["ambiguous_date"] += any(f.startswith("ambiguous date") for f in flags)
+        receipt["ambiguous_date"] += any(f.split(":")[0] in ("dates", "ambiguous date") for f in flags)
         receipt["total_chars"] += len(text)
+        receipt["read_chars"] += len(text) if doc["kind"] != "chat" else 0
         for f in flags:
             kind = f.split(":")[0]
             receipt["flags_by_kind"][kind] = receipt["flags_by_kind"].get(kind, 0) + 1
@@ -1087,15 +1127,20 @@ with ThreadPoolExecutor(max_workers=32) as pool:
 
 for f in files.values():
     f.close()
-receipt["body_share"] = round(receipt["chars_by_kind"].get("body", 0) / max(1, receipt["total_chars"]), 4)
+receipt["body_share"] = round(receipt["chars_by_kind"].get("body", 0) / max(1, receipt["read_chars"]), 4)
 (OUT / "receipt.json").write_text(json.dumps(receipt, indent=2, ensure_ascii=False), encoding="utf-8")
 print(f"documents {receipt['documents']}  units {receipt['units']}  pieces {receipt['pieces']}  by kind {receipt['by_kind']}")
-print(f"pointers: mismatch {receipt['mismatch']}  recovered {receipt['recovered']}  unresolved {receipt['unresolved']}  duplicate {receipt['duplicate']}  metadata nulled {receipt['meta_unresolved']}")
+print(f"pointers: mismatch {receipt['mismatch']}  recovered {receipt['recovered']}  by text {receipt['by_text']}"
+      f"  unresolved {receipt['unresolved']}  duplicate {receipt['duplicate']}  metadata nulled {receipt['meta_unresolved']}")
 if receipt["duplicate_files"]:
     print(f"identical files exported once: {receipt['duplicate_files']}")
-print(f"chars by kind: {receipt['chars_by_kind']}  body {receipt['body_share']:.1%} of all text")
+print(f"chars by kind: {receipt['chars_by_kind']}")
+print(f"body {receipt['body_share']:.1%} of the {receipt['read_chars']:,} chars read from text and PDF;"
+      f" chats add {receipt['total_chars'] - receipt['read_chars']:,}")
 print(f"flagged {len(receipt['flagged'])} {receipt['flags_by_kind']}  unknown author {receipt['unknown_author']}  unknown date {receipt['unknown_date']}"
-      f"  ambiguous date {receipt['ambiguous_date']}  over-cap units {receipt['over_cap_units']}  short units {receipt['short_units']}"
+      f"  reused dates {receipt['ambiguous_date']}"
+      f"  over-cap units {receipt['over_cap_read']} read + {receipt['over_cap_chat']} chat"
+      f"  short units {receipt['short_read']} read + {receipt['short_chat']} chat"
       f"  model cost ${receipt['cost']:.2f}")
 for entry in receipt["flagged"]:
     if "longmemeval/" not in entry["source_uri"]:

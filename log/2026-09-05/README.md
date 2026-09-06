@@ -233,18 +233,99 @@ verifies the round trip. The next run resumes from `splits.jsonl` if the session
 87 clean records are skipped by name and the flagged ones get their second try under the new
 gates.
 
+## The whole-corpus run, and 0.8 and 0.9 (evening, after the last commit)
+
+Two more builds went in after `91df457`, neither committed to the branch; the Kaggle draft is
+where they live and is what was finally saved. Recovered for this log from the Kaggle copy and
+from the thread's own test batteries and workflow outputs.
+
+**0.8**, tested by `test_run2.py` (40 checks): a break pointer that names a sentence starting
+mid line cuts at the sentence through `find_text`, counted as `by_text`; a wrong index still
+resolves when the copy names exactly one line in the document; outcome flags are advisory and
+buy no call; the unrecognised merge word is named in its flag. **And chat units became single
+turns**, which is finding 1 of the audit below: it was never ruled, it contradicts SCHEMA.md
+and the docs patch this same thread drafted, and it orphaned the check that guarded it.
+
+**A whole-corpus run** then went through a seven-lens diagnosis, every flag class root-caused
+and ruled (67 verdicts, 23 kept): 12 correct behaviour, 3 real defects, 6 that the pointer fix
+already covers, 1 data problem, 1 unclear. What it settled:
+
+- The **count gate was two-sided and should not be**: more headed pieces than the contents
+  list is normal (Bulfinch, 32 against 24, is right; the contents list is partial), fewer means
+  the model skipped divisions. Made one-sided in 0.9, and 28 count flags mostly disappear.
+- The **`shape:` advisory is working**: the Euripides plays that trip it are genuinely one
+  undivided body, correctly costing no retry. Bacchae measured 67.5% body against 14.6% notes
+  and 14.1% Gutenberg boilerplate, which is the file, not a defect.
+- **Two real coverage failures** where the model's own answer was poor, not the code's: the
+  Loeb Apollodorus (one piece holding 77% of the body) and Weikum 2021 (95% of 50 pieces).
+  Both paid for a retry that did not help. No small fix; the answer is the model's.
+- **`no body region` on Novel-26183** (Thayer, *Laurence Sterne in Germany*) with 17 unresolved
+  pointers, expected to fall to two to four with the pointer fix but not to clear.
+- The 30 over-cap flags and 131 heading-pointer failures are mostly downstream of the pointer
+  fix; the estimate was 8 to 10 over-cap left, the residue in the Archive.org scans.
+
+**0.9**, tested by `test_diag.py` (22 checks), fixed the eleven defects that diagnosis
+confirmed: a record carries its `loader` and a rerun redoes what an older loader wrote; a
+document is addressed by sentence when its lines are one word each (the Snodgrass PDF, whose
+text layer breaks every word onto its own line, went from unusable to a listing that fits a
+call); the count gate one-sided; four metadata values inside one long address all verify while
+an author not on the line is still nulled; a merge is refused for the cap only when the cap is
+not already broken; a chat takes the earliest of its dates, sorted, in blocks 7 and 9 alike;
+the reused-date counter reads the flag key rather than a prefix; short and over-cap units are
+counted by side; a publication becomes the author only when no person was named.
+
+The Kaggle notebook was saved at 0.9 and is now committed here as
+`notebooks/factledger-extractor.{py,ipynb}`; the two round-trip to identical code.
+
+## The audit (2026-09-06)
+
+A full audit of the saved 0.9 notebook, run against the real corpus rather than read:
+[audit.md](audit.md), with the changes it proposes in
+[final-run-changes.md](final-run-changes.md). In short: the design is right and most of it is
+sound, with one blocker.
+
+- **Blocker.** Chat units are one per turn. Measured over 3,000 real sessions and scaled:
+  198,961 units against 19,206, 90% of them a single turn, median 76 words, 106,913 of them
+  under the hundred-word floor the text path spends three model calls to avoid, and 596,884
+  downstream derive calls against 57,618. SCHEMA.md forbids a lone turn in the sentence that
+  defines the day cut, and the thread's own unapplied docs patch says "a run of at least two
+  turns". The author problem that grouping used to raise is already solved by the piece table:
+  every turn is its own piece with its own `author`, and a fact's voice is the author of the
+  piece holding its quote. Fix: restore the thirteen-line 0.7 `chat_runs`.
+- **Major.** Two of the five offline batteries no longer run: `test_review.py` and
+  `test_verify.py` crash on the `chat_runs` signature, and the check that crashes is titled
+  "never a lone turn". `test_run1.py` is 24 of 26, both stale rather than broken. The log's
+  "91 in three batteries, all passing" is stale; with the blocker reverted it is 153 in five.
+- **Major.** The run cannot finish under `SPEND_STOP`: 231 text and PDF documents at the first
+  run's $0.089 each is about $20.50 against an $8 stop. Raise it to $25 for the final run.
+- **Minor.** `flags` on the document record is not in SCHEMA.md, which BUILD.md forbids a
+  loader to add. Declare it, or move it out of the export.
+- **Minor.** `ids[p.get("unit", 0)]` in block 9 silently attaches an ungrouped piece to unit 0.
+
+Verified as right, by reproduction rather than reading: pieces tile with zero gaps over 3,000
+sessions; the merge and group repairs hold against the mutual-point, cross-region, gap and
+overlap cases; the exported `unit` and `piece` records match the schema field for field.
+
 ## Open
+
 
 - Luna's context window against the 13 documents over 200k listing tokens (none of the 87
   came back `too long`; the largest so far were the two Diodorus files at about 500k).
 - `SPEND_STOP` at $8 stops the corpus at about a third; the rest is the papers (cheap) and
   the chats (free).
-- The docs patch: correct and apply, then `SCHEMA.md` and `BUILD.md` match the code.
-- The second run, over the whole corpus, and its receipt against the old run's numbers.
+- The docs patch: correct and apply, then `SCHEMA.md` and `BUILD.md` match the code. Note
+  its chat-unit sentence says "a run of at least two turns", which the 0.9 code does not do.
+- The final run, over the whole corpus, with the audit's changes applied and the stop raised.
 - The two identical papers (`novelqa-2024.pdf`, `wang2024-novelqa.pdf`): drop one from the
   private dataset, or leave the receipt to note it each run.
 - From 09-04, unchanged: cells for entities promoted after being unit-minor; the set node;
   the vector table inside SQLite; raw bytes as a blob table.
+
+## Next
+
+The document ingestor (Step 1). Its brief is [ingestor-brief.md](ingestor-brief.md):
+rebuilt against the schema, not ported from the chapter demo, and tested over a sampling of
+every source type rather than one book.
 
 ## Still not done (carried from 09-04)
 
