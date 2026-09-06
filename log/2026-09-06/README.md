@@ -279,14 +279,51 @@ real unit, zero units mixing a region kind, and no paper text present. One numbe
 analysis was wrong and is corrected here and in the dataset: 39 read documents are below half
 body, not 40.
 
+## Clearing the dataset's pending actions, and what the Kaggle API will not do
+
+Kaggle showed four pending actions on the new dataset and a usability score of 5.00. Five agents
+read the installed `kaggle` package rather than its documentation, and each finding was checked
+by a second agent against the cited lines. Two of my earlier statements were wrong and are
+corrected here.
+
+**Provenance is settable, and every earlier update had been erasing it.** The field is a single
+free-text string, `userSpecifiedSources`. The client does `metadata.get("userSpecifiedSources")
+or ""` against a `None` default, so an absent key is transmitted as an empty string rather than
+omitted: every `--update` so far had been actively blanking it. It now carries 2,698 characters
+covering sources, collection, processing, licensing and known limits. **Usability went 5.00 to
+7.50.** Three other fields have the same hazard and must never be dropped from the file: `title`,
+`subtitle` and `description`.
+
+**The cover image is settable from the API after all, and I was wrong to call it browser-only.**
+Put `dataset-cover-image.png` beside `dataset-metadata.json` and run `--update`;
+`_upload_dataset_image_file` picks it up. The crops are hardcoded absolute pixels, not a
+proportional fit: the cover is the top-left **560x280** and the thumbnail is **280x280 starting
+at x=140** (`kaggle_api_extended.py:4853-4864`). So the art has to be authored at exactly 560x280
+with anything essential inside x 140 to 420, and nothing fine, because that is the whole canvas.
+
+**Per-file descriptions cannot be set from this client version.** Three attempts, all measured:
+the `resources` key makes the endpoint return a body that is not JSON, which is the bare
+`Expecting value: line 1 column 1` error; the same payload under the `data` key returns 200 with
+an empty body and is then silently ignored, confirmed by reading the files back; and a full
+version upload with `resources` present, which the source says attaches the description as each
+file uploads, left all ten descriptions empty. Both keys are out of the metadata file now, since
+one breaks the endpoint and the other does nothing.
+
+**Version 2 exists only for that failed attempt.** The ten data files are byte-identical to
+version 1. It also appears to have cost the license display: the API reports `licenseName` MIT
+and `expectedUpdateFrequency` never, while the page renders Unknown and Not specified. `create`
+sets `request.license_name`; `--update` sets `settings.licenses`, a different field. Re-running
+`--update` after the version did not fix the page.
+
+So two things stay browser-only on the owner's view: the license dropdown and the per-file
+descriptions. Everything else is in `dataset/step0/dataset-metadata.json` and reproducible.
+
 ## Open
 
 - **Turn `REDO_ALL` back to False.** It was on for the clean pass; leaving it on re-bills the
   corpus on the next code change.
-- **Two things on the dataset page need the browser.** Kaggle's usability score sits at 0.5 and
-  the two points left are a cover image and per-file descriptions, neither of which the API
-  accepts on an existing dataset: `datasets metadata --update` silently drops `resources`. Title,
-  subtitle, description, MIT license, tags and update frequency all went up through the CLI.
+- **The cover image is still to come.** The art is being generated to the 560x280 spec above;
+  dropping it into the staging folder and re-running `--update` is the whole job.
 - **The old units dataset is now stale.** `it494-narrative-corpora-units` is public, holds the
   hand-rolled splitter's output from 09-01, and shares file names with the new dataset while
   meaning something else. It should be retitled as superseded or unpublished.
