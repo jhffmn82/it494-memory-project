@@ -428,18 +428,22 @@ def names_in(text):
     only when it also appears capitalised inside some sentence, so 'The' and 'Then' are never
     names and a name that only ever opens a sentence is missed rather than invented."""
     names, openers = [], []
-    run, run_opens, at_sentence_start = [], False, True
+    run, run_opens, sentence_start = [], False, True
     for token in text.split():
-        word = token.strip("\"'“”‘’(),;:")
-        ends_sentence = token.endswith((".", "!", "?", ".\"", ".”", "!\"", "!”", "?\"", "?”"))
-        if word[:1].isupper():
+        word = token.strip("\"'“”‘’()[]")               # quotes and brackets around the word
+        tail = ""
+        while word and word[-1] in ".,;:!?":            # punctuation after the word
+            tail = word[-1] + tail
+            word = word[:-1]
+        capital = word[:1].isupper()
+        if capital:
             if not run:
-                run_opens = at_sentence_start
-            run.append(word.rstrip(".!?"))
-        if run and (not word[:1].isupper() or ends_sentence):
+                run_opens = sentence_start
+            run.append(word)
+        if run and (not capital or tail):              # a lowercase word or any punctuation ends the run
             (openers if run_opens else names).append(run)
             run = []
-        at_sentence_start = ends_sentence
+        sentence_start = any(ch in ".!?" for ch in tail)
     if run:
         (openers if run_opens else names).append(run)
     found = {" ".join(r) for r in names}
