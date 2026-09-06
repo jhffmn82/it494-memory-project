@@ -152,6 +152,7 @@ for path in [RAW / "oz" / "01_55.txt", RAW / "graphrag-bench" / "Novel-30752.txt
 # %%
 # Block 3: the model call.
 import json
+import threading
 import time
 
 import requests
@@ -175,11 +176,24 @@ class TooLong(Exception):
 
 
 class SpendStop(Exception):
-    """The session has spent SPEND_STOP; block 8 ends the run on this."""
+    """The run must stop: the session has spent SPEND_STOP, or the account is out of credits.
+    Block 8 writes the documents in flight and leaves the rest for the next session."""
 
 
 def spend():
     return sum(c["cost"] for c in calls)
+
+
+BILL = {}                                        # thread -> the document its calls belong to
+
+
+def bill_to(name):
+    """Every call this thread makes from here counts against `name`."""
+    BILL[threading.get_ident()] = name
+
+
+def spent_on(name):
+    return sum(c["cost"] for c in calls if c.get("bill") == name)
 
 
 def generate(prompt, model=MODEL, effort="low"):
@@ -202,12 +216,15 @@ def generate(prompt, model=MODEL, effort="low"):
         except (requests.Timeout, requests.ConnectionError):
             # the server may have finished and billed the request: count the input as spent
             calls.append({"model": model, "in": len(prompt) // 4, "out": 0, "seconds": round(time.time() - t0, 1),
-                          "cost": len(prompt) // 4 * p_in / 1e6, "timeout": True})
+                          "bill": BILL.get(threading.get_ident()), "timeout": True,
+                          "cost": len(prompt) // 4 * p_in / 1e6})
             if attempt == 2:
                 raise
             time.sleep(15 * (attempt + 1))
             continue
-        if r.status_code == 429 or r.status_code >= 500:
+        if r.status_code in (401, 403) or (r.status_code == 429 and "quota" in r.text.lower()):
+            raise SpendStop(f"OpenAI {r.status_code}: {r.text[:120]}")   # no credits or no key: stop
+        if r.status_code == 429 or r.status_code >= 500:                 # busy: wait and try again
             if attempt == 2:
                 raise RuntimeError(f"OpenAI {r.status_code}: {r.text}")
             time.sleep(15 * (attempt + 1))
@@ -220,7 +237,7 @@ def generate(prompt, model=MODEL, effort="low"):
     body = r.json()
     u = body["usage"]
     calls.append({"model": body["model"], "in": u["prompt_tokens"], "out": u["completion_tokens"],
-                  "seconds": round(time.time() - t0, 1),
+                  "seconds": round(time.time() - t0, 1), "bill": BILL.get(threading.get_ident()),
                   "cost": (u["prompt_tokens"] * p_in + u["completion_tokens"] * p_out) / 1e6})
     return json.loads(body["choices"][0]["message"]["content"])
 
@@ -699,8 +716,14 @@ def subsplit_all(text, pieces, stats):
     if not over:
         return pieces
     mine = {i: fresh_stats([], stats.get("model")) for i in over}
+    name = BILL.get(threading.get_ident())       # the parts bill to the document they came from
+
+    def one(i):
+        bill_to(name)
+        return subsplit(text, pieces[i], mine[i])
+
     with ThreadPoolExecutor(max_workers=min(FANOUT, len(over))) as pool:
-        parts = dict(zip(over, pool.map(lambda i: subsplit(text, pieces[i], mine[i]), over)))
+        parts = dict(zip(over, pool.map(one, over)))
     for i in over:
         merge_stats(stats, {k: v for k, v in mine[i].items() if k != "addresses"})
     return [q for i, p in enumerate(pieces) for q in (parts[i] if i in parts else [p])]
@@ -921,7 +944,8 @@ import threading
 
 SPLITS = Path("/kaggle/working/splits.jsonl")
 LOG = Path("/kaggle/working/splits.log")
-LOADER = "factledger-extractor 1.3"     # a record says which loader wrote it; a rerun redoes older ones
+LOADER = "factledger-extractor 1.4"     # every record says which loader wrote it
+REDO_ALL = False                        # True also re-asks clean records an older loader wrote
 
 
 def rel_of(path):
@@ -990,8 +1014,17 @@ paths = sorted(RAW.glob("oz/*.txt")) + sorted(RAW.glob("holmes/*.txt")) + sorted
       + sorted(RAW.glob("graphrag-bench/*.txt")) + sorted(PAPERS.glob("*.pdf")) \
       + sorted(p for p in RAW.glob("longmemeval/*.json") if p.name != "manifest.json")
 latest = read_splits()
-done = {key for key, rec in latest.items() if rec.get("loader") == LOADER
-        and (all(advisory(f) for f in rec["flags"]) or rec.get("kind") == "chat" or rec["tries"] >= 2)}
+def settled(rec):
+    """A record needs no further call: it is clean or only advisory, or it is a chat (whose
+    flags cannot change), or it has been asked in two sessions already."""
+    return all(advisory(f) for f in rec["flags"]) or rec.get("kind") == "chat" or rec["tries"] >= 2
+
+
+done = {key for key, rec in latest.items() if settled(rec) and (rec.get("loader") == LOADER or not REDO_ALL)}
+older = sum(1 for key, rec in latest.items() if settled(rec) and rec.get("loader") != LOADER)
+print(f"{LOADER}: {len(done)} documents already settled"
+      + (f", {older} of them written by an older loader and kept (REDO_ALL is False)" if older and not REDO_ALL
+         else f"; REDO_ALL is True, so {older} written by an older loader are asked again" if older else ""))
 DOCUMENTS = 6        # documents in flight at once; each may fan out FANOUT sub-splits
 lock = threading.Lock()
 stop = threading.Event()                         # set once the spend stop trips
@@ -1005,7 +1038,8 @@ def run_one(path):
     rel = rel_of(path)
     if rel in done or stop.is_set():
         return None
-    doc, before, stopped = None, spend(), False
+    bill_to(rel)
+    doc, stopped = None, False
     try:
         doc = to_text(path)
         if doc["kind"] == "chat":
@@ -1043,7 +1077,7 @@ def run_one(path):
         flags = [f"run error: {type(e).__name__}: {str(e)[:200]}"]
     record = {"file": rel, "path": str(path), "sha256": doc["sha256"], "kind": doc["kind"], "loader": LOADER,
               "reply": reply, "pieces": pieces, "units": units, "flags": flags, "stats": stats,
-              "cost": round(spend() - before, 4)}
+              "cost": round(spent_on(rel), 4)}
     with lock:                                   # one writer, and one document's log at a time
         with SPLITS.open("a", encoding="utf-8") as f:
             f.write(json.dumps(record, ensure_ascii=False) + "\n")

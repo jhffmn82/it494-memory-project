@@ -54,6 +54,9 @@ def generate(prompt, model="luna", effort="low"):
 
 ns.update(MODEL="luna", RETRY="terra", RETRY_MAX_TOKENS=80_000, TooLong=TooLong, SpendStop=SpendStop,
           generate=generate, spend=lambda: 0.0)
+
+# 2026-09-06: block 3 also carries the per-document billing helpers; the stub supplies them.
+ns.update(BILL={}, bill_to=lambda name: None, spent_on=lambda name: 0.0)
 b4 = block[4][:block[4].index("for path in [")]
 exec(b4, ns); exec(block[5], ns); exec(block[6], ns); exec(block[7], ns)
 b8_defs = block[8][:block[8].index("paths = sorted(")]

@@ -45,6 +45,9 @@ def generate(prompt, model="luna", effort="low"):
 
 
 ns.update(MODEL="luna", RETRY="terra", RETRY_MAX_TOKENS=80_000, TooLong=TooLong, SpendStop=SpendStop, generate=generate, spend=lambda: 0.0)
+
+# 2026-09-06: block 3 also carries the per-document billing helpers; the stub supplies them.
+ns.update(BILL={}, bill_to=lambda name: None, spent_on=lambda name: 0.0)
 exec(block[4][:block[4].index("for path in [")], ns); exec(block[5], ns); exec(block[6], ns); exec(block[7], ns)
 b8_defs = block[8][:block[8].index("paths = sorted(")]
 b8_defs = b8_defs.replace('Path("/kaggle/working/splits.jsonl")', f'Path(r"{SCR / "splits.jsonl"}")').replace('Path("/kaggle/working/splits.log")', f'Path(r"{SCR / "splits.log"}")')
@@ -144,9 +147,12 @@ new = [r["file"] for r in recs[3:]]
 # 2026-09-06: 0.9 redoes every record an older loader wrote, which is what these seeded
 # records are (they carry no "loader"), so both are re-asked rather than skipped. The
 # older-loader rule itself is checked in test_diag.py.
-check("a record from an older loader is redone, not skipped", "raw/oz/01_55.txt" in new and "raw/oz/02_54.txt" in new, new)
+# 2026-09-06: with REDO_ALL off, the clean record from an older loader is kept, and the
+# flagged one is kept too because it has already been asked in two sessions.
+check("the clean older-loader record and the twice-asked one are both kept",
+      "raw/oz/01_55.txt" not in new and "raw/oz/02_54.txt" not in new, new)
 # 2026-09-06: records land in completion order now, so the set is the check, not the list.
-check("every path got a record", sorted(new) == sorted(["raw/oz/01_55.txt", "raw/oz/02_54.txt", "raw/longmemeval/001cefa7_2.json", "papers/novelqa-2024.pdf", "papers/wang2024-novelqa.pdf", "raw/oz/missing.txt"]), new)
+check("every path not already settled got a record", sorted(new) == sorted(["raw/longmemeval/001cefa7_2.json", "papers/novelqa-2024.pdf", "papers/wang2024-novelqa.pdf", "raw/oz/missing.txt"]), new)
 err = next(r for r in recs if r.get("file") == "raw/oz/missing.txt")
 check("unreadable file is a run-error record, kind error, loop continued", err["kind"] == "error" and err["flags"][0].startswith("run error"), err["flags"])
 calls.clear()

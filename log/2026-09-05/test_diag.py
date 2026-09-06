@@ -122,10 +122,18 @@ old = {"file": "raw/oz/01_55.txt", "path": "x", "sha256": "s1", "kind": "chat", 
 cur = {**old, "file": "raw/oz/02_54.txt", "sha256": "s2", "loader": ns["LOADER"]}
 (SCR / "splits.jsonl").write_text("\n".join(json.dumps(x) for x in (old, cur)) + "\n", encoding="utf-8")
 latest = R("read_splits")()
-done = {k for k, rec in latest.items() if rec.get("loader") == ns["LOADER"]
-        and (all(R("advisory")(f) for f in rec["flags"]) or rec.get("kind") == "chat" or rec["tries"] >= 2)}
-check("a clean chat from an older loader is NOT done", "raw/oz/01_55.txt" not in done, done)
-check("a clean chat from this loader is done", "raw/oz/02_54.txt" in done, done)
+# 2026-09-06: redoing every clean record on a loader bump re-billed the whole corpus, so it
+# is now the REDO_ALL switch, off by default. Both positions are checked.
+def settled(rec):
+    return all(R("advisory")(f) for f in rec["flags"]) or rec.get("kind") == "chat" or rec["tries"] >= 2
+
+
+keep = {k for k, rec in latest.items() if settled(rec)}                    # REDO_ALL False
+redo = {k for k, rec in latest.items() if settled(rec) and rec.get("loader") == ns["LOADER"]}
+check("with REDO_ALL off, a clean record from an older loader is kept", "raw/oz/01_55.txt" in keep, keep)
+check("with REDO_ALL on, the same record is asked again", "raw/oz/01_55.txt" not in redo, redo)
+check("a clean chat from this loader is settled either way",
+      "raw/oz/02_54.txt" in keep and "raw/oz/02_54.txt" in redo)
 
 print("\n== 2, 3, 7, 9. block 9 ==")
 b9 = block[9]
