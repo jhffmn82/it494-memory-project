@@ -1143,12 +1143,26 @@ def completed(doc):
     return last if last and last.get("record") == "completion" and last.get("input_hash") == input_hash(doc) else None
 
 # %%
-# Block 10: one document end to end, then the corpus, resumable. A finished package for the same
-# input is skipped, so a rerun mints nothing; a document stopped mid-way resumes from the units
-# its sidecar already holds. Every document appends an entry to ingest.log and a row to
-# manifest.jsonl; the receipt sums the packages on disk and the calls this session logged.
+# Block 10: the pipeline as one function, ingest(doc, diag), calling the steps in order:
+# derive_unit for each unit, then reconcile, fold_document, write_package. `diag` is a dict
+# of flags naming what to print as it happens, so a document can be watched unit by unit:
+#   units        one line per unit as it finishes: counts, match paths, rejections, cost
+#   entities     every entity kept in the unit, with its forms and what it continues
+#   facts        every fact kept, with its match path and quote
+#   rejections   every fact rejected, with its category and the quote that failed
+#   cells        the unit summary, the cells, and the summary-versus-cells agreement
+#   reconcile    how the unit-locals became document entities, and the judge's verdicts
+#   ledger       every ledger row (long)
+#   fold         the abstract, the majors and why each is major, the entity abstracts
+#   package      the package path and its counts
+# A finished package for the same input is skipped, so a rerun mints nothing; a document
+# stopped mid-way resumes from the units its sidecar holds. Every document appends an entry
+# to ingest.log and a row to manifest.jsonl; the receipt sums the packages on disk.
 LOG = OUT / "ingest.log"
 MANIFEST = OUT / "manifest.jsonl"
+DIAG_ALL = {"units": True, "entities": True, "facts": True, "rejections": True, "cells": True,
+            "reconcile": True, "ledger": False, "fold": True, "package": True}
+RESULTS = []                     # (source_uri, records, counts, stats) for every document this session ingested
 
 
 def checkpointed(doc):
@@ -1166,7 +1180,79 @@ def checkpointed(doc):
     return kept
 
 
-def ingest(doc, ctx=None):
+def say(text):
+    print(text)
+
+
+def show_unit(rec, unit, diag, unit_cost, total_cost):
+    """One unit as it lands, in the demo's shape so the two runs read side by side."""
+    by_cat = {}
+    for x in rec["rejected_facts"]:
+        by_cat[x["category"]] = by_cat.get(x["category"], 0) + 1
+    by_how = {}
+    for f in rec["facts"]:
+        by_how[f["matched_by"]] = by_how.get(f["matched_by"], 0) + 1
+    say(f"[{rec['position']}] {rec['label'][:40]}: {word_count(unit['text']):,} words; {len(rec['entities'])} entities"
+        f" ({len(rec['dropped_entities'])} dropped), {len(rec['mentions'])} mentions; {len(rec['facts'])} facts kept"
+        f" ({', '.join(f'{k} {v}' for k, v in by_how.items()) or 'none'}), {len(rec['rejected_facts'])} rejected"
+        f" ({', '.join(f'{k} {v}' for k, v in by_cat.items()) or 'none'}); {len(rec['cells'])} cells;"
+        f" ${unit_cost:.3f} this unit, ${total_cost:.3f} so far")
+    if diag.get("entities"):
+        for e in rec["entities"]:
+            say(f"    {e['name'][:34]:<34} {e['kind'][:9]:<9} {'named' if e['named'] else 'unnamed':<8} x{e['mentions']:<3}"
+                f" {('= ' + e['continues'][:24]) if e['continues'] else '':<27} forms: {' | '.join(e['forms'][:4])[:60]}")
+        for d in rec["dropped_entities"]:
+            say(f"    DROPPED {d['name'][:34]}: {d['why']} {d['forms'][:3]}")
+    if diag.get("facts"):
+        for f in rec["facts"]:
+            q = f" [{f['qualifiers']}]" if f["qualifiers"] else ""
+            v = ", voice ambiguous" if f["voice_ambiguous"] else ""
+            say(f"    {f['subject']} -{f['predicate']}-> {f['object']}{q}  ({f['matched_by']}{v})  \"{' '.join(f['quote'].split())[:90]}\"")
+    if diag.get("rejections"):
+        for x in rec["rejected_facts"]:
+            say(f"    REJECTED {x['category']}: {x['subject']} -{x['predicate']}-> {x['object']}  \"{' '.join(x['quote'].split())[:90]}\"")
+    if diag.get("cells") and rec["summary"]:
+        say(f"    SUMMARY {rec['summary']}")
+        for c in rec["cells"]:
+            say(f"    [{c['entity']}] {c['text']}")
+        a = rec["agreement"]
+        if a:
+            say(f"    agreement: {a['above_threshold']} above threshold, {a['cells']} cells, {a['named_in_summary']} named in the summary;"
+                f" in summary without a cell {a['in_summary_without_cell']}; cell not named in summary {a['cell_without_summary_name']}")
+
+
+def show_reconcile(entities, ledger, candidates, n_locals, n_pairs, n_judged, diag):
+    how = {}
+    for r in ledger:
+        key = f"{r['how']} {r['verdict']}"
+        how[key] = how.get(key, 0) + 1
+    decisions = {}
+    for c in candidates:
+        decisions[c["decision"]] = decisions.get(c["decision"], 0) + 1
+    say(f"reconcile: {n_locals} unit-locals -> {len(entities)} document entities; ledger {', '.join(f'{k} {v}' for k, v in sorted(how.items()))};"
+        f" {n_pairs} scored pairs ({', '.join(f'{k} {v}' for k, v in sorted(decisions.items()))}), {n_judged} sent to the judge")
+    if diag.get("ledger"):
+        for r in ledger:
+            say(f"    {r['verdict']:<9} {r['how']:<10} {r['a'][:28]:<28} (u{r['a_unit']}) ~ {r['b'][:28]:<28} (u{r['b_unit']})  {str(r['evidence'])[:70]}")
+
+
+def show_fold(folded, diag):
+    if folded["abstract"]:
+        a = folded["abstract"]
+        say(f"abstract ({word_count(a['text'])} words, limit {a['limit']}): {a['text']}")
+    else:
+        say(f"abstract REJECTED: {folded['abstract_rejected']}")
+    say(f"salience: {len(folded['majors'])} major, {len(folded['minors'])} minor;"
+        f" {len(folded['entity_abstracts'])} entity abstracts, {len(folded['entity_abstract_rejected'])} rejected")
+    for e in folded["majors"]:
+        why = "in abstract" if e["rank"]["in_abstract"] else "by tie-break" if e["rank"]["in_abstract"] is None else "?"
+        say(f"    {e['name'][:34]:<34} {'/'.join(e['kinds'])[:16]:<16} units {len(e['units']):>3} facts {e['n_facts']:>3}  {why}"
+            f"  {('also: ' + ', '.join(n for n in e['names'] if n != e['name'])[:60]) if len(e['names']) > 1 else ''}")
+
+
+def ingest(doc, ctx=None, diag=None):
+    """One document, start to finish: the steps in order, each printed as the flags ask."""
+    diag = diag or {}
     ctx = {"doc": doc["source_uri"], **(ctx or {})}
     before_calls, before_spend = len(CALLS), spend()
     roster = {"entities": [], "predicates": [], "predicate_counts": {}}
@@ -1174,11 +1260,14 @@ def ingest(doc, ctx=None):
     for rec in records:                                              # replay what the sidecar holds
         advance_roster(roster, rec)
         previous = rec["summary"] or previous
+    if records and diag.get("units"):
+        say(f"resuming {doc['source_uri']} from {len(records)} checkpointed units")
     side = sidecar_path(doc)
     if not records and side.exists():
         side.unlink()
     for u in doc["units"][len(records):]:
         unit = {**u, "text": doc["text"][u["start"]:u["end"]]}
+        at = spend()
         rec = derive_unit(doc, unit, roster, previous, {**ctx, "unit": u["position"]})
         records.append(rec)
         side.parent.mkdir(parents=True, exist_ok=True)
@@ -1186,8 +1275,14 @@ def ingest(doc, ctx=None):
             f.write(json.dumps({"ingestor": INGESTOR, "input_hash": input_hash(doc), "rec": rec}, ensure_ascii=False) + "\n")
         advance_roster(roster, rec)
         previous = rec["summary"] or previous
+        if diag.get("units"):
+            show_unit(rec, unit, diag, spend() - at, spend() - before_spend)
     entities, ledger, candidates, n_locals, n_pairs, n_judged = reconcile(doc, records, ctx)
+    if diag.get("reconcile"):
+        show_reconcile(entities, ledger, candidates, n_locals, n_pairs, n_judged, diag)
     folded = fold_document(doc, records, entities, ctx)
+    if diag.get("fold"):
+        show_fold(folded, diag)
     stats = {"locals": n_locals, "candidate_pairs": n_pairs, "judged_pairs": n_judged,
              "calls": len(CALLS) - before_calls, "cost": round(spend() - before_spend, 4),
              "matched_by": {}, "rejected_by": {}, "roster_size": len(roster["entities"]), "predicates": len(roster["predicates"])}
@@ -1199,10 +1294,14 @@ def ingest(doc, ctx=None):
     path, counts = write_package(doc, records, entities, folded, ledger, candidates, stats)
     if side.exists():
         side.unlink()
+    if diag.get("package"):
+        say(f"package {path}: {counts}")
+    RESULTS.append((doc["source_uri"], records, counts, stats))
     return path, counts, stats, records, entities, folded
 
 
 def show(doc, counts, stats, entities, folded, path):
+    """The end-of-document entry, always printed and appended to ingest.log."""
     lines = [f"{doc['source_uri']}  units {counts['units']}  entities {counts['entities']} ({counts['majors']} major)"
              f"  mentions {counts['mentions']}  facts {counts['facts_kept']} kept / {counts['facts_rejected']} rejected"
              f" / {counts['facts_stored']} stored  cells {counts['cells']}  calls {stats['calls']}  ${stats['cost']:.3f}",
@@ -1223,7 +1322,7 @@ def note(text):
         f.write(text + "\n\n")
 
 
-def run(uris, stop_on_error=False):
+def run(uris, diag=None, stop_on_error=False):
     if not KEY and generate.__module__ == __name__:          # the real generate with no key: say so once, not per document
         raise SystemExit("no OPENAI_API_KEY: set it in the environment, or attach it as a Kaggle secret")
     done = skipped = 0
@@ -1237,7 +1336,9 @@ def run(uris, stop_on_error=False):
             if completed(doc):
                 skipped += 1
                 continue
-            path, counts, stats, records, entities, folded = ingest(doc)
+            if diag and diag.get("units"):
+                say(f"\n=== {uri}: {len(doc['units'])} units, {len(doc['text']):,} chars, author {doc.get('author')!r}, date {doc.get('occurred_at')} ===")
+            path, counts, stats, records, entities, folded = ingest(doc, diag=diag)
             with MANIFEST.open("a", encoding="utf-8") as f:
                 f.write(json.dumps({"doc_id": doc["doc_id"], "source_uri": uri, "package": str(path.relative_to(OUT)).replace("\\", "/"),
                                     "input_hash": input_hash(doc), "counts": counts, "cost": stats["cost"]}) + "\n")
@@ -1323,24 +1424,64 @@ def targets(spec):
     return [u for s in spec for u in BY_URI if u.endswith(s)]
 
 # %%
-# Block 12: the run. On Kaggle this cell is the run, and it spends money, so its two knobs are
-# here in the open: RUN is "sample", "all", or a list of source_uri suffixes; SPEND_STOP ends
-# the run past that many dollars. When it fires, the document in flight keeps its finished
-# units in a sidecar and is picked up from there next time, and the calls already made are in
-# calls.jsonl. Locally the same thing is `python factledger-ingestor.py --sample`, `--sample 2`
-# for two of every group, or one or more source_uri suffixes; the stop comes from the
-# SPEND_STOP environment variable, default $25.
-RUN = ["/oz/01_55.txt"]          # Oz book 1 alone first; then "sample", then "all"
+# Block 12: Oz book 1, watched chapter by chapter, against the 09-02 demo. RUN names the
+# documents; DIAG says what to print per unit (block 10 lists the flags); SPEND_STOP ends the
+# run past that many dollars, the document in flight keeping its finished units in a sidecar.
+# After the run, one table per document lines each unit up with the demo's two runs on the same
+# chapter: entities, facts kept, facts dropped (v3: 632 entities, 969 facts, 53 dropped, $1.26;
+# v4: 644, 859, 157, $1.72). Later runs set RUN to "sample" (the test variety) or "all".
+# Locally: `python factledger-ingestor.py --sample`, `--sample 2`, or source_uri suffixes.
+RUN = ["/oz/01_55.txt"]
+DIAG = dict(DIAG_ALL)
 ON_KAGGLE = Path("/kaggle/working").exists()
 if ON_KAGGLE:
     SPEND_STOP = 5.00
+
+DEMO = {   # per chapter of Oz book 1: (entities, facts kept, facts dropped), from log/2026-09-02
+    "v3": [(16, 57, 1), (27, 51, 1), (21, 36, 4), (25, 43, 1), (29, 36, 1), (31, 40, 1), (38, 48, 3), (24, 34, 6), (21, 28, 5), (28, 63, 3), (34, 49, 0), (30, 56, 2), (30, 39, 5), (22, 49, 2), (38, 38, 7), (19, 21, 1), (32, 34, 0), (30, 45, 2), (23, 30, 1), (29, 48, 1), (21, 37, 1), (26, 36, 1), (30, 45, 2), (8, 6, 2)],
+    "v4": [(17, 53, 0), (34, 47, 3), (24, 41, 3), (30, 41, 3), (30, 50, 7), (28, 37, 2), (24, 42, 5), (28, 44, 10), (18, 26, 7), (36, 47, 2), (32, 37, 33), (32, 0, 54), (32, 39, 0), (30, 41, 4), (33, 48, 2), (15, 18, 2), (31, 32, 1), (29, 38, 2), (21, 29, 3), (35, 44, 0), (28, 25, 2), (22, 35, 4), (28, 39, 6), (7, 6, 2)],
+}
+
+
+def roman(word):
+    vals = {"M": 1000, "D": 500, "C": 100, "L": 50, "X": 10, "V": 5, "I": 1}
+    total, prev = 0, 0
+    for ch in reversed(word.upper()):
+        v = vals.get(ch)
+        if v is None:
+            return None
+        total, prev = (total - v, prev) if v < prev else (total + v, v)
+    return total
+
+
+def compare(uri, records, counts, stats):
+    """The new run beside the demo, one row per unit; a unit labelled 'Chapter N' lines up with
+    the demo's chapter N, the others (front matter, license) stand alone."""
+    say(f"\n{uri}: new run {counts['entities']} entities ({counts['majors']} major), {counts['facts_kept']} facts kept,"
+        f" {counts['facts_rejected']} rejected, ${stats['cost']:.2f}; demo v3 632 / 969 / 53 / $1.26, v4 644 / 859 / 157 / $1.72")
+    say(f"    {'unit':<28} {'new: ent':>8} {'kept':>5} {'rej':>4}   {'v3: ent':>8} {'kept':>5} {'drop':>4}   {'v4: ent':>8} {'kept':>5} {'drop':>4}")
+    tot = [0, 0, 0]
+    for r in records:
+        m = re.match(r"\s*chapter\s+([ivxlcdm]+)\b", r["label"], re.I)
+        n = roman(m.group(1)) if m else None
+        row = f"    {r['label'][:28]:<28} {len(r['entities']):>8} {len(r['facts']):>5} {len(r['rejected_facts']):>4}"
+        for tag in ("v3", "v4"):
+            d = DEMO[tag][n - 1] if n and 1 <= n <= len(DEMO[tag]) else None
+            row += f"   {d[0]:>8} {d[1]:>5} {d[2]:>4}" if d else f"   {'-':>8} {'-':>5} {'-':>4}"
+        say(row)
+        tot[0] += len(r["entities"]); tot[1] += len(r["facts"]); tot[2] += len(r["rejected_facts"])
+    say(f"    {'total':<28} {tot[0]:>8} {tot[1]:>5} {tot[2]:>4}   {632:>8} {969:>5} {53:>4}   {644:>8} {859:>5} {157:>4}")
+
 
 if __name__ == "__main__" and not ON_KAGGLE and len(sys.argv) > 1:
     RUN = sample(int(sys.argv[2])) if sys.argv[1] == "--sample" and len(sys.argv) > 2 else "sample" if sys.argv[1] == "--sample" else sys.argv[1:]
 if ON_KAGGLE or (__name__ == "__main__" and len(sys.argv) > 1):
     uris = targets(RUN)
-    print(f"ingesting {len(uris)} documents, stop at ${SPEND_STOP:.2f}")
+    print(f"ingesting {len(uris)} documents, stop at ${SPEND_STOP:.2f}, diagnostics {[k for k, v in DIAG.items() if v]}")
     try:
-        run(uris)
+        run(uris, diag=DIAG)
     finally:
+        for uri, records, counts, stats in RESULTS:
+            if "/oz/" in uri:
+                compare(uri, records, counts, stats)
         print(json.dumps(receipt(), indent=1)[:3000])
