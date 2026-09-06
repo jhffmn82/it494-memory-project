@@ -70,8 +70,9 @@ def stub_generate(prompt, schema, stage, model=None, effort="low", ctx=None):
             if w not in STOP:
                 counts[w] = counts.get(w, 0) + 1
         names = sorted(counts, key=lambda w: -counts[w])[:6]
-        ents = [{"name": n, "named": True, "kind": "person", "surface_forms": [n], "continues": n if f"- {n} (" in prompt else None,
-                 "profile": {"gender": "female" if n == "Dorothy" else None, "animacy": "animate", "role": None}} for n in names]
+        ents = [{"name": n, "named": True, "kind": "person", "salience": "major" if i < 3 else "minor", "surface_forms": [n],
+                 "continues": n if f"- {n} (" in prompt else None,
+                 "profile": {"gender": "female" if n == "Dorothy" else None, "animacy": "animate", "role": None}} for i, n in enumerate(names)]
         ents.append({"name": "Phantom", "named": True, "kind": "person", "surface_forms": ["Zzyzx Qwerty"], "continues": None, "profile": None})
         if names:                                                   # every span of this one is already the first entity's
             ents.append({"name": "Shadow", "named": True, "kind": "person", "surface_forms": [names[0]], "continues": None, "profile": None})
@@ -199,7 +200,9 @@ check("voice: every fact carries the document author for a novel", all(f["author
 cells = by.get("cell", [])
 doc_node = ns["h"](doc["doc_id"], "document")
 check("a unit summary cell on the document node per unit", sum(1 for c in cells if c["node_id"] == doc_node) == len(doc["units"]))
-check("cells only for entities with a fact in that unit", all(any(f["subject"] in c["provenance"]["entity_names"] and f["unit_id"] == c["unit_id"] for r in records for f in r["facts"]) for c in cells if c["node_id"] != doc_node))
+unit_majors = {(r["unit_id"], e["name"]) for r in records for e in r["entities"] if e["major"]}
+check("cells only for the unit's major entities, the model's salience call", all(all((c["unit_id"], n) in unit_majors for n in c["provenance"]["entity_names"]) for c in cells if c["node_id"] != doc_node))
+check("the fact rule is recorded beside the salience call in the agreement", all("fact_but_minor" in r["agreement"] for r in records if r["agreement"]))
 check("agreement check recorded per unit", all(r["agreement"] is not None for r in records))
 abstracts = by.get("abstract", [])
 doc_abs = [a for a in abstracts if a["node_id"] == doc_node]
@@ -208,7 +211,8 @@ check("document abstract present with children_hash over the work partition's su
 check("the license unit is apparatus, the chapters and front matter are the work", {r["partition"] for r in records if r["kind"] == "license"} == {"license"} and all(r["partition"] == "work" for r in records if r["kind"] in ("body", "front_matter")))
 check("abstract names all appear in the children", not ns["missing_names"](doc_abs[0]["text"], [f"[{r['label']}] {r['summary']}" for r in work]))
 part_of = {r["position"]: r["partition"] for r in records}
-check("no candidate pair crosses a partition", all(part_of[c["a_unit"]] == part_of[c["b_unit"]] for c in by.get("candidate", [])))
+check("no candidate pair crosses a partition except on the same proper name", all(part_of[c["a_unit"]] == part_of[c["b_unit"]] or c["a"].casefold() == c["b"].casefold() for c in by.get("candidate", [])))
+check("every candidate pair went to the judge and carries the demo's tier", by.get("candidate") and all(c["decision"] == "judge" and c["tier"] in (1.0, 0.85, 0.5) for c in by["candidate"]))
 check("an entity seen only in the license is never a document major", not any(e["partitions"] == ["license"] for e in folded["majors"]))
 check("majors are exactly the entities named in the abstract", all(any(s in doc_abs[0]["text"].casefold() for s in e["surfaces"]) for e in folded["majors"]) and folded["majors"])
 check("dossier per major with an embedding", len(by.get("dossier", [])) == len(folded["majors"]) and all(d["embedding"] for d in by["dossier"]))

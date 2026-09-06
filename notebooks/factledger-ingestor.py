@@ -651,6 +651,7 @@ ENTITY_SCHEMA = {"type": "object", "required": ["entities"], "properties": {"ent
     "type": "object", "required": ["name", "named", "kind", "surface_forms"], "properties": {
         "name": {"type": "string"}, "named": {"type": "boolean"}, "kind": {"type": "string"},
         "surface_forms": {"type": "array", "items": {"type": "string"}},
+        "salience": {"type": ["string", "null"]},
         "continues": {"type": ["string", "null"]},
         "profile": {"type": ["object", "null"]}}}}}}
 
@@ -694,16 +695,17 @@ def entity_prompt(unit, roster):
 
 Above is one unit of a longer document. Identify the entities it involves: each person, group, place, thing, event, or topic that acts, is acted upon, or is discussed in its own right, plus any named person, place, group, or thing, however briefly mentioned. Parts, components, and possessions of a listed entity are not entities; they belong inside that entity's facts.
 
-Return JSON {{"entities": [{{"name", "named", "kind", "surface_forms", "continues", "profile"}}]}} where:
+Return JSON {{"entities": [{{"name", "named", "kind", "salience", "surface_forms", "continues", "profile"}}]}} where:
 - name: for a named entity, the fullest name the text uses; for an unnamed one, a head word plus a parenthetical anchoring it to a named entity, like "car (Sam's car)"
 - named: true if the text gives it a proper name
 - kind: one lowercase word: person, group, place, object, event, topic, or another if none fits
+- salience: "major" only if it would appear in a two-sentence summary of this text, else "minor"
 - surface_forms: every distinct verbatim string the text uses to refer to it, copied exactly, bare pronouns excluded; a string that refers to two different entities in this text is listed under only one of them
 - continues: the name of the established entity this one is, exactly as listed below, or null if it is new to the document
 - profile: attributes you infer from context rather than read in the text, as {{"gender", "age_band", "animacy", "role"}} with a value or null each; null when nothing can be inferred{roster_text(roster)}"""
 
 
-def fact_prompt(unit, names, predicates):
+def fact_prompt(unit, names, majors, predicates):
     used = ""
     if predicates:
         used = ("\n\nPREDICATES THIS DOCUMENT HAS USED (reuse one when it means the same relation; coin a new one when none does): "
@@ -721,9 +723,10 @@ Return JSON {{"facts": [{{"subject", "predicate", "object", "qualifiers", "quote
 - quote: one verbatim substring of the text that supports the fact, copied exactly as it appears, punctuation and all
 - valid_from, valid_to: an ISO date (YYYY, YYYY-MM or YYYY-MM-DD) only when the quote itself states when the fact began or ended; otherwise null. Never infer a date.
 - each fact is atomic: one attribute or one relationship, with a bare value rather than a phrase
-- state each relationship once, from the side of the entity the text is about
+- a relationship between a major entity and a minor one is stated once, under the major entity; only between two major entities may it be stated from both sides
 
-ENTITIES: {", ".join(names)}{used}"""
+ENTITIES: {", ".join(names)}
+MAJOR: {", ".join(majors)}{used}"""
 
 
 def cells_prompt(unit, names, previous):
@@ -805,6 +808,7 @@ def derive_unit(doc, unit, roster, previous_summary, ctx):
         continues = e.get("continues") if e.get("continues") in roster_names else None
         profile = e.get("profile") if isinstance(e.get("profile"), dict) else {}
         rec["entities"].append({"name": name, "named": bool(e["named"]), "kind": str(e["kind"]).lower(),
+                                "major": e.get("salience") == "major",
                                 "forms": forms, "continues": continues, "mentions": len(spans)})
         for start, end in sorted(spans):
             rec["mentions"].append({"mention_id": h(unit["unit_id"], base + start, base + end), "entity": name,
@@ -820,7 +824,8 @@ def derive_unit(doc, unit, roster, previous_summary, ctx):
         return rec
 
     # 2. facts, each quote located inside the unit, offsets stored as document offsets
-    reply = generate(fact_prompt(unit, names, roster["predicates"]), FACT_SCHEMA, "facts", ctx=ctx)
+    majors = [e["name"] for e in rec["entities"] if e["major"]]
+    reply = generate(fact_prompt(unit, names, majors, roster["predicates"]), FACT_SCHEMA, "facts", ctx=ctx)
     name_set = set(names)
     seen_facts = set()
     for f in (reply or {}).get("facts", []):
@@ -853,38 +858,43 @@ def derive_unit(doc, unit, roster, previous_summary, ctx):
                              "valid_to": stated_date(f.get("valid_to"), quote),
                              "author": author, "voice_ambiguous": ambiguous, "tier": LUNA})
 
-    # 3. summary and cells, one call, for the entities with a fact in this unit
+    # 3. summary and cells, one call, for the unit's major entities (the model's salience call,
+    #    as the demo did); the entities with a fact are counted beside them as a diagnostic
     with_fact = []
     for name in names:
         for f in rec["facts"]:
             if f["subject"] == name or (f["object_is_entity"] and f["object"] == name):
                 with_fact.append(name)
                 break
-    reply = generate(cells_prompt(unit, with_fact or names[:1], previous_summary), CELLS_SCHEMA, "cells", ctx=ctx)
+    reply = generate(cells_prompt(unit, majors, previous_summary), CELLS_SCHEMA, "cells", ctx=ctx)
     if reply:
         rec["summary"] = " ".join(reply["summary"].split())
         for c in reply["cells"]:
-            if c["entity"] in with_fact and c["text"].strip():
+            if c["entity"] in majors and c["text"].strip():
                 rec["cells"].append({"entity": c["entity"], "text": " ".join(c["text"].split())})
             else:
-                rec["dropped_cells"].append({"entity": c["entity"], "why": "not an above-threshold entity"})
-        rec["agreement"] = agreement(rec, with_fact)
+                rec["dropped_cells"].append({"entity": c["entity"], "why": "not a major entity of this unit"})
+        rec["agreement"] = agreement(rec, majors, with_fact)
     rec["empty"] = not rec["facts"] and not rec["cells"]
     return rec
 
 
-def agreement(rec, with_fact):
-    """Which above-threshold entities the unit summary names, against which got a cell."""
+def agreement(rec, majors, with_fact):
+    """Which unit-majors the summary names, against which got a cell; and how the model's
+    salience call compares with the entities that have a fact in the unit."""
     summary = rec["summary"].casefold()
     forms_of = {e["name"]: e["forms"] for e in rec["entities"]}
     named = []
-    for name in with_fact:
+    for name in majors:
         if any(whole_word(form.casefold(), summary) for form in forms_of[name]):
             named.append(name)
     celled = {c["entity"] for c in rec["cells"]}
-    return {"above_threshold": len(with_fact), "cells": len(celled), "named_in_summary": len(named),
+    return {"majors": len(majors), "cells": len(celled), "named_in_summary": len(named),
             "in_summary_without_cell": sorted(set(named) - celled),
-            "cell_without_summary_name": sorted(celled - set(named))}
+            "cell_without_summary_name": sorted(celled - set(named)),
+            "with_fact": len(with_fact),
+            "major_without_fact": sorted(set(majors) - set(with_fact)),
+            "fact_but_minor": sorted(set(with_fact) - set(majors))}
 
 
 def stated_date(value, quote):
@@ -947,18 +957,19 @@ def advance_roster(roster, rec):
     roster["predicates"] = sorted(roster["predicate_counts"], key=roster["predicate_counts"].get, reverse=True)
 
 # %%
-# Block 8: reconcile the document's unit-local entities into document entities.
+# Block 8: reconcile the document's unit-local entities into document entities, bottom up, as
+# the demo did.
 #
-# Every local starts alone. A declared continuation of a named entity, or two units using the
-# same proper name, unites without a judge; every other candidate pair is scored on name,
-# co-occurrence and profile, each logged separately; the ambiguous band goes to the judge,
-# ten pairs a call, every cluster's dossier sent once. Every decision is a ledger row with its
-# evidence, so a merge can be measured and revoked. An unnamed role ("the boy") is never
-# united on its name alone, and nothing crosses a partition except a proper name or a declared
-# continuation.
+# Every local starts alone. A declared continuation of a named entity unites without a judge
+# (the roster's declared reuse). Every other candidate pair, nominated by a shared name or
+# surface form, a fact stating one is the other, or a shared name word, and involving at least
+# one unit-major, goes to the judge, strongest first, ten pairs a call, every cluster's dossier
+# sent once; an unsure verdict is deferred and judged once more against the finished clusters,
+# where unsure means apart. The name, co-occurrence and profile scores are computed and logged
+# for every pair but decide nothing. Every decision is a ledger row with its evidence. Nothing
+# crosses a partition except a proper name or a declared continuation.
 import difflib
 
-HIGH, LOW = 0.85, 0.35        # combined score: at or above HIGH unite, below LOW stay apart, between: judge
 
 
 def name_score(a, b):
@@ -1009,7 +1020,8 @@ def locals_of(records):
         for e in rec["entities"]:
             facts = facts_of.get(e["name"], [])
             out.append({"id": len(out), "ui": rec["position"], "unit_id": rec["unit_id"], "name": e["name"],
-                        "partition": rec["partition"], "kind": e["kind"], "named": e["named"], "continues": e["continues"],
+                        "partition": rec["partition"], "kind": e["kind"], "named": e["named"], "major": e["major"],
+                        "continues": e["continues"],
                         "forms": list(dict.fromkeys(e["forms"] + [e["name"]])),
                         "surfaces": {s.casefold() for s in e["forms"]} | {e["name"].casefold()},
                         "is_a": [f["object"] for f in facts if f["predicate"] == "is_a"],
@@ -1048,8 +1060,11 @@ def score_pair(a, b, reason):
     return name, cooc, profile, combined
 
 
-def combined_of(item):
-    return -item[1][3]
+TIER = {"declared": 1.0, "shared_surface": 1.0, "is_a_link": 0.85, "shared_word": 0.5}   # the demo's nomination strengths
+
+
+def tier_of(item):
+    return -item[1][0]
 
 
 def unit_of_local(l):
@@ -1100,41 +1115,32 @@ def reconcile(doc, records, ctx):
             unite(named[-1]["id"], l["id"], "declared", f"unit {l['ui']} continued {l['continues']!r}")
         elif earlier:
             row(earlier[-1]["id"], l["id"], "candidate", "declared", f"unit {l['ui']} continued the unnamed {l['continues']!r}; scored instead")
-    for group in by_name.values():
-        for a, b in zip(group, group[1:]):
-            if a["named"] and b["named"] and find(a["id"]) != find(b["id"]):
-                across = "" if a["partition"] == b["partition"] else f", across {a['partition']} and {b['partition']}"
-                unite(a["id"], b["id"], "same_name", f"{a['name']!r} in units {a['ui']} and {b['ui']}{across}")
 
-    # 2. every other candidate pair inside a partition, scored
+    # 2. candidate pairs, the demo's way: different units, at least one unit-major, nominated by
+    #    a shared surface (1.0), a fact stating one is the other (0.85), or a shared name word
+    #    (0.5); inside one partition, unless both carry the same proper name
     pairs = {}
     for a in locals_:
         for b in locals_:
-            if a["id"] >= b["id"] or a["ui"] == b["ui"] or a["partition"] != b["partition"]:
+            if a["id"] >= b["id"] or a["ui"] == b["ui"] or find(a["id"]) == find(b["id"]):
                 continue
-            if find(a["id"]) == find(b["id"]):
+            if not (a["major"] or b["major"]):
+                continue
+            same_proper_name = a["named"] and b["named"] and norm(a["name"]) == norm(b["name"])
+            if a["partition"] != b["partition"] and not same_proper_name:
                 continue
             reason = candidate_reason(a, b)
             if reason is None or anchored(a, b) or anchored(b, a):
                 continue
-            pairs[(a["id"], b["id"])] = score_pair(a, b, reason)
+            pairs[(a["id"], b["id"])] = (TIER[reason], reason, score_pair(a, b, reason))
     to_judge = []
-    for (i, j), (name, cooc, profile, combined) in sorted(pairs.items(), key=combined_of):
-        if combined >= HIGH:
-            decision = "unite"
-        elif combined < LOW:
-            decision = "apart"
-        else:
-            decision = "judge"
+    for (i, j), (tier, reason, (name, cooc, profile, combined)) in sorted(pairs.items(), key=tier_of):
         candidates.append({"a": locals_[i]["name"], "a_unit": locals_[i]["ui"], "b": locals_[j]["name"], "b_unit": locals_[j]["ui"],
-                           "name_score": round(name, 3), "cooc_score": round(cooc, 3), "profile_score": round(profile, 3),
-                           "combined": round(combined, 3), "threshold": [LOW, HIGH], "decision": decision})
-        if decision == "unite":
-            unite(i, j, "scored", f"combined {combined:.2f}")
-        elif decision == "judge":
-            to_judge.append((i, j))
+                           "tier": tier, "reason": reason, "name_score": round(name, 3), "cooc_score": round(cooc, 3),
+                           "profile_score": round(profile, 3), "combined": round(combined, 3), "decision": "judge"})
+        to_judge.append((i, j))
 
-    # 3. the judge, on the ambiguous band, strongest first, each dossier sent once per call
+    # 3. the judge, strongest pairs first, each dossier sent once per call; unsure is deferred
     def members(root):
         return [l for l in locals_ if find(l["id"]) == root]
 
@@ -1157,18 +1163,10 @@ def reconcile(doc, records, ctx):
                 return True
         return False
 
-    k = 0
-    while k < len(to_judge):
-        batch, keys = [], set()
-        while k < len(to_judge) and len(batch) < 10:
-            ra, rb = find(to_judge[k][0]), find(to_judge[k][1])
-            k += 1
-            key = frozenset((ra, rb))
-            if ra != rb and key not in keys and not ruled_apart(ra, rb):
-                batch.append((ra, rb))
-                keys.add(key)
-        if not batch:
-            continue
+    deferred = []
+
+    def judge(batch):
+        """One call over up to ten pairs of cluster roots; the verdicts in batch order."""
         roots = sorted({r for pair in batch for r in pair})
         number = {r: n for n, r in enumerate(roots, 1)}
         prompt = (JUDGE_PROMPT + "\nDOSSIERS\n" + "\n\n".join(f"[{number[r]}]\n{dossier(r)}" for r in roots)
@@ -1180,13 +1178,44 @@ def reconcile(doc, records, ctx):
                 verdicts[int(v["pair"]) - 1] = (v["verdict"], v.get("reason", ""))
             except (TypeError, ValueError):
                 pass
+        return verdicts
+
+    def decide(batch, verdicts, final):
         for n, (ra, rb) in enumerate(batch):
             verdict, reason = verdicts.get(n, ("unsure", "no verdict returned"))
             if verdict == "same":
                 unite(ra, rb, "judged", reason)
-            else:
+            elif verdict == "different" or final:
                 kept_apart.append((ra, rb))
+                row(ra, rb, verdict, "judged again" if final else "judged", reason)
+            else:
+                deferred.append((ra, rb))
                 row(ra, rb, verdict, "judged", reason)
+
+    k = 0
+    while k < len(to_judge):
+        batch, keys = [], set()
+        while k < len(to_judge) and len(batch) < 10:
+            ra, rb = find(to_judge[k][0]), find(to_judge[k][1])
+            k += 1
+            key = frozenset((ra, rb))
+            if ra != rb and key not in keys and not ruled_apart(ra, rb):
+                batch.append((ra, rb))
+                keys.add(key)
+        if batch:
+            decide(batch, judge(batch), final=False)
+
+    # deferred pairs get one last look against the finished clusters; the default is to stay split
+    final, seen = [], set()
+    for a, b in deferred:
+        ra, rb = find(a), find(b)
+        key = frozenset((ra, rb))
+        if ra != rb and key not in seen and not ruled_apart(ra, rb):
+            final.append((ra, rb))
+            seen.add(key)
+    for start in range(0, len(final), 10):
+        batch = final[start:start + 10]
+        decide(batch, judge(batch), final=True)
 
     # 4. the document entities, one per cluster
     clusters = {}
@@ -1225,7 +1254,7 @@ def reconcile(doc, records, ctx):
 # embedding and their own abstract with children_hash.
 
 
-def fold(what, children, ctx, stage="fold", model=LUNA, allowed=None):
+def fold(what, children, ctx, stage="fold", model=TERRA, allowed=None):
     """(text, missing names, limit); text is None when the fold was rejected twice. `allowed`
     are names the prompt itself supplies (the entity being summarised), which count as present."""
     child_words = sum(word_count(c) for c in children)
@@ -1592,8 +1621,8 @@ def show_unit(rec, unit, diag, unit_cost, total_cost):
     if diag.get("entities"):
         for e in rec["entities"]:
             continues = f"= {e['continues'][:24]}" if e["continues"] else ""
-            print(f"    {e['name'][:34]:<34} {e['kind'][:9]:<9} {'named' if e['named'] else 'unnamed':<8} x{e['mentions']:<3}"
-                  f" {continues:<27} forms: {' | '.join(e['forms'][:4])[:60]}")
+            print(f"    {e['name'][:34]:<34} {e['kind'][:9]:<9} {'named' if e['named'] else 'unnamed':<8}"
+                  f" {'major' if e['major'] else 'minor':<6} x{e['mentions']:<3} {continues:<27} forms: {' | '.join(e['forms'][:4])[:60]}")
         for d in rec["dropped_entities"]:
             print(f"    DROPPED {d['name'][:34]}: {d['why']} {d['forms'][:3]}")
     if diag.get("facts"):
@@ -1610,8 +1639,10 @@ def show_unit(rec, unit, diag, unit_cost, total_cost):
             print(f"    [{c['entity']}] {c['text']}")
         a = rec["agreement"]
         if a:
-            print(f"    agreement: {a['above_threshold']} above threshold, {a['cells']} cells, {a['named_in_summary']} named in the summary;"
+            print(f"    agreement: {a['majors']} major, {a['cells']} cells, {a['named_in_summary']} named in the summary;"
                   f" in summary without a cell {a['in_summary_without_cell']}; cell not named in summary {a['cell_without_summary_name']}")
+            print(f"    salience vs facts: {a['with_fact']} entities with a fact; major without a fact {a['major_without_fact']};"
+                  f" fact but minor {a['fact_but_minor']}")
 
 
 def show_reconcile(entities, ledger, candidates, n_locals, n_pairs, n_judged, diag):
