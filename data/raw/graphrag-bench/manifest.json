@@ -1,0 +1,113 @@
+{
+  "corpus_id": "graphrag-bench",
+  "license": "MIT",
+  "source_url": "https://github.com/GraphRAG-Bench/GraphRAG-Benchmark",
+  "unpacked_from": {
+    "file": "novel.json",
+    "bytes": 4848282,
+    "sha256": "b0b4b2e7dc1b5d72f774783130d08b5d62e922fa9dc3e58612154b78b6089d15"
+  },
+  "built": "2026-09-04",
+  "files": [
+    {
+      "file": "Novel-30752.txt",
+      "bytes": 168274,
+      "sha256": "e055b21f06ac8a0a9e97a5261347b7a070518f3fbc4f22dc07cda2e07ee54425"
+    },
+    {
+      "file": "Novel-51410.txt",
+      "bytes": 337866,
+      "sha256": "20da5195cf148eb614cb67099a3250b8282b9ef6b3c6e95aef5759f8cfb45575"
+    },
+    {
+      "file": "Novel-58553.txt",
+      "bytes": 193098,
+      "sha256": "fc9cc65f5f9f7c54f8c8ff34ee8e68ef28dbd86a7062c8bffc55d39d3fcb73d9"
+    },
+    {
+      "file": "Novel-10762.txt",
+      "bytes": 342668,
+      "sha256": "0ea3357a0110303462ff0dc2138b423bd07a6a38483dfd87ac8ab346973721d0"
+    },
+    {
+      "file": "Novel-26183.txt",
+      "bytes": 458552,
+      "sha256": "bdfa4e9c43b7f5a9636bad56747d781f8fe7a456293d48b023880c6d09504c89"
+    },
+    {
+      "file": "Novel-29973.txt",
+      "bytes": 164036,
+      "sha256": "6691eca8e83e4e6e19dbac619a535b7f722c46d632ee5a67da18eedb637e7942"
+    },
+    {
+      "file": "Novel-10146.txt",
+      "bytes": 244216,
+      "sha256": "58555013e79eefec6095e8f2e4b138a47e8ebb27ebce08fcf6e9f4b3ba366446"
+    },
+    {
+      "file": "Novel-47676.txt",
+      "bytes": 304564,
+      "sha256": "ff8c65207d9c1c240b8bfad02bf46430a3d7220468f37e0a03131cbdd62c329a"
+    },
+    {
+      "file": "Novel-10321.txt",
+      "bytes": 316622,
+      "sha256": "510668d518cbd2b1dc7e8bf4cb5dfccf5e17969fb94bcef2787ffdcb542f9458"
+    },
+    {
+      "file": "Novel-8559.txt",
+      "bytes": 225822,
+      "sha256": "ee020f7c74f76105b551e66c43dbeeab76fadb80c4c67a2dd74baf1798ba18d1"
+    },
+    {
+      "file": "Novel-47558.txt",
+      "bytes": 144666,
+      "sha256": "dd34bb521def0203e53aca7844857e78065c3ca98e94553faefed56ca626248d"
+    },
+    {
+      "file": "Novel-25646.txt",
+      "bytes": 99076,
+      "sha256": "aa9e574fca0f1ac2ab9c9652cb575712472777f04bb1b45cac2561f1d85d8323"
+    },
+    {
+      "file": "Novel-5956.txt",
+      "bytes": 255527,
+      "sha256": "e55d21ffe8f78b11eea8c5c748547df525883026867ece9da72112d3ecdff516"
+    },
+    {
+      "file": "Novel-2544.txt",
+      "bytes": 344399,
+      "sha256": "d7c50b35e72f2b84612e06ce5652d51e4a1a5de2040534864dcf937c95a003d3"
+    },
+    {
+      "file": "Novel-41603.txt",
+      "bytes": 267307,
+      "sha256": "568ca14f060be1902a342fa32aa4e314ef53aa7d8c3fe475363d52647b97a4d6"
+    },
+    {
+      "file": "Novel-54537.txt",
+      "bytes": 190834,
+      "sha256": "3b238ed5c7c9d0a75bcb974c0e9a37d317c1853959921af0a6dc47a0736084d3"
+    },
+    {
+      "file": "Novel-10356.txt",
+      "bytes": 308774,
+      "sha256": "a41c45cced82062e2ddf447b18c43e6610d5efea095eb00248d2f8e4cd6d9cf1"
+    },
+    {
+      "file": "Novel-40700.txt",
+      "bytes": 137923,
+      "sha256": "0bca99c5181a39e75d3c616073d7e9d09df57b883784ccd13c66b09aa7e7d4db"
+    },
+    {
+      "file": "Novel-4128.txt",
+      "bytes": 92796,
+      "sha256": "4294e8a5b93cc3b2eb1364d7f288a34847293c77386968b3beffa9f1ea1acc00"
+    },
+    {
+      "file": "Novel-44557.txt",
+      "bytes": 237566,
+      "sha256": "250419ae38c9e6f8bc3210a580904100d2e3d56e7941e73567de8bd392749057"
+    }
+  ]
+}

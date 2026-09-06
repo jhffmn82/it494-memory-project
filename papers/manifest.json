@@ -1,0 +1,1001 @@
+{
+  "corpus_id": "papers",
+  "license": "per paper, unrecorded; private dataset, not redistributed",
+  "built": "2026-09-04",
+  "files": [
+    {
+      "file": "affilkg-2026.pdf",
+      "bytes": 1168279,
+      "sha256": "b4b683f3981268847129e077699aad66640141cd90447f31bf42ac105d7f938d",
+      "source_url": "https://arxiv.org/pdf/2505.10798",
+      "note": "OK (1140 KB) | https://arxiv.org/pdf/2505.10798 | LREC 2026. Book scans plus OCR text paired with labelled KGs"
+    },
+    {
+      "file": "agent-native-memory-2026.pdf",
+      "bytes": 1791814,
+      "sha256": "6cad9bfcded2f1801c09049daa716a33e570cc407ddfbe40f32d3aa850361d85",
+      "source_url": "https://arxiv.org/pdf/2606.24775",
+      "note": "OK (1749 KB) | https://arxiv.org/pdf/2606.24775 | 12 systems, 11 datasets; occupies requirements-plus-coverage"
+    },
+    {
+      "file": "agentchaos-2026.pdf",
+      "bytes": 1309601,
+      "sha256": "46a387f3af14fe0480f05014625b272af158f3ace97c7f40a01c681ac70d7990",
+      "source_url": "https://arxiv.org/pdf/2608.06790",
+      "note": "OK (1278 KB) | https://arxiv.org/pdf/2608.06790 | ASE 2026. Fault injection for agent systems"
+    },
+    {
+      "file": "agentchaosbench-2026.pdf",
+      "bytes": 495230,
+      "sha256": "37ddffec2ac4f0e480253ebbcb58c15b85a3cd13292927b1585859efd175fd94",
+      "source_url": "https://arxiv.org/pdf/2608.14680",
+      "note": "OK (483 KB) | https://arxiv.org/pdf/2608.14680 | Ten operational fault types, 275 traces"
+    },
+    {
+      "file": "ama-bench-2026.pdf",
+      "bytes": 6166691,
+      "sha256": "2bb21d3d335839da888c8f16543065d4964cf09b5ca2b39d92e80655bd8b7611",
+      "source_url": "https://arxiv.org/pdf/2602.22769",
+      "note": "OK (6022 KB) | https://arxiv.org/pdf/2602.22769 | Cross-substrate ranking flip"
+    },
+    {
+      "file": "angles2017-graph-query-foundations.pdf",
+      "bytes": 586578,
+      "sha256": "093c67dc89ec5010b89fe6d7395913895e43ff4bf0ff2c472d9ea0e049132eae",
+      "source_url": "https://arxiv.org/pdf/1610.06264",
+      "note": "cached | https://arxiv.org/pdf/1610.06264 | ACM CSUR 50(5), preprint"
+    },
+    {
+      "file": "angles2018-property-graph-model.pdf",
+      "bytes": 680900,
+      "sha256": "f9450e9dcbf2781ae7318bc3b5721a86848a7da76e97f02f5926e04df84bc84c",
+      "source_url": null,
+      "note": "\u2014 | AMW 2018 (**UNCONFIRMED** \u2014 venue not stated in PDF) | The Property Graph Database Model | Renzo Angles"
+    },
+    {
+      "file": "artstein2008-intercoder-agreement.pdf",
+      "bytes": 291595,
+      "sha256": "1729af43712921de3857555972c6a3376d66bcba2474f81a32cddf4f98aef058",
+      "source_url": null,
+      "note": "\u2014 | Computational Linguistics 34(4), 2008 | Inter-Coder Agreement for Computational Linguistics | Ron Artstein, Massimo Poesio"
+    },
+    {
+      "file": "as-we-may-search-2026.pdf",
+      "bytes": 1347270,
+      "sha256": "29ead9bc2c2b9be003dd46a46f761025e646b6696a8b5be48e4a5be87f12c61b",
+      "source_url": "https://arxiv.org/pdf/2606.29652",
+      "note": "OK (1315 KB) | https://arxiv.org/pdf/2606.29652 | ICTIR 2026. OCCUPIES the local-first thesis; 1K-1M sweep, exact vs HNSW vs IVF"
+    },
+    {
+      "file": "bai2025-autoschemakg.pdf",
+      "bytes": 671648,
+      "sha256": "2458f88afb84deb945561d2280d1aba11285ee0015cf6b9a93689034689a6a09",
+      "source_url": "https://arxiv.org/pdf/2505.23628",
+      "note": "2505.23628 | 2025-05 | AutoSchemaKG: Autonomous Knowledge Graph Construction through Dynamic Schema Induction from Web-Scale Corpora"
+    },
+    {
+      "file": "balog2019-personal-kg-agenda.pdf",
+      "bytes": 381152,
+      "sha256": "0f32fae6a779af27baedb4dbe6e64965da5b7f383565d3fdd44ef8a19dcf29d4",
+      "source_url": null,
+      "note": "\u2014 | ICTIR 2019 (DOI:10.1145/3341981.3344241) | Personal Knowledge Graphs: A Research Agenda | Krisztian Balog, Tom Kenter"
+    },
+    {
+      "file": "bhattacharya-getoor-2007-collective-er.pdf",
+      "bytes": 354438,
+      "sha256": "297a0cdc7cfe657b6545bc74dc62fd296b1ce38ceed0f07824c0d060e6886198",
+      "source_url": "https://linqs.org/assets/resources/bhattacharya-tkdd07.pdf",
+      "note": "OK | https://linqs.org/assets/resources/bhattacharya-tkdd07.pdf | TKDD 1(1) art.5. THE collective ER paper. Attribute->collective F1 0.980->0.995 CiteSeer, 0.568->0.819 BioBase. Transitive closure HURTS BioBase 0.568->0.559. Admits merges cannot be undone"
+    },
+    {
+      "file": "bian2025-llm-kg-construction-survey.pdf",
+      "bytes": 929331,
+      "sha256": "15ee9247f9042f177a9e516338a77d3209ed0118a907940805adc8087501d7b2",
+      "source_url": "https://arxiv.org/pdf/2510.20345",
+      "note": "2510.20345 | 2025-10 | LLM-empowered knowledge graph construction: A survey"
+    },
+    {
+      "file": "bookcoref-2025.pdf",
+      "bytes": 819614,
+      "sha256": "1497361493cc761f22dd35369b79211855187a66a9c3cbebaa0041b17aad279e",
+      "source_url": "https://arxiv.org/pdf/2507.12075",
+      "note": "OK (800 KB) | https://arxiv.org/pdf/2507.12075 | ACL 2025. Book-scale coreference, no relations"
+    },
+    {
+      "file": "cai2024-temporal-kg-survey.pdf",
+      "bytes": 782084,
+      "sha256": "c79c70ec68072e20f50927593584794cdbc5c9ba4ed4fadfbb9a8fc2346600ea",
+      "source_url": "https://arxiv.org/pdf/2403.04782",
+      "note": "2403.04782 | arXiv | A Survey on Temporal Knowledge Graph: Representation Learning and Applications | Li Cai, Xin Mao, et al."
+    },
+    {
+      "file": "cai2026-proactagent.pdf",
+      "bytes": 14700519,
+      "sha256": "faba4df3579f60a23c6993a407b1c648b09bad9ec686b9f2e793cde8726ec685",
+      "source_url": "https://arxiv.org/pdf/2604.20572",
+      "note": "2604.20572 | 2026-04 | Ask Only When Needed: Proactive Retrieval from Memory and Skills for Experience-Driven Lifelong Agents"
+    },
+    {
+      "file": "cam-2025.pdf",
+      "bytes": 631576,
+      "sha256": "9d7676e11b5c63f46c3d71402c67d0e59c97d1ec00550945030d5f3930e25ff3",
+      "source_url": "https://arxiv.org/pdf/2510.05520",
+      "note": "OK (616 KB) | https://arxiv.org/pdf/2510.05520 | NeurIPS 2025. Incremental overlapping clustering; killed covering-vs-partition"
+    },
+    {
+      "file": "caufield2024-spires.pdf",
+      "bytes": 2743015,
+      "sha256": "2de0afde5b966174ca52909332681422507d9c6559bc25f9186e26d5940bd685",
+      "source_url": "https://arxiv.org/pdf/2304.02711",
+      "note": "2304.02711 | arXiv; pub. Bioinformatics 2024 (**UNCONFIRMED** \u2014 journal not stated in PDF) | Structured Prompt Interrogation and Recursive Extraction of Semantics (SPIRES): A Method for Populating Knowledge Bases Using Zero-shot Learning | J. Harry Caufield, Harshad Hegde, et al."
+    },
+    {
+      "file": "chan2025-cag.pdf",
+      "bytes": 137492,
+      "sha256": "de83db84c31b017ca2b82f5f50cf61b7d327e8ea3d7441c4448a4adf4608af0c",
+      "source_url": "https://arxiv.org/pdf/2412.15605",
+      "note": "cached | https://arxiv.org/pdf/2412.15605 | WWW 2025"
+    },
+    {
+      "file": "chang2024-booookscore.pdf",
+      "bytes": 676186,
+      "sha256": "ca51ad7f7c11db914e92a0416866b8a13920650e547e190dd5f3c3e40f01f5cb",
+      "source_url": "https://arxiv.org/pdf/2310.00785",
+      "note": "cached | https://arxiv.org/pdf/2310.00785 | ICLR 2024"
+    },
+    {
+      "file": "chen2023-frugalgpt.pdf",
+      "bytes": 1171365,
+      "sha256": "035ae8b90333dad8b7817fc8f55e7c4cbca435368c5c1a4dbf7bba9e5db87473",
+      "source_url": "https://arxiv.org/pdf/2305.05176",
+      "note": "2305.05176 | arXiv | FrugalGPT: How to Use Large Language Models While Reducing Cost and Improving Performance | Lingjiao Chen, Matei Zaharia, James Zou"
+    },
+    {
+      "file": "chen2026-vitabench2.pdf",
+      "bytes": 5572040,
+      "sha256": "33078d7ce484da8d4e90a5d4fc56328b1e1aad8518959dcf26f9bd0d9f44ee2d",
+      "source_url": "https://arxiv.org/pdf/2605.27141",
+      "note": "2605.27141 | 2026-05 | VitaBench 2.0: Evaluating Personalized and Proactive Agents in Long-Term User Interactions"
+    },
+    {
+      "file": "corekg-2025.pdf",
+      "bytes": 2697926,
+      "sha256": "efa649adbbac9a4c1e582e4b68fe808d05a9a40d82f484fff2aa9b86eb5e84c5",
+      "source_url": "https://arxiv.org/pdf/2506.21607",
+      "note": "OK (2634 KB) | https://arxiv.org/pdf/2506.21607 | ICDM 2025. NO ablation (word appears 0 times). Between-systems vs a GraphRAG baseline, 20 legal cases: node duplication 30.38->20.27, legal noise 27.41->16.89. Body says 33.28% relative, appendix says 33.58%"
+    },
+    {
+      "file": "coser-2025.pdf",
+      "bytes": 16007073,
+      "sha256": "523f30645efad7e62e1a5cac8b02d58df4020015ea052644aa955616040054a7",
+      "source_url": "https://arxiv.org/pdf/2502.09082",
+      "note": "OK (15631 KB) | https://arxiv.org/pdf/2502.09082 | ICML 2025. 771 books, alias-to-canonical character mappings"
+    },
+    {
+      "file": "cross-scenario-generality-2026.pdf",
+      "bytes": 441368,
+      "sha256": "6d06d87e1d53b8745dac9e8ddc45ace6b6921e30c8b87f80154a3a2996511000",
+      "source_url": "https://arxiv.org/pdf/2606.04315",
+      "note": "OK (431 KB) | https://arxiv.org/pdf/2606.04315 | Winning on one scenario does not imply winning on others"
+    },
+    {
+      "file": "dasgupta2026-pkg-triple-extraction.pdf",
+      "bytes": 856435,
+      "sha256": "c94dab9e59e4f7935b27360b7e8027f63f6727d9b2189d0fea7917717f3d32ca",
+      "source_url": "https://arxiv.org/pdf/2607.00003",
+      "note": "2607.00003 | 2026-04 | From \"Strings\" to \"Things\" for Personal Knowledge Graphs: Evaluating LLM Triple Extraction for Recommendation Systems"
+    },
+    {
+      "file": "deeptype-2018.pdf",
+      "bytes": 2245658,
+      "sha256": "c9536189af978812d114f96921e2f4bc17829481aa8a89f07d45aebf99e0db5e",
+      "source_url": "https://arxiv.org/pdf/1802.01021",
+      "note": "OK | https://arxiv.org/pdf/1802.01021 | AAAI 2018. THE argument for type signals: oracle types give 99.0 CoNLL / 98.6 TAC KBP 2010. Non-oracle table did not extract cleanly, do not quote it"
+    },
+    {
+      "file": "deraedt2023-idas.pdf",
+      "bytes": 998866,
+      "sha256": "34a1ed9918cce69c3e4798086362ec9e9b568958c969e7b750e4f6b191efc54c",
+      "source_url": "https://aclanthology.org/2023.nlp4convai-1.7.pdf",
+      "note": "cached | https://aclanthology.org/2023.nlp4convai-1.7.pdf | ACL Anthology"
+    },
+    {
+      "file": "dong2005-reference-reconciliation.pdf",
+      "bytes": 210450,
+      "sha256": "14b867353828c7cb6451b84a13044d6f4cec378ecdfa082150806bd7bdc9f839",
+      "source_url": "https://lunadong.com/publication/reconciliation_sigmod.pdf",
+      "note": "OK | https://lunadong.com/publication/reconciliation_sigmod.pdf | SIGMOD 2005 pp.85-96. CLOSEST PRIOR ART to our matcher: associations, propagation over a dependency graph, reference enrichment. Domain was personal desktop data"
+    },
+    {
+      "file": "douze2024-faiss.pdf",
+      "bytes": 1519889,
+      "sha256": "05ba27c5898d7f882f6e021d18623bd4a670bc525c3370f80ef5ae303b11bc3b",
+      "source_url": "https://arxiv.org/pdf/2401.08281",
+      "note": "cached | https://arxiv.org/pdf/2401.08281 | arXiv"
+    },
+    {
+      "file": "edge2024-graphrag.pdf",
+      "bytes": 6893854,
+      "sha256": "730f1a9f38d16689900969a3eeeb1b31e45eda1dcc1f37a043afa90aff76c867",
+      "source_url": "https://arxiv.org/pdf/2404.16130",
+      "note": "cached | https://arxiv.org/pdf/2404.16130 | Microsoft Research"
+    },
+    {
+      "file": "elite-2025.pdf",
+      "bytes": 1225079,
+      "sha256": "d5ebe1e73d2abe62adc0ad3bdba9a1ca18d294752c45b2d25f9dff34fd0f71ee",
+      "source_url": "https://arxiv.org/pdf/2505.11908",
+      "note": "OK (1196 KB) | https://arxiv.org/pdf/2505.11908 | Discards embeddings AND graph construction"
+    },
+    {
+      "file": "engram-2026.pdf",
+      "bytes": 642046,
+      "sha256": "4c06552be1681e97d72a41efdb106e0b8316ae494ed984d9c8707ab968f595fa",
+      "source_url": "https://arxiv.org/pdf/2606.09900",
+      "note": "OK (626 KB) | https://arxiv.org/pdf/2606.09900 | arXiv comments field names no venue; do not cite a venue for it"
+    },
+    {
+      "file": "entity-collision-2026.pdf",
+      "bytes": 596279,
+      "sha256": "24444f450341f904dcd38010a26b7945f11c10825861cdd82967ba3c60c7e242",
+      "source_url": "https://arxiv.org/pdf/2605.29630",
+      "note": "OK | https://arxiv.org/pdf/2605.29630 | Stratified protocol for ATTRIBUTING RETRIEVAL LIFT in agent memory. Unread; directly relevant to how the ablation is designed"
+    },
+    {
+      "file": "er-in-practice-2026.pdf",
+      "bytes": 260130,
+      "sha256": "1fc1f4b0c0504b76116eb9a7667a5afe3222ebbfd9c0afda293ba454127a266f",
+      "source_url": "https://arxiv.org/pdf/2607.26298",
+      "note": "OK | https://arxiv.org/pdf/2607.26298 | Walmart. CONTRADICTS our soft-veto choice: transitivity took MusicBrainz-200K Pair-F1 0.540->0.000. Above 0.9 precision safe, below 0.5 mega-clusters. Cite against ourselves"
+    },
+    {
+      "file": "errors-become-narratives-2026.pdf",
+      "bytes": 398542,
+      "sha256": "80bf80cbcd4e5f90c3d77b82ac546d5b6cbdcd9716a5b1c2206ae46fadc3c68d",
+      "source_url": "https://arxiv.org/pdf/2606.14589",
+      "note": "OK (389 KB) | https://arxiv.org/pdf/2606.14589 | Single personal-assistant runtime; ~70% of silent failures caught by humans"
+    },
+    {
+      "file": "factnet-2026.pdf",
+      "bytes": 2005325,
+      "sha256": "1e17dc432e1aeac4a775c2f43b94ce8d46c7134e8794b46a503e10b937e56f6e",
+      "source_url": "https://arxiv.org/pdf/2602.03417",
+      "note": "OK | https://arxiv.org/pdf/2602.03417 | Billion-scale KG. False-merge rates 0.005 strict / 0.017 relaxed, n=1000 each. STATEMENT merges, not entity merges. Machine-readable merge_reason"
+    },
+    {
+      "file": "fu2026-enpmr-bench.pdf",
+      "bytes": 2252348,
+      "sha256": "fa95d5beb2f99a741a26c1adc6ee99ee7f9bad63855005b0b680385539fdfb05",
+      "source_url": "https://arxiv.org/pdf/2605.27240",
+      "note": "2605.27240 | 2026-05 | ENPMR-Bench: Benchmarking Proactive Memory Retrieval for Emotional Support Agents"
+    },
+    {
+      "file": "geng2023-grammar-constrained.pdf",
+      "bytes": 1566937,
+      "sha256": "38372e463f8b7142390bd15bcf57dbbac65fc330c693b125d250153e585a1b61",
+      "source_url": null,
+      "note": "\u2014 | EMNLP 2023 | Grammar-Constrained Decoding for Structured NLP Tasks without Finetuning | Saibo Geng, Martin Josifoski, Maxime Peyrard, Robert West"
+    },
+    {
+      "file": "ghalandari2020-tls-survey.pdf",
+      "bytes": 345502,
+      "sha256": "ff6143c33c883bd7cf275f47fd19ca80c0d41fa9f1a911c57b9d73e5e6ac93a9",
+      "source_url": "https://arxiv.org/pdf/2005.10107",
+      "note": "2005.10107 | 2020-05 | Examining the State-of-the-Art in News Timeline Summarization"
+    },
+    {
+      "file": "graphrag-bench-2025.pdf",
+      "bytes": 31150461,
+      "sha256": "616fdaafce36cbca0d03be044ce554db9a34ffd97c753cc3662d45ce9531cafa",
+      "source_url": "https://arxiv.org/pdf/2506.05690",
+      "note": "OK (30420 KB) | https://arxiv.org/pdf/2506.05690 | When graphs help: reasoning 53.4 vs 42.9, summarization 64.4 vs 51.3"
+    },
+    {
+      "file": "gung2023-dstc11-intent.pdf",
+      "bytes": 687922,
+      "sha256": "e63d44cc3c659386b06501a566523e611b50a8ad900578fdf529b2e4ef486518",
+      "source_url": "https://arxiv.org/pdf/2304.12982",
+      "note": "cached | https://arxiv.org/pdf/2304.12982 | SIGDIAL 2023"
+    },
+    {
+      "file": "hearst1997-texttiling.pdf",
+      "bytes": 2460492,
+      "sha256": "4f1872c2eb7a2cf2f66554a394c42761ae046a5c6d6a20924ce5af89d2cb3123",
+      "source_url": null,
+      "note": "\u2014 | Computational Linguistics 23(1), 1997 | TextTiling: Segmenting Text into Multi-paragraph Subtopic Passages | Marti A. Hearst"
+    },
+    {
+      "file": "hernandez2015-reifying-rdf-wikidata.pdf",
+      "bytes": 754986,
+      "sha256": "bdb48c9604328ff49ac908c5e2cc24571e48427b9456e4bdfaeead394b6db93a",
+      "source_url": null,
+      "note": "\u2014 | SSWS workshop @ ISWC 2015 (**UNCONFIRMED** \u2014 venue not stated in PDF) | Reifying RDF: What Works Well With Wikidata? | Daniel Hern\u00e1ndez, Aidan Hogan, Markus Kr\u00f6tzsch"
+    },
+    {
+      "file": "hipporag-2024.pdf",
+      "bytes": 3404698,
+      "sha256": "14671c78fc7de99d83bb9e52e2d5b335d4756066925e67df1a25c0e272133aad",
+      "source_url": "https://arxiv.org/pdf/2405.14831",
+      "note": "OK | https://arxiv.org/pdf/2405.14831 | Never merges. Synonym edges above cosine 0.8, tuned on 100 MuSiQue examples. Calls it noisy entity standardization"
+    },
+    {
+      "file": "hipporag2-2025.pdf",
+      "bytes": 2498688,
+      "sha256": "90fa6af3ee8298a6c3abef6df0a9b0f092496cb7d6b1c3e8b55c5c8f5b552eb3",
+      "source_url": "https://arxiv.org/pdf/2502.14802",
+      "note": "OK | https://arxiv.org/pdf/2502.14802 | Same resolution approach. Best accuracy per token on GraphRAG-Bench"
+    },
+    {
+      "file": "hogan2021-knowledge-graphs.pdf",
+      "bytes": 2376773,
+      "sha256": "348d06999cd5fd039d31620f9552dba0ac34e9e16a614f88473a74591b9f438e",
+      "source_url": "https://arxiv.org/pdf/2003.02320",
+      "note": "cached | https://arxiv.org/pdf/2003.02320 | ACM CSUR 54(4), preprint"
+    },
+    {
+      "file": "hu2026-scope-scion.pdf",
+      "bytes": 816863,
+      "sha256": "0f83f1539be3d2af81f71c9fb4b361e0fdd1dbb7d61d7c48fa0efe2367180872",
+      "source_url": "https://arxiv.org/pdf/2607.21610",
+      "note": "2607.21610 | 2026-05 | SCOPE and SCION: A Benchmark and an Auditable Reference Pipeline for Schema Induction and Fusion from Text"
+    },
+    {
+      "file": "infinitebench-2024.pdf",
+      "bytes": 538632,
+      "sha256": "966e51decda0dd46c5db3b056fade8420a2f2709448e6f2eb4eddadeb1e3bcb6",
+      "source_url": "https://arxiv.org/pdf/2402.13718",
+      "note": "OK (526 KB) | https://arxiv.org/pdf/2402.13718 | ACL 2024. En.MC split is the primary evaluation set"
+    },
+    {
+      "file": "isnad-rijal-2026.pdf",
+      "bytes": 295529,
+      "sha256": "922fc957ec166216d1f0aff4000957b0a05543adac0c1aea142a9ec6141fdcd7",
+      "source_url": "https://arxiv.org/pdf/2607.24117",
+      "note": "OK (288 KB) | https://arxiv.org/pdf/2607.24117 | Independent-chain corroboration; publishes the FIX for echo inflation"
+    },
+    {
+      "file": "itext2kg-2024.pdf",
+      "bytes": 2622938,
+      "sha256": "25569156081a7e7ef1dcd6d421a29e0d5c2b64ffb7b7bfef12ea6004ef62f3e3",
+      "source_url": "https://arxiv.org/pdf/2409.03284",
+      "note": "OK (2561 KB) | https://arxiv.org/pdf/2409.03284 | Global-vs-local entity context for RELATION extraction: precision 0.83 vs 0.94 (CS), 0.81 vs 0.90 (Music). Paper calls it a trade-off, not a loss; richness unmeasured. Future work asks for entity type in matching"
+    },
+    {
+      "file": "jeong2024-adaptive-rag.pdf",
+      "bytes": 577416,
+      "sha256": "12d262c682626c26a98bdafc7ec5dc6af3fae8247d26d4f2c712b1599dafce62",
+      "source_url": "https://arxiv.org/pdf/2403.14403",
+      "note": "cached | https://arxiv.org/pdf/2403.14403 | NAACL 2024"
+    },
+    {
+      "file": "jiang2023-longllmlingua.pdf",
+      "bytes": 2530020,
+      "sha256": "a81090e2589fcef37f310ee2a265076e4560a296a59864c9d43a6e9b62fe3997",
+      "source_url": "https://arxiv.org/pdf/2310.06839",
+      "note": "2310.06839 | arXiv; ACL 2024 (**UNCONFIRMED** \u2014 not stated in PDF) | LongLLMLingua: Accelerating and Enhancing LLMs in Long Context Scenarios via Prompt Compression | Huiqiang Jiang, Qianhui Wu, et al. (Microsoft)"
+    },
+    {
+      "file": "jiang2026-agentic-memory-anatomy.pdf",
+      "bytes": 541447,
+      "sha256": "2a0dc213369e195ae5392549a52a0ca687ee9e533d825592af881f30131d8105",
+      "source_url": "https://arxiv.org/pdf/2602.19320",
+      "note": "2602.19320 | 2026-02 | Anatomy of Agentic Memory: Taxonomy and Empirical Analysis of Evaluation and System Limitations"
+    },
+    {
+      "file": "kamalloo2023-open-qa-eval.pdf",
+      "bytes": 1409447,
+      "sha256": "61676b02aa277893a9ad9a4c9cf691a29ace32a47e6fe3b024d598632d318bd2",
+      "source_url": null,
+      "note": "\u2014 | ACL 2023 | Evaluating Open-Domain Question Answering in the Era of Large Language Models | Ehsan Kamalloo, Nouha Dziri, Charles L. A. Clarke, Davood Rafiei"
+    },
+    {
+      "file": "kecht2021-event-log-nli.pdf",
+      "bytes": 1545532,
+      "sha256": "f0e2bf29a8bdf7b2ec61adeb5bc0c149153b11ed8c9663fc6236fa0d6e98c57f",
+      "source_url": "https://icpmconference.org/2021/wp-content/uploads/sites/5/2021/09/Event-Log-Construction-from-Customer-Service-Conversations-Using-Natural-Language-Inference.pdf",
+      "note": "cached | https://icpmconference.org/2021/wp-content/uploads/sites/5/2021/09/Event-Log-Construction-from-Customer-Service-Conversations-Using-Natural-Language-Inference.pdf | ICPM 2021, conference-hosted PDF"
+    },
+    {
+      "file": "kim2024-fables.pdf",
+      "bytes": 4442736,
+      "sha256": "c7b88d457af09e36a8b4f42c22e5c9b6f834c1f34cca10531213e0b837bebf6d",
+      "source_url": "https://arxiv.org/pdf/2404.01261",
+      "note": "cached | https://arxiv.org/pdf/2404.01261 | COLM 2024"
+    },
+    {
+      "file": "kocisky2017-narrativeqa.pdf",
+      "bytes": 225236,
+      "sha256": "8f4a9dfa899751ab287bf3ad5330ea5571815a0f93e5e82faa90b594921a18ae",
+      "source_url": "https://arxiv.org/pdf/1712.07040",
+      "note": "1712.07040 | arXiv; TACL 2018 (**UNCONFIRMED** \u2014 not stated in PDF) | The NarrativeQA Reading Comprehension Challenge | Tom\u00e1\u0161 Ko\u010disk\u00fd, Jonathan Schwarz, et al. (DeepMind)"
+    },
+    {
+      "file": "koshorek2018-supervised-segmentation.pdf",
+      "bytes": 272494,
+      "sha256": "03f6b02ee2b136ed206d3aa39c35fe6823d1c2b17bb4ed0e8dec17c830cb4120",
+      "source_url": "https://arxiv.org/pdf/1803.09337",
+      "note": "1803.09337 | arXiv; NAACL 2018 (**UNCONFIRMED** \u2014 not stated in PDF) | Text Segmentation as a Supervised Learning Task | Omri Koshorek, Adir Cohen, et al."
+    },
+    {
+      "file": "kuffo2025-pdx.pdf",
+      "bytes": 7986533,
+      "sha256": "db1902b0f8b69d246d87d4dd3e4e7b7e23a762dd1ebebd3845a40d393721a769",
+      "source_url": "https://arxiv.org/pdf/2503.04422",
+      "note": "cached | https://arxiv.org/pdf/2503.04422 | SIGMOD 2025"
+    },
+    {
+      "file": "lee2013-entity-centric-coref.pdf",
+      "bytes": 482279,
+      "sha256": "1f9daebd5afba298cc727c668a53c54c2b2ee7bab3647a41c88a11ba3f26de55",
+      "source_url": null,
+      "note": "OK | Computational Linguistics 39(4) 885-916 | Sec 3.2.3: attribute union across mentions, contradictions kept as variants. Feature sharing worth ~3.4 CoNLL F1"
+    },
+    {
+      "file": "lee2017-e2e-coreference.pdf",
+      "bytes": 187635,
+      "sha256": "842e2eb4c00de2e3efbf4e38b3e9b615adaa7d4c50956bf51acb651df632bfeb",
+      "source_url": "https://arxiv.org/pdf/1707.07045",
+      "note": "1707.07045 | arXiv; EMNLP 2017 (**UNCONFIRMED** \u2014 not stated in PDF) | End-to-end Neural Coreference Resolution | Kenton Lee, Luheng He, Mike Lewis, Luke Zettlemoyer"
+    },
+    {
+      "file": "li2026-evotaxo.pdf",
+      "bytes": 1016780,
+      "sha256": "876c8f8d3e8023b0786e298afd840570c7f78fea0f9ae0b2cd565e2610ab2f6e",
+      "source_url": "https://arxiv.org/pdf/2603.19711",
+      "note": "2603.19711 | 2026-03 | EvoTaxo: Building and Evolving Taxonomy from Social Media Streams"
+    },
+    {
+      "file": "ling2026-boosttaxo.pdf",
+      "bytes": 5290918,
+      "sha256": "63eba6a70ec4a9916ed1e89920eb1b59331ba9572ed31f5c308ba11800f1077a",
+      "source_url": "https://arxiv.org/pdf/2605.12520",
+      "note": "2605.12520 | 2026-04 | BoostTaxo: Zero-Shot Taxonomy Induction via Boosting-Style Agentic Reasoning and Constraint-Aware Calibration"
+    },
+    {
+      "file": "linkkg-2025.pdf",
+      "bytes": 1518910,
+      "sha256": "d5f38a0ef0cc3e58c1fa7968f54f177d0d079652a90ce9cbfbe53adea010e2b8",
+      "source_url": "https://arxiv.org/pdf/2510.26486",
+      "note": "OK (1483 KB) | https://arxiv.org/pdf/2510.26486 | Global alias cache, node duplication 27.0->10.6 short, 36.0->17.8 long"
+    },
+    {
+      "file": "literaryqa-2025.pdf",
+      "bytes": 666274,
+      "sha256": "d770524c2ff689e17243eec64fa93c5b788c9469519897a3eb3e915e4c295bb7",
+      "source_url": "https://arxiv.org/pdf/2510.13494",
+      "note": "OK (650 KB) | https://arxiv.org/pdf/2510.13494 | EMNLP 2025, anthology 2025.emnlp-main.1729. Cleaned Gutenberg NarrativeQA"
+    },
+    {
+      "file": "liu2023-lost-in-the-middle.pdf",
+      "bytes": 747542,
+      "sha256": "653b29619eae2ae4b361d7bdcdc06db4bedcb1b0eabe31814036beca8c1af0b1",
+      "source_url": "https://arxiv.org/pdf/2307.03172",
+      "note": "2307.03172 | arXiv; TACL 2024 (**UNCONFIRMED** \u2014 not stated in PDF) | Lost in the Middle: How Language Models Use Long Contexts | Nelson F. Liu, Kevin Lin, et al."
+    },
+    {
+      "file": "liu2025-user-feedback.pdf",
+      "bytes": 902328,
+      "sha256": "4aab151d8f5be09229a25715bfc61712d93a7e608a6968df8c3d10183536d79b",
+      "source_url": "https://arxiv.org/pdf/2507.23158",
+      "note": "cached | https://arxiv.org/pdf/2507.23158 | EMNLP 2025"
+    },
+    {
+      "file": "llm-wiki-cochran-2026.pdf",
+      "bytes": 380689,
+      "sha256": "fefa2ba50185801fa7c248f10eca7530eff9b184fef4aef9346d1a7adf47d07d",
+      "source_url": "https://arxiv.org/pdf/2607.04576",
+      "note": "OK (371 KB) | https://arxiv.org/pdf/2607.04576 | A real 709-page LLM-maintained wiki"
+    },
+    {
+      "file": "llm-wiki-ming-2026.pdf",
+      "bytes": 1078087,
+      "sha256": "5752b92a793be1f80aa463dcc3fb123b6524df28c223c53bbf1043cc0855806b",
+      "source_url": "https://arxiv.org/pdf/2605.25480",
+      "note": "OK (1052 KB) | https://arxiv.org/pdf/2605.25480 | One page per entity, 5,825 pages, YAML frontmatter, wikilinks"
+    },
+    {
+      "file": "llmpedia-2026.pdf",
+      "bytes": 7401877,
+      "sha256": "19eea6910faadaaf85b81183b4bb8672077c2a15ac8bf6c397aed022a49a961b",
+      "source_url": "https://arxiv.org/pdf/2603.24080",
+      "note": "OK (7228 KB) | https://arxiv.org/pdf/2603.24080 | Infobox plus lead, ~1.3M articles"
+    },
+    {
+      "file": "maharana2024-locomo.pdf",
+      "bytes": 1608560,
+      "sha256": "218188e1d66a553afe324491e3e5e5d0af107196c9ff32c65bb3640ebf638539",
+      "source_url": "https://arxiv.org/pdf/2402.17753",
+      "note": "cached | https://arxiv.org/pdf/2402.17753 | ACL 2024"
+    },
+    {
+      "file": "malkov2016-hnsw.pdf",
+      "bytes": 2636958,
+      "sha256": "f78da128a3ea9ac08d37cfe6c4b641f371f88adb677d6d2bf637d90bad8d414a",
+      "source_url": "https://arxiv.org/pdf/1603.09320",
+      "note": "cached | https://arxiv.org/pdf/1603.09320 | arXiv/TPAMI"
+    },
+    {
+      "file": "manufactured-confidence-2026.pdf",
+      "bytes": 596723,
+      "sha256": "98c6f742e65ddbd3c90fe89cd4e10288792255e9c757989a8afef3b8c4598987",
+      "source_url": "https://arxiv.org/pdf/2606.29279",
+      "note": "OK (582 KB) | https://arxiv.org/pdf/2606.29279 | Consolidation rewrites hedged remarks into flat dated assertions"
+    },
+    {
+      "file": "meme-2026.pdf",
+      "bytes": 1106793,
+      "sha256": "bfd655c2bfebeff4b915a17ef875a9f12c29616fd96dfb491b92a48bd6b515d8",
+      "source_url": "https://arxiv.org/pdf/2605.12477",
+      "note": "OK (1080 KB) | https://arxiv.org/pdf/2605.12477 | 100 episodes, 694 questions, entity KG, CC BY 4.0"
+    },
+    {
+      "file": "memtier-2026.pdf",
+      "bytes": 428220,
+      "sha256": "cf88474249833b38ee7ae2353d3d19b13b7775f0c34e9b6e9d5e844ef6136b54",
+      "source_url": "https://arxiv.org/pdf/2605.03675",
+      "note": "OK (418 KB) | https://arxiv.org/pdf/2605.03675 | Checked and NOT entity-salience tiering; kept to prevent re-checking"
+    },
+    {
+      "file": "memx-2026.pdf",
+      "bytes": 767518,
+      "sha256": "5aa63178f6bdc73eeddeaaea3beb383646400e2a23e1d3f2801e8b9d3ff95948",
+      "source_url": "https://arxiv.org/pdf/2603.16171",
+      "note": "OK (749 KB) | https://arxiv.org/pdf/2603.16171 | Local-first libSQL plus FTS5, evaluated on LongMemEval"
+    },
+    {
+      "file": "menestrina2010-evaluating-er.pdf",
+      "bytes": 877691,
+      "sha256": "91d57b1af271b1fb672a5d884c80d43a4a892775b69a8d9b009373d5cb883430",
+      "source_url": "https://vldb.org/pvldb/vol3/R18.pdf",
+      "note": "OK | https://vldb.org/pvldb/vol3/R18.pdf | PVLDB 3(1). ER metrics DISAGREE and rank systems differently. Generalized merge distance takes asymmetric merge/split costs"
+    },
+    {
+      "file": "moss-2026.pdf",
+      "bytes": 1142832,
+      "sha256": "0c7625191a70125ec015b30c6f35a631f10ebc5a9071454555ba535c66e79436",
+      "source_url": "https://arxiv.org/pdf/2607.04391",
+      "note": "OK (1116 KB) | https://arxiv.org/pdf/2607.04391 | A year in production on one scholar's corpus, no LLM in the retrieval loop"
+    },
+    {
+      "file": "narrative-world-model-2026.pdf",
+      "bytes": 261228,
+      "sha256": "0f83e1100407e9d5a2ac64bf0e9bb2193bfdb0db29f4caabae0a0035e5d3fcdf",
+      "source_url": "https://arxiv.org/pdf/2607.05577",
+      "note": "OK (255 KB) | https://arxiv.org/pdf/2607.05577 | MOST IMPORTANT UNREAD PAPER: same niche, baselines and corpus type"
+    },
+    {
+      "file": "niklaus2018-openie-survey.pdf",
+      "bytes": 372522,
+      "sha256": "7d87c834fa38fbce43ee165e7b161d0b2dbe1c53b07f2571178a44520f0c8c86",
+      "source_url": "https://arxiv.org/pdf/1806.05599",
+      "note": "1806.05599 | arXiv; COLING 2018 (**UNCONFIRMED** \u2014 not stated in PDF) | A Survey on Open Information Extraction | Christina Niklaus, Matthias Cetto, Andr\u00e9 Freitas, Siegfried Handschuh"
+    },
+    {
+      "file": "nkw-2026.pdf",
+      "bytes": 3216423,
+      "sha256": "692f316f0b4208ed64707a9690f773d35bf8c53ef2c9c80691b305af0d793d14",
+      "source_url": "https://arxiv.org/pdf/2606.05724",
+      "note": "OK (3141 KB) | https://arxiv.org/pdf/2606.05724 | Degree-gated per-entity extraction; closest whole-stack analogue"
+    },
+    {
+      "file": "nolima2025-long-context.pdf",
+      "bytes": 755027,
+      "sha256": "4e733b135e506f90df0d0576fc9392dc9104e775b328df15a3afc7e572bebeb3",
+      "source_url": "https://arxiv.org/pdf/2502.05167",
+      "note": "cached | https://arxiv.org/pdf/2502.05167 | arXiv"
+    },
+    {
+      "file": "novelqa-2024.pdf",
+      "bytes": 4326871,
+      "sha256": "321e13b9aac5a6e1a0e0e7337e971d52b342819c5c87950a6591a11209e08454",
+      "source_url": "https://arxiv.org/pdf/2403.12766",
+      "note": "OK (4225 KB) | https://arxiv.org/pdf/2403.12766 | Gold answers held out, Codabench only. Kept for the closed-book baseline"
+    },
+    {
+      "file": "ong2024-routellm.pdf",
+      "bytes": 809166,
+      "sha256": "c9bc9c8171cab95bb3832cde8767c6b5e0925cd62930e51ddbd60d7cb2616741",
+      "source_url": "https://arxiv.org/pdf/2406.18665",
+      "note": "2406.18665 | ICLR 2025 | RouteLLM: Learning to Route LLMs with Preference Data | Isaac Ong, Amjad Almahairi, et al."
+    },
+    {
+      "file": "ouyang2026-reasoningbank.pdf",
+      "bytes": 5545249,
+      "sha256": "d9e08c61ab714304a6a88e014f552597d9ac654c4cb23dc63a5d53248715da13",
+      "source_url": "https://arxiv.org/pdf/2509.25140",
+      "note": "cached | https://arxiv.org/pdf/2509.25140 | ICLR 2026"
+    },
+    {
+      "file": "pan2024-unifying-llm-kg.pdf",
+      "bytes": 3347785,
+      "sha256": "6c78ef676eb57d4612165b10db286e53a32bd00aa1f7afccddd35adea4ee66eb",
+      "source_url": "https://arxiv.org/pdf/2306.08302",
+      "note": "cached | https://arxiv.org/pdf/2306.08302 | IEEE TKDE, preprint"
+    },
+    {
+      "file": "pang2021-quality.pdf",
+      "bytes": 2773376,
+      "sha256": "41f2204007734401a7d702a21b559e0c641b17ef4401543894739bd609a64707",
+      "source_url": "https://arxiv.org/pdf/2112.08608",
+      "note": "2112.08608 | arXiv; NAACL 2022 (**UNCONFIRMED** \u2014 not stated in PDF) | QuALITY: Question Answering with Long Input Texts, Yes! | Richard Yuanzhe Pang, Alicia Parrish, Nitish Joshi, et al."
+    },
+    {
+      "file": "panickssery2024-self-preference.pdf",
+      "bytes": 1132502,
+      "sha256": "e1466f5ade6144599fda01deafdd737b4623eaae273d71e4a0099d55b33189d3",
+      "source_url": "https://arxiv.org/pdf/2404.13076",
+      "note": "2404.13076 | arXiv; NeurIPS 2024 (**UNCONFIRMED** \u2014 not stated in PDF) | LLM Evaluators Recognize and Favor Their Own Generations | Arjun Panickssery, Samuel R. Bowman, Shi Feng"
+    },
+    {
+      "file": "park2023-generative-agents.pdf",
+      "bytes": 11947867,
+      "sha256": "1b31e77fb24d25d7598f2c49e955d12a28b95a6dabad34acdac40f44bfb7a139",
+      "source_url": "https://arxiv.org/pdf/2304.03442",
+      "note": "cached | https://arxiv.org/pdf/2304.03442 | UIST 2023"
+    },
+    {
+      "file": "petnehazi2025-hercules.pdf",
+      "bytes": 556041,
+      "sha256": "281224bbe80a4d07dd23ab8ec8ff9fce254775844c49aba943413998caf78905",
+      "source_url": "https://arxiv.org/pdf/2506.19992",
+      "note": "2506.19992 | 2025-06 | HERCULES: Hierarchical Embedding-based Recursive Clustering Using LLMs for Efficient Summarization"
+    },
+    {
+      "file": "pollertlam2026-beyond-context-window.pdf",
+      "bytes": 337223,
+      "sha256": "961bfb79c1f5e62d042bd3a35bc2428060b3e4ee4e95ae72258e2753e138dc82",
+      "source_url": "https://arxiv.org/pdf/2603.04814",
+      "note": "OK (329 KB) | https://arxiv.org/pdf/2603.04814 | arXiv"
+    },
+    {
+      "file": "pujara-getoor-2016-srer.pdf",
+      "bytes": 111553,
+      "sha256": "d59133e584efc4a8f4802f28752a7ec0687cb11196b9f0b0ecb9a839f207d8f8",
+      "source_url": "https://arxiv.org/pdf/1607.00992",
+      "note": "OK | https://arxiv.org/pdf/1607.00992 | PSL formulation, 14 rules. Local (type/attribute agreement) vs collective. Only ontology-exclusive properties get a hard veto"
+    },
+    {
+      "file": "raghunathan2010-multipass-sieve.pdf",
+      "bytes": 217997,
+      "sha256": "5406490fb21705b5b3a492e7a05378f88b54035e58ddc42ac42d81ee2ab06a47",
+      "source_url": null,
+      "note": "OK | ACL 2010 | Precision-ranked sieve: high-precision passes first so later passes inherit clean clusters"
+    },
+    {
+      "file": "rakg-2025.pdf",
+      "bytes": 1004240,
+      "sha256": "a18e64764a8ecacb1ffec989634971307394e010c4ac26f47bb3cda226b51a83",
+      "source_url": "https://arxiv.org/pdf/2504.09823",
+      "note": "OK (980 KB) | https://arxiv.org/pdf/2504.09823 | Document-wide disambiguation then per-entity relation construction"
+    },
+    {
+      "file": "rasmussen2025-zep.pdf",
+      "bytes": 148771,
+      "sha256": "d26f7eb599540e8b14d75e7efda58a07661abbb1b864e58323b5768475a15d42",
+      "source_url": "https://arxiv.org/pdf/2501.13956",
+      "note": "cached | https://arxiv.org/pdf/2501.13956 | arXiv"
+    },
+    {
+      "file": "reveriemem-2026.pdf",
+      "bytes": 9107763,
+      "sha256": "a51a24102583d4bf7d735535fc251ae95970b6cbe04243ac9e278a5380d8c1c9",
+      "source_url": "https://arxiv.org/pdf/2606.25632",
+      "note": "OK (8894 KB) | https://arxiv.org/pdf/2606.25632 | Per-character per-scene retrospective summaries, 8 novels incl. Holmes"
+    },
+    {
+      "file": "rezazadeh2025-collaborative-memory.pdf",
+      "bytes": 2897805,
+      "sha256": "16c67eb7ee0ecf00b7fbbeebbeaed7e50d558ff8e46e691b59b33c14c958ae7f",
+      "source_url": "https://arxiv.org/pdf/2505.18279",
+      "note": "cached | https://arxiv.org/pdf/2505.18279 | arXiv"
+    },
+    {
+      "file": "rezazadeh2025-memtree.pdf",
+      "bytes": 2218933,
+      "sha256": "551eae6535285f33b63b14dbd47d55c58db32bcf3bee934e16b850ea03975575",
+      "source_url": "https://arxiv.org/pdf/2410.14052",
+      "note": "cached | https://arxiv.org/pdf/2410.14052 | ICLR 2025"
+    },
+    {
+      "file": "rossi2021-kg-embedding.pdf",
+      "bytes": 3902019,
+      "sha256": "09c367e97aebbed223966154189a222480c367d625666d6b7de5c17ea114d752",
+      "source_url": "https://arxiv.org/pdf/2002.00819",
+      "note": "cached | https://arxiv.org/pdf/2002.00819 | ACM TKDD, preprint"
+    },
+    {
+      "file": "rost2021-bitemporal-property-graphs.pdf",
+      "bytes": 1097945,
+      "sha256": "9845df72bc464680fdf6175bbd3538bfc58e7116008265c92360cfba69bc1070",
+      "source_url": "https://arxiv.org/pdf/2111.13499",
+      "note": "2111.13499 | arXiv (Oracle\u2013Leipzig project report) | Bitemporal Property Graphs to Organize Evolving Systems | Christopher Rost, Philip Fritzsche, et al."
+    },
+    {
+      "file": "salemi2026-blackboard-llm.pdf",
+      "bytes": 2861833,
+      "sha256": "333545f7d918b877eb02579a04da724b0823e7886f232983453975797f5b19be",
+      "source_url": "https://arxiv.org/pdf/2510.01285",
+      "note": "OK (2794 KB) | https://arxiv.org/pdf/2510.01285 | arXiv"
+    },
+    {
+      "file": "sarthi2024-raptor.pdf",
+      "bytes": 2547113,
+      "sha256": "01319e2e6e6ecfd504ee1bbda41d023f9e060bd3505ab3c161baa1d6d696cf75",
+      "source_url": "https://arxiv.org/pdf/2401.18059",
+      "note": "cached | https://arxiv.org/pdf/2401.18059 | ICLR 2024"
+    },
+    {
+      "file": "shu2026-tracemem.pdf",
+      "bytes": 8388795,
+      "sha256": "f14495abd4db8ab4d1292f950ef74cac6e56c57ebe15c7c23ee368c8403e296b",
+      "source_url": "https://arxiv.org/pdf/2602.09712",
+      "note": "2602.09712 | 2026-02 | TraceMem: Weaving Narrative Memory Schemata from User Conversational Traces"
+    },
+    {
+      "file": "slide-2025.pdf",
+      "bytes": 284939,
+      "sha256": "cb945a529429e409fb46e8bad8042241d1759df6640953236da9010b10f5f9f4",
+      "source_url": "https://arxiv.org/pdf/2503.17952",
+      "note": "OK (278 KB) | https://arxiv.org/pdf/2503.17952 | Extraction context varied on a 160k-token novel"
+    },
+    {
+      "file": "snodgrass1999-time-oriented-db.pdf",
+      "bytes": 5003142,
+      "sha256": "63e7657d379daf3df56a3a404c78555fab8f1238db388eacf0570710cf8e7108",
+      "source_url": "https://www2.cs.arizona.edu/~rts/tdbbook.pdf",
+      "note": "cached | https://www2.cs.arizona.edu/~rts/tdbbook.pdf | author-released book PDF"
+    },
+    {
+      "file": "stage-2026.pdf",
+      "bytes": 5058575,
+      "sha256": "a6e20cbdef977634cde910774d77f271697163ee0534fccc87a2ae928952482e",
+      "source_url": "https://arxiv.org/pdf/2601.08510",
+      "note": "OK (4940 KB) | https://arxiv.org/pdf/2601.08510 | 151 bilingual screenplays, provenance-linked narrative backbone"
+    },
+    {
+      "file": "statefuse-2026.pdf",
+      "bytes": 192059,
+      "sha256": "128853be83e65122ff6f29b006416c7d79b5c74a601fe277b65b82b6ff9dc96e",
+      "source_url": "https://arxiv.org/pdf/2607.05844",
+      "note": "OK (187 KB) | https://arxiv.org/pdf/2607.05844 | Append-only, resolution at projection time, conflict objects"
+    },
+    {
+      "file": "stonybook-2023.pdf",
+      "bytes": 1036055,
+      "sha256": "2a9061021ade25bae6b3f1cd32d71194ca0c4256e6a1be7f7e98c4b3197cc013",
+      "source_url": "https://arxiv.org/pdf/2311.03614",
+      "note": "OK (1011 KB) | https://arxiv.org/pdf/2311.03614 | ~50k novels, standard XML annotation"
+    },
+    {
+      "file": "story-ribbons-2025.pdf",
+      "bytes": 3952726,
+      "sha256": "f92b44ad11ab889a913fe57fe53a7562621a14aa460c44e74301a0df48029966",
+      "source_url": "https://arxiv.org/pdf/2508.06772",
+      "note": "OK (3860 KB) | https://arxiv.org/pdf/2508.06772 | IEEE VIS 2025. NEAREST PEER-REVIEWED THREAT: cell matrix, both marginals, quote gate, 30 Gutenberg works"
+    },
+    {
+      "file": "storybench-2025.pdf",
+      "bytes": 1676693,
+      "sha256": "46ef6c23d66f09e7492ec13d5ec6bf7d364d27b57e1bf5f83032c85a4aec0307",
+      "source_url": "https://arxiv.org/pdf/2506.13356",
+      "note": "OK (1637 KB) | https://arxiv.org/pdf/2506.13356 | Long-term memory over interactive fiction"
+    },
+    {
+      "file": "streaming-knowledge-compilation-2026.pdf",
+      "bytes": 563996,
+      "sha256": "561c54dcb59484f7762b70e523b0da3c8e7e14518b31738114d452cd564eaf5b",
+      "source_url": "https://arxiv.org/pdf/2606.09877",
+      "note": "OK (550 KB) | https://arxiv.org/pdf/2606.09877 | Per-(entity, document) materiality gate under a token budget"
+    },
+    {
+      "file": "sumers2024-coala.pdf",
+      "bytes": 2785564,
+      "sha256": "fd93d2ef1b94f963b652136b8c792b01d7326d861f5ce918926c043934a48dbe",
+      "source_url": "https://arxiv.org/pdf/2309.02427",
+      "note": "cached | https://arxiv.org/pdf/2309.02427 | TMLR"
+    },
+    {
+      "file": "sun2026-ocr-robustness-rag.pdf",
+      "bytes": 3720206,
+      "sha256": "09865300db0fc83a427e46333841d1d310c516286228a1cd89e9a5e79165e2b7",
+      "source_url": "https://arxiv.org/pdf/2605.00911",
+      "note": "2605.00911 | 2026-04 | When Good OCR Is Not Enough: Benchmarking OCR Robustness for Retrieval-Augmented Generation"
+    },
+    {
+      "file": "superlocalmemory-2026.pdf",
+      "bytes": 1007631,
+      "sha256": "9674f2de419c3a512ccf5d55c6ed4d22424645f45e715ef2ececd03b93292d4c",
+      "source_url": "https://arxiv.org/pdf/2608.08253",
+      "note": "OK (984 KB) | https://arxiv.org/pdf/2608.08253 | Eleven fault-injection scenarios x200 reps against its own invariants"
+    },
+    {
+      "file": "talebirad2026-hierarchical-theory.pdf",
+      "bytes": 355290,
+      "sha256": "f356654da20624a64289315a2aadde151092d6f3c5e95caa2bb35bb080ffb5f8",
+      "source_url": "https://arxiv.org/pdf/2603.21564",
+      "note": "cached | https://arxiv.org/pdf/2603.21564 | arXiv"
+    },
+    {
+      "file": "tam2024-format-restrictions.pdf",
+      "bytes": 489277,
+      "sha256": "172930a8e9166ded9df95bb9ec41aafb7f43907969d14ea2dd05240d2c902f75",
+      "source_url": "https://arxiv.org/pdf/2408.02442",
+      "note": "2408.02442 | arXiv; EMNLP 2024 (**UNCONFIRMED** \u2014 not stated in PDF) | Let Me Speak Freely? A Study on the Impact of Format Restrictions on Performance of Large Language Models | Zhi Rui Tam, Cheng-Kuang Wu, et al."
+    },
+    {
+      "file": "vrandecic2014-wikidata.pdf",
+      "bytes": 4540339,
+      "sha256": "c513319fcb731d42da5d4daf67745bfdaa359733cd402aae7bac19a706f95836",
+      "source_url": null,
+      "note": "\u2014 | CACM 57(10), Oct 2014 (DOI:10.1145/2629489) | Wikidata: A Free Collaborative Knowledgebase | Denny Vrande\u010di\u0107, Markus Kr\u00f6tzsch"
+    },
+    {
+      "file": "vstash-2026.pdf",
+      "bytes": 155762,
+      "sha256": "ee749cee8bfb4c60c1bebee93f2e503d03f9c571c4132fcf694a332ba1e8276c",
+      "source_url": "https://arxiv.org/pdf/2604.15484",
+      "note": "OK (152 KB) | https://arxiv.org/pdf/2604.15484 | Single SQLite file, sqlite-vec plus FTS5"
+    },
+    {
+      "file": "wang2023-not-fair-evaluators.pdf",
+      "bytes": 588706,
+      "sha256": "e8b5a03e77b5661eae920959691613f0ef53e08d8ff0c20301c26b60b7256eae",
+      "source_url": null,
+      "note": "\u2014 | ACL 2024 (filename says 2023; the arXiv preprint was 2023) | Large Language Models are not Fair Evaluators | Peiyi Wang, Lei Li, et al."
+    },
+    {
+      "file": "wang2024-novelqa.pdf",
+      "bytes": 4326871,
+      "sha256": "321e13b9aac5a6e1a0e0e7337e971d52b342819c5c87950a6591a11209e08454",
+      "source_url": "https://arxiv.org/pdf/2403.12766",
+      "note": "2403.12766 | ICLR 2025 | NovelQA: Benchmarking Question Answering on Documents Exceeding 200K Tokens | Cunxiang Wang, Ruoxi Ning, et al."
+    },
+    {
+      "file": "wang2024-rag-best-practices.pdf",
+      "bytes": 914162,
+      "sha256": "f39143713115935afbe8620a47261dc6ae37a80a88c236dfa3d15d97e7abb1fb",
+      "source_url": "https://arxiv.org/pdf/2407.01219",
+      "note": "cached | https://arxiv.org/pdf/2407.01219 | EMNLP 2024"
+    },
+    {
+      "file": "wang2026-cognifold.pdf",
+      "bytes": 2923668,
+      "sha256": "f226d10cb7bba4a6a3096782375f23271bac15de3114d49a4017a3edb9316a41",
+      "source_url": "https://arxiv.org/pdf/2605.13438",
+      "note": "2605.13438 | 2026-05 | CogniFold: Always-On Proactive Memory via Cognitive Folding"
+    },
+    {
+      "file": "wegmann2022-style-content.pdf",
+      "bytes": 411419,
+      "sha256": "d99875fb0a997f60bca4ca65cc7264aa3d506834c939544178a20d2c18d6e50a",
+      "source_url": "https://arxiv.org/pdf/2204.04907",
+      "note": "cached | https://arxiv.org/pdf/2204.04907 | RepL4NLP 2022"
+    },
+    {
+      "file": "weikum2021-machine-knowledge.pdf",
+      "bytes": 10316412,
+      "sha256": "5030db24670e58c35737d12425dd42ce1c10fb6c6dad81f0ccd188a01859750f",
+      "source_url": "https://arxiv.org/pdf/2009.11564",
+      "note": "cached | https://arxiv.org/pdf/2009.11564 | FnT Databases, preprint"
+    },
+    {
+      "file": "wicer-2026.pdf",
+      "bytes": 488860,
+      "sha256": "d5f3aecf96ccec0e1351aa14d3d5d132f3c55d81dd04b81c120a18c871b01049",
+      "source_url": "https://arxiv.org/pdf/2605.07068",
+      "note": "OK (477 KB) | https://arxiv.org/pdf/2605.07068 | CEGAR-style compile/evaluate/refine loop for KV-cache wikis. ZERO entity-resolution content; earlier note was wrong"
+    },
+    {
+      "file": "wiki-vs-rag-cochran-2026.pdf",
+      "bytes": 420070,
+      "sha256": "60d0371812520371784db7ff4170a56044376e847133513ad428c1ed7ceaddc4",
+      "source_url": "https://arxiv.org/pdf/2605.18490",
+      "note": "OK (410 KB) | https://arxiv.org/pdf/2605.18490 | PREREGISTERED head-to-head: vector RAG vs an LLM-compiled wiki"
+    },
+    {
+      "file": "willard2023-guided-generation.pdf",
+      "bytes": 375946,
+      "sha256": "8888aa2043588e41d0f222b59ca6896e5211816eeca8896db215234ba209aa4f",
+      "source_url": "https://arxiv.org/pdf/2307.09702",
+      "note": "2307.09702 | arXiv (Outlines library paper) | Efficient Guided Generation for Large Language Models | Brandon T. Willard, R\u00e9mi Louf"
+    },
+    {
+      "file": "wu2021-recursive-books.pdf",
+      "bytes": 2023522,
+      "sha256": "3864112dae48b2ef4adb134e813301282f19f9debe58e769a94ca781349d4dc3",
+      "source_url": "https://arxiv.org/pdf/2109.10862",
+      "note": "cached | https://arxiv.org/pdf/2109.10862 | OpenAI"
+    },
+    {
+      "file": "wu2025-memoryagentbench.pdf",
+      "bytes": 2002070,
+      "sha256": "022d3771fd643d3bece04841e71331ef6963ff0eba43166849072caeb1b79508",
+      "source_url": "https://arxiv.org/pdf/2507.05257",
+      "note": "cached | https://arxiv.org/pdf/2507.05257 | arXiv"
+    },
+    {
+      "file": "wu2026-proactive-memory-agent.pdf",
+      "bytes": 6882106,
+      "sha256": "c1863f4062cb9f21f1ee9e23195340494ed934959a20f18e5b94f0448cdc9f83",
+      "source_url": "https://arxiv.org/pdf/2607.08716",
+      "note": "2607.08716 | 2026-07 | Remember When It Matters: Proactive Memory Agent for Long-Horizon Agents"
+    },
+    {
+      "file": "xie2026-pask.pdf",
+      "bytes": 3644574,
+      "sha256": "04b6dccc235d1a6a6fbb79e386204ca358689156cf565a26e185f030c6eb5c52",
+      "source_url": "https://arxiv.org/pdf/2604.08000",
+      "note": "2604.08000 | 2026-04 | PASK: Toward Intent-Aware Proactive Agents with Long-Term Memory"
+    },
+    {
+      "file": "xing2021-dialogue-segmentation.pdf",
+      "bytes": 823779,
+      "sha256": "d8f8ff7438dcb8b9e87832e3d637ac3bf22509ae99c68462ed1e5cb2532bc94a",
+      "source_url": "https://arxiv.org/pdf/2106.06719",
+      "note": "2106.06719 | arXiv; Findings of ACL 2021 (**UNCONFIRMED** \u2014 not stated in PDF) | Improving Unsupervised Dialogue Topic Segmentation with Utterance-Pair Coherence Scoring | Linzi Xing, Giuseppe Carenini"
+    },
+    {
+      "file": "xmemory-2026.pdf",
+      "bytes": 850860,
+      "sha256": "da48730b329462616d3fb693c3609f60a48d2541fe4e81acc46172aa82698937",
+      "source_url": "https://arxiv.org/pdf/2604.27906",
+      "note": "OK (830 KB) | https://arxiv.org/pdf/2604.27906 | Explicit unknowns as a first-class operation"
+    },
+    {
+      "file": "xu2024-kg-rag-customer-service.pdf",
+      "bytes": 794291,
+      "sha256": "520914709c84b8dfd3319891b37ac27f183be6bb861bb86bcacb39637b4ababe",
+      "source_url": "https://arxiv.org/pdf/2404.17723",
+      "note": "2404.17723 | SIGIR 2024 (DOI:10.1145/3626772.3661370) | Retrieval-Augmented Generation with Knowledge Graphs for Customer Service Question Answering | Zhentao Xu, et al. (LinkedIn)"
+    },
+    {
+      "file": "yang2026-asymmetric-capacity-allocation.pdf",
+      "bytes": 1005792,
+      "sha256": "9b9ab8945b46da23c16c738f916fd5acfad8ab1dfa0f77236b04f60c47d1fe7c",
+      "source_url": "https://arxiv.org/pdf/2608.21345",
+      "note": "2608.21345 | 2026-08 | Asymmetric Capacity Allocation in Self-Refinement Pipelines"
+    },
+    {
+      "file": "yang2026-promem.pdf",
+      "bytes": 1083676,
+      "sha256": "fd336421c9ceb73898d68f013223fdc26772a5d3967fea2c5083f3d8ec99b304",
+      "source_url": "https://arxiv.org/pdf/2601.04463",
+      "note": "2601.04463 | 2026-01 | Beyond Static Summarization: Proactive Memory Extraction for LLM Agents"
+    },
+    {
+      "file": "zhang2024-edc-kg-construction.pdf",
+      "bytes": 617811,
+      "sha256": "01d82c67ac18ffc35068594cb72d8f74e216522809a56c9d876664e36c0a835a",
+      "source_url": "https://arxiv.org/pdf/2404.03868",
+      "note": "2404.03868 | arXiv | Extract, Define, Canonicalize: An LLM-based Framework for Knowledge Graph Construction | Bowen Zhang, Harold Soh"
+    },
+    {
+      "file": "zhang2024-ocr-hinders-rag.pdf",
+      "bytes": 13552746,
+      "sha256": "602f733b4178e5f52f7224b40129d7e1acb25d06ef799a023ef52a560b258699",
+      "source_url": "https://arxiv.org/pdf/2412.02592",
+      "note": "2412.02592 | 2024-12 | OCR Hinders RAG: Evaluating the Cascading Impact of OCR on Retrieval-Augmented Generation"
+    },
+    {
+      "file": "zheng2023-llm-as-judge.pdf",
+      "bytes": 1580141,
+      "sha256": "1574982845157569b85c1214bfa9987000384d7a5e3b5fbdcc5a29afec59cb81",
+      "source_url": "https://arxiv.org/pdf/2306.05685",
+      "note": "2306.05685 | NeurIPS 2023 Datasets & Benchmarks | Judging LLM-as-a-Judge with MT-Bench and Chatbot Arena | Lianmin Zheng, Wei-Lin Chiang, Ying Sheng, et al."
+    },
+    {
+      "file": "zhong2023-kg-construction-survey.pdf",
+      "bytes": 2540064,
+      "sha256": "6d80fc8ea8ebf630959914401f7a0104e7f002ff330136acd4bb2924b33eff63",
+      "source_url": "https://arxiv.org/pdf/2302.05019",
+      "note": "2302.05019 | arXiv, ACM CSUR format (preprint carries placeholder issue info; published vol/issue **UNCONFIRMED**) | A Comprehensive Survey on Automatic Knowledge Graph Construction | Lingfeng Zhong, Jia Wu, Qian Li, Hao Peng, Xindong Wu"
+    },
+    {
+      "file": "zhou2024-universalner.pdf",
+      "bytes": 612886,
+      "sha256": "2868ef9ba3f0132a2eaf2b47cdebe7580755dbcb03dda1f06a022baf3a959a04",
+      "source_url": "https://arxiv.org/pdf/2308.03279",
+      "note": "2308.03279 | ICLR 2024 | UniversalNER: Targeted Distillation from Large Language Models for Open Named Entity Recognition | Wenxuan Zhou, Sheng Zhang, Yu Gu, Muhao Chen, Hoifung Poon"
+    }
+  ]
+}
