@@ -227,7 +227,7 @@ where the kind changed, and Apollodorus volume 2 refused 89 cross-region joins o
 
 **The two zero-body regressions are gone.** Metamorphoses I-VII went from 0% body to **91%**,
 and the Loeb Apollodorus volume 1 from 0% to **90%**. No document is at zero now, and the
-median is 79%. The 40 below half are the Loeb scans and the papers, where notes, references
+median is 79%. The 39 below half are the Loeb scans and the papers, where notes, references
 and appendices are genuinely most of the file.
 
 **Flags**, 4,016 documents, of which 3,944 are the advisory reused-session date note. The
@@ -245,12 +245,47 @@ byline resolved to its publisher, flagged as a publication. `unknown_author` is 
 documents carry no date, which is the no-inferred-dates rule doing its job on Gutenberg files
 whose preamble gives only a release date.
 
+## Published, with its documentation
+
+The clean pass is a public Kaggle dataset:
+[FactLedger Step 0: Documents, Units, Pieces](https://www.kaggle.com/datasets/jhffmn/it494-factledger-step0),
+MIT, 312 MB, ten files. It is what the ingestor reads and what a reader of the paper can check.
+
+**The reference papers are the one thing held back.** Their publishers' licenses mostly forbid
+redistribution, so their 141 document rows go out with a null `text` and the flag
+`text withheld: license`, while their 2,328 units and 4,581 pieces go out in full. A tenth file,
+`papers.jsonl`, carries each one's source URL, PDF sha256 and byte count, so the text can be
+rebuilt with block 1 of the same notebook and the offsets then resolve. Nothing else is
+withheld: the literature is public domain and the two benchmark corpora are MIT.
+
+**The documentation is five files, written against the receipt rather than from memory.**
+[README](../../dataset/step0/README.md) says what it is and how to slice a unit;
+[SCHEMA](../../dataset/step0/SCHEMA.md) gives every field and the guarantees that were actually
+checked; [METHOD](../../dataset/step0/METHOD.md) explains the address list, the four calls and
+the gates; [PROVENANCE](../../dataset/step0/PROVENANCE.md) gives corpus, source and license;
+[LIMITS](../../dataset/step0/LIMITS.md) gives the 72 real flags, the 79 unresolved pointers and
+their diagnosis, and four things the dataset does not claim.
+
+**The packer is a repo script, not a one-off.**
+[pack_step0_public.py](../../scripts/pack_step0_public.py) takes an export directory and a
+staging directory, withholds the paper text, builds `papers.jsonl` from the papers manifest, and
+copies the documentation in from `dataset/step0/`, so what is on Kaggle and what is in git are
+the same bytes. Re-running it against the same export reproduces all eleven files byte for byte,
+which is how the committed script was checked.
+
+Before uploading, the staged files were gated once more on their own: field lists exact, unit
+ids unique, positions dense, pieces and units tiling every document, every piece pointing at a
+real unit, zero units mixing a region kind, and no paper text present. One number in the earlier
+analysis was wrong and is corrected here and in the dataset: 39 read documents are below half
+body, not 40.
+
 ## Open
 
 - **Turn `REDO_ALL` back to False.** It was on for the clean pass; leaving it on re-bills the
   corpus on the next code change.
-- **The export is the ingestor's input** and is on Kaggle as the version's output. It should
-  become the next version of the units dataset before the ingestor chat starts.
+- **The old units dataset is now stale.** `it494-narrative-corpora-units` is public, holds the
+  hand-rolled splitter's output from 09-01, and shares file names with the new dataset while
+  meaning something else. It should be retitled as superseded or unpublished.
 - **Re-asking is not reliably better.** In the second pass, Metamorphoses I-VII went from 91% body
   to 0% with everything labelled notes, and Apollodorus volume 2 from 49% to 0%. The region
   answer is the model's, not the code's.
