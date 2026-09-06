@@ -1,0 +1,9 @@
+{
+  "chat_documents": 19206,
+  "chat_units": 19206,
+  "chat_pieces": 218847,
+  "sessions_with_several_dates": 3944,
+  "chat_flags": {
+    "dates": 3944
+  }
+}

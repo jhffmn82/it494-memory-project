@@ -142,11 +142,66 @@ run rather than the design.
 
 154 checks pass across the five batteries.
 
+## The finished run, analysed
+
+Justin ran the whole corpus and downloaded `splits.jsonl` and the run log from the session.
+Kaggle attaches `/kaggle/working` to a version only for Save & Run All, so a Quick Save kept
+the code and the cell outputs but no files; the records came out of the session by hand. Kept
+here: [run-read-documents.jsonl](run-read-documents.jsonl), the final record for each of the
+231 text and PDF documents, and [run-chat-summary.json](run-chat-summary.json), because the
+19,206 chat records are uniform and eighty-five megabytes.
+
+**Every document completed.** 19,437 files, no run errors, and the pieces tile every one of
+them with zero gaps. 24,170 units, 4,964 read and 19,206 chat. Of 4,014 flagged documents,
+3,944 are the advisory note that a benchmark session carries several dates, leaving 70 real
+flags: 40 merging, 21 pointers, 11 metadata, 9 shape, 8 merging answer, 6 over cap, 5
+grouping, 3 count.
+
+**It was four passes, not one.** The append order shows 88 documents at 1.0, 134 at 1.3, then
+19,344 at 1.4, then a full pass of all 19,437 that wrote the final records. That last pass was
+the older notebook: **1.1 and 1.2 both shipped under the `1.0` loader label**, because the
+label was only bumped at 1.3. Running the older build after the newer one meant every 1.4
+record looked like another loader's work, so the whole corpus was asked again, serially,
+because parallelism only arrived in 1.3. That is the answer to why it went slowly, and most
+of what it cost.
+
+| pass | read documents | cost | billing |
+|---|---|---|---|
+| 1.0, early | 88 | $5.84 | serial, honest |
+| 1.3 | 134 | $29.64 reported | parallel with the broken per-document billing; the real figure is far lower |
+| 1.4 | 138 + all chats | $2.45 | per document, correct: about $0.018 a document |
+| final, 1.2 under the 1.0 label | 231 + all chats | $7.64 | serial, honest; median $0.013, most expensive Diodorus at $0.393 |
+
+**Quality of the final pass.** Body share median 77%, none at zero. 270 pointer mismatches of
+which 197 recovered, 73 unresolved, 8 duplicates, 12 metadata pointers nulled. Six units over
+the cap and 309 under a hundred words. The 43 documents under half body share are the Loeb
+scans and the papers, where reference lists and notes are a real share of the file.
+
+**Two defects the run exposed, both fixed in 1.5.**
+
+- **Every chat had a cross-kind unit.** The header piece (front matter) shared the first turn's
+  unit, which the one-kind ruling forbids; the rule had been applied to grouping for text and
+  PDF but never to chats. The header is now a unit of its own. Verified over 3,000 real
+  sessions: no unit mixes a region kind with anything else, and tiling stays exact. It costs
+  19,206 more units, one per session, each about eighteen words, which the ingestor skips.
+  Speaker roles still share a unit, which is the design.
+- **The loader label did not track the code**, as above. Bumped to 1.5 with a note saying why
+  it matters.
+
+One record, `papers/hipporag-2024.pdf`, carries a cost of minus $4.90. That cannot come from
+the 1.4 code, which sums a document's own calls; it comes from cells re-run out of order, so
+the session held a mix of old and new definitions. Worth knowing, not a defect I can reproduce.
+
+**The kind rule works where it ran.** The 138 read documents processed at 1.4 have zero
+cross-kind units. The 231 in the final pass have 181, because that pass was 1.2.
+
 ## Open
 
-- **`REDO_ALL` for one run.** With the switch off, clean documents from earlier passes keep any
-  mixed-kind units they still contain. Turning it on for a single run applies the kind rule
-  everywhere, at the cost of a full re-ask. Justin's call.
+- **The corpus needs one more pass at 1.5.** The records on disk were written by 1.2, so 181 of
+  the 231 read documents still hold cross-kind units and every chat holds one. The loader bump
+  to 1.5 will redo the flagged documents; `REDO_ALL = True` for one run redoes the clean ones
+  too, which is what applies the kind rule everywhere. At the measured $0.013 median that pass
+  is a few dollars, not twenty, now that it runs in parallel and bills per document.
 - **Re-asking is not reliably better.** In the second pass, Metamorphoses I-VII went from 91% body
   to 0% with everything labelled notes, and Apollodorus volume 2 from 49% to 0%. The region
   answer is the model's, not the code's.
