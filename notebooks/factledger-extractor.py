@@ -627,16 +627,18 @@ def split(doc):
 # ends: every turn is its own piece and carries its own author. A session the benchmark reused
 # carries several dates and takes the one it started on, on the document, its units and its
 # turns alike.
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 
 DEPTH = 3            # rounds of splitting a piece that stays over the cap
+FANOUT = 8           # sub-splits of one document in flight at once
 
 SPLIT_PROMPT = """Below is one piece of a document as numbered lines: "%s", about %d words, over the limit of %d words for one unit. Point at the lines where it naturally breaks (a scene change, a section, a new episode, a new topic) so that no part is over the limit, using as few breaks as that allows. A break is the first line of the paragraph where the new part begins. Answer with JSON only: {"breaks": [{"index": n, "text": "..."}, ...]}. Point at a line by its number and copy that line's text exactly as listed (a long line may be cut after its first eight words). Never invent a line.
 
 %s
 """
 
-GROUP_PROMPT = """Below is the outline of one document: its pieces in order, each with its kind, its length in words, and its heading. Group consecutive pieces into units. A unit is one piece together with the pieces that belong under it: a section with its subsections, a chapter with its scenes, a play with the notes that follow it. Never join two peers (two chapters, two top-level sections) merely because they fit. Pieces marked (part) are the parts of one piece already split for length: they stay separate and never rejoin. A unit must stay under %d words; a single piece over that stands alone. Every piece belongs to exactly one unit, in order, with no gaps. Answer with JSON only: {"units": [{"first": n, "last": n}, ...]}, where first and last are piece numbers from the list.
+GROUP_PROMPT = """Below is the outline of one document: its pieces in order, each with its kind, its length in words, and its heading. Group consecutive pieces into units. A unit is one piece together with the pieces that belong under it: a section with its subsections, a chapter with its scenes. Never join two peers (two chapters, two top-level sections) merely because they fit, and never join pieces of different kinds: a unit is all body, or all notes, or all appendix. Pieces marked (part) are the parts of one piece already split for length: they stay separate and never rejoin. A unit must stay under %d words; a single piece over that stands alone. Every piece belongs to exactly one unit, in order, with no gaps. Answer with JSON only: {"units": [{"first": n, "last": n}, ...]}, where first and last are piece numbers from the list.
 
 %s
 """
@@ -676,6 +678,32 @@ def subsplit(text, p, stats, depth=0):
               "part": p.get("part") or p["label"][:40]}                  # parts of one piece stay apart in grouping
              for s, e in zip(starts, starts[1:] + [p["end"]])]
     return [q for part in parts for q in subsplit(text, part, stats, depth + 1)]
+
+
+def merge_stats(into, other):
+    """One thread's counts folded into the document's."""
+    for key, value in other.items():
+        if isinstance(value, int) and key != "addresses":
+            into[key] = into.get(key, 0) + value
+        elif isinstance(value, list):
+            into.setdefault(key, []).extend(value)
+    into["unresolved_samples"] = into.get("unresolved_samples", [])[:6]
+    return into
+
+
+def subsplit_all(text, pieces, stats):
+    """Every over-cap piece split at once. The pieces are independent, so the calls go out
+    together; each thread counts into its own stats and they are folded in afterwards, in
+    piece order, so a rerun of the same answers gives the same numbers."""
+    over = [i for i, p in enumerate(pieces) if words(text, p) > CAP_WORDS]
+    if not over:
+        return pieces
+    mine = {i: fresh_stats([], stats.get("model")) for i in over}
+    with ThreadPoolExecutor(max_workers=min(FANOUT, len(over))) as pool:
+        parts = dict(zip(over, pool.map(lambda i: subsplit(text, pieces[i], mine[i]), over)))
+    for i in over:
+        merge_stats(stats, {k: v for k, v in mine[i].items() if k != "addresses"})
+    return [q for i, p in enumerate(pieces) for q in (parts[i] if i in parts else [p])]
 
 
 def outline(text, pieces, show_short=False):
@@ -758,8 +786,22 @@ def merge_short(text, pieces, stats, flags):
     return out
 
 
+def split_by_kind(pieces, run):
+    """The run cut wherever the kind changes, so a unit never holds two kinds. Returns the run
+    itself when it is already of one kind, which is how the caller counts the cuts."""
+    parts, part = [], [run[0]]
+    for i in run[1:]:
+        if pieces[i]["kind"] == pieces[part[-1]]["kind"]:
+            part.append(i)
+        else:
+            parts.append(part)
+            part = [i]
+    parts.append(part)
+    return [run] if len(parts) == 1 else parts
+
+
 def group(text, pieces, stats, flags):
-    """Runs of piece indices as the model grouped them."""
+    """Runs of piece indices as the model grouped them, cut where the kind changes."""
     if len(pieces) == 1:
         return [[0]]
     try:
@@ -777,13 +819,18 @@ def group(text, pieces, stats, flags):
     if expect != len(pieces):
         flags.append(f"grouping answer: covered {expect} of {len(pieces)} pieces; one unit per piece")
         return [[i] for i in range(len(pieces))]
-    out = []
+    out, mixed = [], 0
     for run in runs:
-        if len(run) > 1 and sum(words(text, pieces[i]) for i in run) > CAP_WORDS:
-            flags.append(f"grouping: dissolved a group over the cap: {pieces[run[0]]['label'][:40]} .. {pieces[run[-1]]['label'][:40]}")
-            out.extend([[i] for i in run])
-        else:
-            out.append(run)
+        parts = split_by_kind(pieces, run)        # a unit is all of one kind
+        mixed += len(parts) > 1 or parts[0] is not run
+        for part in parts:
+            if len(part) > 1 and sum(words(text, pieces[i]) for i in part) > CAP_WORDS:
+                flags.append(f"grouping: dissolved a group over the cap: {pieces[part[0]]['label'][:40]} .. {pieces[part[-1]]['label'][:40]}")
+                out.extend([[i] for i in part])
+            else:
+                out.append(part)
+    if mixed:
+        flags.append(f"grouping: {mixed} group(s) cut where the kind changed")
     stats["groups"] = len(out)
     return out
 
@@ -870,9 +917,11 @@ def units_from_runs(pieces, runs, text):
 # loader wrote is always redone, because a code change is exactly what a resume must not keep. Chats need
 # no model call. Texts and PDFs print a full entry; chats print one line per hundred. The spend
 # stop writes the document in flight as a flagged record, so its cost is kept, and ends the loop.
+import threading
+
 SPLITS = Path("/kaggle/working/splits.jsonl")
 LOG = Path("/kaggle/working/splits.log")
-LOADER = "factledger-extractor 1.0"     # a record says which loader wrote it; a rerun redoes older ones
+LOADER = "factledger-extractor 1.3"     # a record says which loader wrote it; a rerun redoes older ones
 
 
 def rel_of(path):
@@ -943,11 +992,19 @@ paths = sorted(RAW.glob("oz/*.txt")) + sorted(RAW.glob("holmes/*.txt")) + sorted
 latest = read_splits()
 done = {key for key, rec in latest.items() if rec.get("loader") == LOADER
         and (all(advisory(f) for f in rec["flags"]) or rec.get("kind") == "chat" or rec["tries"] >= 2)}
-chats = 0
-for path in paths:
+DOCUMENTS = 6        # documents in flight at once; each may fan out FANOUT sub-splits
+lock = threading.Lock()
+stop = threading.Event()                         # set once the spend stop trips
+counted = {"chats": 0}
+
+
+def run_one(path):
+    """One document, start to record. Returns the record, or None when there is nothing to do.
+    Every task is queued at once, so the stop is a flag every task checks: once it is set,
+    the rest return untouched and are picked up by the next session's resume."""
     rel = rel_of(path)
-    if rel in done:
-        continue
+    if rel in done or stop.is_set():
+        return None
     doc, before, stopped = None, spend(), False
     try:
         doc = to_text(path)
@@ -959,7 +1016,7 @@ for path in paths:
             pieces, reply, flags, stats = split(doc)
             unresolved = stats["unresolved"]
             if not stats.get("too_long"):
-                pieces = [q for p in pieces for q in subsplit(doc["text"], p, stats)]
+                pieces = subsplit_all(doc["text"], pieces, stats)
             if stats["unresolved"] > unresolved:
                 flags.append(f"pointers: {stats['unresolved'] - unresolved} break(s) matched no line")
             pieces = merge_short(doc["text"], pieces, stats, flags)
@@ -974,6 +1031,7 @@ for path in paths:
             stats["short_units"] = sum(1 for u in units if u["words"] < SHORT_WORDS)
     except SpendStop as e:                       # keep what it cost, flagged; it is redone next session
         stopped = True
+        stop.set()
         pieces = [piece(0, len(doc["text"]), "whole document", kind="whole")]
         units, reply, stats = units_from_runs(pieces, [[0]], doc["text"]), {}, {}
         flags = [f"spend stop: {e}; not finished"]
@@ -986,19 +1044,26 @@ for path in paths:
     record = {"file": rel, "path": str(path), "sha256": doc["sha256"], "kind": doc["kind"], "loader": LOADER,
               "reply": reply, "pieces": pieces, "units": units, "flags": flags, "stats": stats,
               "cost": round(spend() - before, 4)}
-    with SPLITS.open("a", encoding="utf-8") as f:
-        f.write(json.dumps(record, ensure_ascii=False) + "\n")
-    done.add(rel)
+    with lock:                                   # one writer, and one document's log at a time
+        with SPLITS.open("a", encoding="utf-8") as f:
+            f.write(json.dumps(record, ensure_ascii=False) + "\n")
+        done.add(rel)
+        if doc["kind"] == "chat":
+            counted["chats"] += 1
+            if flags or counted["chats"] % 100 == 0:
+                print(f"{path.name}  {'FLAGGED ' + '; '.join(flags) if flags else 'ok'}  turns {len(pieces)}  units {len(units)}  ({counted['chats']} chats so far)")
+        else:
+            show(doc, record)
     if stopped:
         print(f"{flags[0]}: stopping; {path.name} is written flagged and will be redone next session")
-        break
-    if doc["kind"] == "chat":
-        chats += 1
-        if flags or chats % 100 == 0:
-            print(f"{path.name}  {'FLAGGED ' + '; '.join(flags) if flags else 'ok'}  turns {len(pieces)}  units {len(units)}  ({chats} chats so far)")
-    else:
-        show(doc, record)
-print(f"{len(done)} documents in {SPLITS.name}, ${spend():.2f} spent this session")
+    return record
+
+
+with ThreadPoolExecutor(max_workers=DOCUMENTS) as pool:
+    for _ in pool.map(run_one, paths):
+        pass
+print(f"{len(done)} documents in {SPLITS.name}, ${spend():.2f} spent this session"
+      + ("; the spend stop trips, the rest wait for the next session" if stop.is_set() else ""))
 
 
 # %%

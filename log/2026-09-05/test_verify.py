@@ -145,7 +145,8 @@ new = [r["file"] for r in recs[3:]]
 # records are (they carry no "loader"), so both are re-asked rather than skipped. The
 # older-loader rule itself is checked in test_diag.py.
 check("a record from an older loader is redone, not skipped", "raw/oz/01_55.txt" in new and "raw/oz/02_54.txt" in new, new)
-check("every path got a record, in order", new == ["raw/oz/01_55.txt", "raw/oz/02_54.txt", "raw/longmemeval/001cefa7_2.json", "papers/novelqa-2024.pdf", "papers/wang2024-novelqa.pdf", "raw/oz/missing.txt"], new)
+# 2026-09-06: records land in completion order now, so the set is the check, not the list.
+check("every path got a record", sorted(new) == sorted(["raw/oz/01_55.txt", "raw/oz/02_54.txt", "raw/longmemeval/001cefa7_2.json", "papers/novelqa-2024.pdf", "papers/wang2024-novelqa.pdf", "raw/oz/missing.txt"]), new)
 err = next(r for r in recs if r.get("file") == "raw/oz/missing.txt")
 check("unreadable file is a run-error record, kind error, loop continued", err["kind"] == "error" and err["flags"][0].startswith("run error"), err["flags"])
 calls.clear()
@@ -163,7 +164,10 @@ b8s = re.sub(r"paths = \[.*?\]", 'paths = [RAW / "oz" / "01_55.txt", RAW / "oz" 
 calls.clear(); script["spendstop_at"] = 2
 exec(b8s, ns)
 recs3 = [json.loads(l) for l in (SCR / "splits.jsonl").read_text(encoding="utf-8").split("\n") if l]
-check("spend stop writes the in-flight document flagged and stops", len(recs3) == 1 and recs3[0]["flags"][0].startswith("spend stop"), [r["flags"] for r in recs3])
+# 2026-09-06: with documents in parallel, every document in flight when the stop trips is
+# written flagged; the rest are untouched and wait for the next session.
+check("the documents in flight when the stop trips are written flagged",
+      recs3 and all(r["flags"][0].startswith("spend stop") for r in recs3), [r["flags"] for r in recs3])
 script["spendstop_at"] = None
 # export with a duplicate and an error record
 (SCR / "splits.jsonl").write_text("\n".join(json.dumps(x, ensure_ascii=False) for x in recs2) + "\n", encoding="utf-8")
