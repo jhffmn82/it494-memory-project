@@ -37,3 +37,11 @@ their saved outputs as run.
   the SCHEMA.md and BUILD.md sentences drafted for correction. The old run's log and records
   as `old-design-run.*`; the offline checks as `test_review.py`, `test_verify.py` and `test_run1.py`, and
   `py_to_ipynb.py`, which builds the notebook from the script and checks the round trip.
+- [2026-09-06](2026-09-06/README.md): the extractor's whole-corpus run landed (19,436
+  documents, $40.67) and its export rebuilt locally from the log; the document ingestor built
+  against the schema in eleven blocks, the quote gate returning offsets with classified
+  rejections, a document roster, within-document reconciliation with a scored ledger, the
+  package as one file per document; a 59-check offline battery; the rulings on predicates
+  and the roster. Audit: [audit.md](2026-09-06/audit.md), the ingestor against SCHEMA.md,
+  BUILD.md and the brief record by record, the decisions taken and the PROPOSED items, and
+  the project's documents against each other.
