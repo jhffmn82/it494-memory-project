@@ -895,11 +895,11 @@ def day(t):
 def chat_runs(pieces, text):
     """Runs of piece indices: at least two turns each unless a day changes, under the cap where
     two turns allow it, the short tail merged into the unit before it. Index 0 is the header,
-    which has no turn of its own and so opens the first turn's unit."""
+    which is front matter, and so is a unit of its own: a unit is all of one kind."""
     runs, run, size = [], [], 0
-    for i, q in enumerate(pieces):
+    for i, q in enumerate(pieces[1:], start=1):
         w = words(text, q)
-        turns = sum(1 for j in run if j > 0)
+        turns = len(run)
         new_day = bool(run) and day(q["occurred_at"]) != day(pieces[run[-1]]["occurred_at"])
         if run and (new_day or (size + w > CAP_WORDS and turns >= 2)):
             runs.append(run)
@@ -908,12 +908,11 @@ def chat_runs(pieces, text):
         size += w
     if run:
         same_day = runs and day(pieces[run[0]]["occurred_at"]) == day(pieces[runs[-1][-1]]["occurred_at"])
-        lone = sum(1 for j in run if j > 0) < 2
-        if runs and same_day and (size < TAIL_FLOOR or lone):   # a short tail, or a lone turn, joins the unit before it
+        if runs and same_day and (size < TAIL_FLOOR or len(run) < 2):   # a short tail, or a lone turn
             runs[-1].extend(run)
         else:
             runs.append(run)
-    return runs
+    return [[0]] + runs
 
 
 def units_from_runs(pieces, runs, text):
@@ -944,7 +943,11 @@ import threading
 
 SPLITS = Path("/kaggle/working/splits.jsonl")
 LOG = Path("/kaggle/working/splits.log")
-LOADER = "factledger-extractor 1.4"     # every record says which loader wrote it
+# Every record says which loader wrote it, so a resume can tell one build from another. Keep
+# this in step with the code: 1.1 and 1.2 both shipped under the 1.0 label, so running the
+# older notebook after a newer one could not tell the work had been done and asked the whole
+# corpus again.
+LOADER = "factledger-extractor 1.5"
 REDO_ALL = False                        # True also re-asks clean records an older loader wrote
 
 

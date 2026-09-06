@@ -168,7 +168,7 @@ flags = []
 runs = R("group")(t2, pieces, stats, flags)
 check("string first/last coerced; coverage ok", runs[0] == [0, 1] and sum(len(r) for r in runs) == len(pieces), flags)
 
-# ---------------- 6. chat_runs: header never alone, never a lone turn ----------------
+# ---------------- 6. chat_runs: the header its own unit, never a lone turn ----------------
 print("\n== chat runs ==")
 big = "user: " + ("word " * 5000) + "\n\n"
 small = "assistant: short reply here\n\n"
@@ -180,8 +180,11 @@ cdoc = {"text": chat_text, "turns": turns, "dates": ["2023/05/20 (Sat) 02:21"], 
 cp, cf = R("chat_pieces")(cdoc)
 runs = R("chat_runs")(cp, chat_text)
 units = R("units_from_runs")(cp, runs, chat_text)
-check("no unit holds only the header", all(any(j > 0 for j in run) for run in runs), runs)
-check("no unit is a lone turn (except a day change)", all(sum(1 for j in run if j > 0) >= 2 for run in runs[:-1]) , runs)
+# 2026-09-06: the header is front matter, so it is a unit of its own; a unit is all of one
+# kind. Every other unit is turns only, at least two unless the session has fewer.
+check("the header is its own unit and the rest are turns",
+      runs[0] == [0] and all(all(j > 0 for j in run) for run in runs[1:]), runs)
+check("no unit is a lone turn (except a day change)", all(len(run) >= 2 for run in runs[1:-1]), runs)
 check("chat tiles", cp[0]["start"] == 0 and cp[-1]["end"] == len(chat_text) and all(a["end"] == b["start"] for a, b in zip(cp, cp[1:])))
 
 # ---------------- 3. glob; 4. SpendStop; 10-12. Block 8/9 end to end on two docs ----------------

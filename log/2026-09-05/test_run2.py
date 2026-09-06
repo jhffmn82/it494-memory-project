@@ -63,9 +63,9 @@ turns = len(doc["turns"])
 # 2026-09-06: 0.8 made a unit one turn; the audit restored the ruled rule, so these three
 # checks now assert it. SCHEMA.md: never a lone turn, never across a day change, under the cap.
 check("fewer units than turns: they are grouped", len(units) < turns, (len(units), turns))
-check("the header opens the first unit and no unit is turn-less",
-      runs[0][:2] == [0, 1] and all(any(j > 0 for j in run) for run in runs))
-check("no unit is a lone turn", all(sum(1 for j in run if j > 0) >= 2 for run in runs), [len(r) for r in runs])
+check("the header is its own unit and no other unit holds it",
+      runs[0] == [0] and all(all(j > 0 for j in run) for run in runs[1:]))
+check("no unit is a lone turn", all(len(run) >= 2 for run in runs[1:]), [len(r) for r in runs])
 check("no unit is over the cap unless one turn is", all(
       u["words"] <= R("CAP_WORDS") or sum(1 for j in run if j > 0) == 1 for u, run in zip(units, runs)))
 earliest = min(t for t in (R("parse_time")(d) for d in doc["dates"]) if t)

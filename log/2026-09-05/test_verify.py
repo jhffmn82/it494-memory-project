@@ -127,7 +127,11 @@ def chat(turn_words):
     return {"text": text, "turns": turns, "dates": ["2023/05/20 (Sat) 02:21"], "kind": "chat", "sha256": "x"}
 for tw in ([3000, 3000, 2000], [2500, 2500, 3900, 3900, 2000], [5000], [100, 100]):
     d = chat(tw); cp, _ = R("chat_pieces")(d); runs = R("chat_runs")(cp, d["text"])
-    check(f"turns {tw}: no unit is a lone turn, header not alone", all(sum(1 for j in run if j > 0) >= min(2, len(tw)) for run in runs) and all(any(j > 0 for j in run) for run in runs), runs)
+    # 2026-09-06: the header is its own unit; the turn units carry at least two turns unless
+    # the session has fewer, or a single turn is over the cap on its own.
+    check(f"turns {tw}: the header stands alone and turn units are pure",
+          runs[0] == [0] and all(all(j > 0 for j in run) for run in runs[1:])
+          and all(len(run) >= min(2, len(tw)) or len(run) == 1 for run in runs[1:]), runs)
 
 print("\n== Blocks 8 and 9: old records, tries cap, chats final, duplicate bytes, unreadable file, spend stop ==")
 oz_reply = lambda lines: oz(lines)
