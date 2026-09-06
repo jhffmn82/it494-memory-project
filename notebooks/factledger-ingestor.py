@@ -347,6 +347,28 @@ def whole_word(needle, haystack):
     pattern = r"(?<!\w)" + r"\s+".join(re.escape(w) for w in needle.split()) + r"(?!\w)"
     return re.search(pattern, haystack) is not None
 
+
+# The partitions of a document, from the piece table's `kind` (the extractor's regions, or the
+# voice of a chat turn): the work itself, and each kind of apparatus around it. Entities are
+# reconciled inside a partition, the roster and the previous-unit context stay inside one, and
+# the document abstract folds from the work alone, so a license or a reference list never
+# shapes what the document is about. Front matter is part of the work because for most papers
+# the abstract sits in it.
+WORK_KINDS = {"body", "front_matter", "user", "assistant", "whole"}
+
+
+def unit_kind(doc, unit):
+    """The kind of most of the unit's characters, from its pieces; 'body' when it has none."""
+    chars = {}
+    for p in doc["pieces"]:
+        if p["unit_id"] == unit["unit_id"]:
+            chars[p["kind"]] = chars.get(p["kind"], 0) + p["end"] - p["start"]
+    return max(chars, key=chars.get) if chars else "body"
+
+
+def partition_of(kind):
+    return "work" if kind in WORK_KINDS else kind
+
 # %%
 # Block 4: the quote gate. locate(unit_text, quote) returns (start, end) inside the unit, or a
 # rejection category. Three ways to match, tried in order and each named, so the receipt says
@@ -554,6 +576,7 @@ def derive_unit(doc, unit, roster, previous_summary, ctx):
     base = unit["start"]
     cache = {}
     rec = {"unit_id": unit["unit_id"], "position": unit["position"], "label": unit["label"],
+           "kind": unit["kind"], "partition": partition_of(unit["kind"]),
            "entities": [], "dropped_entities": [], "mentions": [], "facts": [], "rejected_facts": [],
            "profile": [], "summary": None, "cells": [], "dropped_cells": [], "agreement": None,
            "shared_spans": 0, "ambiguous_voice": 0, "empty": False}
@@ -744,6 +767,7 @@ def reconcile(doc, records, ctx):
         for e in rec["entities"]:
             fs = facts_of.get(e["name"], [])
             locals_.append({"id": len(locals_), "ui": rec["position"], "unit_id": rec["unit_id"], "name": e["name"],
+                            "partition": rec["partition"],
                             "kind": e["kind"], "named": e["named"], "continues": e["continues"],
                             "forms": list(dict.fromkeys(e["forms"] + [e["name"]])),
                             "surfaces": {s.casefold() for s in e["forms"]} | {e["name"].casefold()},
@@ -786,14 +810,17 @@ def reconcile(doc, records, ctx):
     for group in by_name.values():
         for a, b in zip(group, group[1:]):
             if a["named"] and b["named"] and find(a["id"]) != find(b["id"]):
-                unite(a["id"], b["id"], "same_name", f"{a['name']!r} in units {a['ui']} and {b['ui']}")
+                across = "" if a["partition"] == b["partition"] else f", across {a['partition']} and {b['partition']}"
+                unite(a["id"], b["id"], "same_name", f"{a['name']!r} in units {a['ui']} and {b['ui']}{across}")
 
-    # 2. candidates across units: a shared surface form, a declared continuation of an unnamed
-    #    entity, an is_a link, or a shared name word; never a possession against its own anchor
+    # 2. candidates across units inside one partition: a shared surface form, a declared
+    #    continuation of an unnamed entity, an is_a link, or a shared name word; never a
+    #    possession against its own anchor, never across partitions (only an exact proper name
+    #    or a declared continuation crosses, above)
     pairs = {}
     for a in locals_:
         for b in locals_:
-            if a["id"] >= b["id"] or a["ui"] == b["ui"] or find(a["id"]) == find(b["id"]):
+            if a["id"] >= b["id"] or a["ui"] == b["ui"] or find(a["id"]) == find(b["id"]) or a["partition"] != b["partition"]:
                 continue
             declared = norm(a["continues"] or "") == norm(b["name"]) or norm(b["continues"] or "") == norm(a["name"])
             if not (declared or a["surfaces"] & b["surfaces"] or words_of(a["name"]) & words_of(b["name"])
@@ -889,6 +916,7 @@ def reconcile(doc, records, ctx):
             if l["unit_id"] not in unit_ids:
                 unit_ids.append(l["unit_id"])
         entities.append({"name": name, "kinds": sorted({l["kind"] for l in ks}), "named": any(l["named"] for l in ks),
+                         "partitions": sorted({l["partition"] for l in ks}),
                          "units": sorted({l["ui"] for l in ks}), "unit_ids": unit_ids,
                          "names": sorted({l["name"] for l in ks}), "surfaces": sorted({s for l in ks for s in l["surfaces"]}),
                          "first_unit_of": first_unit_of,
@@ -933,9 +961,10 @@ def children_hash(children):
 
 def fold_document(doc, records, entities, ctx):
     out = {"abstract": None, "abstract_rejected": None, "majors": [], "minors": [], "dossiers": [], "entity_abstracts": [], "entity_abstract_rejected": []}
-    summaries = [f"[{r['label']}] {r['summary']}" for r in records if r["summary"]]
+    work = [r for r in records if r["summary"] and r["partition"] == "work"] or [r for r in records if r["summary"]]
+    summaries = [f"[{r['label']}] {r['summary']}" for r in work]         # the work alone shapes the abstract
     if len(summaries) == 1:                                   # one summarised unit: its summary is the abstract, no call
-        text, missing, limit = next(r["summary"] for r in records if r["summary"]), [], None
+        text, missing, limit = work[0]["summary"], [], None
     elif summaries:
         text, missing, limit = fold("one document", summaries, ctx)
     else:
@@ -1192,7 +1221,7 @@ def show_unit(rec, unit, diag, unit_cost, total_cost):
     by_how = {}
     for f in rec["facts"]:
         by_how[f["matched_by"]] = by_how.get(f["matched_by"], 0) + 1
-    say(f"[{rec['position']}] {rec['label'][:40]}: {word_count(unit['text']):,} words; {len(rec['entities'])} entities"
+    say(f"[{rec['position']}] {rec['label'][:40]} ({rec['kind']}, {rec['partition']}): {word_count(unit['text']):,} words; {len(rec['entities'])} entities"
         f" ({len(rec['dropped_entities'])} dropped), {len(rec['mentions'])} mentions; {len(rec['facts'])} facts kept"
         f" ({', '.join(f'{k} {v}' for k, v in by_how.items()) or 'none'}), {len(rec['rejected_facts'])} rejected"
         f" ({', '.join(f'{k} {v}' for k, v in by_cat.items()) or 'none'}); {len(rec['cells'])} cells;"
@@ -1247,7 +1276,7 @@ def show_fold(folded, diag):
     for e in folded["majors"]:
         why = "in abstract" if e["rank"]["in_abstract"] else "by tie-break" if e["rank"]["in_abstract"] is None else "?"
         say(f"    {e['name'][:34]:<34} {'/'.join(e['kinds'])[:16]:<16} units {len(e['units']):>3} facts {e['n_facts']:>3}  {why}"
-            f"  {('also: ' + ', '.join(n for n in e['names'] if n != e['name'])[:60]) if len(e['names']) > 1 else ''}")
+            f"  {'/'.join(e['partitions'])}  {('also: ' + ', '.join(n for n in e['names'] if n != e['name'])[:60]) if len(e['names']) > 1 else ''}")
 
 
 def ingest(doc, ctx=None, diag=None):
@@ -1255,26 +1284,31 @@ def ingest(doc, ctx=None, diag=None):
     diag = diag or {}
     ctx = {"doc": doc["source_uri"], **(ctx or {})}
     before_calls, before_spend = len(CALLS), spend()
-    roster = {"entities": [], "predicates": [], "predicate_counts": {}}
-    records, previous = checkpointed(doc), None
+    rosters, previous = {}, {}                                       # one roster and one previous summary per partition
+
+    def roster_for(part):
+        return rosters.setdefault(part, {"entities": [], "predicates": [], "predicate_counts": {}})
+
+    records = checkpointed(doc)
     for rec in records:                                              # replay what the sidecar holds
-        advance_roster(roster, rec)
-        previous = rec["summary"] or previous
+        advance_roster(roster_for(rec["partition"]), rec)
+        previous[rec["partition"]] = rec["summary"] or previous.get(rec["partition"])
     if records and diag.get("units"):
         say(f"resuming {doc['source_uri']} from {len(records)} checkpointed units")
     side = sidecar_path(doc)
     if not records and side.exists():
         side.unlink()
     for u in doc["units"][len(records):]:
-        unit = {**u, "text": doc["text"][u["start"]:u["end"]]}
+        unit = {**u, "text": doc["text"][u["start"]:u["end"]], "kind": unit_kind(doc, u)}
+        part = partition_of(unit["kind"])
         at = spend()
-        rec = derive_unit(doc, unit, roster, previous, {**ctx, "unit": u["position"]})
+        rec = derive_unit(doc, unit, roster_for(part), previous.get(part), {**ctx, "unit": u["position"]})
         records.append(rec)
         side.parent.mkdir(parents=True, exist_ok=True)
         with side.open("a", encoding="utf-8") as f:
             f.write(json.dumps({"ingestor": INGESTOR, "input_hash": input_hash(doc), "rec": rec}, ensure_ascii=False) + "\n")
-        advance_roster(roster, rec)
-        previous = rec["summary"] or previous
+        advance_roster(roster_for(part), rec)
+        previous[part] = rec["summary"] or previous.get(part)
         if diag.get("units"):
             show_unit(rec, unit, diag, spend() - at, spend() - before_spend)
     entities, ledger, candidates, n_locals, n_pairs, n_judged = reconcile(doc, records, ctx)
@@ -1283,9 +1317,13 @@ def ingest(doc, ctx=None, diag=None):
     folded = fold_document(doc, records, entities, ctx)
     if diag.get("fold"):
         show_fold(folded, diag)
+    work = roster_for("work")
     stats = {"locals": n_locals, "candidate_pairs": n_pairs, "judged_pairs": n_judged,
              "calls": len(CALLS) - before_calls, "cost": round(spend() - before_spend, 4),
-             "matched_by": {}, "rejected_by": {}, "roster_size": len(roster["entities"]), "predicates": len(roster["predicates"])}
+             "matched_by": {}, "rejected_by": {}, "roster_size": len(work["entities"]), "predicates": len(work["predicates"]),
+             "units_by_partition": {}}
+    for r in records:
+        stats["units_by_partition"][r["partition"]] = stats["units_by_partition"].get(r["partition"], 0) + 1
     for r in records:
         for f in r["facts"]:
             stats["matched_by"][f["matched_by"]] = stats["matched_by"].get(f["matched_by"], 0) + 1

@@ -203,9 +203,13 @@ check("cells only for entities with a fact in that unit", all(any(f["subject"] i
 check("agreement check recorded per unit", all(r["agreement"] is not None for r in records))
 abstracts = by.get("abstract", [])
 doc_abs = [a for a in abstracts if a["node_id"] == doc_node]
-check("document abstract present with children_hash", len(doc_abs) == 1 and doc_abs[0]["children_hash"] == ns["children_hash"]([f"[{r['label']}] {r['summary']}" for r in records]))
-child_pool = " ".join(r["summary"] for r in records).casefold()
-check("abstract names all appear in the children", not ns["missing_names"](doc_abs[0]["text"], [f"[{r['label']}] {r['summary']}" for r in records]))
+work = [r for r in records if r["summary"] and r["partition"] == "work"]
+check("document abstract present with children_hash over the work partition's summaries only", len(doc_abs) == 1 and doc_abs[0]["children_hash"] == ns["children_hash"]([f"[{r['label']}] {r['summary']}" for r in work]) and len(work) < len(records))
+check("the license unit is apparatus, the chapters and front matter are the work", {r["partition"] for r in records if r["kind"] == "license"} == {"license"} and all(r["partition"] == "work" for r in records if r["kind"] in ("body", "front_matter")))
+check("abstract names all appear in the children", not ns["missing_names"](doc_abs[0]["text"], [f"[{r['label']}] {r['summary']}" for r in work]))
+part_of = {r["position"]: r["partition"] for r in records}
+check("no candidate pair crosses a partition", all(part_of[c["a_unit"]] == part_of[c["b_unit"]] for c in by.get("candidate", [])))
+check("an entity seen only in the license is never a document major", not any(e["partitions"] == ["license"] for e in folded["majors"]))
 check("majors are exactly the entities named in the abstract", all(any(s in doc_abs[0]["text"].casefold() for s in e["surfaces"]) for e in folded["majors"]) and folded["majors"])
 check("dossier per major with an embedding", len(by.get("dossier", [])) == len(folded["majors"]) and all(d["embedding"] for d in by["dossier"]))
 check("ledger rows carry evidence", by.get("ledger") and all(l["evidence"] for l in by["ledger"]))

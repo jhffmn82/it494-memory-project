@@ -97,6 +97,7 @@ a package carries for each document-major, since the brief requires it and the m
 17. A declared continuation unites without a judge only when its target is a named entity; a continuation of an unnamed role, and two units both using an unnamed name, are scored and, in the ambiguous band, judged.
 18. A document with exactly one summarised unit takes that summary as its abstract with no fold call; this is what makes a two-unit chat (empty header, turns) cost no fold.
 19. The roster shows its 60 most recently seen entities, so the previous unit's new entities are always visible to the next.
+20. **Partitions** (Justin's, 2026-09-06 evening): a unit takes the `kind` of most of its characters from the piece table; body, front matter and both chat voices are the work partition, and notes, references, appendix and license are each their own. The document abstract folds from the work's summaries alone; the roster and the previous-summary context stay inside a partition; candidate pairs never cross one, and only an exact proper name or a declared continuation unites across. Front matter is in the work because 63 of 142 papers keep their abstract there. PROPOSED G against SCHEMA.md's "nothing branches on label": `kind` is the split plan's declared structure, not the free label.
 
 ## Part 2: the project against itself
 
