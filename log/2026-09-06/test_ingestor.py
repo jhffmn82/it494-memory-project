@@ -41,7 +41,7 @@ def check(name, ok, detail=""):
 # ---------------------------------------------------------------- the scripted model
 CAP = re.compile(r"(?<![\w'’])([A-Z][a-z]{2,})(?![\w'’])")
 STOP = {"The", "And", "But", "She", "His", "Her", "They", "Then", "When", "There", "This", "That", "With", "For", "Not", "You", "Now", "How", "Oh", "Yes", "But", "What", "Why", "Who", "All"}
-script = {"bad_fold": 0, "judge": "by_name"}
+script = {"bad_fold": 0, "judge": "by_name", "stop_at": None}
 
 
 def unit_text_of(prompt):
@@ -58,9 +58,13 @@ def first_sentence_with(text, name):
 
 
 def stub_generate(prompt, schema, stage, model=None, effort="low", ctx=None):
-    ns["CALLS"].append({"stage": stage, "model": model or "stub", "in": len(prompt) // 4, "out": 50, "seconds": 0.0, "cost": 0.0, **(ctx or {})})
+    if script["stop_at"] is not None and len(ns["CALLS"]) >= script["stop_at"]:
+        raise ns["SpendStop"]("test stop")
+    ns["logged"]({"stage": stage, "model": model or "stub", "in": len(prompt) // 4, "out": 50, "seconds": 0.0, "cost": 0.001, **(ctx or {})})
     text = unit_text_of(prompt)
     if stage == "entities":
+        if len(text.split()) < 20:                              # a chat header: nothing to name, as the model would find
+            return {"entities": []}
         counts = {}
         for w in CAP.findall(text):
             if w not in STOP:
@@ -69,6 +73,8 @@ def stub_generate(prompt, schema, stage, model=None, effort="low", ctx=None):
         ents = [{"name": n, "named": True, "kind": "person", "surface_forms": [n], "continues": n if f"- {n} (" in prompt else None,
                  "profile": {"gender": "female" if n == "Dorothy" else None, "animacy": "animate", "role": None}} for n in names]
         ents.append({"name": "Phantom", "named": True, "kind": "person", "surface_forms": ["Zzyzx Qwerty"], "continues": None, "profile": None})
+        if names:                                                   # every span of this one is already the first entity's
+            ents.append({"name": "Shadow", "named": True, "kind": "person", "surface_forms": [names[0]], "continues": None, "profile": None})
         return {"entities": ents}
     if stage == "facts":
         names = re.search(r"ENTITIES: (.*)", prompt).group(1).split(", ")
@@ -132,6 +138,11 @@ check("locate through NFKC, curly quotes, dash and case, offsets in the original
 check("locate paraphrase classified", locate(t, "Second line here today")[2] == "paraphrase")
 check("locate not found classified", locate(t, "purple giraffe moon")[2] == "not_found")
 check("locate empty", locate(t, "  ")[2] == "empty")
+hy = "the recon-\nciliation of names is\nhard."
+s, e, how = locate(hy, "reconciliation of names")
+check("locate bridges a hyphenated line break and stores the original slice", how == "normalised" and hy[s:e] == "recon-\nciliation of names", repr(hy[s:e] if s is not None else how))
+check("occurrences finds every verbatim recurrence", ns["occurrences"]("a b a b a", "a b") == [0, 4])
+check("whole_word", ns["whole_word"]("her", "with her hat") and not ns["whole_word"]("her", "the heron"))
 nt, back = normalised("ﬁx")
 check("normalised map expands a ligature", nt == "fix" and back == [0, 0, 1])
 check("surface_spans whole words only", surface_spans("Tim and Timothy and Tim.", "Tim") == [(0, 3), (20, 23)])
@@ -176,13 +187,19 @@ node_ids = {n["node_id"] for n in by["node"]}
 check("minor mentions carry node_id null and have no node", all(m["node_id"] is None for m in mentions if any(True for r in records for mm in r["mentions"] if mm["mention_id"] == m["mention_id"] and mm["entity"] in minor_names)) and not any(ns["h"](doc["doc_id"], n) in node_ids for n in minor_names))
 check("major mentions carry a node that exists", all(m["node_id"] in node_ids for m in mentions if m["node_id"]))
 check("phantom entity dropped for no surface form", any(x["category"] == "no_surface_form" and x["name"] == "Phantom" for x in by.get("rejection", [])))
+check("an entity whose every span is already claimed is dropped and the spans counted", any(x["category"] == "span_claimed" and x["name"] == "Shadow" for x in by.get("rejection", [])) and lines[-1]["counts"]["shared_spans"] > 0)
+check("mention ids are unique within the package", len({m["mention_id"] for m in mentions}) == len(mentions))
+check("cell ids are unique within the package", len({c["cell_id"] for c in by.get("cell", [])}) == len(by.get("cell", [])))
+check("alias rows carry the verbatim form with the unit it first appeared in", by.get("alias") and all(a["alias"] != a["alias"].casefold() or not a["alias"].isalpha() for a in by["alias"] if a["alias"][:1].isupper()) and all(a["first_seen_unit"] in unit_range for a in by["alias"]))
+check("every call was written to calls.jsonl as it was made", (ns["OUT"] / "calls.jsonl").exists() and sum(1 for _ in ns["read_jsonl"](ns["OUT"] / "calls.jsonl")) == len(ns["CALLS"]))
+check("no sidecar remains after a finished document", not ns["sidecar_path"](doc).exists())
 check("every fact subject is a node", all(f["subject"] in node_ids for f in facts))
 check("a fact to a minor keeps the minor's name as its value", all(not f["object_is_node"] for f in facts if f["object"] not in node_ids))
 check("voice: every fact carries the document author for a novel", all(f["author"] == doc["author"] for f in facts), doc["author"])
 cells = by.get("cell", [])
 doc_node = ns["h"](doc["doc_id"], "document")
 check("a unit summary cell on the document node per unit", sum(1 for c in cells if c["node_id"] == doc_node) == len(doc["units"]))
-check("cells only for entities with a fact in that unit", all(any(f["subject"] == c["provenance"]["entity_name"] and f["unit_id"] == c["unit_id"] for r in records for f in r["facts"]) for c in cells if c["node_id"] != doc_node))
+check("cells only for entities with a fact in that unit", all(any(f["subject"] in c["provenance"]["entity_names"] and f["unit_id"] == c["unit_id"] for r in records for f in r["facts"]) for c in cells if c["node_id"] != doc_node))
 check("agreement check recorded per unit", all(r["agreement"] is not None for r in records))
 abstracts = by.get("abstract", [])
 doc_abs = [a for a in abstracts if a["node_id"] == doc_node]
@@ -230,10 +247,11 @@ picked = None
 for uri in chat_uris[:400]:
     d = ns["load_document"](uri, BY_URI, UNITS, PIECES)
     kinds = {p["kind"] for p in d["pieces"]}
-    if {"user", "assistant"} <= kinds and len(d["units"]) == 1 and 8 <= len(d["pieces"]) <= 14:
+    turns_unit = d["units"][-1]["unit_id"] if d["units"] else None
+    if {"user", "assistant"} <= {p["kind"] for p in d["pieces"] if p["unit_id"] == turns_unit} and len(d["units"]) == 2 and 8 <= len(d["pieces"]) <= 14:
         picked = d
         break
-check("a chat session with user and assistant turns inside one unit found", picked is not None)
+check("a chat session with user and assistant turns inside one unit found (the header is the other unit)", picked is not None)
 if picked:
     p, c, st, recs, ents, fd = ns["ingest"](picked)
     rows = list(ns["read_jsonl"](p))
@@ -243,9 +261,12 @@ if picked:
 
     def piece_author(off):
         return next(pp["author"] for pp in pieces if pp["start"] <= off < pp["end"])
-    check("chat: every fact's author is the author of the piece holding its quote", cf and all(f["author"] == piece_author(f["quote_start"]) for f in cf))
+    check("chat: every fact's author is the author of the piece holding its quote, or null when the same words occur in two voices",
+          cf and all(f["author"] == piece_author(f["quote_start"]) or (f["author"] is None and f["provenance"]["voice_ambiguous"]) for f in cf))
     check("chat: facts from both voices, user and assistant", voices >= {"user", "assistant"}, voices)
-    check("chat: one-unit document's abstract is its unit summary, no fold call", any(r["record"] == "abstract" and r["node_id"] == ns["h"](picked["doc_id"], "document") for r in rows) and not any(cc["stage"] == "fold" for cc in ns["CALLS"] if cc.get("doc") == picked["source_uri"]))
+    check("chat: the header unit yields nothing, the turns unit's summary is the abstract, no fold call",
+          rows[-1]["counts"]["empty_units"] == 1 and any(r["record"] == "abstract" and r["node_id"] == ns["h"](picked["doc_id"], "document") for r in rows)
+          and not any(cc["stage"] == "fold" for cc in ns["CALLS"] if cc.get("doc") == picked["source_uri"]))
     check("chat: unit carries the session date and facts inherit nothing invented", all(f["valid_from"] is None for f in cf) and picked["units"][0]["occurred_at"] == picked["occurred_at"])
 
 # ---------------------------------------------------------------- a paper: the abstract as the first unit
@@ -262,15 +283,29 @@ script["bad_fold"] = 2
 p, c, st, recs, ents, fd = ns["ingest"](ns["load_document"](uri_of("/oz/02_54.txt"), BY_URI, UNITS, PIECES))
 rows = list(ns["read_jsonl"](p))
 check("a fold that keeps a fabricated name after one retry is not stamped", not any(r["record"] == "abstract" and r["node_id"] == ns["h"](rows[0]["doc_id"], "document") for r in rows) and rows[-1]["abstract_rejected"] == ["Rumpelstiltskin"], rows[-1]["abstract_rejected"])
-check("with no abstract every entity is minor and no node is minted", rows[-1]["counts"]["majors"] == 0)
+check("with no abstract the tie-breakers decide salience and the node says so", rows[-1]["counts"]["majors"] > 0 and all(r["provenance"]["salience"]["in_abstract"] is None for r in rows if r["record"] == "node" and r["kind"] != "document") and any(r["record"] == "fact" for r in rows))
 script["bad_fold"] = 1
 p, c, st, recs, ents, fd = ns["ingest"](ns["load_document"](uri_of("/oz/03_486.txt"), BY_URI, UNITS, PIECES))
 rows = list(ns["read_jsonl"](p))
 check("a fold rejected once is retried with the missing names and then stamped", any(r["record"] == "abstract" and r["node_id"] == ns["h"](rows[0]["doc_id"], "document") for r in rows))
 
+# ---------------------------------------------------------------- the spend stop mid-document, then a resume from the sidecar
+gr = ns["load_document"](uri_of("/graphrag-bench/Novel-40700.txt"), BY_URI, UNITS, PIECES)
+script["stop_at"] = len(ns["CALLS"]) + 11                          # three units and a bit into the fourth
+done, skipped = ns["run"]([gr["source_uri"]])
+side = ns["sidecar_path"](gr)
+check("a spend stop mid-document leaves a sidecar of finished units and no package", done == 0 and side.exists() and not ns["package_path"](gr).exists() and len(ns["checkpointed"](gr)) == 3, len(ns["checkpointed"](gr)) if side.exists() else "no sidecar")
+script["stop_at"] = None
+calls_before = len(ns["CALLS"])
+done, skipped = ns["run"]([gr["source_uri"]])
+p_gr = ns["package_path"](gr)
+rows = list(ns["read_jsonl"](p_gr))
+check("the resumed run finishes the document from the sidecar, deriving only the remaining units", done == 1 and rows[-1]["record"] == "completion" and rows[-1]["counts"]["units"] == len(gr["units"]) and not side.exists()
+      and sum(1 for c in ns["CALLS"][calls_before:] if c["stage"] == "entities") == len(gr["units"]) - 3, sum(1 for c in ns["CALLS"][calls_before:] if c["stage"] == "entities"))
+
 # ---------------------------------------------------------------- staleness is a hash comparison
 rec = ns["receipt"]()
-check("receipt sums matched_by and rejected_by across documents", rec["documents"] >= 4 and rec["matched_by"].get("exact", 0) > 0 and rec["rejected_by"].get("not_found", 0) > 0)
+check("receipt sums matched_by and rejected_by across documents and costs from the packages", rec["documents"] >= 5 and rec["matched_by"].get("exact", 0) > 0 and rec["rejected_by"].get("not_found", 0) > 0 and rec["cost_of_packages"] > 0 and rec["in_flight_sidecars"] == [])
 check("staleness: a changed child changes children_hash", ns["children_hash"](["a", "b"]) != ns["children_hash"](["a", "c"]) and ns["children_hash"](["a", "b"]) == ns["children_hash"](["a", "b"]))
 print(f"\n{sum(results)} of {len(results)} checks pass")
 sys.exit(0 if all(results) else 1)
