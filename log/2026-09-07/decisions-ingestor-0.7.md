@@ -121,6 +121,49 @@ chat had built or recommended, that is said plainly.
     line; on the battery's scripted Oz the rounds converge 19, 9, 3, 1, judging 32 pairs in 6
     calls where 144 unit-locals become 47 entities.
 
+54. **The package ships the dossier text and no vector** (Justin: "my understanding of the end
+    state is we will be using a model agnostic light weight embedder, so caching the embeddings
+    of raw text into global serves no purpose and might not be used. But maybe at a future time,
+    assuming a constant model on the backend, it might make sense"). The embedding call and the
+    stored vector go; the dossier text stays, so a vector can be built whenever the backend
+    model is settled. It was also most of a package's size: 1,536 numbers for every major.
+
+55. **One switch for the diagnostics** (ruling 14, option a). Eleven flags and the dict threaded
+    through `ingest`, `run`, `show_unit` and `show_reconcile` become `WATCH`. Only two
+    combinations were ever used, and both printed everything.
+
+56. **RUN always names documents** (ruling 15, option a). `sample()` and the `"sample"` and
+    `"all"` specs go; `"all"` on the present export would have tried 19,206 chat sessions. The
+    three test runs are their own blocks.
+
+57. **The scored candidate rows stay** (Justin: "yes, keep it so we can audit this. it's
+    essentially just a log that doesn't affect anything"). They never leave the package;
+    `docs/entity-resolution.md` asks for exactly this log, with each signal scored separately and
+    the rejected pairs kept, because merge precision and candidate recall are computed from it.
+
+58. **`manifest.jsonl` goes** (ruling 17, option b). The receipt sums every package on disk and
+    each package's completion record carries its own counts, so the manifest was a third copy.
+
+59. **The package header record goes** (ruling 18, option a). Three of its six fields repeated
+    the `document` record on the next line and the rest are in the completion, which is what
+    `completed`, the receipt and the roll-up all read.
+
+60. **The `predicates_distinct` count goes** (ruling 19, option a). It counted consolidated
+    predicates while the census in the same package counts raw ones: two numbers with one name.
+
+61. **A node says whether the document ever named it** (ruling 20, option a). The field existed
+    on the merged entity and was read by nothing and written nowhere; now it is written, so Step
+    2 can apply the both-named rule across documents rather than guessing from the aliases.
+
+62. **An alias carries the sentence it was first read in** (ruling 21, option a). `evidence_quote`
+    was a constant null; it now holds the sentence around the form's first mention. The profile's
+    `confidence` was a constant 0.5 and is gone, with SCHEMA.md amended, since the paragraph
+    above it already says these rows are low-confidence by definition.
+
+63. **Triage may not leave out more than half a document** (ruling 22, option a). `audit.md` said
+    that and the code guarded only the everything case; the code now matches the text, ignores
+    such an answer, reads every kind, and records the flag.
+
 ## Two corrections to the chat's own claims
 
 - **The judge does not cost 190 pairs for a twenty-chapter character** (Justin: "it shouldn't
