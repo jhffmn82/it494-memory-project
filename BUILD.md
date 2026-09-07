@@ -25,13 +25,11 @@ differs from chunk 20, which is what supersession is for. Every mention gets
 recorded with its span at ingest, because resolution measurements read
 mentions and spans cannot be reconstructed after merging.
 
-## One interface, every failure measured
+## Two interfaces, every failure measured
 
-Every model touch goes through one interface, generate(prompt, schema), and
-every call records its model id, tokens, and latency. Step 1 embeds nothing:
-the embedding interface was removed on 2026-09-07 with the stored dossier
-vectors (decisions 54 and 64), because the merge across documents will choose
-its own embedder and a vector cached from another model would not be read. Schema-invalid output gets one retry with the validation error
+Every model touch goes through two interfaces, embed(texts) and
+generate(prompt, schema), and every call records its model id, tokens, and
+latency. Schema-invalid output gets one retry with the validation error
 appended, then a logged rejection. Semantic failure is different: a quote that
 is not in its unit or an alias pointing at an unknown entity is rejected with
 no retry, because that is bad data, not bad formatting, and the two get
