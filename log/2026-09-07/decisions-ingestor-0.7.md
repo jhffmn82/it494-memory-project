@@ -164,6 +164,14 @@ chat had built or recommended, that is said plainly.
     that and the code guarded only the everything case; the code now matches the text, ignores
     such an answer, reads every kind, and records the flag.
 
+64. **Withdrawn within the hour: the embedding interface stays** (the chat proposed cutting
+    `embed(texts)`, the model id and its price row, since decision 54 left the connection ping
+    as their only caller; Justin: "wait scratch that, keep the embedding ID", and on the
+    follow-up, "just interface"). The removal was made and reverted at `2f093a4`, and BUILD.md's
+    "two interfaces" paragraph stands as written. What decision 54 settled is unchanged: the
+    package ships the dossier text and no vector, and the dossier record carries no
+    `embedding_model` either.
+
 ## Two corrections to the chat's own claims
 
 - **The judge does not cost 190 pairs for a twenty-chapter character** (Justin: "it shouldn't
