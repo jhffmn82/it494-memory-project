@@ -2107,7 +2107,7 @@ def note(text):
         f.write(text + "\n\n")
 
 
-def run(uris, diag=None, stop_on_error=False):
+def run(uris, diag=None):
     if not KEY:
         raise SystemExit("no OPENAI_API_KEY: set it in the environment, or attach it as a Kaggle secret")
     done = skipped = 0
@@ -2140,8 +2140,6 @@ def run(uris, diag=None, stop_on_error=False):
             note(f"{uri}: {e} after ${spend() - spend_before:.3f} on this document; its finished units are checkpointed and the run stops here")
             break
         except Exception as e:
-            if stop_on_error:
-                raise
             note(f"{uri}  ERROR {type(e).__name__}: {e}")
             continue
         done += 1
@@ -2316,12 +2314,11 @@ def cell_position(position):
     return key
 
 
-def draw_graph(path, show=True):
+def draw_graph(path):
     """The majors of one package as a graph, the 09-02 demo's way: nodes sized by how many
     units they appear in, an edge for every pair that shares a fact (a consolidated fact where
     the major has them, else a raw one), labelled with one of its predicates."""
     import networkx as nx
-    import matplotlib
     import matplotlib.pyplot as plt
     by = read_package(path)
     doc, ranked = by["document"][0], ranked_majors(by)
@@ -2345,8 +2342,6 @@ def draw_graph(path, show=True):
                     G[n["name"]][name_of[target]]["labels"].add(predicate)
                 else:
                     G.add_edge(n["name"], name_of[target], labels={predicate})
-    if not show:
-        matplotlib.use("Agg")
     pos = nx.spring_layout(G, seed=7, k=1.6)
     plt.figure(figsize=(16, 11))
     nx.draw_networkx_nodes(G, pos, node_size=[300 + 160 * G.nodes[n]["size"] for n in G], node_color="#cfe3f7")
@@ -2357,8 +2352,7 @@ def draw_graph(path, show=True):
     plt.axis("off")
     png = Path(path).with_name("graph-" + Path(path).stem + ".png")
     plt.savefig(png, dpi=150, bbox_inches="tight")
-    if show:
-        plt.show()
+    plt.show()
     plt.close()
     print(f"graph of {doc['title'] or doc['source_uri']}: {G.number_of_nodes()} nodes, {G.number_of_edges()} edges; saved {png}")
     return G
