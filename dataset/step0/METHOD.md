@@ -3,7 +3,9 @@
 The extractor is one Kaggle notebook of nine blocks:
 [FactLedger Extractor](https://www.kaggle.com/code/jhffmn/factledger-extractor). This release
 is `factledger-extractor 1.5`, one pass over the whole corpus, `gpt-5.6-luna` at low reasoning
-effort, JSON mode.
+effort, JSON mode. A document that defeats Luna twice is asked once more on `gpt-5.6-terra`,
+which is ten times the price, when it fits in 80,000 tokens. Two of the 230 read documents
+escalated.
 
 The design rule behind all of it: **the extractor sees a raw file and nothing else.** No
 filename convention, no per-corpus branch, no hand-written rule about where Gutenberg boilerplate
@@ -52,10 +54,15 @@ Three more calls, all deciding, none measuring:
 Code then checks that the groups cover the outline in order, dissolves a group over the cap, and
 cuts any group where the kind changes, so a unit is all one kind.
 
-Chats are grouped differently, and deliberately. A session's turns are the pieces, with the role
-as author. Units are runs of turns under the cap, never a lone turn, never spanning a change of
-day, with a short tail merged back into the unit before it. The session header is front matter
-and is a unit of its own.
+Chats are grouped differently, and deliberately, and with no model call at all: a session
+already states its own boundaries. A session's turns are the pieces, with the role as author.
+Units are runs of turns under the cap, never a lone turn, never spanning a change of day, with a
+short tail merged back into the unit before it. The session header is front matter and is a unit
+of its own.
+
+The day rule is in the code for chat formats that date each turn. LongMemEval is not one: it
+dates a session, not its turns, so on this corpus the rule never fires and every turn of a
+session carries the date the session started on.
 
 ## The gates
 
@@ -68,8 +75,10 @@ Every answer is checked before it becomes data:
   and counted; when the text is nowhere, the pointer is dropped and counted.
 - **Tiling.** Pieces are made to cover the document with no gaps and no overlaps, and the export
   asserts that every unit's slice is non-empty before writing it.
-- **Metadata pointers** are checked the same way, but a failure is nulled and flagged rather
-  than retried, because a retry costs a whole document call and the field is already null.
+- **Metadata pointers** are checked more loosely, as a substring of the line pointed at or its
+  near neighbours, because a title, an author or a date is one to four words and the five-word
+  rule above would reject every one of them. A failure is nulled and flagged rather than
+  retried, because a retry costs a whole document call and the field is already null.
 
 Nothing the model asserted without a verifiable pointer reaches this dataset. Where a check
 fails, the row carries a flag saying so rather than a guess.
@@ -82,14 +91,16 @@ run in parallel, and a document's own over-cap pieces sub-split eight at a time 
 Each call is billed to the document that made it, so per-document cost in the run log is real.
 
 The run is resumable: finished documents are appended as they complete and skipped on a restart.
-A record written by an older loader version is asked again, which is how a code change
-propagates. Running out of API credit is fatal by design rather than a retry, so a dead key
+A record written by an older loader version is kept and re-exported unless `REDO_ALL` is set,
+which is the switch that makes a code change propagate; this release was produced with it on, so
+every row was written by 1.5. Running out of API credit is fatal by design rather than a retry, so a dead key
 cannot walk the corpus writing empty flagged records.
 
 ## Reproducing it
 
 Fork the notebook, attach
 [IT494 Raw Corpora](https://www.kaggle.com/datasets/jhffmn/it494-narrative-corpora-raw), add an
-OpenAI key, and run all. The papers are a private dataset for license reasons; without it the
-run covers 19,295 of the 19,436 documents. A model is not deterministic, so a rerun will differ
+OpenAI key, and run all. The papers are a private dataset for license reasons, and block 1
+mounts it unconditionally, so without it the run stops before reading anything: make that mount
+optional and the run covers 19,295 of the 19,436 documents. A model is not deterministic, so a rerun will differ
 in the split of hard documents; the receipt is how two runs are compared.

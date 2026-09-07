@@ -40,7 +40,7 @@ The split plan. A unit is a run of consecutive pieces, cut only at piece boundar
 | `position` | integer | 0-based, dense, in document order. |
 | `label` | string | the heading or opening the model named for this unit. Not unique, not a key. |
 | `start`, `end` | integer | character range into `documents.text`. |
-| `occurred_at` | string or null | when the unit is from. For a chat, the turn's own timestamp. |
+| `occurred_at` | string or null | when the unit is from. For a chat, the date the session started on. |
 | `occurred_until` | string or null | the end of the range when a unit spans time, else null. |
 
 Guarantees, verified on all 19,436 documents in this release:
@@ -63,7 +63,7 @@ comes from.
 | `kind` | string | `front_matter`, `body`, `notes`, `references`, `appendix`, `license`, `user` or `assistant`. |
 | `start`, `end` | integer | character range into `documents.text`. |
 | `author` | string or null | who is speaking here. `user` or `assistant` in a chat, the document's author in a book. |
-| `occurred_at` | string or null | when this piece is from. |
+| `occurred_at` | string or null | when this piece is from. Every piece of a chat carries the session's start date; the source gives no per-turn time. |
 
 Guarantees, verified on all 19,436 documents:
 
@@ -93,7 +93,7 @@ The 141 documents whose text is withheld, and how to get it back.
 
 ## receipt.json
 
-The run's own counts, written by the run. Every number in `README.md` and `LIMITS.md` comes from
-here. `flagged` lists each flagged document by source; `by_kind`, `chars_by_kind` and
+The run's own counts, written by the run. The totals in `README.md` and `LIMITS.md` come from
+here; the per-corpus and per-piece-kind tables are counted from the released rows. `flagged` lists each flagged document by source; `by_kind`, `chars_by_kind` and
 `flags_by_kind` are the totals; `cost` is dollars spent, counting calls whose records were later
 replaced.

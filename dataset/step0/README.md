@@ -13,8 +13,13 @@ entities, no facts, no summaries. Those are later steps.
 A chunker cuts a file every N tokens. This does not cut on length at all. A language model reads
 a numbered list of the file's own lines and says where the front matter ends, where the body
 begins, where the notes and the references and the appendix are, and where each chapter or scene
-or turn starts. Units are then built by grouping those natural parts up to a size cap, cutting
-only at boundaries the model named.
+starts. Units are then built by grouping those natural parts up to a size cap, cutting only at
+boundaries the model named.
+
+**That is the 230 books and papers.** The 19,206 chat sessions need no model to find their
+boundaries, because a session states them: a turn is a piece, and code groups turns into units
+under the same cap. So a model was asked about 230 of the 19,436 documents, and the other
+19,206 are split on the structure their own format carries.
 
 Two properties follow, and both are verified in this release rather than asserted:
 
@@ -36,7 +41,7 @@ author of the piece that holds it, which is what lets a later step tell "Watson 
 | `units.jsonl` | 44,262 | the split plan: character ranges into a document's text |
 | `pieces.jsonl` | 227,100 | what each stretch of a document is, and who is speaking |
 | `papers.jsonl` | 141 | the withheld papers, with a URL and a hash so you can rebuild them |
-| `receipt.json` | — | every count in this README, produced by the run itself |
+| `receipt.json` | — | the run's own totals |
 
 `SCHEMA.md` gives the fields. `METHOD.md` explains how the split is made. `PROVENANCE.md` says
 where each document came from and under what license. `LIMITS.md` says what is known to be wrong.
@@ -88,7 +93,8 @@ text is withheld**: the document row is here with `"text": null` and the flag
 `text withheld: license`, and its units and pieces are here in full. To rebuild the text, take
 the row in `papers.jsonl`, fetch `source_url`, check the PDF against `pdf_sha256`, and run the
 text extraction in block 2 of the notebook, which is PyMuPDF page text joined by newlines. The
-offsets then resolve.
+offsets then resolve. The notebook as published mounts the private papers dataset in block 1 and
+stops without it, so running it on the public corpus alone needs that mount made optional.
 
 ## Provenance and license
 
@@ -101,7 +107,9 @@ this per corpus. Raw inputs, byte-identical to what each source served, are in
 ## How this was made
 
 [FactLedger Extractor](https://www.kaggle.com/code/jhffmn/factledger-extractor), one pass,
-`factledger-extractor 1.5`, `gpt-5.6-luna` at low reasoning effort, $7.72 for the corpus,
-median $0.013 a document. Re-running it reproduces this dataset. `METHOD.md` has the details.
+`factledger-extractor 1.5`, `gpt-5.6-luna` at low reasoning effort, escalating to
+`gpt-5.6-terra` when a document defeats it twice, which happened to 2 of the 230. $7.72 for the
+corpus, median $0.013 a read document. A rerun reproduces the shape but not the split of every
+hard document, since the model is not deterministic. `METHOD.md` has the details.
 
 Part of the IT 494 directed project at Illinois State University, fall 2026.

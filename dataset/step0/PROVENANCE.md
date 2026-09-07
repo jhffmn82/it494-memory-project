@@ -12,7 +12,7 @@ several hands, which is where a memory backend's entity problems actually appear
 **Sherlock Holmes, 9 volumes.** Project Gutenberg. The canon that is public domain in the
 United States.
 
-**Greek and Roman literature, 31 volumes.** Project Gutenberg, plus six institutional scans from
+**Greek and Roman literature, 31 volumes.** Project Gutenberg, plus five institutional scans from
 Archive.org. The scans are deliberate: they carry OCR damage, running headers, footnote markers
 and heavy editorial apparatus, and a splitter that only works on clean e-texts is not a
 splitter. Diodorus Siculus, Apollodorus and Ovid are the hard cases.

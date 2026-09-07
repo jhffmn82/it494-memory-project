@@ -8,11 +8,14 @@ known to be wrong and how you would tell.
 
 4,016 of 19,436 documents carry at least one flag. **3,944 of those are one advisory note**, on
 chat sessions whose turns carry more than one date, saying which date was kept for the document.
-Nothing is wrong with those sessions; the turns keep their own dates.
+Nothing is wrong with those sessions. The benchmark reuses a session across questions and so
+gives it several dates; the earliest is kept for the document, its units and every one of its
+turns, and the others are dropped. The source dates a session, not a turn, so there is no
+per-turn time to keep.
 
 That leaves **72 documents with a real flag**:
 
-| flag | documents | what it means |
+| flag | occurrences | what it means |
 |---|---|---|
 | merging | 38 | a short piece could not be joined: the outline was too long to ask, the join crossed a region boundary, or it would have gone over the cap |
 | pointers | 19 | a break the model named matched no line, so that break was dropped |
@@ -44,8 +47,9 @@ The 79 are two classes, both diagnosed against the files:
 
 ## Units that are the wrong size
 
-- **6 read documents** have a unit over the 4,000-word cap. The model could not find a break
-  inside and code does not invent one.
+- **6 read units** are over the 4,000-word cap. The model could not find a break inside and code
+  does not invent one. **8 chat units** are also over it; those carry no flag, because a chat's
+  cap is enforced by code rather than reported by a model.
 - **627 read units** are under 100 words. Most are the short front matter of a scanned volume.
 - **19,443 chat units** are under 100 words, which is expected: a short exchange is a short unit,
   and a unit is never a lone turn.
@@ -53,8 +57,9 @@ The 79 are two classes, both diagnosed against the files:
 ## Coverage of the body
 
 Body text is 82% of the 48.6 M characters read from books and papers. The median document is 79%
-body. **No document is at 0%.** The 39 below half are the institutional scans and the reference
-papers, where notes, references and appendices genuinely are most of the file.
+body. **No document is at 0%.** The 39 below half are 38 reference papers and one scan
+(Apollodorus volume 2, at 21%), where notes, references and appendices genuinely are most of
+the file.
 
 ## Dates
 
