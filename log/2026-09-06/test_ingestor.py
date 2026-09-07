@@ -209,8 +209,6 @@ nt, back = normalised("ﬁx")
 check("normalised map expands a ligature", nt == "fix" and back == [0, 0, 1])
 check("surface_spans whole words only", surface_spans("Tim and Timothy and Tim.", "Tim") == [(0, 3), (20, 23)])
 check("surface_spans normalised", surface_spans("the “Boy” ran", '"boy"') == [(4, 9)])
-check("names_in skips sentence openers unless seen inside a sentence", ns["names_in"]("The boy met Dorothy. Toto barked at Aunt Em. Then Toto slept.") == ["Aunt Em", "Dorothy", "Toto"] and ns["names_in"]("Then night fell. The end.") == [])
-check("missing_names", ns["missing_names"]("Dorothy met Ozma.", ["Dorothy went home."]) == ["Ozma"])
 try:
     ns["check_schema"]({"facts": [{"subject": 1}]}, ns["FACT_SCHEMA"])
     check("check_schema catches a wrong type", False)
@@ -277,7 +275,7 @@ doc_abs = [a for a in abstracts if a["node_id"] == doc_node]
 work = [r for r in records if r["summary"]]
 check("document abstract present with children_hash over the derived units' summaries", len(doc_abs) == 1 and doc_abs[0]["children_hash"] == ns["h"](*[f"[{r['label']}] {r['summary']}" for r in work]))
 check("triage left out the front matter and the license, and those units were never derived", {x["kind"] for x in lines[-1]["excluded"]} == {"front_matter", "license"} and lines[-1]["counts"]["units_excluded"] == 2 and len(records) == len(doc["units"]) - 2 and all(r["kind"] == "body" for r in records))
-check("abstract names all appear in the children", not ns["missing_names"](doc_abs[0]["text"], [f"[{r['label']}] {r['summary']}" for r in work]))
+check("the abstract is shorter than the summaries it folds", 0 < ns["word_count"](doc_abs[0]["text"]) <= max(400, sum(ns["word_count"](r["summary"]) for r in work)))
 check("every queued pair carries the demo's tier and three separate scores", by.get("candidate") and all(c["tier"] in (1.0, 0.85, 0.5) and {"name_score", "cooc_score", "profile_score", "combined"} <= set(c) for c in by["candidate"]) and any(c["stage"] == "judge" for c in ns["CALLS"]))
 check("each round's pairs are strongest first, and no entity is in two pairs of one round",
       all([(-c["tier"], -c["combined"]) for c in by["candidate"] if c["round"] == n] == sorted((-c["tier"], -c["combined"]) for c in by["candidate"] if c["round"] == n)
@@ -433,16 +431,18 @@ check("paper: facts located through PDF ligatures (ﬁ) and offsets slice to the
 check("paper: author is the document author (published voice)", pf and all(f["author"] == paper["author"] for f in pf), paper["author"])
 check("paper: first unit derived like any other (no branch on kind)", recs[0]["summary"] is not None)
 
-# ---------------------------------------------------------------- rejected fold is not stamped, then retried
+# ---------------------------------------------------------------- the summary stands as written
 script["bad_fold"] = 2
 p, c, st, recs, ents, fd = ns["ingest"](ns["load_document"](uri_of("/oz/02_54.txt"), BY_URI, UNITS, PIECES))
 rows = list(ns["read_jsonl"](p))
-check("a fold that keeps a fabricated name after one retry is not stamped", not any(r["record"] == "abstract" and r["node_id"] == ns["h"](rows[0]["doc_id"], "document") for r in rows) and rows[-1]["abstract_rejected"] == ["Rumpelstiltskin"], rows[-1]["abstract_rejected"])
-check("with no abstract the tie-breakers decide salience and the node says so", rows[-1]["counts"]["majors"] > 0 and all(r["provenance"]["salience"]["in_abstract"] is None for r in rows if r["record"] == "node" and r["kind"] != "document") and any(r["record"] == "fact" for r in rows))
-script["bad_fold"] = 1
-p, c, st, recs, ents, fd = ns["ingest"](ns["load_document"](uri_of("/oz/03_486.txt"), BY_URI, UNITS, PIECES))
-rows = list(ns["read_jsonl"](p))
-check("a fold rejected once is retried with the missing names and then stamped", any(r["record"] == "abstract" and r["node_id"] == ns["h"](rows[0]["doc_id"], "document") for r in rows))
+doc_abstract = [r for r in rows if r["record"] == "abstract" and r["node_id"] == ns["h"](rows[0]["doc_id"], "document")]
+check("a summary naming something the records do not is still stamped, not rejected (decision 65)",
+      len(doc_abstract) == 1 and "Rumpelstiltskin" in doc_abstract[0]["text"], doc_abstract[0]["text"][:60] if doc_abstract else None)
+check("salience is read from the abstract, and the majors are the entities it names",
+      rows[-1]["counts"]["majors"] > 0 and all(r["provenance"]["salience"]["in_abstract"] for r in rows if r["record"] == "node" and r["kind"] != "document"))
+check("an entity with nothing to summarise is not a major (decision 52)",
+      all(any(a["record"] == "abstract" and a["node_id"] == r["node_id"] for a in rows) for r in rows if r["record"] == "node" and r["kind"] != "document"))
+script["bad_fold"] = 0
 
 # ---------------------------------------------------------------- the spend stop mid-document, then a resume from the sidecar
 gr = ns["load_document"](uri_of("/graphrag-bench/Novel-40700.txt"), BY_URI, UNITS, PIECES)

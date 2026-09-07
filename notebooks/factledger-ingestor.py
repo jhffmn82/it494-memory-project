@@ -501,48 +501,6 @@ def name_words(name):
     return words
 
 
-def names_in(text):
-    """The names a summary or abstract emits, for the fabrication check: runs of capitalised
-    words. A run that opens a sentence is counted from its second word; its first word counts
-    only when it also appears capitalised inside some sentence, so 'The' is never a name."""
-    names, openers = [], []
-    run, run_opens, sentence_start = [], False, True
-    for token in text.split():
-        word = token.strip("\"'“”‘’()[]")
-        tail = ""
-        while word and word[-1] in ".,;:!?":
-            tail = word[-1] + tail
-            word = word[:-1]
-        capital = word[:1].isupper()
-        if capital:
-            if not run:
-                run_opens = sentence_start
-            run.append(word)
-        if run and (not capital or tail):
-            (openers if run_opens else names).append(run)
-            run = []
-        sentence_start = any(ch in ".!?" for ch in tail)
-    if run:
-        (openers if run_opens else names).append(run)
-    found = {" ".join(r) for r in names}
-    heads = []
-    for r in openers:
-        heads.append(r[0])
-        if len(r) > 1:
-            found.add(" ".join(r[1:]))
-    inside = {w for name in found for w in name.split()}
-    for head in heads:
-        if head in inside:
-            found.add(head)
-    return sorted(found)
-
-
-def missing_names(text, children):
-    """Names emitted by a fold that appear in none of its children, case ignored."""
-    pool = " ".join(children).casefold()
-    return [name for name in names_in(text) if name.casefold() not in pool]
-
-
 def whole_word(needle, haystack):
     """Is `needle` in `haystack` as whole words (case as given)?"""
     start = 0
@@ -1444,39 +1402,23 @@ def cluster_entities(locals_, clusters):
 # %%
 # Block 9: fold the document.
 #
-# The abstract folds from the unit summaries under BUILD's bound (at most half the child words,
-# capped at 400) with the fabrication check; a rejected fold is asked for once more with the
-# missing names listed, then left unstamped. Salience is reassessed against the abstract:
+# The abstract is a summary of the unit summaries, asked for in at most half their words and
+# no more than 400, and it stands as written (decision 65). Salience is read from the abstract:
 # named there, as whole words, is major; with no abstract, two units or two facts decide. A
 # major seen in fewer units and with fewer facts than the numbers below is demoted to minor.
 # Majors get a dossier with an embedding and their own abstract.
 DEMOTE_UNITS, DEMOTE_FACTS = 2, 3
 
 
-def fold(what, children, ctx, stage="fold", allowed=None):
-    """(text, missing names, limit); text is None when the fold was rejected twice. `allowed`
-    are names the prompt itself supplies, which count as present."""
-    child_words = sum(word_count(c) for c in children)
-    limit = min(400, max(1, child_words // 2))
-    asked = limit if limit < 12 else limit * 9 // 10
-    prompt, missing = fold_prompt(what, children, asked), []
-    for attempt in range(2):
-        reply = generate(prompt, FOLD_SCHEMA, stage, model=TERRA, ctx=ctx)
-        if not reply:
-            return None, [], limit
-        text = " ".join(reply["summary"].split())
-        missing = missing_names(text, children + (allowed or []))
-        over = word_count(text) > limit
-        if not missing and not over:
-            return text, [], limit
-        if attempt == 0:
-            complaint = []
-            if missing:
-                complaint.append(f"used names that do not appear in the records ({', '.join(missing[:8])})")
-            if over:
-                complaint.append(f"ran to {word_count(text)} words against a limit of {limit}")
-            prompt += "\n\nYour previous summary " + " and ".join(complaint) + ". Write it again using only names from the records, within the limit."
-    return None, missing or ["(over length)"], limit
+def fold(what, children, ctx, stage="fold"):
+    """The summary of these records, and the length it was asked for. The summary stands as
+    written: the prompt asks for the records' own names and a length, and neither is enforced
+    after the fact (decision 65). None only when the model did not answer."""
+    limit = min(400, max(20, sum(word_count(c) for c in children) // 2))
+    reply = generate(fold_prompt(what, children, limit), FOLD_SCHEMA, stage, model=TERRA, ctx=ctx)
+    if not reply:
+        return None, limit
+    return " ".join(reply["summary"].split()), limit
 
 
 def salience_order(item):
@@ -1484,22 +1426,19 @@ def salience_order(item):
 
 
 def fold_document(records, entities, ctx):
-    out = {"abstract": None, "abstract_rejected": None, "majors": [], "minors": [], "dossiers": [], "entity_abstracts": [],
-           "entity_abstract_rejected": [], "demoted": [], "cells_of": {}}
+    out = {"abstract": None, "majors": [], "minors": [], "dossiers": [], "entity_abstracts": [],
+           "demoted": [], "cells_of": {}}
     work = [r for r in records if r["summary"]]
     summaries = [f"[{r['label']}] {r['summary']}" for r in work]
     if len(summaries) == 1:                       # one summarised unit: its summary is the abstract, no call
-        text, missing, limit, tier = work[0]["summary"], [], None, LUNA
+        text, limit, tier = work[0]["summary"], None, LUNA
     elif summaries:
-        own = [e["name"] for e in entities] + [s for e in entities for s in e["surfaces"]]
-        text, missing, limit = fold("one document", summaries, ctx, allowed=own)   # the document's own names are not fabrications
+        text, limit = fold("one document", summaries, ctx)
         tier = TERRA
     else:
-        text, missing, limit, tier = None, ["(no unit summaries)"], None, None
+        text, limit, tier = None, None, None
     if text:
         out["abstract"] = {"text": text, "children_hash": h(*summaries), "limit": limit, "tier": tier}
-    else:
-        out["abstract_rejected"] = missing
 
     # salience against the abstract; without one, the tie-breakers decide and the node says so
     abstract, ranked = (text or "").casefold(), []
@@ -1537,34 +1476,27 @@ def fold_document(records, entities, ctx):
         out["dossiers"].append({"entity": e["name"], "name": e["name"], "first_unit": e["first_unit"], "kinds": e["kinds"],
                                 "first_mention": e["first_mention"], "text": text, "children": facts + cells})
     def abstract_of(pair):
-        """(text, missing names, tier); two records or fewer stand as the abstract without a call."""
+        """(text, tier); two records or fewer stand as the abstract without a call."""
         e, d = pair
-        if not d["children"]:
-            return None, [], None
         if len(d["children"]) <= 2:
-            return " ".join(c.split("] ", 1)[-1] for c in d["children"]), [], LUNA
-        text, missing, _ = fold(f"one entity, {e['name']}", d["children"], {**ctx, "entity": e["name"]}, stage="entity_abstract",
-                                allowed=e["names"] + e["surfaces"])
-        return text, missing, TERRA
+            return " ".join(c.split("] ", 1)[-1] for c in d["children"]), LUNA
+        text, _ = fold(f"one entity, {e['name']}", d["children"], {**ctx, "entity": e["name"]}, stage="entity_abstract")
+        return text, TERRA
 
-    # an entity the document cannot summarise is not a major (decision 52): it falls to minor
-    # and its facts ride into the majors, as any minor's do
-    pairs = list(zip(out["majors"], out["dossiers"]))
-    majors, dossiers = [], []
-    for (e, d), (text, missing, tier) in zip(pairs, in_parallel(abstract_of, pairs)):
-        if text:
-            out["entity_abstracts"].append({"entity": e["name"], "name": e["name"], "first_unit": e["first_unit"], "kinds": e["kinds"],
-                                            "first_mention": e["first_mention"], "text": text, "children_hash": h(*d["children"]), "tier": tier})
-            majors.append(e)
-            dossiers.append(d)
-            continue
-        if d["children"]:
-            out["entity_abstract_rejected"].append({"entity": e["name"], "missing": missing})
+    # an entity with nothing to summarise, no facts and no cells, is not a major (decision 52):
+    # it falls to minor and its facts ride into the majors, as any minor's do
+    pairs = [(e, d) for e, d in zip(out["majors"], out["dossiers"]) if d["children"]]
+    for (e, d) in [(e, d) for e, d in zip(out["majors"], out["dossiers"]) if not d["children"]]:
         e["major"] = False
         e["rank"]["no_abstract"] = True
         out["minors"].append(e)
         out["demoted"].append(e["name"])
-    out["majors"], out["dossiers"] = majors, dossiers
+    for (e, d), (text, tier) in zip(pairs, in_parallel(abstract_of, pairs)):
+        if text:
+            out["entity_abstracts"].append({"entity": e["name"], "name": e["name"], "first_unit": e["first_unit"], "kinds": e["kinds"],
+                                            "first_mention": e["first_mention"], "text": text, "children_hash": h(*d["children"]), "tier": tier})
+    out["majors"] = [e for e, d in pairs]
+    out["dossiers"] = [d for e, d in pairs]
     return out
 
 # %%
@@ -1805,8 +1737,7 @@ def write_package(doc, records, entities, folded, adjudicated, ledger, candidate
               "abstract": folded["abstract"] is not None}
     lines.append({"record": "completion", "doc_id": doc["doc_id"], "input_hash": input_hash(doc), "ingestor": INGESTOR, "counts": counts,
                   "stats": stats, "empty": counts["facts_stored"] == 0 and counts["cells"] == 0, "excluded": excluded,
-                  "demoted": folded["demoted"], "abstract_rejected": folded["abstract_rejected"],
-                  "entity_abstract_rejected": folded["entity_abstract_rejected"]})
+                  "demoted": folded["demoted"]})
     path.write_text("\n".join(json.dumps(l, ensure_ascii=False) for l in lines) + "\n", encoding="utf-8", newline="\n")
     return path, counts
 
@@ -2026,14 +1957,12 @@ def show_fold(folded):
     if folded["abstract"]:
         print(f"abstract ({word_count(folded['abstract']['text'])} words, limit {folded['abstract']['limit']}): {folded['abstract']['text']}")
     else:
-        print(f"abstract REJECTED: {folded['abstract_rejected']}")
+        print("abstract: none (no unit summaries)")
     print(f"salience: {len(folded['majors'])} major, {len(folded['minors'])} minor, {len(folded['demoted'])} demoted"
           f" ({sum(1 for e in folded['minors'] if e['rank'].get('no_abstract')) } of them for want of an abstract);"
-          f" {len(folded['entity_abstracts'])} entity abstracts, {len(folded['entity_abstract_rejected'])} rejected")
+          f" {len(folded['entity_abstracts'])} entity abstracts")
     if folded["demoted"]:
         print(f"    demoted to minor (fewer than {DEMOTE_UNITS} units and {DEMOTE_FACTS} facts): {', '.join(folded['demoted'])[:200]}")
-    for x in folded["entity_abstract_rejected"]:
-        print(f"    entity abstract REJECTED for {x['entity']}: names not in its records {x['missing']}")
     for e in folded["majors"]:
         why = "in abstract" if e["rank"]["in_abstract"] else ("by tie-break" if e["rank"]["in_abstract"] is None else "?")
         others = [n for n in e["names"] if n != e["name"]]
@@ -2150,7 +2079,7 @@ def run(uris):
                 print(f"\n=== {uri}: {len(doc['units'])} units, {len(doc['text']):,} chars{' (text rebuilt from the PDF)' if doc['text_rebuilt'] else ''},"
                       f" author {doc.get('author')!r}, date {doc.get('occurred_at')} ===")
             path, counts, stats, records, entities, folded = ingest(doc)
-            abstract = folded["abstract"]["text"][:200] if folded["abstract"] else f"REJECTED {folded['abstract_rejected']}"
+            abstract = folded["abstract"]["text"][:200] if folded["abstract"] else "(none)"
             entry = [f"{uri}  units {counts['units']}  entities {counts['entities']} ({counts['majors']} major)  mentions {counts['mentions']}"
                      f"  facts {counts['facts_kept']} kept / {counts['facts_rejected']} rejected / {counts['facts_stored']} stored"
                      f"  cells {counts['cells']}  calls {stats['calls']}  ${stats['cost']:.3f}",
@@ -2174,7 +2103,7 @@ def receipt():
     rec = {"ingestor": INGESTOR, "documents": 0, "by_group": {}, "counts": {}, "matched_by": {}, "rejected_by": {}, "cost_of_packages": 0.0,
            "cost_this_session": round(spend(), 4), "calls_this_session": len(CALLS), "calls_by_stage": {},
            "schema_rejections_this_session": len(REJECTIONS), "schema_retries_this_session": len(RETRIES),
-           "abstract_rejected": {}, "in_flight_sidecars": []}
+           "in_flight_sidecars": []}
     for c in CALLS:
         rec["calls_by_stage"][c["stage"]] = rec["calls_by_stage"].get(c["stage"], 0) + 1
     for path in sorted(OUT.rglob("*.jsonl")):
@@ -2193,8 +2122,6 @@ def receipt():
         for k, v in last["counts"].items():
             if isinstance(v, (int, bool)):
                 rec["counts"][k] = rec["counts"].get(k, 0) + int(v)
-        if last["stats"].get("abstract_rejected"):
-            rec["abstract_rejected"][str(path.relative_to(OUT)).replace("\\", "/")] = last["stats"]["abstract_rejected"]
         for key in ("matched_by", "rejected_by"):
             for k, v in last["stats"].get(key, {}).items():
                 rec[key][k] = rec[key].get(k, 0) + v
