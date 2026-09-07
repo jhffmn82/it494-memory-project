@@ -863,6 +863,7 @@ TRIAGE_SCHEMA = {"type": "object", "required": ["exclude"], "properties": {"excl
     "type": "object", "required": ["kind", "reason"], "properties": {"kind": {"type": "string"}, "reason": {"type": "string"}}}}}}
 
 ADJUDICATE_SCHEMA = {"type": "object", "required": ["facts", "attributes", "contradictions"], "properties": {
+    "unsupported": {"type": "array"},
     "facts": {"type": "array", "items": {"type": "object", "required": ["predicate", "object", "from"], "properties": {
         "predicate": {"type": "string"}, "object": {"type": "string"}, "qualifiers": {"type": ["string", "null"]}, "from": {"type": "array"}}}},
     "attributes": {"type": "array", "items": {"type": "object", "required": ["attribute", "value", "from"], "properties": {
@@ -965,8 +966,9 @@ Write the entity's consolidated record:
 - "facts": each durable relationship or fact stated once, with "predicate" (lowercase_snake_case, present tense, named the way the facts name it), "object", "qualifiers" (or null), and "from": the numbers of every listed fact it is drawn from. A fact drawn from nothing listed is not allowed.
 - "attributes": what the entity is, has or is like, as "attribute", "value" (or null when the attribute stands on its own) and "from", folding the lesser things named in the facts into the entity itself: a house that has a cellar has the attribute cellar, not a relationship to one.
 - "contradictions": where listed facts disagree, a one-sentence "note" and the "from" numbers; do not resolve them.
+- "unsupported": the numbers of listed facts whose own passage does not state them (a loose citation that says something else, or only part of it); draw on none of these.
 
-Return JSON {{"facts": [...], "attributes": [...], "contradictions": [...]}}
+Return JSON {{"facts": [...], "attributes": [...], "contradictions": [...], "unsupported": [...]}}
 
 FACTS:
 {chr(10).join(facts)}
@@ -1637,8 +1639,9 @@ def write_package(doc, records, entities, folded, adjudicated, merged, ledger, c
                       "text": d["text"], "embedding_model": EMBED_MODEL if "embedding" in d else None, "embedding": d.get("embedding")})
     lines += [{"record": "ledger", **entry} for entry in ledger] + [{"record": "candidate", **entry} for entry in candidates]
 
-    # facts, each under the major it lands on
+    # facts, each under the major it lands on; a fact the adjudication set aside is ranked unsupported
     landed, landed_ids, riding = landings(records, folded), set(), 0
+    unsupported = {stored_id for result in adjudicated.values() for stored_id in result.get("unsupported", [])}
     for e in folded["majors"]:
         nid = node_id_of(doc, e)
         for f, direction, label, stored_id, tying in landed[e["index"]]:
@@ -1650,7 +1653,8 @@ def write_package(doc, records, entities, folded, adjudicated, merged, ledger, c
             else:                                     # inverse: the minor's name is the value; about: the minor's own fact
                 obj, is_node = (f["subject"] if direction == "inverse" else f["object"]), False
             lines.append({"record": "fact", "fact_id": stored_id, "subject": nid, "predicate": f["predicate"], "object": obj,
-                          "object_is_node": is_node, "direction": direction, "qualifiers": f["qualifiers"], "rank": "active",
+                          "object_is_node": is_node, "direction": direction, "qualifiers": f["qualifiers"],
+                          "rank": "unsupported" if stored_id in unsupported else "active",
                           "unit_id": f["unit_id"], "quote": f["quote"], "quote_start": f["quote_start"], "quote_end": f["quote_end"],
                           "valid_from": f["valid_from"], "valid_to": f["valid_to"], "tier": f["tier"], "author": f["author"],
                           "provenance": {"ingestor": INGESTOR, "matched_by": f["matched_by"], "subject_name": f["subject"],
@@ -1675,6 +1679,7 @@ def write_package(doc, records, entities, folded, adjudicated, merged, ledger, c
               "adjudication_dropped": sum(a.get("dropped", 0) for a in adjudicated.values()),
               "adjudications_skipped": sum(1 for a in adjudicated.values() if a.get("skipped")),
               "adjudications_rejected": sum(1 for a in adjudicated.values() if a.get("rejected")),
+              "facts_unsupported": sum(1 for l in lines if l["record"] == "fact" and l["rank"] == "unsupported"),
               "predicates_distinct": merged["distinct"], "predicates_standing": merged["standing"], "predicate_pairs": merged["pairs"],
               "predicate_merges": len(merged["merges"]), "predicate_judge_skipped": merged["skipped"],
               "abstract": folded["abstract"] is not None}
@@ -1788,7 +1793,7 @@ def adjudicate(records, folded, ctx, watch=False):
 
     def adjudicate_one(e):
         raws = landed[e["index"]]
-        result = {"facts": [], "attributes": [], "contradictions": [], "dropped": 0, "raw": len(raws),
+        result = {"facts": [], "attributes": [], "contradictions": [], "unsupported": [], "dropped": 0, "raw": len(raws),
                   "riding": sum(1 for x in raws if x[1] == "about"), "skipped": None, "rejected": False}
         if not raws:
             return result
@@ -1808,6 +1813,7 @@ def adjudicate(records, folded, ctx, watch=False):
                          model=TERRA, effort="medium", ctx={**ctx, "entity": e["name"]})
         result["rejected"] = reply is None
         ids = [stored_id for f, direction, label, stored_id, tying in raws]
+        result["unsupported"] = [ids[n - 1] for n in valid_sources((reply or {}).get("unsupported"), len(ids))]
         for key in ("facts", "attributes", "contradictions"):
             for item in (reply or {}).get(key, []):
                 sources = valid_sources(item.get("from"), len(ids))
@@ -1937,20 +1943,21 @@ def show_fold(folded):
 
 
 def show_adjudication(folded, adjudicated, merged):
-    total = {"raw": 0, "riding": 0, "facts": 0, "attributes": 0, "contradictions": 0, "dropped": 0}
+    total = {"raw": 0, "riding": 0, "facts": 0, "attributes": 0, "contradictions": 0, "unsupported": 0, "dropped": 0}
     for e in folded["majors"]:
         a = adjudicated.get(e["index"])
         if not a:
             continue
         for key in total:
-            total[key] += a[key] if key in ("raw", "riding", "dropped") else len(a[key])
+            total[key] += a[key] if key in ("raw", "riding", "dropped") else len(a.get(key, []))
         if a["skipped"]:
             print(f"    {e['name'][:34]:<34} {a['raw']:>3} raw facts stand: {a['skipped']}")
         else:
             print(f"    {e['name'][:34]:<34} {a['raw']:>3} raw facts -> {len(a['facts']):>3} facts, {len(a['attributes']):>3} attributes,"
                   f" {len(a['contradictions'])} contradictions" + (f", {a['dropped']} dropped for pointing at nothing" if a["dropped"] else ""))
     print(f"adjudicated: {total['raw']} raw facts ({total['riding']} riding in from minors) -> {total['facts']} facts, {total['attributes']} attributes,"
-          f" {total['contradictions']} contradictions; {total['dropped']} dropped; {sum(1 for a in adjudicated.values() if a['skipped'])} majors left to their raw facts")
+          f" {total['contradictions']} contradictions; {total['unsupported']} raw facts set aside as unsupported by their passage;"
+          f" {total['dropped']} dropped; {sum(1 for a in adjudicated.values() if a['skipped'])} majors left to their raw facts")
     if merged["skipped"]:
         print(f"predicates: {merged['distinct']} distinct, fewer than {PREDICATES_MIN}: nothing to merge, no call")
     else:

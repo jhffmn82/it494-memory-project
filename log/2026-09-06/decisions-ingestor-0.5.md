@@ -218,3 +218,12 @@ ambiguous-subject rejection is verified by the review's reproduction, not by the
     order, no longer than the quote plus three words, may start at any matching word; the
     stored quote is the text's own passage, so provenance stays verbatim, and the receipt counts
     it apart so the kept facts can be read by hand.
+37. **A loosely cited fact is judged where the facts are already read** (Justin: flag them and
+    adjudicate them in batches at the roll-up; then "or does that even need to be done?"). Not
+    as a stage of its own: the adjudication already reads every landed fact with its passage,
+    so its prompt now asks for the numbers of listed facts whose own passage does not state
+    them, and draws on none of those. The raw fact stays in the package with its quote, ranked
+    `unsupported` instead of `active`, and the completion counts them. No extra call.
+38. **Quotes are stored as text**, not only as offsets (Justin's check). Every fact record
+    carries `quote` beside `quote_start` and `quote_end`; the battery slices the document at the
+    offsets and requires the stored quote back, for every fact and every mention.
