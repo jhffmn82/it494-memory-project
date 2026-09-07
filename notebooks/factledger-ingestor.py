@@ -1120,7 +1120,8 @@ def author_at(doc, offset):
 # surface form, a fact stating one is the other, or a shared name word, with at least one
 # unit-major in it (never minor against minor) and never a possession against its own anchor,
 # goes into a priority queue, strongest first: the nomination's tier, then the name,
-# co-occurrence and profile scores. The judge takes ten pairs a call from the top of the queue,
+# co-occurrence and profile scores. Round by round the entities in consideration are paired off,
+# strongest first and one pair to an entity; the judge takes ten pairs a call,
 # every cluster's dossier sent once; same unites, different stays apart, unsure waits for one
 # last look against the finished clusters, where unsure means apart. Every decision is a
 # ledger row with its evidence.
@@ -1128,6 +1129,7 @@ import difflib
 
 TIER = {"shared_surface": 1.0, "is_a_link": 0.85, "shared_word": 0.5}
 PAIRS_PER_CALL = 10
+SIMILAR_ENOUGH = 0.35                              # below this a pair is not worth a judge
 
 
 def fact_text(f):
@@ -1248,11 +1250,12 @@ def ineligible(members, ra, rb, ruled_apart):
     return False
 
 
-def nominate(locals_, clusters, ruled_apart):
-    """The priority queue: every pair of locals from different clusters, with at least one
-    unit-major, a reason, no anchor between them and nothing making them ineligible; strongest
-    first. [(tier, combined score, a, b, reason, scores)]."""
-    members, queue = cluster_members(locals_, clusters), []
+def pair_up(locals_, clusters, ruled_apart):
+    """One round of the clustering, Justin's rule: every entity still in consideration is scored
+    against every other, the pairs at or above SIMILAR_ENOUGH are filtered by eligibility, and
+    the strongest is taken with both its sides leaving consideration, until no eligible pair
+    remains. (the pairs taken, how many were eligible)."""
+    members, scored = cluster_members(locals_, clusters), []
     for a in locals_:
         for b in locals_[:a["id"]]:
             ra, rb = clusters.find(a["id"]), clusters.find(b["id"])
@@ -1261,12 +1264,21 @@ def nominate(locals_, clusters, ruled_apart):
             reason = candidate_reason(a, b)
             if reason is None or anchored(a, b) or anchored(b, a):
                 continue
-            if ineligible(members, ra, rb, ruled_apart):
-                continue
             scores = score_pair(a, b, reason)
-            queue.append((TIER[reason], scores[3], b["id"], a["id"], reason, scores))
-    queue.sort(key=by_priority)
-    return queue
+            if scores[3] < SIMILAR_ENOUGH or ineligible(members, ra, rb, ruled_apart):
+                continue
+            scored.append((TIER[reason], scores[3], b["id"], a["id"], reason, scores))
+    scored.sort(key=by_priority)
+    taken, queue = set(), []
+    for entry in scored:
+        tier, combined, i, j, reason, scores = entry
+        ra, rb = clusters.find(i), clusters.find(j)
+        if ra in taken or rb in taken:             # both sides leave consideration for this round
+            continue
+        taken.add(ra)
+        taken.add(rb)
+        queue.append(entry)
+    return queue, len(scored)
 
 
 def dossier(members):
@@ -1336,6 +1348,7 @@ def reconcile(records, ctx, watch=False):
             verdict, reason = verdicts.get(n, ("unsure", "no verdict returned"))
             how = "judged again" if final else "judged"
             if verdict == "same" and ineligible(members, clusters.find(ra), clusters.find(rb), ruled_apart):
+                # a guard the pairing rules should make unreachable: one pair to an entity a round
                 how, reason = "refused", reason + "; would join locals a unit kept apart or the judge ruled different"
                 apart.append((ra, rb))
                 ruled_apart.add(frozenset((ra, rb)))
@@ -1366,15 +1379,16 @@ def reconcile(records, ctx, watch=False):
                 if watch and calls % 5 == 0:
                     print(f"    judge call {calls}: {k} of {len(pairs)} pairs seen, ${spend():.2f} spent this session")
 
-    # 3. round after round: a merged cluster carries its members' surfaces, so nominating again
-    #    can turn up pairs that had no reason before. Stop when a round brings nothing new.
+    # 3. round after round, each pairing off the entities still in consideration; the merges of
+    #    one round cannot conflict, since no entity is in two of its pairs. Stop when a round
+    #    queues nothing, which is when nothing eligible is left above the threshold.
     seen_pairs = set()
     while True:
-        queue = nominate(locals_, clusters, ruled_apart)
+        queue, eligible = pair_up(locals_, clusters, ruled_apart)
         fresh = []
         for tier, combined, i, j, reason, (name, cooc, profile, _) in queue:
             key = frozenset((clusters.find(i), clusters.find(j)))
-            if key in seen_pairs:
+            if key in seen_pairs:                 # judged in an earlier round and not merged
                 continue
             seen_pairs.add(key)
             fresh.append((i, j))
@@ -1385,7 +1399,7 @@ def reconcile(records, ctx, watch=False):
             break
         rounds, queued = rounds + 1, queued + len(fresh)
         if watch:
-            print(f"judge round {rounds}: {len(locals_)} unit-locals, {len(fresh)} pairs queued, {PAIRS_PER_CALL} a call")
+            print(f"judge round {rounds}: {eligible} eligible pairs, {len(fresh)} taken (one to an entity), {PAIRS_PER_CALL} a call")
         batches(fresh, final=False)
 
     # 4. the deferred pairs' last look against the finished clusters

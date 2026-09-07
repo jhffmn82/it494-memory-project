@@ -279,7 +279,12 @@ check("document abstract present with children_hash over the derived units' summ
 check("triage left out the front matter and the license, and those units were never derived", {x["kind"] for x in lines[-1]["excluded"]} == {"front_matter", "license"} and lines[-1]["counts"]["units_excluded"] == 2 and len(records) == len(doc["units"]) - 2 and all(r["kind"] == "body" for r in records))
 check("abstract names all appear in the children", not ns["missing_names"](doc_abs[0]["text"], [f"[{r['label']}] {r['summary']}" for r in work]))
 check("every queued pair carries the demo's tier and three separate scores", by.get("candidate") and all(c["tier"] in (1.0, 0.85, 0.5) and {"name_score", "cooc_score", "profile_score", "combined"} <= set(c) for c in by["candidate"]) and any(c["stage"] == "judge" for c in ns["CALLS"]))
-check("the queue is strongest first", [(-c["tier"], -c["combined"]) for c in by["candidate"]] == sorted((-c["tier"], -c["combined"]) for c in by["candidate"]))
+check("each round's pairs are strongest first, and no entity is in two pairs of one round",
+      all([(-c["tier"], -c["combined"]) for c in by["candidate"] if c["round"] == n] == sorted((-c["tier"], -c["combined"]) for c in by["candidate"] if c["round"] == n)
+          for n in {c["round"] for c in by["candidate"]})
+      and all(len([x for c in by["candidate"] if c["round"] == n for x in ((c["a"], c["a_unit"]), (c["b"], c["b_unit"]))])
+              == len({x for c in by["candidate"] if c["round"] == n for x in ((c["a"], c["a_unit"]), (c["b"], c["b_unit"]))})
+              for n in {c["round"] for c in by["candidate"]}))
 check("never minor against minor in the queue", all(any(e["major"] and e["name"] in (c["a"], c["b"]) and r["position"] in (c["a_unit"], c["b_unit"]) for r in records for e in r["entities"]) for c in by["candidate"]))
 check("a pair the judge could not settle was judged once more at the end", any(l["how"] == "judged again" for l in by.get("ledger", [])))
 check("two named locals with the same name and kind unite on sight, no judge", any(l["how"] == "same_name" and l["verdict"] == "same" for l in by["ledger"]))
@@ -536,8 +541,8 @@ recs = [one_local(1, "Al", "person", False, True, ["Al", "the man"], ""),
         one_local(3, "Cy", "person", False, True, ["Cy", "the man"], "")]
 ents, ledger, cands, st = ns["reconcile"](recs, {"doc": "t"})
 groups = [sorted(e["names"]) for e in ents]
-check("a union that would join a pair the judge ruled different is refused, and the ledger says so",
-      not any(sorted(g) == ["Al", "Bo", "Cy"] for g in groups) and any(r["how"] == "refused" for r in ledger), groups)
+check("a pair the judge ruled different never ends in one cluster, whatever a later verdict says",
+      not any({"Al", "Bo"} <= set(g) for g in groups) and any(r["verdict"] == "different" for r in ledger), groups)
 
 # two locals of one unit are two things: their clusters are never paired
 two_in_one = one_local(1, "Al", "person", False, True, ["Al", "the man"], "")
