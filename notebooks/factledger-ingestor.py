@@ -970,7 +970,7 @@ def derive_unit(doc, unit, ctx):
     text, base, cache = unit["text"], unit["start"], {}
     rec = {"unit_id": unit["unit_id"], "position": unit["position"], "label": unit["label"], "kind": unit["kind"],
            "entities": [], "dropped_entities": [], "mentions": [], "facts": [], "rejected_facts": [], "profile": [],
-           "summary": None, "cells": [], "shared_spans": 0, "ambiguous_voice": 0, "empty": False}
+           "summary": None, "cells": [], "shared_spans": 0, "ambiguous_voice": 0, "split_by_voice": 0, "empty": False}
 
     # 1. entities, each surface form located; a form that is not in the unit is dropped
     reply = generate(entity_prompt(unit), ENTITY_SCHEMA, "entities", ctx=ctx)
@@ -1031,21 +1031,27 @@ def derive_unit(doc, unit, ctx):
             rejection["category"] = "ambiguous_subject" if loose_name(written) in loose_count else "unlisted_subject"
         elif start is None:
             rejection["category"] = how
-        elif (subject, predicate, norm(obj)) in seen:
-            rejection["category"] = "duplicate"
         else:
-            seen.add((subject, predicate, norm(obj)))
-            quote = text[start:end]
-            voices = {author_at(doc, base + at) for at in occurrences(text, quote)}
-            rec["ambiguous_voice"] += len(voices) > 1     # the same words in two voices: no voice is claimed
-            rec["facts"].append({"fact_id": h(unit["unit_id"], subject, predicate, obj, base + start, base + end),
-                                 "subject": subject, "predicate": predicate, "object": obj, "object_is_entity": obj in names,
-                                 "qualifiers": f.get("qualifiers") or None, "unit_id": unit["unit_id"], "quote": quote,
-                                 "quote_start": base + start, "quote_end": base + end, "matched_by": how,
-                                 "valid_from": stated_date(f.get("valid_from"), quote), "valid_to": stated_date(f.get("valid_to"), quote),
-                                 "author": None if len(voices) > 1 else author_at(doc, base + start),
-                                 "voice_ambiguous": len(voices) > 1, "tier": LUNA})
-            continue
+            stored = 0                                   # one fact per voice the span covers
+            for s0, e0 in voice_spans(doc, base, text, start, end):
+                quote, author = text[s0:e0], author_at(doc, base + s0)
+                if (subject, predicate, norm(obj), author) in seen:
+                    continue
+                seen.add((subject, predicate, norm(obj), author))
+                voices = {author_at(doc, base + at) for at in occurrences(text, quote)}
+                rec["ambiguous_voice"] += len(voices) > 1  # the same words in two voices: no voice is claimed
+                rec["facts"].append({"fact_id": h(unit["unit_id"], subject, predicate, obj, base + s0, base + e0),
+                                     "subject": subject, "predicate": predicate, "object": obj, "object_is_entity": obj in names,
+                                     "qualifiers": f.get("qualifiers") or None, "unit_id": unit["unit_id"], "quote": quote,
+                                     "quote_start": base + s0, "quote_end": base + e0, "matched_by": how,
+                                     "valid_from": stated_date(f.get("valid_from"), quote), "valid_to": stated_date(f.get("valid_to"), quote),
+                                     "author": None if len(voices) > 1 else author,
+                                     "voice_ambiguous": len(voices) > 1, "tier": LUNA})
+                stored += 1
+            rec["split_by_voice"] += stored > 1
+            if stored:
+                continue
+            rejection["category"] = "duplicate"
         rec["rejected_facts"].append(rejection)
 
     # 3. summary and cells, one call, for the unit's major entities (the model's salience call)
@@ -1071,6 +1077,22 @@ def stated_date(value, quote):
         except ValueError:
             pass
     return None
+
+
+def voice_spans(doc, base, text, start, end):
+    """A quote may not span a change of speaker (decision 46): the located span cut at every
+    piece boundary inside it, each cut trimmed of whitespace, as offsets into the unit."""
+    inside = sorted(pp["start"] - base for pp in doc["pieces"] if start < pp["start"] - base < end)
+    cuts, spans = [start] + inside + [end], []
+    for k in range(len(cuts) - 1):
+        s0, e0 = cuts[k], cuts[k + 1]
+        while s0 < e0 and text[s0].isspace():
+            s0 += 1
+        while e0 > s0 and text[e0 - 1].isspace():
+            e0 -= 1
+        if e0 > s0:
+            spans.append((s0, e0))
+    return spans
 
 
 def author_at(doc, offset):
@@ -1645,6 +1667,7 @@ def write_package(doc, records, entities, folded, adjudicated, ledger, candidate
               "facts_minor_subject": sum(len(r["facts"]) for r in records) - len(landed_ids), "facts_riding": riding,
               "facts_rejected": sum(len(r["rejected_facts"]) for r in records), "cells": sum(1 for l in lines if l["record"] == "cell"),
               "shared_spans": sum(r["shared_spans"] for r in records), "ambiguous_voice": sum(r["ambiguous_voice"] for r in records),
+              "facts_split_by_voice": sum(r["split_by_voice"] for r in records),
               "empty_units": sum(r["empty"] for r in records), "units_excluded": len(excluded), "demoted": len(folded["demoted"]),
               "adjudicated_facts": sum(1 for l in lines if l["record"] == "adjudicated_fact"),
               "attributes": sum(1 for l in lines if l["record"] == "attribute"),

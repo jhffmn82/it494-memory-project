@@ -97,6 +97,12 @@ def stub_generate(prompt, schema, stage, model=None, effort="low", ctx=None):
         m = re.search(r"^user: (.{30,120}?)(?=[.!?\n])", text, re.M)       # a chat: one fact must come from the user's own turn
         if m and facts:
             facts.append({"subject": facts[0]["subject"], "predicate": "asked_about", "object": "something", "qualifiers": None, "quote": m.group(1), "valid_from": None, "valid_to": None})
+        turns = [ln for ln in text.split("\n") if ln.startswith(("user: ", "assistant: "))]
+        if len(turns) >= 2 and facts:                                      # a quote whose pieces lie in two turns: one fact per voice (decision 46)
+            first, second = turns[0].split(": ", 1)[1].split(), turns[1].split(": ", 1)[1].split()
+            if len(first) >= 3 and len(second) >= 3:
+                facts.append({"subject": facts[0]["subject"], "predicate": "spans", "object": "two voices", "qualifiers": None,
+                              "quote": " ".join(first[:3]) + " ... " + " ".join(second[:3]), "valid_from": None, "valid_to": None})
         if facts:
             good = facts[0]["quote"]
             n0 = facts[0]["subject"]
@@ -346,6 +352,12 @@ if picked:
     check("chat: every fact's author is the author of the piece holding its quote, or null when the same words occur in two voices",
           cf and all(f["author"] == piece_author(f["quote_start"]) or (f["author"] is None and f["provenance"]["voice_ambiguous"]) for f in cf))
     check("chat: facts from both voices, user and assistant", {f["author"] for f in cf} >= {"user", "assistant"}, {f["author"] for f in cf})
+    check("chat: no fact's quote spans two voices, its last character answering to the same speaker as its first",
+          cf and all(piece_author(f["quote_start"]) == piece_author(f["quote_end"] - 1) for f in cf))
+    check("chat: a quote whose pieces lie in two turns is stored once per voice, each with that voice's words (decision 46)",
+          len([f for f in cf if f["object"] == "two voices"]) == 2
+          and {f["author"] for f in cf if f["object"] == "two voices"} == {"user", "assistant"}
+          and rows[-1]["counts"]["facts_split_by_voice"] == 1)
     check("chat: triage leaves out the header unit, the turns unit's summary is the abstract, no fold call",
           rows[-1]["counts"]["units_excluded"] == 1 and rows[-1]["counts"]["units"] == 1
           and any(r["record"] == "abstract" and r["node_id"] == ns["h"](picked["doc_id"], "document") for r in rows)
