@@ -1463,7 +1463,8 @@ def fold_document(doc, records, entities, ctx):
     if len(summaries) == 1:                       # one summarised unit: its summary is the abstract, no call
         text, missing, limit, tier = work[0]["summary"], [], None, LUNA
     elif summaries:
-        text, missing, limit = fold("one document", summaries, ctx)
+        own = [e["name"] for e in entities] + [s for e in entities for s in e["surfaces"]]
+        text, missing, limit = fold("one document", summaries, ctx, allowed=own)   # the document's own names are not fabrications
         tier = TERRA
     else:
         text, missing, limit, tier = None, ["(no unit summaries)"], None, None
@@ -1482,7 +1483,7 @@ def fold_document(doc, records, entities, ctx):
     for major, n_units, n_facts, in_abstract, e in ranked:
         demoted = major and len(records) >= DEMOTE_UNITS and n_units < DEMOTE_UNITS and n_facts < DEMOTE_FACTS
         e["major"] = major and not demoted
-        e["rank"] = {"in_abstract": in_abstract, "units": n_units, "facts": n_facts, "demoted": demoted}
+        e["rank"] = {"in_abstract": in_abstract, "units": n_units, "facts": n_facts, "demoted": demoted, "no_abstract": False}
         (out["majors"] if e["major"] else out["minors"]).append(e)
         if demoted:
             out["demoted"].append(e["name"])
@@ -1520,15 +1521,24 @@ def fold_document(doc, records, entities, ctx):
                                 allowed=e["names"] + e["surfaces"])
         return text, missing, TERRA
 
+    # an entity the document cannot summarise is not a major (decision 52): it falls to minor
+    # and its facts ride into the majors, as any minor's do
     pairs = list(zip(out["majors"], out["dossiers"]))
+    majors, dossiers = [], []
     for (e, d), (text, missing, tier) in zip(pairs, in_parallel(abstract_of, pairs)):
-        if not d["children"]:
-            continue
         if text:
             out["entity_abstracts"].append({"entity": e["name"], "first_unit": e["first_unit"], "kinds": e["kinds"], "text": text,
                                             "children_hash": h(*d["children"]), "tier": tier})
-        else:
+            majors.append(e)
+            dossiers.append(d)
+            continue
+        if d["children"]:
             out["entity_abstract_rejected"].append({"entity": e["name"], "missing": missing})
+        e["major"] = False
+        e["rank"]["no_abstract"] = True
+        out["minors"].append(e)
+        out["demoted"].append(e["name"])
+    out["majors"], out["dossiers"] = majors, dossiers
     return out
 
 # %%
@@ -1918,7 +1928,8 @@ def show_fold(folded):
         print(f"abstract ({word_count(folded['abstract']['text'])} words, limit {folded['abstract']['limit']}): {folded['abstract']['text']}")
     else:
         print(f"abstract REJECTED: {folded['abstract_rejected']}")
-    print(f"salience: {len(folded['majors'])} major, {len(folded['minors'])} minor, {len(folded['demoted'])} demoted;"
+    print(f"salience: {len(folded['majors'])} major, {len(folded['minors'])} minor, {len(folded['demoted'])} demoted"
+          f" ({sum(1 for e in folded['minors'] if e['rank'].get('no_abstract')) } of them for want of an abstract);"
           f" {len(folded['entity_abstracts'])} entity abstracts, {len(folded['entity_abstract_rejected'])} rejected")
     if folded["demoted"]:
         print(f"    demoted to minor (fewer than {DEMOTE_UNITS} units and {DEMOTE_FACTS} facts): {', '.join(folded['demoted'])[:200]}")
@@ -2067,7 +2078,8 @@ def receipt():
     """Sums over every package on disk, plus the calls this session logged."""
     rec = {"ingestor": INGESTOR, "documents": 0, "by_group": {}, "counts": {}, "matched_by": {}, "rejected_by": {}, "cost_of_packages": 0.0,
            "cost_this_session": round(spend(), 4), "calls_this_session": len(CALLS), "calls_by_stage": {},
-           "schema_rejections_this_session": len(REJECTIONS), "schema_retries_this_session": len(RETRIES), "in_flight_sidecars": []}
+           "schema_rejections_this_session": len(REJECTIONS), "schema_retries_this_session": len(RETRIES),
+           "abstract_rejected": {}, "in_flight_sidecars": []}
     for c in CALLS:
         rec["calls_by_stage"][c["stage"]] = rec["calls_by_stage"].get(c["stage"], 0) + 1
     for path in sorted(OUT.rglob("*.jsonl")):
@@ -2085,6 +2097,8 @@ def receipt():
         for k, v in last["counts"].items():
             if isinstance(v, (int, bool)):
                 rec["counts"][k] = rec["counts"].get(k, 0) + int(v)
+        if last["stats"].get("abstract_rejected"):
+            rec["abstract_rejected"][str(path.relative_to(OUT)).replace("\\", "/")] = last["stats"]["abstract_rejected"]
         for key in ("matched_by", "rejected_by"):
             for k, v in last["stats"].get(key, {}).items():
                 rec[key][k] = rec[key].get(k, 0) + v

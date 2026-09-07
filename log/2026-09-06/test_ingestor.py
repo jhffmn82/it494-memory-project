@@ -298,6 +298,9 @@ check("adjudicated predicates are the model's own, unmerged, in snake_case", {"l
 check("every adjudicated fact points only at raw facts of its own node", adjudicated and all(set(a["from_facts"]) <= fact_ids_of.get(a["node_id"], set()) for a in adjudicated))
 check("attributes point at raw facts too, and an item pointing at nothing was dropped and counted", by.get("attribute") and all(set(a["from_facts"]) <= fact_ids_of.get(a["node_id"], set()) for a in by["attribute"]) and lines[-1]["counts"]["adjudication_dropped"] == len(folded["majors"]))
 check("an adjudicated attribute may stand without a value", any(a["value"] is None for a in by.get("attribute", [])))
+check("an entity the document cannot summarise is not a major, and its facts ride (decision 52)",
+      all(any(a["record"] == "abstract" and a["node_id"] == ns["node_id_of"](doc, e) for a in lines) for e in folded["majors"])
+      and all(not e["rank"].get("no_abstract") for e in folded["majors"]))
 check("majors are exactly the entities named in the abstract", all(any(s in doc_abs[0]["text"].casefold() for s in e["surfaces"]) for e in folded["majors"]) and folded["majors"])
 check("dossier per major with an embedding", len(by.get("dossier", [])) == len(folded["majors"]) and all(d["embedding"] for d in by["dossier"]))
 check("ledger rows carry evidence", by.get("ledger") and all(l["evidence"] for l in by["ledger"]))
