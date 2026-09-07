@@ -142,6 +142,31 @@ minutes per document. All 32 applied as version 0.2 (`a57911b`, 378 lines in, 15
 battery grown to 70. A second pass, four lenses over the patch with one refuter per finding,
 was launched after the commit; its outcome is recorded below when it lands.
 
+## Evening: Justin's design put back, and his new rulings built (0.3, 0.4)
+
+Justin's reading of the first Kaggle output (Oz book 1, five units) and of the code brought a
+correction that stands as the rule for this project: the chat had replaced four parts of his
+design with its own without a ruling. The model's per-unit salience call had been dropped for a
+fact rule, so narrative cells went to everything with a fact (37 cells for the front matter, 30
+for Chapter III where the summary named 10); with it went the at-least-one-major filter on judge
+pairs, the re-judging of unsure pairs, and Terra for the folds. All four were restored (commit
+`11b6e6a`), the fact rule and the scores kept only as printed diagnostics. Then, on his rulings:
+
+- **0.3**: the code made readable. No lambdas, no regular expressions; the quote gate has two
+  paths, exact and normalised, the normalised copy collapsing whitespace as well as case, quotes,
+  dashes and hyphenated line breaks; the export path named outright; documents found by title; a
+  connection-test block before anything spends; the Kaggle secret imported explicitly.
+- **0.4** (`05ab318`): an AI judge decides which kinds of unit to read, given what we are doing,
+  the document's title, author, class and date, and every kind with the first line of each of its
+  units; the hardcoded partition is gone. A document-major seen in fewer than two units with fewer
+  than three facts is demoted to minor. A minor's fact about a major lands on the major, marked
+  inverse. An adjudication call per major, on Terra, consolidates its facts and attributes and
+  flags contradictions, every item pointing at the raw facts it was drawn from. Battery 79 of 79.
+
+Under the scripted model, Oz book 1 now runs: front matter and license left out, 24 chapters
+derived, 144 unit-locals, every candidate pair to the judge, majors demoted, each major
+adjudicated. The real numbers are the run's.
+
 ## Kaggle
 
 The notebook is `notebooks/factledger-ingestor.ipynb` (13 cells, nbformat 4.5 with ids).
