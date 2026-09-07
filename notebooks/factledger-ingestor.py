@@ -1261,9 +1261,9 @@ def cluster_entities(locals_, clusters):
     return entities
 
 
-def reconcile(records, ctx):
+def reconcile(records, ctx, watch=False):
     """The document's entities from its unit-locals: (entities, ledger, candidates, locals,
-    pairs, pairs judged)."""
+    pairs, pairs judged). With `watch`, one line per judge call, since this is the slow step."""
     locals_ = locals_of(records)
     clusters = Clusters(len(locals_))
     ledger, candidates = [], []
@@ -1314,7 +1314,9 @@ def reconcile(records, ctx):
                 deferred.append((ra, rb))
             ledger.append(ledger_row(locals_, ra, rb, verdict, how, reason))
 
-    k = 0
+    if watch:
+        print(f"judge: {len(locals_)} unit-locals, {len(to_judge)} candidate pairs to judge, {PAIRS_PER_CALL} a call")
+    k, calls = 0, 0
     while k < len(to_judge):
         batch, keys = [], set()
         while k < len(to_judge) and len(batch) < PAIRS_PER_CALL:
@@ -1326,6 +1328,10 @@ def reconcile(records, ctx):
                 keys.add(key)
         if batch:
             decide(batch, judge(batch, locals_, clusters, ctx), final=False)
+            calls += 1
+            if watch and calls % 5 == 0:
+                same = sum(1 for row in ledger if row["how"] == "judged" and row["verdict"] == "same")
+                print(f"    judge call {calls}: {k} of {len(to_judge)} pairs seen, {same} united so far, ${spend():.2f} spent this session")
 
     # 4. the deferred pairs get one last look against the finished clusters; unsure stays apart
     last_look, seen = [], set()
@@ -2008,7 +2014,7 @@ def ingest(doc, ctx=None, diag=None):
             show_unit(rec, unit, diag, spend() - spend_at, spend() - spend_before)
 
     # the document: reconcile, fold, salience, adjudicate, write
-    entities, ledger, candidates, n_locals, n_pairs, n_judged = reconcile(records, ctx)
+    entities, ledger, candidates, n_locals, n_pairs, n_judged = reconcile(records, ctx, watch=bool(diag.get("reconcile")))
     if diag.get("reconcile"):
         show_reconcile(entities, ledger, candidates, n_locals, n_pairs, n_judged, diag)
     folded = fold_document(doc, records, entities, ctx)
