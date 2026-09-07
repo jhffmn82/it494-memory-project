@@ -346,6 +346,10 @@ check("each document keeps its own folder, named after its file, with the packag
 check("two entities the judge kept apart never share a node id (decision 48)",
       len({n["node_id"] for n in by["node"]}) == len(by["node"]))
 check("a torn sidecar line does not hide the units a resume appends behind it (A14)", torn_resume_ok, torn_resume_ok)
+check("the fact counters close: stored is what landed plus the riding copies",
+      lines[-1]["counts"]["facts_stored"] == lines[-1]["counts"]["facts_landed"] + lines[-1]["counts"]["facts_riding"]
+      and lines[-1]["counts"]["facts_kept"] >= lines[-1]["counts"]["facts_landed"],
+      {k: lines[-1]["counts"][k] for k in ("facts_kept", "facts_landed", "facts_minor_subject", "facts_riding", "facts_riding_sources", "facts_stored")})
 check("an entity the document cannot summarise is not a major, and its facts ride (decision 52)",
       all(any(a["record"] == "abstract" and a["node_id"] == ns["node_id_of"](doc, e) for a in lines) for e in folded["majors"])
       and all(not e["rank"].get("no_abstract") for e in folded["majors"]))

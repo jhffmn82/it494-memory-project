@@ -1719,7 +1719,8 @@ def write_package(doc, records, entities, folded, adjudicated, ledger, candidate
 
     counts = {"units": len(records), "entities": len(entities), "majors": len(folded["majors"]), "minors": len(folded["minors"]),
               "mentions": sum(len(r["mentions"]) for r in records), "facts_kept": sum(len(r["facts"]) for r in records),
-              "facts_stored": sum(1 for l in lines if l["record"] == "fact"),
+              "facts_stored": sum(1 for l in lines if l["record"] == "fact"),   # landed + riding copies
+              "facts_landed": sum(1 for l in lines if l["record"] == "fact" and l["direction"] != "about"),
               "facts_minor_subject": sum(len(r["facts"]) for r in records) - len(landed_ids), "facts_riding": riding,
               "facts_riding_sources": len({f["fact_id"] for e in folded["majors"] for f, direction, label, stored_id, tying in landed[e["index"]] if direction == "about"}),
               "facts_rejected": sum(len(r["rejected_facts"]) for r in records), "cells": sum(1 for l in lines if l["record"] == "cell"),
@@ -1731,10 +1732,11 @@ def write_package(doc, records, entities, folded, adjudicated, ledger, candidate
               "attributes": sum(1 for l in lines if l["record"] == "attribute"),
               "contradictions": sum(1 for l in lines if l["record"] == "contradiction"),
               "adjudication_dropped": sum(a.get("dropped", 0) for a in adjudicated.values()),
-              "adjudications_skipped": sum(1 for a in adjudicated.values() if a.get("skipped")),
+              "adjudications_skipped": sum(1 for e in folded["majors"] if adjudicated.get(e["index"], {}).get("skipped")),
+              "support_calls": sum(1 for e in folded["minors"] if adjudicated.get(e["index"], {}).get("skipped")),
               "adjudications_rejected": sum(1 for a in adjudicated.values() if a.get("rejected")),
               "facts_unsupported": sum(1 for l in lines if l["record"] == "fact" and l["rank"] == "unsupported"),
-              "abstract": folded["abstract"] is not None}
+              "has_abstract": folded["abstract"] is not None}
     lines.append({"record": "completion", "doc_id": doc["doc_id"], "input_hash": input_hash(doc), "ingestor": INGESTOR, "counts": counts,
                   "stats": stats, "empty": counts["facts_stored"] == 0 and counts["cells"] == 0, "excluded": excluded,
                   "demoted": folded["demoted"]})
