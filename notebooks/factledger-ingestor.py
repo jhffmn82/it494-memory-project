@@ -656,13 +656,23 @@ def normalised_unit(text, cache):
     return cache["norm"]
 
 
+def word_runs(s):
+    """Every run of word characters in `s`, as (word, start, end); the gate's one tokeniser."""
+    runs, i = [], 0
+    while i < len(s):
+        if is_word_char(s[i]):
+            j = i
+            while j < len(s) and is_word_char(s[j]):
+                j += 1
+            runs.append((s[i:j], i, j))
+            i = j
+        else:
+            i += 1
+    return runs
+
+
 def words_only(s):
-    words = []
-    for token in s.split():
-        word = "".join(ch for ch in token if is_word_char(ch))
-        if word:
-            words.append(word)
-    return words
+    return [word for word, start, end in word_runs(s)]
 
 
 def unwrapped(written):
@@ -706,23 +716,8 @@ def classify_miss(ntext, nquote):
 
 def whole_word_hit(text, needle, cache):
     """The first place `needle` occurs as whole words, exact or normalised."""
-    ntext, back = normalised_unit(text, cache)
-    nneedle, _ = normalised(needle)
-    hits = []
-    i = text.find(needle)
-    while i >= 0:
-        hits.append((i, i + len(needle)))
-        i = text.find(needle, i + 1)
-    i = ntext.find(nneedle) if nneedle else -1
-    while i >= 0:
-        hits.append((back[i], back[i + len(nneedle) - 1] + 1))
-        i = ntext.find(nneedle, i + 1)
-    for start, end in hits:
-        before = text[start - 1] if start > 0 else " "
-        after = text[end] if end < len(text) else " "
-        if not is_word_char(before) and not is_word_char(after):
-            return start, end
-    return None, None
+    spans = surface_spans(text, needle, cache)
+    return spans[0] if spans else (None, None)
 
 
 def in_order(wanted, have):
@@ -737,39 +732,33 @@ def in_order(wanted, have):
     taken = []
     while i < n and j < m:
         if wanted[i] == have[j]:
-            taken.append(j)
+            taken.append((i, j))
             i, j = i + 1, j + 1
         elif table[i + 1][j] >= table[i][j + 1]:
             i += 1
         else:
             j += 1
-    return len(taken), (taken[0] if taken else 0), (taken[-1] if taken else 0)
+    if not taken:
+        return 0, 0, 0, 0
+    return len(taken), taken[0][1], taken[-1][1], taken[-1][0] - taken[0][0] + 1
 
 
 def words_hit(text, quote, cache):
     """The shortest passage holding at least WORDS_NEEDED of the quote's words in order, no
-    longer than the quote plus three words; (start, end) or (None, None)."""
+    longer than the quote plus three words, the quote's own unmatched words falling only at its
+    front or its back (decision 47); (start, end) or (None, None)."""
     wanted = words_only(normalised(quote)[0])
     if len(wanted) < 4:
         return None, None
     ntext, back = normalised_unit(text, cache)
-    words, i = [], 0                                 # (word, start in ntext, end in ntext)
-    while i < len(ntext):
-        if is_word_char(ntext[i]):
-            j = i
-            while j < len(ntext) and is_word_char(ntext[j]):
-                j += 1
-            words.append((ntext[i:j], i, j))
-            i = j
-        else:
-            i += 1
+    words = word_runs(ntext)
     needed, best = max(4, int(WORDS_NEEDED * len(wanted) + 0.999)), None
     for at in range(len(words)):
         if words[at][0] != wanted[0] and words[at][0] not in wanted:
             continue
         window = [w[0] for w in words[at:at + len(wanted) + 3]]
-        matched, first, last = in_order(wanted, window)
-        if matched >= needed and (best is None or (matched, first - last) > (best[0], best[1] - best[2])):
+        matched, first, last, spanned = in_order(wanted, window)
+        if matched >= needed and spanned == matched and (best is None or (matched, first - last) > (best[0], best[1] - best[2])):
             best = (matched, at + first, at + last)
     if best is None:
         return None, None
@@ -2137,8 +2126,7 @@ def rollup(path, top=5):
         if adjudicated_of.get(nid):
             print(f"consolidated facts ({len(adjudicated_of[nid])}):")
             for a in adjudicated_of[nid]:
-                raw = f" (raw {a['predicate_raw']})" if a["predicate_raw"] != a["predicate"] else ""
-                print(f"    {a['predicate']}{raw} -> {a['object']}{' [' + a['qualifiers'] + ']' if a.get('qualifiers') else ''}  <- {len(a['from_facts'])} raw")
+                print(f"    {a['predicate']} -> {a['object']}{' [' + a['qualifiers'] + ']' if a.get('qualifiers') else ''}  <- {len(a['from_facts'])} raw")
         if attributes_of.get(nid):
             print(f"attributes ({len(attributes_of[nid])}):")
             for a in attributes_of[nid]:

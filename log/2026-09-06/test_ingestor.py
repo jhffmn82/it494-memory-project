@@ -115,7 +115,9 @@ def stub_generate(prompt, schema, stage, model=None, effort="low", ctx=None):
                 facts.append({"subject": n0, "predicate": "is_cited_with", "object": "an ellipsis", "qualifiers": None,
                               "quote": " ".join(words[:2]) + " ... " + " ".join(words[-2:]), "valid_from": None, "valid_to": None})   # two verbatim pieces
             if len(words) >= 8:
-                loose = " ".join(words[1:3] + ["zzz"] + words[4:])                                  # the first word dropped, one word wrong: found by its words
+                loose = " ".join(words[1:] + ["zzz"])                                                # the first word dropped, one added at the end: found by its words
+                middle = " ".join(words[:3] + ["zzz"] + words[3:])                                  # a word invented inside the run: refused (decision 47)
+                facts.append({"subject": n0, "predicate": "is_cited_loosely", "object": "with an invented middle", "qualifiers": None, "quote": middle, "valid_from": None, "valid_to": None})
                 facts.append({"subject": n0, "predicate": "is_cited_loosely", "object": "and supported", "qualifiers": None, "quote": loose, "valid_from": None, "valid_to": None})
                 facts.append({"subject": n0, "predicate": "is_cited_loosely", "object": "an unsupported claim", "qualifiers": None, "quote": loose, "valid_from": None, "valid_to": None})
         return {"facts": facts}
@@ -235,6 +237,7 @@ check("every quote lies inside its unit", all(unit_range[f["unit_id"]][0] <= f["
 check("the match paths exercised: exact, normalised, unwrapped, pieces", set(stats["matched_by"]) >= {"exact", "normalised", "unwrapped", "pieces"}, stats["matched_by"])
 check("every fact's quote is the text's own words whatever path found it", all(text[f["quote_start"]:f["quote_end"]] == f["quote"] for f in facts))
 check("a loosely cited fact is found by its words and stored, marked words", any(f["provenance"]["matched_by"] == "words" and f["object"] == "and supported" and f["rank"] == "active" for f in facts))
+check("a quote with a word invented inside the run is refused, not matched by its words (decision 47)", not any(f["object"] == "with an invented middle" for f in facts) and any(r.get("object") == "with an invented middle" for r in by.get("rejection", [])))
 check("a fact the adjudication finds unsupported by its passage stays with its quote, ranked unsupported, and is counted", any(f["object"] == "an unsupported claim" and f["rank"] == "unsupported" for f in facts) and lines[-1]["counts"]["facts_unsupported"] > 0 and not any(f["object"] == "and supported" and f["rank"] == "unsupported" for f in facts))
 check("rejections classified: paraphrase, not_found, unlisted_subject, duplicate", set(stats["rejected_by"]) >= {"paraphrase", "not_found", "unlisted_subject", "duplicate"}, stats["rejected_by"])
 check("predicate normalised to snake_case", any(f["predicate"] == "has_trait" for f in facts))
