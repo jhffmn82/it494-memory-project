@@ -2000,6 +2000,8 @@ def write_package(doc, records, entities, folded, adjudicated, merged, ledger, c
               "attributes": sum(1 for l in lines if l["record"] == "attribute"),
               "contradictions": sum(1 for l in lines if l["record"] == "contradiction"),
               "adjudication_dropped": sum(a.get("dropped", 0) for a in adjudicated.values()),
+              "adjudications_skipped": sum(1 for a in adjudicated.values() if a.get("skipped")),
+              "predicate_judge_skipped": merged["skipped"],
               "abstract": folded["abstract"] is not None}
     lines.append({"record": "completion", "doc_id": doc["doc_id"], "input_hash": input_hash(doc), "ingestor": INGESTOR,
                   "counts": counts, "stats": stats, "empty": counts["facts_stored"] == 0 and counts["cells"] == 0,
@@ -2122,6 +2124,10 @@ def valid_sources(numbers, n):
     return good
 
 
+ADJUDICATE_MIN_FACTS = 4                    # fewer than this, all in one unit: nothing to consolidate
+PREDICATES_MIN = 8                          # fewer distinct predicates than this: nothing to merge
+
+
 def adjudicate(records, folded, ctx, watch=False):
     """One call per document-major over everything the document said about it: its raw facts
     (forward; inverse when the entity was the object of a minor's fact; about when a minor tied
@@ -2142,8 +2148,11 @@ def adjudicate(records, folded, ctx, watch=False):
     def adjudicate_one(e):
         raws = landed[e["index"]]
         result = {"facts": [], "attributes": [], "contradictions": [], "dropped": 0, "raw": len(raws),
-                  "riding": sum(1 for x in raws if x[1] == "about")}
+                  "riding": sum(1 for x in raws if x[1] == "about"), "skipped": None}
         if not raws:
+            return result
+        if len(raws) < ADJUDICATE_MIN_FACTS and len({f["unit_id"] for f, direction, label, stored_id in raws}) == 1:
+            result["skipped"] = f"fewer than {ADJUDICATE_MIN_FACTS} facts, one unit: the raw facts stand"
             return result
         listing = []
         for n, (f, direction, label, stored_id) in enumerate(raws, 1):
@@ -2173,7 +2182,8 @@ def adjudicate(records, folded, ctx, watch=False):
         return result
 
     if watch:
-        print(f"adjudicate: {len(folded['majors'])} majors, {WORKERS} at a time")
+        print(f"adjudicate: {len(folded['majors'])} majors, {WORKERS} at a time; a major with fewer than"
+              f" {ADJUDICATE_MIN_FACTS} facts in one unit is not sent")
     out = {}
     for e, result in zip(folded["majors"], in_parallel(adjudicate_one, folded["majors"])):
         out[e["index"]] = result
@@ -2199,7 +2209,9 @@ def judge_predicates(adjudicated, folded, ctx):
                 if item.get("qualifiers"):
                     line += f" [{item['qualifiers']}]"
                 shown.append(line)
-    out = {"map": {}, "merges": [], "dropped": 0, "distinct": len(counts)}
+    out = {"map": {}, "merges": [], "dropped": 0, "distinct": len(counts), "skipped": len(counts) < PREDICATES_MIN}
+    if out["skipped"]:
+        return out
     ordered = sorted(counts, key=counts.get, reverse=True)
     for at in range(0, len(ordered), PREDICATES_PER_CALL):
         slice_ = ordered[at:at + PREDICATES_PER_CALL]
@@ -2221,6 +2233,9 @@ def judge_predicates(adjudicated, folded, ctx):
 
 
 def show_predicates(merged):
+    if merged["skipped"]:
+        print(f"predicates: {merged['distinct']} distinct across the majors' facts, fewer than {PREDICATES_MIN}: nothing to merge, no call")
+        return
     print(f"predicates: {merged['distinct']} distinct across the majors' facts -> {merged['distinct'] - len(merged['map'])}"
           f" after {len(merged['merges'])} merges; {merged['dropped']} merges dropped for naming nothing the document uses")
     for m in merged["merges"]:
@@ -2308,10 +2323,14 @@ def show_adjudication(folded, adjudicated):
             continue
         for key in total:
             total[key] += a[key] if key in ("raw", "riding", "dropped") else len(a[key])
+        if a.get("skipped"):
+            print(f"    {e['name'][:34]:<34} {a['raw']:>3} raw facts stand: {a['skipped']}")
+            continue
         print(f"    {e['name'][:34]:<34} {a['raw']:>3} raw facts -> {len(a['facts']):>3} facts, {len(a['attributes']):>3} attributes,"
               f" {len(a['contradictions'])} contradictions" + (f", {a['dropped']} dropped for pointing at nothing" if a["dropped"] else ""))
+    skipped = sum(1 for a in adjudicated.values() if a.get("skipped"))
     print(f"adjudicated: {total['raw']} raw facts ({total['riding']} riding in from minors) -> {total['facts']} facts, {total['attributes']} attributes,"
-          f" {total['contradictions']} contradictions; {total['dropped']} dropped")
+          f" {total['contradictions']} contradictions; {total['dropped']} dropped; {skipped} majors left to their raw facts")
 
 
 def show_fold(folded, diag):

@@ -130,6 +130,7 @@ def stub_generate(prompt, schema, stage, model=None, effort="low", ctx=None):
         n = len(re.findall(r"^\d+\. ", prompt.split("FACTS:\n", 1)[1].split("\nCELLS:")[0], re.M))
         return {"facts": [{"predicate": "is_a", "object": "character", "qualifiers": None, "from": [1]},
                           {"predicate": "is_kind_of", "object": "hero", "qualifiers": None, "from": [1]},   # the predicate judge folds this into is_a
+                          *[{"predicate": f"trait_{k}", "object": "some", "qualifiers": None, "from": [1]} for k in range(min(n // 2, 20))],   # a spread that grows with the facts, capped under one judge slice: a book judges predicates, a chat does not
                           {"predicate": "bogus", "object": "nothing", "qualifiers": None, "from": [999]}],   # points at nothing: dropped
                 "attributes": [{"attribute": "kind", "value": "character", "from": list(range(1, min(n, 3) + 1))},
                                {"attribute": "standing alone", "value": None, "from": [1]}],
@@ -325,6 +326,8 @@ if picked:
           rows[-1]["counts"]["units_excluded"] == 1 and rows[-1]["counts"]["units"] == 1
           and any(r["record"] == "abstract" and r["node_id"] == ns["h"](picked["doc_id"], "document") for r in rows)
           and not any(cc["stage"] == "fold" for cc in ns["CALLS"] if cc.get("doc") == picked["source_uri"]))
+    check("chat: a major with fewer than four facts in one unit is not adjudicated, its raw facts stand", rows[-1]["counts"]["adjudications_skipped"] >= 1)
+    check("chat: fewer than eight distinct predicates means no predicate judge call", rows[-1]["counts"]["predicate_judge_skipped"] and not any(c["stage"] == "predicates" and c.get("doc") == picked["source_uri"] for c in ns["CALLS"]))
     check("chat: unit carries the session date and facts inherit nothing invented", all(f["valid_from"] is None for f in cf) and picked["units"][0]["occurred_at"] == picked["occurred_at"])
 
 # ---------------------------------------------------------------- a paper: the abstract as the first unit
