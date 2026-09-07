@@ -42,7 +42,7 @@ import unicodedata
 from datetime import datetime, timezone
 from pathlib import Path
 
-INGESTOR = "factledger-ingestor 0.6"
+INGESTOR = "factledger-ingestor 0.7"
 KAGGLE_EXPORTS = (Path("/kaggle/input/datasets/jhffmn/it494-factledger-step0"), Path("/kaggle/input/it494-factledger-step0"))
 KAGGLE_PAPERS = (Path("/kaggle/input/datasets/jhffmn/it494-reference-papers"), Path("/kaggle/input/it494-reference-papers"))
 LOCAL_EXPORT, LOCAL_PAPERS = Path("data/export"), Path("papers")
@@ -980,7 +980,7 @@ def derive_unit(doc, unit, ctx):
     text, base, cache = unit["text"], unit["start"], {}
     rec = {"unit_id": unit["unit_id"], "position": unit["position"], "label": unit["label"], "kind": unit["kind"],
            "entities": [], "dropped_entities": [], "mentions": [], "facts": [], "rejected_facts": [], "profile": [],
-           "summary": None, "cells": [], "shared_spans": 0, "ambiguous_voice": 0, "split_by_voice": 0, "empty": False}
+           "summary": None, "cells": [], "cells_unlisted": 0, "shared_spans": 0, "ambiguous_voice": 0, "split_by_voice": 0, "empty": False}
 
     # 1. entities, each surface form located; a form that is not in the unit is dropped
     reply = generate(entity_prompt(unit), ENTITY_SCHEMA, "entities", ctx=ctx)
@@ -1006,7 +1006,7 @@ def derive_unit(doc, unit, ctx):
         for span in spans:
             claimed[span] = name
         rec["entities"].append({"name": name, "named": bool(e["named"]), "kind": str(e["kind"]).lower(),
-                                "major": e.get("salience") == "major", "forms": forms, "mentions": len(spans)})
+                                "major": str(e.get("salience") or "").strip().casefold() == "major", "forms": forms, "mentions": len(spans)})
         for start, end in sorted(spans):
             rec["mentions"].append({"mention_id": h(unit["unit_id"], base + start, base + end), "entity": name, "unit_id": unit["unit_id"],
                                     "start": base + start, "end": base + end, "surface": text[start:end], "resolved_by": "surface"})
@@ -1069,8 +1069,12 @@ def derive_unit(doc, unit, ctx):
     if reply:
         rec["summary"] = " ".join(reply["summary"].split())
         for c in reply["cells"]:
-            if c["entity"] in majors and c["text"].strip():
-                rec["cells"].append({"entity": c["entity"], "text": " ".join(c["text"].split())})
+            written = str(c["entity"]).strip()
+            entity = written if written in majors else listed.get(loose_name(written))
+            if entity in majors and c["text"].strip():
+                rec["cells"].append({"entity": entity, "text": " ".join(c["text"].split())})
+            elif c["text"].strip():
+                rec["cells_unlisted"] += 1
     rec["empty"] = not rec["facts"] and not rec["cells"]
     return rec
 
@@ -1515,7 +1519,8 @@ def fold_document(doc, records, entities, ctx):
         others = [n for n in e["names"] if n != e["name"]]
         text = "\n".join([f"name: {e['name']}", f"also: {', '.join(others)[:300]}", f"kinds: {', '.join(e['kinds'])}",
                           f"is: {', '.join(e['is_a'][:6])}", f"facts: {'; '.join(facts[:20])}", f"cells: {' '.join(cells)[:1500]}"])
-        out["dossiers"].append({"entity": e["name"], "first_unit": e["first_unit"], "kinds": e["kinds"], "text": text, "children": facts + cells})
+        out["dossiers"].append({"entity": e["name"], "name": e["name"], "first_unit": e["first_unit"], "kinds": e["kinds"],
+                                "first_mention": e["first_mention"], "text": text, "children": facts + cells})
     if out["dossiers"] and KEY:
         for d, vector in zip(out["dossiers"], embed([d["text"] for d in out["dossiers"]], ctx=ctx)):
             d["embedding"] = vector
@@ -1537,8 +1542,8 @@ def fold_document(doc, records, entities, ctx):
     majors, dossiers = [], []
     for (e, d), (text, missing, tier) in zip(pairs, in_parallel(abstract_of, pairs)):
         if text:
-            out["entity_abstracts"].append({"entity": e["name"], "first_unit": e["first_unit"], "kinds": e["kinds"], "text": text,
-                                            "children_hash": h(*d["children"]), "tier": tier})
+            out["entity_abstracts"].append({"entity": e["name"], "name": e["name"], "first_unit": e["first_unit"], "kinds": e["kinds"],
+                                            "first_mention": e["first_mention"], "text": text, "children_hash": h(*d["children"]), "tier": tier})
             majors.append(e)
             dossiers.append(d)
             continue
@@ -1561,8 +1566,11 @@ def fold_document(doc, records, entities, ctx):
 
 
 def package_path(doc):
+    """Every document keeps its own folder, named after its file: the package, the unit sidecar
+    and the graph sit together, under the corpus the document came from."""
     parts = doc["source_uri"].split("/")
-    return OUT / (parts[-2] if len(parts) > 1 else "misc") / (Path(parts[-1]).stem + ".jsonl")
+    stem = Path(parts[-1]).stem
+    return OUT / (parts[-2] if len(parts) > 1 else "misc") / stem / (stem + ".jsonl")
 
 
 def sidecar_path(doc):
@@ -1574,9 +1582,34 @@ def input_hash(doc):
     return h(doc["doc_id"], *[u["unit_id"] for u in doc["units"]], INGESTOR)
 
 
+def first_mention(records, entity):
+    """Where the entity's chosen name is first mentioned in the document; its first mention under
+    any of its names when that name was never a surface, else its first unit (decision 48)."""
+    wanted, mine, any_mine = norm(entity["name"]), [], []
+    members = {(ui, local_name) for ui, local_name in entity["members"]}
+    for r in records:
+        for m in r["mentions"]:
+            if (r["position"], m["entity"]) not in members:
+                continue
+            any_mine.append(m["start"])
+            if norm(m["surface"]) == wanted:
+                mine.append(m["start"])
+    if mine:
+        return str(min(mine))
+    if any_mine:
+        return str(min(any_mine))
+    return entity["first_unit"]
+
+
+def stamp_first_mention(records, entities):
+    """Every entity carries where its name first appears, which is what its node id is built on."""
+    for e in entities:
+        e["first_mention"] = first_mention(records, e)
+
+
 def entity_key(entity):
-    """What tells one document entity from another with the same name: first unit and kinds."""
-    return entity["name"], entity["first_unit"], "/".join(entity["kinds"])
+    """What names one document entity: the moniker and where the document first mentions it."""
+    return entity["name"], entity["first_mention"]
 
 
 def node_id_of(doc, entity):
@@ -1641,9 +1674,13 @@ def write_package(doc, records, entities, folded, adjudicated, ledger, candidate
                   "created_from_unit": doc["units"][0]["unit_id"] if doc["units"] else None, "provenance": {"ingestor": INGESTOR}})
 
     # nodes, aliases and edges for the majors; the map from a unit-local name to its node
-    node_of, position_of = {}, {u["unit_id"]: u["position"] for u in doc["units"]}
+    node_of, position_of, minted = {}, {u["unit_id"]: u["position"] for u in doc["units"]}, {}
     for e in entities:
         nid = node_id_of(doc, e) if e["major"] else None
+        if nid is not None and nid in minted:       # two entities the judge kept apart may never share a node
+            raise ValueError(f"{doc['source_uri']}: {e['name']!r} and {minted[nid]!r} would share one node id")
+        if nid is not None:
+            minted[nid] = e["name"]
         for ui, local_name in e["members"]:
             node_of[(ui, local_name)] = nid
         if not e["major"]:
@@ -1696,10 +1733,10 @@ def write_package(doc, records, entities, folded, adjudicated, ledger, candidate
         lines.append({"record": "abstract", "node_id": doc_node, "scope_id": scope, "text": folded["abstract"]["text"],
                       "children_hash": folded["abstract"]["children_hash"], "tier": folded["abstract"]["tier"], "updated_at": written_at})
     for a in folded["entity_abstracts"]:
-        lines.append({"record": "abstract", "node_id": node_id_of(doc, {"name": a["entity"], "first_unit": a["first_unit"], "kinds": a["kinds"]}),
+        lines.append({"record": "abstract", "node_id": node_id_of(doc, a),
                       "scope_id": scope, "text": a["text"], "children_hash": a["children_hash"], "tier": a["tier"], "updated_at": written_at})
     for d in folded["dossiers"]:
-        lines.append({"record": "dossier", "node_id": node_id_of(doc, {"name": d["entity"], "first_unit": d["first_unit"], "kinds": d["kinds"]}),
+        lines.append({"record": "dossier", "node_id": node_id_of(doc, d),
                       "text": d["text"], "embedding_model": EMBED_MODEL if "embedding" in d else None, "embedding": d.get("embedding")})
     lines += [{"record": "ledger", **entry} for entry in ledger] + [{"record": "candidate", **entry} for entry in candidates]
 
@@ -1733,7 +1770,9 @@ def write_package(doc, records, entities, folded, adjudicated, ledger, candidate
               "mentions": sum(len(r["mentions"]) for r in records), "facts_kept": sum(len(r["facts"]) for r in records),
               "facts_stored": sum(1 for l in lines if l["record"] == "fact"),
               "facts_minor_subject": sum(len(r["facts"]) for r in records) - len(landed_ids), "facts_riding": riding,
+              "facts_riding_sources": len({f["fact_id"] for e in folded["majors"] for f, direction, label, stored_id, tying in landed[e["index"]] if direction == "about"}),
               "facts_rejected": sum(len(r["rejected_facts"]) for r in records), "cells": sum(1 for l in lines if l["record"] == "cell"),
+              "cells_unlisted": sum(r.get("cells_unlisted", 0) for r in records),
               "shared_spans": sum(r["shared_spans"] for r in records), "ambiguous_voice": sum(r["ambiguous_voice"] for r in records),
               "facts_split_by_voice": sum(r["split_by_voice"] for r in records),
               "empty_units": sum(r["empty"] for r in records), "units_excluded": len(excluded), "demoted": len(folded["demoted"]),
@@ -1792,6 +1831,10 @@ def checkpointed(doc):
     """What a previous attempt left in its sidecar, when it belongs to this input: (the kinds
     triage left out, the unit records in order, their cost, their calls, the triage flags)."""
     side = sidecar_path(doc)
+    if side.exists():
+        data = side.read_bytes()                  # a kill mid-write leaves a torn last line: drop it,
+        if not data.endswith(b"\n"):              # or the resume appends behind it and is never read past
+            side.write_bytes(data[:data.rfind(b"\n") + 1])
     rows = [row for row in read_own_jsonl(side) if row.get("ingestor") == INGESTOR and row.get("input_hash") == input_hash(doc)] if side.exists() else []
     if not rows or "triage" not in rows[0]:
         return None, [], 0.0, 0, []
@@ -2049,6 +2092,7 @@ def ingest(doc, ctx=None, diag=None):
 
     # the document, all at the end: reconcile, fold, salience, adjudicate, predicates, write
     entities, ledger, candidates, stats = reconcile(records, ctx, watch=bool(diag.get("reconcile")))
+    stamp_first_mention(records, entities)        # a node id is the moniker and its first mention
     if diag.get("reconcile"):
         show_reconcile(entities, ledger, stats, diag)
     folded = fold_document(doc, records, entities, ctx)
@@ -2140,7 +2184,8 @@ def receipt():
             continue
         last = rows[-1]
         rec["documents"] += 1
-        rec["by_group"][path.parent.name] = rec["by_group"].get(path.parent.name, 0) + 1
+        group = path.parent.parent.name
+        rec["by_group"][group] = rec["by_group"].get(group, 0) + 1
         for k, v in last["counts"].items():
             if isinstance(v, (int, bool)):
                 rec["counts"][k] = rec["counts"].get(k, 0) + int(v)
@@ -2188,9 +2233,12 @@ def targets(spec):
 
 
 def read_package(path):
-    """A package's records grouped by record type."""
+    """A package's records grouped by record type; a package with no completion is not read."""
+    rows = read_own_jsonl(Path(path))
+    if not rows or rows[-1].get("record") != "completion":
+        raise ValueError(f"{path}: no completion record; the package is unfinished")
     by = {}
-    for row in read_jsonl(Path(path)):
+    for row in rows:
         by.setdefault(row["record"], []).append(row)
     return by
 
@@ -2378,7 +2426,32 @@ if __name__ == "__main__" and PAPERS_TO_RUN:
     run_and_roll_up(chosen, DIAG_ALL)
 
 # %%
-# Block 15: the graphs. One knowledge graph per document ingested this session, drawn the
+# Block 15: the run, one chat user across their sessions. LongMemEval names the evidence
+# sessions of a question after it, so these seven are one person over time, which is the shape
+# the merge across documents has to handle. Nothing here reaches across documents: each session
+# is its own package, in its own folder.
+CHAT_QUESTION = "7093d898"
+SPEND_STOP = 3.00
+
+if __name__ == "__main__" and CHAT_QUESTION:
+    chats = sorted(u for u in BY_URI if "/longmemeval/" in u and CHAT_QUESTION in u.split("/")[-1])
+    print(f"chats: {len(chats)} sessions of question {CHAT_QUESTION}; stop at ${SPEND_STOP:.2f} for the session")
+    run_and_roll_up(chats, DIAG_ALL)
+
+# %%
+# Block 16: the run, one Greek work and one novel from the GraphRAG benchmark, so the entity and
+# fact shapes of a play, a novel and a chat can be read side by side before the merge is built.
+OTHERS = ["/greek/22_35173.txt", "/graphrag-bench/Novel-40700.txt"]
+SPEND_STOP = 6.00
+
+if __name__ == "__main__" and OTHERS:
+    chosen = [find_document(name) for name in OTHERS]
+    chosen = [u for u in chosen if u]
+    print(f"others: {[BY_URI[u]['title'] or u for u in chosen]}; stop at ${SPEND_STOP:.2f} for the session")
+    run_and_roll_up(chosen, DIAG_ALL)
+
+# %%
+# Block 17: the graphs. One knowledge graph per document ingested this session, drawn the
 # 09-02 demo's way and saved beside the packages. Needs networkx and matplotlib, which Kaggle has.
 if __name__ == "__main__":
     for uri, records_, counts_, stats_ in RESULTS:

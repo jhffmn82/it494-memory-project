@@ -307,6 +307,28 @@ check("every entity with facts of its own had them read before anything rode: a 
 check("every adjudicated fact points only at raw facts of its own node", adjudicated and all(set(a["from_facts"]) <= fact_ids_of.get(a["node_id"], set()) for a in adjudicated))
 check("attributes point at raw facts too, and an item pointing at nothing was dropped and counted", by.get("attribute") and all(set(a["from_facts"]) <= fact_ids_of.get(a["node_id"], set()) for a in by["attribute"]) and lines[-1]["counts"]["adjudication_dropped"] == len(folded["majors"]))
 check("an adjudicated attribute may stand without a value", any(a["value"] is None for a in by.get("attribute", [])))
+# a kill mid-write leaves a torn last line in the sidecar: the resume must still accumulate
+side = ns["sidecar_path"](doc)
+torn_resume_ok = None
+if side.exists():
+    torn_resume_ok = False
+else:
+    rows_before = None
+    ns["append_sidecar"](doc, {"triage": {}, "cost": 0.0, "calls": 0, "flags": []})
+    ns["append_sidecar"](doc, {"rec": {"unit_id": doc["units"][0]["unit_id"]}, "cost": 0.0, "calls": 0})
+    with side.open("a", encoding="utf-8") as f:
+        f.write('{"rec": {"unit_id": "cut off her')                       # the kill
+    ns["checkpointed"](doc)                                               # the resume reads first: the torn line goes
+    ns["append_sidecar"](doc, {"rec": {"unit_id": doc["units"][1]["unit_id"]}, "cost": 0.0, "calls": 0})
+    excluded_, kept_, cost_, calls_, flags_ = ns["checkpointed"](doc)
+    torn_resume_ok = [k["unit_id"] for k in kept_] == [u["unit_id"] for u in doc["units"][:2]]
+    side.unlink()
+
+check("each document keeps its own folder, named after its file, with the package inside it",
+      path.parent.name == "01_55" and path.name == "01_55.jsonl" and path.parent.parent.name == "oz")
+check("two entities the judge kept apart never share a node id (decision 48)",
+      len({n["node_id"] for n in by["node"]}) == len(by["node"]))
+check("a torn sidecar line does not hide the units a resume appends behind it (A14)", torn_resume_ok, torn_resume_ok)
 check("an entity the document cannot summarise is not a major, and its facts ride (decision 52)",
       all(any(a["record"] == "abstract" and a["node_id"] == ns["node_id_of"](doc, e) for a in lines) for e in folded["majors"])
       and all(not e["rank"].get("no_abstract") for e in folded["majors"]))
