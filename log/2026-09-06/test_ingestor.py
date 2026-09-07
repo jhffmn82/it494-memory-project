@@ -425,5 +425,23 @@ ns["call"] = saved_call
 check("a reply that misses the shape is asked for again, and the miss is logged as a retry", reply == {"summary": "fine"} and len(ns["RETRIES"]) == before + 1 and "expected string" in ns["RETRIES"][-1]["detail"] and (SCR / "retries.jsonl").exists())
 check("an adjudicated attribute may stand without a value", any(a["value"] is None for a in by.get("attribute", [])))
 
+# independent calls run several at a time, results in order, and a stop inside one still ends the run
+def doubled(x):
+    return x * 2
+
+
+def stops_at_two(x):
+    if x == 2:
+        raise ns["SpendStop"]("test stop in a worker")
+    return x
+
+
+check("in_parallel keeps the items' order", ns["WORKERS"] >= 2 and ns["in_parallel"](doubled, [3, 1, 2, 5, 4]) == [6, 2, 4, 10, 8])
+try:
+    ns["in_parallel"](stops_at_two, [1, 2, 3, 4, 5])
+    check("a spend stop inside a worker is raised to the caller", False)
+except ns["SpendStop"]:
+    check("a spend stop inside a worker is raised to the caller", True)
+
 print(f"\n{sum(results)} of {len(results)} checks pass")
 sys.exit(0 if all(results) else 1)

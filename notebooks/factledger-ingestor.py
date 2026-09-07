@@ -281,10 +281,13 @@ if SEEDED:
 # tokens, latency and cost. A reply that does not fit its schema is asked for once more with
 # the error appended, then counted as a rejection; the first miss is logged in retries.jsonl. A timeout, a dropped connection, a 429 or a
 # 5xx is retried three times; a 429 for exhausted quota ends the run like the spend stop. The
-# stop is checked before every call.
+# stop is checked before every call. Where calls are independent of one another (the entity
+# abstracts, the adjudications) they run WORKERS at a time; the logs take one lock.
 import http.client
+import threading
 import urllib.error
 import urllib.request
+from concurrent.futures import ThreadPoolExecutor
 
 LUNA = "gpt-5.6-luna"                      # derive, fold
 TERRA = "gpt-5.6-terra"                    # the judge
@@ -316,10 +319,24 @@ class SchemaError(ValueError):
     pass
 
 
+WORKERS = int(os.environ.get("WORKERS", "4"))     # independent calls in flight at once
+LOG_LOCK = threading.Lock()
+
+
 def record(name, row):
     """Append one row to a run log under OUT, so it survives whatever ends the session."""
-    with (OUT / name).open("a", encoding="utf-8") as f:
-        f.write(json.dumps(row, ensure_ascii=False) + "\n")
+    with LOG_LOCK:
+        with (OUT / name).open("a", encoding="utf-8") as f:
+            f.write(json.dumps(row, ensure_ascii=False) + "\n")
+
+
+def in_parallel(function, items):
+    """function over each item, WORKERS at a time, the results in the items' order. An error
+    in one (a spend stop included) is raised once the calls in flight have returned."""
+    if WORKERS <= 1 or len(items) <= 1:
+        return [function(item) for item in items]
+    with ThreadPoolExecutor(max_workers=WORKERS) as pool:
+        return list(pool.map(function, items))
 
 
 def spend():
@@ -376,7 +393,8 @@ def post(url, payload):
 
 
 def log_call(row):
-    CALLS.append(row)
+    with LOG_LOCK:
+        CALLS.append(row)
     record("calls.jsonl", row)
 
 
@@ -1717,20 +1735,26 @@ def fold_document(doc, records, entities, ctx):
     if texts and KEY:
         for dossier, vector in zip(out["dossiers"], embed(texts, ctx=ctx)):
             dossier["embedding"] = vector
-    for e, dossier in zip(out["majors"], out["dossiers"]):
+    def abstract_of(pair):
+        """(text, missing names, tier) for one major; its children stand as the abstract when
+        there are too few to fold."""
+        e, dossier = pair
         children = dossier["children"]
         if not children:
+            return None, [], None
+        if len(children) <= 2:
+            return " ".join(c.split("] ", 1)[-1] for c in children), [], LUNA
+        text, missing, _ = fold(f"one entity, {e['name']}", children, ctx, stage="entity_abstract",
+                                allowed=e["names"] + e["surfaces"])
+        return text, missing, TERRA
+
+    pairs = list(zip(out["majors"], out["dossiers"]))
+    for (e, dossier), (text, missing, tier) in zip(pairs, in_parallel(abstract_of, pairs)):
+        if not dossier["children"]:
             continue
-        if len(children) <= 2:                    # too little to fold: the children stand as the abstract
-            text = " ".join(c.split("] ", 1)[-1] for c in children)
-            missing, tier = [], LUNA
-        else:
-            text, missing, _ = fold(f"one entity, {e['name']}", children, ctx, stage="entity_abstract",
-                                    allowed=e["names"] + e["surfaces"])
-            tier = TERRA
         if text:
             out["entity_abstracts"].append({"entity": e["name"], "first_unit": e["first_unit"], "text": text,
-                                            "children_hash": children_hash(children), "tier": tier})
+                                            "children_hash": children_hash(dossier["children"]), "tier": tier})
         else:
             out["entity_abstract_rejected"].append({"entity": e["name"], "missing": missing})
     return out
@@ -2115,14 +2139,12 @@ def adjudicate(records, folded, ctx, watch=False):
             index = member_index.get((r["position"], c["entity"]))
             if index is not None:
                 cells_of[index].append(f"[{r['label']}] {c['text']}")
-    out = {}
-    for n, e in enumerate(folded["majors"], 1):
+    def adjudicate_one(e):
         raws = landed[e["index"]]
         result = {"facts": [], "attributes": [], "contradictions": [], "dropped": 0, "raw": len(raws),
                   "riding": sum(1 for x in raws if x[1] == "about")}
-        out[e["index"]] = result
         if not raws:
-            continue
+            return result
         listing = []
         for n, (f, direction, label, stored_id) in enumerate(raws, 1):
             if direction == "forward":
@@ -2138,8 +2160,6 @@ def adjudicate(records, folded, ctx, watch=False):
         reply = generate(adjudicate_prompt(e["name"], e["kinds"], listing, cells_of[e["index"]], predicates),
                          ADJUDICATE_SCHEMA, "adjudicate", model=TERRA, effort="medium", ctx=ctx)
         ids = [stored_id for f, direction, label, stored_id in raws]
-        if watch and n % 5 == 0:
-            print(f"    adjudicate: {n} of {len(folded['majors'])} majors, ${spend():.2f} spent this session")
         for key in ("facts", "attributes", "contradictions"):
             for item in (reply or {}).get(key, []):
                 sources = valid_sources(item.get("from"), len(ids))
@@ -2150,6 +2170,13 @@ def adjudicate(records, folded, ctx, watch=False):
                 del kept["from"]
                 kept["from_facts"] = [ids[n - 1] for n in sources]
                 result[key].append(kept)
+        return result
+
+    if watch:
+        print(f"adjudicate: {len(folded['majors'])} majors, {WORKERS} at a time")
+    out = {}
+    for e, result in zip(folded["majors"], in_parallel(adjudicate_one, folded["majors"])):
+        out[e["index"]] = result
     return out
 
 
