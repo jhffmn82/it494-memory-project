@@ -236,3 +236,10 @@ ambiguous-subject rejection is verified by the review's reproduction, not by the
     pairwise judge (32); Justin: "you keep overruling me even when I am right." The pairwise
     judge, its prompt, schema, map and `predicate_merge` records are out; `adjudicated_fact`
     carries the predicate the model wrote; the census stays as a count. 2,269 lines.
+40. **The adjudication names the consolidated predicates properly** (Justin, 09-07: "some of
+    these predicates are pretty dumb, so a second pass needs made when the entity facts are
+    rolled up at the end"). The adjudication is that pass: its prompt no longer tells Terra to
+    keep the predicates the way the raw facts named them, but to name each consolidated
+    relation clearly (has_aunt, is_carried_to are the examples given), per entity, with the raw
+    facts keeping their own names underneath and `from_facts` tying them. No vocabulary is
+    shared across entities and no call is added; this is not the merging ruled out in 39.
