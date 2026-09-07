@@ -1133,7 +1133,6 @@ import difflib
 
 TIER = {"shared_surface": 1.0, "is_a_link": 0.85, "shared_word": 0.5}
 PAIRS_PER_CALL = 10
-SCORE_WEIGHTS = (0.6, 0.25, 0.15)                  # name, co-occurrence, profile
 
 
 def fact_text(f):
@@ -1191,8 +1190,7 @@ def score_pair(a, b, reason):
     cooc = len(a["cooc"] & b["cooc"]) / len(both) if both else 0.0
     shared_keys = set(a["profile"]) & set(b["profile"])
     profile = sum(a["profile"][k] == b["profile"][k] for k in shared_keys) / len(shared_keys) if shared_keys else 0.5
-    w_name, w_cooc, w_profile = SCORE_WEIGHTS
-    return name, cooc, profile, w_name * name + w_cooc * cooc + w_profile * profile
+    return name, cooc, profile, 0.6 * name + 0.25 * cooc + 0.15 * profile
 
 
 def by_priority(item):
@@ -1469,9 +1467,9 @@ def salience_order(item):
     return (not item[0], -item[1], -item[2])
 
 
-def fold_document(doc, records, entities, ctx):
+def fold_document(records, entities, ctx):
     out = {"abstract": None, "abstract_rejected": None, "majors": [], "minors": [], "dossiers": [], "entity_abstracts": [],
-           "entity_abstract_rejected": [], "demoted": []}
+           "entity_abstract_rejected": [], "demoted": [], "cells_of": {}}
     work = [r for r in records if r["summary"]]
     summaries = [f"[{r['label']}] {r['summary']}" for r in work]
     if len(summaries) == 1:                       # one summarised unit: its summary is the abstract, no call
@@ -1514,6 +1512,7 @@ def fold_document(doc, records, entities, ctx):
         for f in r["facts"]:
             if member_of.get((r["position"], f["subject"])) is not None:
                 facts_of.setdefault(member_of[(r["position"], f["subject"])], []).append(fact_text(f))
+    out["cells_of"] = cells_of
     for e in out["majors"]:
         facts, cells = list(dict.fromkeys(facts_of.get(e["index"], []))), cells_of.get(e["index"], [])
         others = [n for n in e["names"] if n != e["name"]]
@@ -1521,9 +1520,8 @@ def fold_document(doc, records, entities, ctx):
                           f"is: {', '.join(e['is_a'][:6])}", f"facts: {'; '.join(facts[:20])}", f"cells: {' '.join(cells)[:1500]}"])
         out["dossiers"].append({"entity": e["name"], "name": e["name"], "first_unit": e["first_unit"], "kinds": e["kinds"],
                                 "first_mention": e["first_mention"], "text": text, "children": facts + cells})
-    if out["dossiers"] and KEY:
-        for d, vector in zip(out["dossiers"], embed([d["text"] for d in out["dossiers"]], ctx=ctx)):
-            d["embedding"] = vector
+    for d, vector in zip(out["dossiers"], embed([d["text"] for d in out["dossiers"]], ctx=ctx)):
+        d["embedding"] = vector
 
     def abstract_of(pair):
         """(text, missing names, tier); two records or fewer stand as the abstract without a call."""
@@ -1794,14 +1792,10 @@ def write_package(doc, records, entities, folded, adjudicated, ledger, candidate
 
 
 def completed(doc):
-    """The completion record of an existing package for this exact input, else None."""
+    """Is there already a finished package for this exact input?"""
     path = package_path(doc)
-    if not path.exists():
-        return None
-    rows = read_own_jsonl(path)
-    if rows and rows[-1].get("record") == "completion" and rows[-1].get("input_hash") == input_hash(doc):
-        return rows[-1]
-    return None
+    rows = read_own_jsonl(path) if path.exists() else []
+    return bool(rows) and rows[-1].get("record") == "completion" and rows[-1].get("input_hash") == input_hash(doc)
 
 # %%
 # Block 11: the pipeline as one function, ingest(doc, diag).
@@ -1900,12 +1894,7 @@ def valid_sources(numbers, n):
 def adjudicate(records, folded, ctx, watch=False):
     """One call per document-major over its landed facts and its cells; the consolidated facts,
     attributes and contradictions point at the raw facts by number. Keyed by entity index."""
-    member_index = {(ui, local_name): e["index"] for e in folded["majors"] for ui, local_name in e["members"]}
-    landed, cells_of = landings(records, folded), {e["index"]: [] for e in folded["majors"]}
-    for r in records:
-        for c in r["cells"]:
-            if member_index.get((r["position"], c["entity"])) is not None:
-                cells_of[member_index[(r["position"], c["entity"])]].append(f"[{r['label']}] {c['text']}")
+    landed, cells_of = landings(records, folded), folded["cells_of"]
 
     def adjudicate_one(e):
         raws = landed[e["index"]]
@@ -1926,7 +1915,7 @@ def adjudicate(records, folded, ctx, watch=False):
             else:
                 line = f"{n}. (about {f['subject']}) {f['subject']} {f['predicate']} {f['object']}"
             listing.append(line + (f" [{f['qualifiers']}]" if f["qualifiers"] else "") + f"  ({label}: \"{' '.join(f['quote'].split())}\")")
-        reply = generate(adjudicate_prompt(e["name"], e["kinds"], listing, cells_of[e["index"]]), ADJUDICATE_SCHEMA, "adjudicate",
+        reply = generate(adjudicate_prompt(e["name"], e["kinds"], listing, cells_of.get(e["index"], [])), ADJUDICATE_SCHEMA, "adjudicate",
                          model=TERRA, effort="medium", ctx={**ctx, "entity": e["name"]})
         result["rejected"] = reply is None
         ids = [stored_id for f, direction, label, stored_id, tying in raws]
@@ -2095,7 +2084,7 @@ def ingest(doc, ctx=None, diag=None):
     stamp_first_mention(records, entities)        # a node id is the moniker and its first mention
     if diag.get("reconcile"):
         show_reconcile(entities, ledger, stats, diag)
-    folded = fold_document(doc, records, entities, ctx)
+    folded = fold_document(records, entities, ctx)
     if diag.get("fold"):
         show_fold(folded)
     adjudicated = adjudicate(records, folded, ctx, watch=bool(diag.get("adjudicate")))
