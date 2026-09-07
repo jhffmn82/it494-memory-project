@@ -210,3 +210,11 @@ ambiguous-subject rejection is verified by the review's reproduction, not by the
     and could go, each with Justin's say: the scored candidate rows, the profile records and
     their score, the dossier embeddings, the seeding from a prior Kaggle output, the unit
     sidecar and resume, the diagnostic flags, the top-five audit in the roll-up.
+36. **A citation reworded at its edges is kept** (ruled, from "why are we dropping facts like
+    this?": the model cited "she started along the road of yellow brick" for a sentence that
+    reads "She bade her friends good-bye, and again started along the road of yellow brick";
+    seven of its eight words stood in order). The `words` path is back, as a longest-common-
+    subsequence match: the shortest passage holding at least 85 percent of the quote's words in
+    order, no longer than the quote plus three words, may start at any matching word; the
+    stored quote is the text's own passage, so provenance stays verbatim, and the receipt counts
+    it apart so the kept facts can be read by hand.

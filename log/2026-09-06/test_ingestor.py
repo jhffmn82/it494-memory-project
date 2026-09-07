@@ -189,6 +189,10 @@ ell = "Quelala was a boy. He was said to be the best and wisest man in all the l
 s, e, how = locate(ell, "Quelala ... the best and wisest man")
 check("a quote with an ellipsis is found piece by piece and the stored quote spans the pieces", how == "pieces" and ell[s:e] == "Quelala was a boy. He was said to be the best and wisest man", repr(ell[s:e] if s is not None else how))
 check("an ellipsis whose pieces are out of order is not found", locate(ell, "wisest man ... Quelala")[2] in ("paraphrase", "not_found"))
+oz3 = "She bade her friends good-bye, and again started along the road of yellow brick. When she had gone several miles she thought she would stop to rest."
+s, e, how = locate(oz3, "she started along the road of yellow brick.")
+check("a citation reworded at its edge is found by its words and the stored quote is the text's own passage", how == "words" and oz3[s:e] == "started along the road of yellow brick", repr(oz3[s:e] if s is not None else how))
+check("a citation missing too many words is not found by its words", locate(oz3, "she started along the road to the City of Emeralds today")[2] in ("paraphrase", "not_found"))
 check("a bare quote is found as whole words, not inside a longer word", locate("Ozma ruled. The Wizard said he was Oz.", '"Oz"') == (35, 37, "unwrapped"))
 check("a matched pair of marks comes off and the text's own apostrophe stays", locate("’Tis a fine day, said Toto.", '"’Tis a fine day"') == (0, 15, "unwrapped"))
 check("a lone apostrophe at the end is the text's own and stays", locate("They crossed the Winkies’ land at noon.", "the Winkies’")[2] == "exact")
@@ -233,6 +237,7 @@ check("every fact's offsets slice to exactly its quote", all(text[f["quote_start
 unit_range = {u["unit_id"]: (u["start"], u["end"]) for u in doc["units"]}
 check("every quote lies inside its unit", all(unit_range[f["unit_id"]][0] <= f["quote_start"] < f["quote_end"] <= unit_range[f["unit_id"]][1] for f in facts))
 check("the match paths exercised: exact, normalised, unwrapped, pieces", set(stats["matched_by"]) >= {"exact", "normalised", "unwrapped", "pieces"}, stats["matched_by"])
+check("every fact's quote is the text's own words whatever path found it", all(text[f["quote_start"]:f["quote_end"]] == f["quote"] for f in facts))
 check("rejections classified: paraphrase, not_found, unlisted_subject, duplicate", set(stats["rejected_by"]) >= {"paraphrase", "not_found", "unlisted_subject", "duplicate"}, stats["rejected_by"])
 check("predicate normalised to snake_case", any(f["predicate"] == "has_trait" for f in facts))
 check("valid_from kept only when the quote states the year", all(f["valid_from"] is None for f in facts if "1900" not in f["quote"]))

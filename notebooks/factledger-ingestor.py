@@ -597,11 +597,15 @@ def counts_text(counter):
 # folded), matched on a copy that maps every character back to its original offset;
 # `unwrapped`, once the quotation marks the model wrapped it in come off, as whole words;
 # `pieces`, a quote with an ellipsis, each piece verbatim and in order, the stored quote being
-# the passage from the first piece to the last. Anything else is `paraphrase` (most of its
-# words are there, in order, somewhere) or `not_found`. Stored offsets always index the original.
+# the passage from the first piece to the last; `words`, the shortest passage holding at least
+# WORDS_NEEDED of the quote's words in order, within three words of the quote's length, so a
+# citation the model reworded at the edges still lands and the stored quote is the text's own
+# words. Anything else is `paraphrase` (most of its words are there, in order, somewhere) or
+# `not_found`. Stored offsets always index the original.
 
 REPLACEMENTS = {"‘": "'", "’": "'", "“": '"', "”": '"', "–": "-", "—": "-", "‒": "-", "−": "-", "‐": "-", "‑": "-", "­": "", " ": " "}
 QUOTE_PAIRS = {"“": "”", '"': '"', "‘": "’", "'": "'"}
+WORDS_NEEDED = 0.85                                  # the share of a quote's words a `words` match must hold, in order
 
 
 def hyphen_breaks(text):
@@ -721,6 +725,57 @@ def whole_word_hit(text, needle, cache):
     return None, None
 
 
+def in_order(wanted, have):
+    """How many of `wanted` occur in `have` in order (the longest common subsequence), with the
+    first and last positions in `have` that take part."""
+    n, m = len(wanted), len(have)
+    table = [[0] * (m + 1) for _ in range(n + 1)]
+    for i in range(n - 1, -1, -1):
+        for j in range(m - 1, -1, -1):
+            table[i][j] = table[i + 1][j + 1] + 1 if wanted[i] == have[j] else max(table[i + 1][j], table[i][j + 1])
+    i = j = 0
+    taken = []
+    while i < n and j < m:
+        if wanted[i] == have[j]:
+            taken.append(j)
+            i, j = i + 1, j + 1
+        elif table[i + 1][j] >= table[i][j + 1]:
+            i += 1
+        else:
+            j += 1
+    return len(taken), (taken[0] if taken else 0), (taken[-1] if taken else 0)
+
+
+def words_hit(text, quote, cache):
+    """The shortest passage holding at least WORDS_NEEDED of the quote's words in order, no
+    longer than the quote plus three words; (start, end) or (None, None)."""
+    wanted = words_only(normalised(quote)[0])
+    if len(wanted) < 4:
+        return None, None
+    ntext, back = normalised_unit(text, cache)
+    words, i = [], 0                                 # (word, start in ntext, end in ntext)
+    while i < len(ntext):
+        if is_word_char(ntext[i]):
+            j = i
+            while j < len(ntext) and is_word_char(ntext[j]):
+                j += 1
+            words.append((ntext[i:j], i, j))
+            i = j
+        else:
+            i += 1
+    needed, best = max(4, int(WORDS_NEEDED * len(wanted) + 0.999)), None
+    for at in range(len(words)):
+        if words[at][0] != wanted[0] and words[at][0] not in wanted:
+            continue
+        window = [w[0] for w in words[at:at + len(wanted) + 3]]
+        matched, first, last = in_order(wanted, window)
+        if matched >= needed and (best is None or (matched, first - last) > (best[0], best[1] - best[2])):
+            best = (matched, at + first, at + last)
+    if best is None:
+        return None, None
+    return back[words[best[1]][1]], back[words[best[2]][2] - 1] + 1
+
+
 def locate(text, quote, cache=None):
     """(start, end, how) with offsets into `text`, or (None, None, why)."""
     written = (quote or "").strip()
@@ -742,6 +797,9 @@ def locate(text, quote, cache=None):
             first, last, at = (s if first is None else first), e, e
         else:
             return first, last, "pieces"
+    start, end = words_hit(text, bare, cache)
+    if start is not None:
+        return start, end, "words"
     return None, None, how
 
 
