@@ -116,3 +116,20 @@ battery. The refuted three I left alone.
 The notebook posted to Justin is the last commit of 2026-09-06 on the branch; the decisions log
 is `decisions-ingestor-0.5.md`, the review's record `review-findings-4.json`, both in this
 folder, and the branch is pushed to the project's GitHub.
+
+## 0.6 (09-07, the next morning)
+
+Justin ran 0.5 on Kaggle and posted the output through chapter XIV: the `rolling:` line under
+each chapter showed the cost of my design in numbers, seven judge calls and sixty "different"
+verdicts a chapter, $0.53 where 0.4 had spent $0.14, and then nothing. He ruled the rolling
+approach out and the end-of-document bottom-up back in, with a priority queue, pairwise
+predicate merging, and a 40 percent cut. I read the whole file back in three passes and
+rewrote it as one file rather than patching: block 8 is the 0.4 reconcile with the queue made
+explicit and the both-named instant union kept; block 11 lost the stage checkpoints; the
+predicate judge became pairwise; the gate gained the ellipsis pieces he asked about. I also
+built a "words" matcher for near-verbatim citations, then took it out before committing: it
+was my relaxation of the gate, not his. The battery was rewritten to match (105 checks); three
+of its failures were its own expectations, a pair the similarity rule does not nominate and a
+chain check that demanded one particular name. The paper mini-export and the roll-up smoke
+runs pass. The file is 2,284 lines against 3,000, short of the 40 percent he asked for; the
+decisions log lists what else could go and what each removal would cost.

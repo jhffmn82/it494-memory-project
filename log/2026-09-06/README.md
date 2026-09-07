@@ -215,3 +215,11 @@ The first real run (0.4, Oz book 1: 358 entities, 38 majors, 869 facts, 74 rejec
 - `8525579` the final roll-up per document and one knowledge graph per document, the 09-02 demo's way; block 14 (five papers) in the repo.
 
 The offline battery ended the night at 111 checks. An adversarial review of the 0.5 code (six lenses, one refuter per finding, `review-findings-4.json`) ran after stage D: 30 confirmed findings, all fixed the same night; `decisions-ingestor-0.5.md` lists every decision and fix, and `devlog-ingestor-0.5.md` is the chat's own account of the work.
+
+## 0.6, the morning of 09-07
+
+The 0.5 run showed the rolling reconciliation costing four times the derive and stalling; Justin
+ruled it out. 0.6 reads every unit on its own and merges everything at the end: an agglomerative
+priority queue of entity pairs judged ten a call, the majors' facts consolidated, predicates
+merged pairwise by a judge. Ellipsis quotes are kept. The file is 2,284 lines (from 3,000); the
+battery is at 105 checks. Rulings 32 to 35 in `decisions-ingestor-0.5.md`, audit item 31.

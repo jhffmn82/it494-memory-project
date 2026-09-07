@@ -181,3 +181,32 @@ Residuals, said plainly: a stop during the entity abstracts still loses the abst
 finished, since the fold is checkpointed whole; the general gate has no whole-word rule (a
 short quote written without marks can still land inside a longer word, as before 0.5); the
 ambiguous-subject rejection is verified by the review's reproduction, not by the battery.
+
+## 0.6: the reversal (09-07, after the 0.5 run)
+
+32. **The rolling reconciliation was wrong in practice** (ruled). On Kaggle the per-unit judge
+    spent $0.53 by chapter XIV against $0.14 at the same point in the 0.4 run, with sixty-odd
+    "different" verdicts a chapter, because every chapter's locals were set against every
+    earlier cluster that shared a word; the run stalled and ended. Justin's ruling: treat each
+    unit individually with no look back, then do all the merging at the end: an agglomerative
+    bottom-up priority queue of major-to-major and major-to-minor pairs, then merge the
+    entities, merge the facts, and merge predicates pairwise on similarity with the judge
+    naming the merged predicate. Rolling reconciliation and the document-level checkpointing
+    that served it are withdrawn.
+33. **No look back means no roster and no previous summary** (chat's reading of the ruling).
+    The entity prompt no longer carries the established entities or asks for `continues`; the
+    cells prompt no longer sees the previous unit's summary. The both-named instant match
+    stays: two named locals with the same name and kind are one entity without a judge, so
+    Dorothy's twenty chapters do not cost 190 judged pairs.
+34. **Ellipsis quotes are kept** (ruled, from "we are dropping too many facts": the quote
+    "Quelala ... the best and wisest man" was rejected as a paraphrase though both pieces were
+    verbatim). A quote with an ellipsis is located piece by piece, in order, and the stored
+    quote is the passage from the first piece to the last, marked `pieces`. The fact prompt
+    says so. A "words" matcher that located near-verbatim citations by their words was built
+    alongside and taken out before the commit, as a relaxation of the gate no one ruled.
+35. **The code cut** (ruled: "cut by like 40% at min"). 3,000 lines to 2,284 (24 percent),
+    with the rolling machinery, the stage checkpointing, the per-unit agreement diagnostics
+    and the sliced predicate judge gone and the pairwise one in their place. What is still in
+    and could go, each with Justin's say: the scored candidate rows, the profile records and
+    their score, the dossier embeddings, the seeding from a prior Kaggle output, the unit
+    sidecar and resume, the diagnostic flags, the top-five audit in the roll-up.
