@@ -14,7 +14,9 @@
 # the abstract and decides salience. Block 10 writes the package. Block 11 is the pipeline as one
 # function: a judge decides which kinds of unit to read, the units are derived, the entities
 # reconciled, the abstract folded, each major adjudicated, the package written, with flags that
-# print each step as it happens. Block 12 names documents and block 13 is the run.
+# print each step as it happens. Block 12 names documents and reads a package back for the
+# roll-up and the graph. Blocks 13 and 14 are the runs (Oz book 1; five papers, Zep first),
+# each ending in a roll-up per document; block 15 draws the graphs.
 #
 # **On Kaggle:** attach the export dataset (`jhffmn/it494-factledger-step0`) and, to read the
 # reference papers whose text it withholds, the private PDFs (`jhffmn/it494-reference-papers`);
@@ -2534,7 +2536,12 @@ def receipt():
     return rec
 
 # %%
-# Block 12: naming documents, and the test variety.
+# Block 12: naming documents, the test variety, and reading a package back.
+#
+# rollup(path) prints the final roll-up of one package: the abstract, the unit summaries in
+# order, the major entities, then everything known about the top five (by units, then facts).
+# draw_graph(path) draws the majors as the 09-02 demo did: nodes sized by how many units they
+# appear in, an edge for every pair that shares a fact, labelled with one of its predicates.
 #
 # targets(spec) turns what a run names into source_uris: "sample" for the test variety, "all"
 # for the export, or a list of titles or source_uri endings, looked up by find_document. The
@@ -2572,22 +2579,241 @@ def targets(spec):
             uris.append(uri)
     return uris
 
+def read_package(path):
+    """A package's records grouped by record type."""
+    by = {}
+    for row in read_jsonl(Path(path)):
+        by.setdefault(row["record"], []).append(row)
+    return by
+
+
+def grouped(rows, key):
+    out = {}
+    for row in rows:
+        out.setdefault(row.get(key), []).append(row)
+    return out
+
+
+def units_then_facts(item):
+    return (-item[0], -item[1])
+
+
+def ranked_majors(by):
+    """The package's major nodes, most units first, then most raw facts: [(units, facts, node)]."""
+    units_of = {e["subject"]: len(e["units"]) for e in by.get("edge", []) if e["predicate"] == "appears_in"}
+    facts_of = grouped(by.get("fact", []), "subject")
+    ranked = []
+    for n in by.get("node", []):
+        if n["kind"] != "document":
+            ranked.append((units_of.get(n["node_id"], 0), len(facts_of.get(n["node_id"], [])), n))
+    ranked.sort(key=units_then_facts)
+    return ranked
+
+
+def rollup(path, top=5):
+    """The final roll-up of one package: the abstract, the unit summaries in order, the major
+    entities, then everything known about the top `top` entities."""
+    by = read_package(path)
+    doc = by["document"][0]
+    units = sorted(by.get("unit", []), key=position_of_row)
+    label_of = {u["unit_id"]: f"[{u['position']}] {u['label']}" for u in units}
+    doc_node = h(doc["doc_id"], "document")
+    abstracts = {a["node_id"]: a["text"] for a in by.get("abstract", [])}
+    cells_of = grouped(by.get("cell", []), "node_id")
+    facts_of = grouped(by.get("fact", []), "subject")
+    adjudicated_of = grouped(by.get("adjudicated_fact", []), "node_id")
+    attributes_of = grouped(by.get("attribute", []), "node_id")
+    contradictions_of = grouped(by.get("contradiction", []), "node_id")
+    aliases_of = grouped(by.get("alias", []), "node_id")
+    profile_of = grouped(by.get("profile", []), "node_id")
+    name_of = {n["node_id"]: n["name"] for n in by.get("node", [])}
+
+    print(f"\n{'#' * 8} ROLL-UP: {doc['title'] or doc['source_uri']}  ({doc['source_uri']}; {len(units)} units)")
+    print("\nABSTRACT")
+    print(abstracts.get(doc_node, "(the abstract was rejected)"))
+    print("\nUNIT SUMMARIES")
+    summary_of = {c["unit_id"]: c["text"] for c in cells_of.get(doc_node, [])}
+    for u in units:
+        if u["unit_id"] in summary_of:
+            print(f"{label_of[u['unit_id']]}: {summary_of[u['unit_id']]}")
+    ranked = ranked_majors(by)
+    print(f"\nMAJOR ENTITIES ({len(ranked)})")
+    for n_units, n_facts, n in ranked:
+        salience = n["provenance"].get("salience", {})
+        print(f"    {n['name'][:36]:<36} {n['kind'][:16]:<16} units {n_units:>3}  raw facts {n_facts:>3}  consolidated {len(adjudicated_of.get(n['node_id'], [])):>3}"
+              f"  attributes {len(attributes_of.get(n['node_id'], [])):>3}  {'in abstract' if salience.get('in_abstract') else 'by tie-break'}")
+    for n_units, n_facts, n in ranked[:top]:
+        nid = n["node_id"]
+        print(f"\n{'=' * 8} {n['name']} ({n['kind']}): {n_units} units, {n_facts} raw facts")
+        others = [x for x in n["provenance"].get("names", []) if x != n["name"]]
+        if others:
+            print(f"also called: {', '.join(others)}")
+        forms = [a["alias"] for a in aliases_of.get(nid, [])]
+        if forms:
+            print(f"forms: {' | '.join(forms[:20])}")
+        for attribute, value in dict.fromkeys((p_["attribute"], p_["value"]) for p_ in profile_of.get(nid, [])):
+            print(f"profile: {attribute} = {value}")
+        if nid in abstracts:
+            print(f"abstract: {abstracts[nid]}")
+        cells = sorted(cells_of.get(nid, []), key=cell_position(units))
+        if cells:
+            print("narrative:")
+            for c in cells:
+                print(f"    {label_of.get(c['unit_id'], c['unit_id'])}: {c['text']}")
+        consolidated = adjudicated_of.get(nid, [])
+        if consolidated:
+            print(f"consolidated facts ({len(consolidated)}):")
+            for a in consolidated:
+                raw = f" (raw {a['predicate_raw']})" if a.get("predicate_raw") and a["predicate_raw"] != a["predicate"] else ""
+                qualifiers = f" [{a['qualifiers']}]" if a.get("qualifiers") else ""
+                print(f"    {a['predicate']}{raw} -> {a['object']}{qualifiers}  <- {len(a['from_facts'])} raw")
+        attributes = attributes_of.get(nid, [])
+        if attributes:
+            print(f"attributes ({len(attributes)}):")
+            for a in attributes:
+                print(f"    {a['attribute']}" + (f": {a['value']}" if a.get("value") else ""))
+        for c in contradictions_of.get(nid, []):
+            print(f"contradiction: {c['note']}")
+        raws = facts_of.get(nid, [])
+        if raws:
+            print(f"raw facts ({len(raws)}), each with its quote:")
+            for f in raws:
+                who = f["provenance"].get("subject_name", "")
+                if f["direction"] == "forward":
+                    line = f"{f['predicate']} -> {name_of.get(f['object'], f['object'])}"
+                elif f["direction"] == "inverse":
+                    line = f"(inverse) {who} {f['predicate']} -> {n['name']}"
+                else:
+                    line = f"(about {who}) {f['predicate']} -> {f['object']}"
+                qualifiers = f" [{f['qualifiers']}]" if f.get("qualifiers") else ""
+                print(f"    {line}{qualifiers}  {label_of.get(f['unit_id'], '')} \"{' '.join(f['quote'].split())[:100]}\"")
+
+
+def cell_position(units):
+    """A sort key for cells: the position of their unit."""
+    position = {u["unit_id"]: u["position"] for u in units}
+
+    def key(cell):
+        return position.get(cell["unit_id"], 0)
+    return key
+
+
+def draw_graph(path, show=True):
+    """The majors of one package as a graph, the 09-02 demo's way: nodes sized by how many
+    units they appear in, an edge for every pair that shares a fact (an adjudicated fact where
+    the major has them, else a raw one), labelled with one of its predicates. Saved beside the
+    packages as graph-<document>.png."""
+    import networkx as nx
+    import matplotlib
+    import matplotlib.pyplot as plt
+    by = read_package(path)
+    doc = by["document"][0]
+    ranked = ranked_majors(by)
+    name_of = {n["node_id"]: n["name"] for units, facts, n in ranked}
+    node_by_name = {norm(n["name"]): n["node_id"] for units, facts, n in ranked}
+    for a in by.get("alias", []):
+        node_by_name.setdefault(norm(a["alias"]), a["node_id"])
+    facts_of = grouped(by.get("fact", []), "subject")
+    adjudicated_of = grouped(by.get("adjudicated_fact", []), "node_id")
+    edges = []
+    for n_units, n_facts, n in ranked:
+        nid = n["node_id"]
+        consolidated = adjudicated_of.get(nid, [])
+        if consolidated:
+            for a in consolidated:
+                target = node_by_name.get(norm(a["object"]))
+                if target and target != nid and target in name_of:
+                    edges.append((nid, target, a["predicate"]))
+        else:
+            for f in facts_of.get(nid, []):
+                if f["object_is_node"] and f["object"] != nid and f["object"] in name_of:
+                    edges.append((nid, f["object"], f["predicate"]))
+    G = nx.Graph()
+    for n_units, n_facts, n in ranked:
+        G.add_node(n["name"], size=n_units)
+    for a, b, predicate in edges:
+        if G.has_edge(name_of[a], name_of[b]):
+            G[name_of[a]][name_of[b]]["labels"].add(predicate)
+        else:
+            G.add_edge(name_of[a], name_of[b], labels={predicate})
+    if not show:
+        matplotlib.use("Agg")
+    pos = nx.spring_layout(G, seed=7, k=1.6)
+    plt.figure(figsize=(16, 11))
+    nx.draw_networkx_nodes(G, pos, node_size=[300 + 160 * G.nodes[n]["size"] for n in G], node_color="#cfe3f7")
+    nx.draw_networkx_edges(G, pos, alpha=0.4)
+    nx.draw_networkx_labels(G, pos, font_size=9)
+    nx.draw_networkx_edge_labels(G, pos, font_size=7,
+                                 edge_labels={(a, b): sorted(d["labels"])[0] for a, b, d in G.edges(data=True)})
+    plt.title(doc["title"] or doc["source_uri"])
+    plt.axis("off")
+    png = Path(path).with_name("graph-" + Path(path).stem + ".png")
+    plt.savefig(png, dpi=150, bbox_inches="tight")
+    if show:
+        plt.show()
+    plt.close()
+    print(f"graph of {doc['title'] or doc['source_uri']}: {G.number_of_nodes()} nodes, {G.number_of_edges()} edges; saved {png}")
+    return G
+
 # %%
-# Block 13: the run.
+# Block 13: the run, Oz book 1.
 #
 # RUN names the documents, by title or by the end of their source_uri; DIAG says what to print
 # as each unit lands (block 11 lists the flags); SPEND_STOP ends the run past that many dollars,
 # the document in flight keeping its finished units in a sidecar for next time. For reference,
 # the 09-02 demo on Oz book 1: v3 632 entities, 969 facts, 53 dropped, $1.26; v4 644, 859, 157,
-# $1.72. Later: RUN = "sample" for the test variety, "all" for the corpus.
+# $1.72; the 0.4 run of 09-06: 358 entities (38 major), 869 facts, 74 rejected, $2.23. Each
+# document ends in its roll-up. Later: RUN = "sample" for the test variety, "all" for the corpus.
 RUN = ["The Wonderful Wizard of Oz"]
 DIAG = dict(DIAG_ALL)
 SPEND_STOP = 5.00
 
+
+def run_and_roll_up(uris, diag, top=5):
+    """The run, then the roll-up of every package that exists for the documents named."""
+    try:
+        run(uris, diag=diag)
+    finally:
+        print(json.dumps(receipt(), indent=1))
+    for uri in uris:
+        path = package_path({"source_uri": uri})
+        if path.exists() and completed(path):
+            rollup(path, top=top)
+
+
 if __name__ == "__main__":
     uris = targets(RUN)
     print(f"ingesting {len(uris)} documents, stop at ${SPEND_STOP:.2f}: {[BY_URI[u]['title'] or u for u in uris]}")
-    try:
-        run(uris, diag=DIAG)
-    finally:
-        print(json.dumps(receipt(), indent=1))
+    run_and_roll_up(uris, DIAG)
+
+# %%
+# Block 14: the run, five papers, Zep first.
+#
+# The papers' text is withheld from the public export; block 1 rebuilds it from the private
+# papers dataset, so that dataset must be attached. The other four are drawn by seed.
+import random
+
+PAPERS_TO_RUN = 5
+SEED = 494
+ALWAYS = ["rasmussen2025-zep.pdf"]
+SPEND_STOP = 8.00
+
+if __name__ == "__main__" and PAPERS_TO_RUN:
+    chosen = [find_document(name) for name in ALWAYS]
+    others = sorted(u for u in BY_URI if u.endswith(".pdf") and u not in chosen)
+    random.Random(SEED).shuffle(others)
+    chosen += others[:PAPERS_TO_RUN - len(chosen)]
+    print(f"papers: {[BY_URI[u]['title'] or u for u in chosen]}; stop at ${SPEND_STOP:.2f} for the session")
+    run_and_roll_up(chosen, DIAG_ALL)
+
+# %%
+# Block 15: the graphs.
+#
+# One knowledge graph per document ingested this session, the majors as nodes, drawn the
+# 09-02 demo's way and saved beside the packages. Needs networkx and matplotlib, which Kaggle
+# has.
+if __name__ == "__main__":
+    for uri, records_, counts_, stats_ in RESULTS:
+        path = package_path({"source_uri": uri})
+        if path.exists():
+            draw_graph(path)
