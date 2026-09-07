@@ -1150,27 +1150,123 @@ def best_name(counts):
     return best
 
 
-def reconcile(doc, records, ctx):
-    locals_ = locals_of(records)
-    parent = list(range(len(locals_)))
+class Clusters:
+    """The unit-locals grouped as they are found to be the same thing: every local starts alone,
+    unite joins two groups, find gives a local's current group (its root)."""
 
-    def find(i):
-        while parent[i] != i:
-            parent[i] = parent[parent[i]]
-            i = parent[i]
+    def __init__(self, count):
+        self.parent = list(range(count))
+
+    def find(self, i):
+        while self.parent[i] != i:
+            self.parent[i] = self.parent[self.parent[i]]
+            i = self.parent[i]
         return i
 
-    ledger, candidates = [], []
-
-    def row(a, b, verdict, how, evidence):
-        ledger.append({"a": locals_[a]["name"], "a_unit": locals_[a]["ui"], "b": locals_[b]["name"], "b_unit": locals_[b]["ui"],
-                       "verdict": verdict, "how": how, "evidence": evidence})
-
-    def unite(a, b, how, evidence):
-        ra, rb = find(a), find(b)
+    def unite(self, a, b):
+        ra, rb = self.find(a), self.find(b)
         if ra != rb:
-            parent[rb] = ra
-        row(a, b, "same", how, evidence)
+            self.parent[rb] = ra
+
+    def same(self, a, b):
+        return self.find(a) == self.find(b)
+
+    def members(self, root, locals_):
+        return [l for l in locals_ if self.find(l["id"]) == root]
+
+
+def ledger_row(locals_, a, b, verdict, how, evidence):
+    return {"a": locals_[a]["name"], "a_unit": locals_[a]["ui"], "b": locals_[b]["name"], "b_unit": locals_[b]["ui"],
+            "verdict": verdict, "how": how, "evidence": evidence}
+
+
+def nominate(locals_, clusters):
+    """The candidate pairs, the demo's way: two locals from different units, not already in one
+    cluster, at least one of them a unit-major, nominated by a shared surface (1.0), a fact
+    stating one is the other (0.85), or a shared name word (0.5), and never a possession against
+    its own anchor. {(a, b): (tier, reason, scores)}."""
+    pairs = {}
+    for a in locals_:
+        for b in locals_:
+            if a["id"] >= b["id"] or a["ui"] == b["ui"] or clusters.same(a["id"], b["id"]):
+                continue
+            if not (a["major"] or b["major"]):
+                continue
+            reason = candidate_reason(a, b)
+            if reason is None or anchored(a, b) or anchored(b, a):
+                continue
+            pairs[(a["id"], b["id"])] = (TIER[reason], reason, score_pair(a, b, reason))
+    return pairs
+
+
+def dossier(members):
+    """What a cluster is, for the judge: names, forms, kinds, what it is said to be, its facts
+    and relations, the units it appears in."""
+    return "\n".join([
+        f"names: {', '.join(sorted({l['name'] for l in members}))}",
+        f"forms: {', '.join(sorted({s for l in members for s in l['surfaces']})[:12])}",
+        f"kinds: {', '.join(sorted({l['kind'] for l in members}))}",
+        f"is: {', '.join(sorted({x for l in members for x in l['is_a']})[:6]) or '(nothing stated)'}",
+        f"facts: {'; '.join(sorted({x for l in members for x in l['facts']})[:10]) or '(none)'}",
+        f"relations: {'; '.join(sorted({x for l in members for x in l['relations']})[:10]) or '(none)'}",
+        f"units: {', '.join(str(u) for u in sorted({l['ui'] for l in members}))}"])
+
+
+def judge(batch, locals_, clusters, ctx):
+    """One Terra call over up to PAIRS_PER_CALL pairs of cluster roots, every dossier sent once;
+    {pair number: (verdict, reason)} in batch order."""
+    roots = sorted({r for pair in batch for r in pair})
+    number = {r: n for n, r in enumerate(roots, 1)}
+    dossiers = "\n\n".join(f"[{number[r]}]\n{dossier(clusters.members(r, locals_))}" for r in roots)
+    pairs = "\n".join(f"PAIR {n}: [{number[a]}] and [{number[b]}]" for n, (a, b) in enumerate(batch, 1))
+    prompt = JUDGE_PROMPT + "\nDOSSIERS\n" + dossiers + "\n\nPAIRS\n" + pairs
+    reply = generate(prompt, JUDGE_SCHEMA, "judge", model=TERRA, effort="medium", ctx=ctx)
+    verdicts = {}
+    for v in (reply or {}).get("verdicts", []):
+        try:
+            verdicts[int(v["pair"]) - 1] = (v["verdict"], v.get("reason", ""))
+        except (TypeError, ValueError):
+            pass
+    return verdicts
+
+
+def cluster_entities(locals_, clusters):
+    """One document entity per cluster: its canonical name (the most used proper name, the
+    longest on a tie), its names, forms, units and facts, and where each form first appeared."""
+    groups = {}
+    for l in locals_:
+        groups.setdefault(clusters.find(l["id"]), []).append(l)
+    entities = []
+    for members in groups.values():
+        members.sort(key=unit_of_local)
+        named = [l for l in members if l["named"]] or members
+        counts = {}
+        for l in named:
+            counts[l["name"]] = counts.get(l["name"], 0) + 1
+        first_unit_of, unit_ids = {}, []
+        for l in members:
+            for form in l["forms"]:
+                first_unit_of.setdefault(form, l["unit_id"])
+            if l["unit_id"] not in unit_ids:
+                unit_ids.append(l["unit_id"])
+        entities.append({"name": best_name(counts), "kinds": sorted({l["kind"] for l in members}),
+                         "named": any(l["named"] for l in members),
+                         "units": sorted({l["ui"] for l in members}), "unit_ids": unit_ids, "first_unit": unit_ids[0],
+                         "names": sorted({l["name"] for l in members}),
+                         "surfaces": sorted({s for l in members for s in l["surfaces"]}),
+                         "first_unit_of": first_unit_of, "members": [(l["ui"], l["name"]) for l in members],
+                         "n_facts": sum(l["n_facts"] for l in members),
+                         "is_a": sorted({x for l in members for x in l["is_a"]}),
+                         "profile": [l["profile"] for l in members if l["profile"]]})
+    return entities
+
+
+def reconcile(records, ctx):
+    """The document's entities from its unit-locals: (entities, ledger, candidates, locals,
+    pairs, pairs judged)."""
+    locals_ = locals_of(records)
+    clusters = Clusters(len(locals_))
+    ledger, candidates = [], []
 
     # 1. declared continuations of a named entity unite without a judge
     by_name = {}
@@ -1182,23 +1278,14 @@ def reconcile(doc, records, ctx):
         earlier = [t for t in by_name.get(norm(l["continues"]), []) if t["ui"] < l["ui"]]
         named = [t for t in earlier if t["named"]]
         if named:
-            unite(named[-1]["id"], l["id"], "declared", f"unit {l['ui']} continued {l['continues']!r}")
+            clusters.unite(named[-1]["id"], l["id"])
+            ledger.append(ledger_row(locals_, named[-1]["id"], l["id"], "same", "declared", f"unit {l['ui']} continued {l['continues']!r}"))
         elif earlier:
-            row(earlier[-1]["id"], l["id"], "candidate", "declared", f"unit {l['ui']} continued the unnamed {l['continues']!r}; scored instead")
+            ledger.append(ledger_row(locals_, earlier[-1]["id"], l["id"], "candidate", "declared",
+                                     f"unit {l['ui']} continued the unnamed {l['continues']!r}; judged instead"))
 
-    # 2. candidate pairs, the demo's way: different units, at least one unit-major, nominated by
-    #    a shared surface (1.0), a fact stating one is the other (0.85), or a shared name word (0.5)
-    pairs = {}
-    for a in locals_:
-        for b in locals_:
-            if a["id"] >= b["id"] or a["ui"] == b["ui"] or find(a["id"]) == find(b["id"]):
-                continue
-            if not (a["major"] or b["major"]):
-                continue
-            reason = candidate_reason(a, b)
-            if reason is None or anchored(a, b) or anchored(b, a):
-                continue
-            pairs[(a["id"], b["id"])] = (TIER[reason], reason, score_pair(a, b, reason))
+    # 2. every other candidate pair goes to the judge, strongest first; the scores are logged
+    pairs = nominate(locals_, clusters)
     to_judge = []
     for (i, j), (tier, reason, (name, cooc, profile, combined)) in sorted(pairs.items(), key=tier_of):
         candidates.append({"a": locals_[i]["name"], "a_unit": locals_[i]["ui"], "b": locals_[j]["name"], "b_unit": locals_[j]["ui"],
@@ -1206,108 +1293,54 @@ def reconcile(doc, records, ctx):
                            "profile_score": round(profile, 3), "combined": round(combined, 3), "decision": "judge"})
         to_judge.append((i, j))
 
-    # 3. the judge, strongest pairs first, each dossier sent once per call; unsure is deferred
-    def members(root):
-        return [l for l in locals_ if find(l["id"]) == root]
+    # 3. the judge, in batches; different stays apart, unsure is deferred to one last look
+    kept_apart, deferred = [], []
 
-    def dossier(root):
-        ks = members(root)
-        return "\n".join([
-            f"names: {', '.join(sorted({l['name'] for l in ks}))}",
-            f"forms: {', '.join(sorted({s for l in ks for s in l['surfaces']})[:12])}",
-            f"kinds: {', '.join(sorted({l['kind'] for l in ks}))}",
-            f"is: {', '.join(sorted({x for l in ks for x in l['is_a']})[:6]) or '(nothing stated)'}",
-            f"facts: {'; '.join(sorted({x for l in ks for x in l['facts']})[:10]) or '(none)'}",
-            f"relations: {'; '.join(sorted({x for l in ks for x in l['relations']})[:10]) or '(none)'}",
-            f"units: {', '.join(str(u) for u in sorted({l['ui'] for l in ks}))}"])
-
-    kept_apart = []                                # pairs the judge ruled different, read through find()
-    deferred = []                                  # pairs the judge called unsure, to be judged once more at the end
-
-    def ruled_apart(ra, rb):
+    def settled(ra, rb):
         for x, y in kept_apart + deferred:
-            if {find(x), find(y)} == {ra, rb}:
+            if {clusters.find(x), clusters.find(y)} == {ra, rb}:
                 return True
         return False
-
-    def judge(batch):
-        """One call over up to ten pairs of cluster roots; the verdicts in batch order."""
-        roots = sorted({r for pair in batch for r in pair})
-        number = {r: n for n, r in enumerate(roots, 1)}
-        prompt = (JUDGE_PROMPT + "\nDOSSIERS\n" + "\n\n".join(f"[{number[r]}]\n{dossier(r)}" for r in roots)
-                  + "\n\nPAIRS\n" + "\n".join(f"PAIR {n}: [{number[a]}] and [{number[b]}]" for n, (a, b) in enumerate(batch, 1)))
-        reply = generate(prompt, JUDGE_SCHEMA, "judge", model=TERRA, effort="medium", ctx=ctx)
-        verdicts = {}
-        for v in (reply or {}).get("verdicts", []):
-            try:
-                verdicts[int(v["pair"]) - 1] = (v["verdict"], v.get("reason", ""))
-            except (TypeError, ValueError):
-                pass
-        return verdicts
 
     def decide(batch, verdicts, final):
         how = "judged again" if final else "judged"
         for n, (ra, rb) in enumerate(batch):
             verdict, reason = verdicts.get(n, ("unsure", "no verdict returned"))
             if verdict == "same":
-                unite(ra, rb, how, reason)
+                clusters.unite(ra, rb)
             elif verdict == "different" or final:
                 kept_apart.append((ra, rb))
-                row(ra, rb, verdict, how, reason)
             else:
                 deferred.append((ra, rb))
-                row(ra, rb, verdict, "judged", reason)
+            ledger.append(ledger_row(locals_, ra, rb, verdict, how, reason))
 
     k = 0
     while k < len(to_judge):
         batch, keys = [], set()
         while k < len(to_judge) and len(batch) < PAIRS_PER_CALL:
-            ra, rb = find(to_judge[k][0]), find(to_judge[k][1])
+            ra, rb = clusters.find(to_judge[k][0]), clusters.find(to_judge[k][1])
             k += 1
             key = frozenset((ra, rb))
-            if ra != rb and key not in keys and not ruled_apart(ra, rb):
+            if ra != rb and key not in keys and not settled(ra, rb):
                 batch.append((ra, rb))
                 keys.add(key)
         if batch:
-            decide(batch, judge(batch), final=False)
+            decide(batch, judge(batch, locals_, clusters, ctx), final=False)
 
-    # deferred pairs get one last look against the finished clusters; the default is to stay split
-    final, seen = [], set()
+    # 4. the deferred pairs get one last look against the finished clusters; unsure stays apart
+    last_look, seen = [], set()
     still_deferred, deferred = list(deferred), []
     for a, b in still_deferred:
-        ra, rb = find(a), find(b)
+        ra, rb = clusters.find(a), clusters.find(b)
         key = frozenset((ra, rb))
-        if ra != rb and key not in seen and not ruled_apart(ra, rb):
-            final.append((ra, rb))
+        if ra != rb and key not in seen and not settled(ra, rb):
+            last_look.append((ra, rb))
             seen.add(key)
-    for start in range(0, len(final), PAIRS_PER_CALL):
-        batch = final[start:start + PAIRS_PER_CALL]
-        decide(batch, judge(batch), final=True)
+    for at in range(0, len(last_look), PAIRS_PER_CALL):
+        batch = last_look[at:at + PAIRS_PER_CALL]
+        decide(batch, judge(batch, locals_, clusters, ctx), final=True)
 
-    # 4. the document entities, one per cluster
-    clusters = {}
-    for l in locals_:
-        clusters.setdefault(find(l["id"]), []).append(l)
-    entities = []
-    for ks in clusters.values():
-        ks.sort(key=unit_of_local)
-        named = [l for l in ks if l["named"]] or ks
-        counts = {}
-        for l in named:
-            counts[l["name"]] = counts.get(l["name"], 0) + 1
-        first_unit_of, unit_ids = {}, []
-        for l in ks:
-            for form in l["forms"]:
-                first_unit_of.setdefault(form, l["unit_id"])
-            if l["unit_id"] not in unit_ids:
-                unit_ids.append(l["unit_id"])
-        entities.append({"name": best_name(counts), "kinds": sorted({l["kind"] for l in ks}), "named": any(l["named"] for l in ks),
-                         "units": sorted({l["ui"] for l in ks}), "unit_ids": unit_ids, "first_unit": unit_ids[0],
-                         "names": sorted({l["name"] for l in ks}), "surfaces": sorted({s for l in ks for s in l["surfaces"]}),
-                         "first_unit_of": first_unit_of, "members": [(l["ui"], l["name"]) for l in ks],
-                         "n_facts": sum(l["n_facts"] for l in ks), "is_a": sorted({x for l in ks for x in l["is_a"]}),
-                         "profile": [l["profile"] for l in ks if l["profile"]]})
-    return entities, ledger, candidates, len(locals_), len(pairs), len(to_judge)
+    return cluster_entities(locals_, clusters), ledger, candidates, len(locals_), len(pairs), len(to_judge)
 
 # %%
 # Block 9: fold the document.
@@ -1765,7 +1798,7 @@ def valid_sources(numbers, n):
     return good
 
 
-def adjudicate(doc, records, entities, folded, ctx):
+def adjudicate(records, folded, ctx):
     """One call per document-major over everything the document said about it: its raw facts
     (forward, and inverse when the entity was the object of a minor's fact) and its cells. The
     consolidated facts, attributes and contradictions come back pointing at the numbered raw
@@ -1975,13 +2008,13 @@ def ingest(doc, ctx=None, diag=None):
             show_unit(rec, unit, diag, spend() - spend_at, spend() - spend_before)
 
     # the document: reconcile, fold, salience, adjudicate, write
-    entities, ledger, candidates, n_locals, n_pairs, n_judged = reconcile(doc, records, ctx)
+    entities, ledger, candidates, n_locals, n_pairs, n_judged = reconcile(records, ctx)
     if diag.get("reconcile"):
         show_reconcile(entities, ledger, candidates, n_locals, n_pairs, n_judged, diag)
     folded = fold_document(doc, records, entities, ctx)
     if diag.get("fold"):
         show_fold(folded, diag)
-    adjudicated = adjudicate(doc, records, entities, folded, ctx)
+    adjudicated = adjudicate(records, folded, ctx)
     if diag.get("adjudicate"):
         show_adjudication(folded, adjudicated)
     stats = {"locals": n_locals, "candidate_pairs": n_pairs, "judged_pairs": n_judged,
