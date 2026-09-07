@@ -145,6 +145,9 @@ def stub_generate(prompt, schema, stage, model=None, effort="low", ctx=None):
     if stage == "triage":                                        # leave out the kinds that are not the work
         kinds = re.findall(r"^KIND ([^:]+):", prompt, re.M)
         return {"exclude": [{"kind": k, "reason": "not the work"} for k in kinds if k in ("license", "front_matter", "references")]}
+    if stage == "support":                                       # the small support-only call: the same rule as the adjudication's
+        listing = prompt.split("FACTS:\n", 1)[1]
+        return {"unsupported": [int(k) for k, line in re.findall(r"^(\d+)\. (.*)$", listing, re.M) if "an unsupported claim" in line]}
     if stage == "adjudicate":
         listing = prompt.split("FACTS:\n", 1)[1].split("\nCELLS:")[0]
         n = len(re.findall(r"^\d+\. ", listing, re.M))
@@ -242,6 +245,7 @@ unit_range = {u["unit_id"]: (u["start"], u["end"]) for u in doc["units"]}
 check("every quote lies inside its unit", all(unit_range[f["unit_id"]][0] <= f["quote_start"] < f["quote_end"] <= unit_range[f["unit_id"]][1] for f in facts))
 check("the match paths exercised: exact, normalised, unwrapped, pieces", set(stats["matched_by"]) >= {"exact", "normalised", "unwrapped", "pieces"}, stats["matched_by"])
 check("every fact's quote is the text's own words whatever path found it", all(text[f["quote_start"]:f["quote_end"]] == f["quote"] for f in facts))
+unsupported_ids = {f["fact_id"] for f in facts if f["rank"] == "unsupported"}
 check("a loosely cited fact is found by its words and stored, marked words", any(f["provenance"]["matched_by"] == "words" and f["object"] == "and supported" and f["rank"] == "active" for f in facts))
 check("a quote with a word invented inside the run is refused, not matched by its words (decision 47)", not any(f["object"] == "with an invented middle" for f in facts) and any(r.get("object") == "with an invented middle" for r in by.get("rejection", [])))
 check("a fact the adjudication finds unsupported by its passage stays with its quote, ranked unsupported, and is counted", any(f["object"] == "an unsupported claim" and f["rank"] == "unsupported" for f in facts) and lines[-1]["counts"]["facts_unsupported"] > 0 and not any(f["object"] == "and supported" and f["rank"] == "unsupported" for f in facts))
@@ -295,6 +299,11 @@ check("a subject written with another case or a leading article is the listed en
 check("a quote wrapped in the model's own quotation marks is found once they come off, and says so", any(f["provenance"]["matched_by"] == "unwrapped" and f["quote"][:1] not in "“\"" for f in facts))
 check("a quote cited with an ellipsis is kept, its stored quote spanning the pieces", any(f["provenance"]["matched_by"] == "pieces" and " " in f["quote"] for f in facts))
 check("adjudicated predicates are the model's own, unmerged, in snake_case", {"lives_in", "lives_at"} <= {a["predicate"] for a in adjudicated} and not any(r["record"] == "predicate_merge" for r in lines) and "predicate_raw" not in adjudicated[0])
+check("no consolidated fact rests only on facts the same reply set aside; a source set aside is not cited (decision 45)",
+      adjudicated and all(not (set(a["from_facts"]) & unsupported_ids) for a in adjudicated), len(unsupported_ids))
+check("every entity with facts of its own had them read before anything rode: a minor's unsupported fact rides ranked unsupported (decision 50)",
+      any(f["direction"] == "about" and f["rank"] == "unsupported" for f in facts)
+      or not any(f["direction"] == "about" for f in facts))
 check("every adjudicated fact points only at raw facts of its own node", adjudicated and all(set(a["from_facts"]) <= fact_ids_of.get(a["node_id"], set()) for a in adjudicated))
 check("attributes point at raw facts too, and an item pointing at nothing was dropped and counted", by.get("attribute") and all(set(a["from_facts"]) <= fact_ids_of.get(a["node_id"], set()) for a in by["attribute"]) and lines[-1]["counts"]["adjudication_dropped"] == len(folded["majors"]))
 check("an adjudicated attribute may stand without a value", any(a["value"] is None for a in by.get("attribute", [])))
@@ -365,7 +374,10 @@ if picked:
           rows[-1]["counts"]["units_excluded"] == 1 and rows[-1]["counts"]["units"] == 1
           and any(r["record"] == "abstract" and r["node_id"] == ns["h"](picked["doc_id"], "document") for r in rows)
           and not any(cc["stage"] == "fold" for cc in ns["CALLS"] if cc.get("doc") == picked["source_uri"]))
-    check("chat: a major with fewer than four facts in one unit is not adjudicated, its raw facts stand", rows[-1]["counts"]["adjudications_skipped"] >= 1)
+    check("chat: a major with fewer than four facts is not consolidated, but its passages are still read on the cheap model (decision 43)",
+          rows[-1]["counts"]["adjudications_skipped"] >= 1
+          and any(cc["stage"] == "support" for cc in ns["CALLS"] if cc.get("doc") == picked["source_uri"]),
+          sorted({cc["stage"] for cc in ns["CALLS"] if cc.get("doc") == picked["source_uri"]}))
     check("chat: unit carries the session date and facts inherit nothing invented", all(f["valid_from"] is None for f in cf) and picked["units"][0]["occurred_at"] == picked["occurred_at"])
 
 # ---------------------------------------------------------------- a paper

@@ -851,6 +851,7 @@ FOLD_SCHEMA = {"type": "object", "required": ["summary"], "properties": {"summar
 TRIAGE_SCHEMA = {"type": "object", "required": ["exclude"], "properties": {"exclude": {"type": "array", "items": {
     "type": "object", "required": ["kind", "reason"], "properties": {"kind": {"type": "string"}, "reason": {"type": "string"}}}}}}
 
+SUPPORT_SCHEMA = {"type": "object", "required": ["unsupported"], "properties": {"unsupported": {"type": "array"}}}
 ADJUDICATE_SCHEMA = {"type": "object", "required": ["facts", "attributes", "contradictions"], "properties": {
     "unsupported": {"type": "array"},
     "facts": {"type": "array", "items": {"type": "object", "required": ["predicate", "object", "from"], "properties": {
@@ -940,6 +941,15 @@ Return JSON {{"summary": "..."}}
 
 RECORDS:
 {chr(10).join(children)}"""
+
+
+def support_prompt(name, facts):
+    return f"""Below are things one document says about {name}, numbered, each with the passage it rests on.
+
+Return JSON {{"unsupported": [numbers]}}: the numbers of the facts whose own passage does not state them (a loose citation that says something else, or only part of it). A fact its passage states, in whatever words, is not unsupported. Return an empty list when every passage states its fact.
+
+FACTS:
+{chr(10).join(facts)}"""
 
 
 def adjudicate_prompt(name, kinds, facts, cells):
@@ -1768,7 +1778,7 @@ LOG, MANIFEST = OUT / "ingest.log", OUT / "manifest.jsonl"
 DIAG_ALL = {"triage": True, "units": True, "entities": True, "facts": True, "rejections": True, "cells": True,
             "reconcile": True, "ledger": False, "fold": True, "adjudicate": True, "package": True}
 RESULTS = []                                  # (source_uri, records, counts, stats) for every document this session ingested
-ADJUDICATE_MIN_FACTS = 4                      # fewer than this, all in one unit: nothing to consolidate, the raw facts stand
+ADJUDICATE_MIN_FACTS = 4                      # fewer than this: nothing to consolidate, so a support call instead
 
 
 def append_sidecar(doc, row):
@@ -1822,6 +1832,17 @@ def triage(doc, ctx):
     return excluded, flags
 
 
+def unsupported_of(name, facts, ctx):
+    """The stored ids of the facts whose own passage does not state them; one small call."""
+    listing = []
+    for n, (f, stored_id) in enumerate(facts, 1):
+        listing.append(f"{n}. {f['subject']} {f['predicate']} {f['object']}"
+                       + (f" [{f['qualifiers']}]" if f["qualifiers"] else "")
+                       + f"  (\"{' '.join(f['quote'].split())}\")")
+    reply = generate(support_prompt(name, listing), SUPPORT_SCHEMA, "support", ctx={**ctx, "entity": name})
+    return [facts[n - 1][1] for n in valid_sources((reply or {}).get("unsupported"), len(facts))]
+
+
 def valid_sources(numbers, n):
     """The fact numbers an adjudicated item points at, as distinct integers within 1..n."""
     good = []
@@ -1849,8 +1870,9 @@ def adjudicate(records, folded, ctx, watch=False):
                   "riding": sum(1 for x in raws if x[1] == "about"), "skipped": None, "rejected": False}
         if not raws:
             return result
-        if len(raws) < ADJUDICATE_MIN_FACTS and len({f["unit_id"] for f, direction, label, stored_id, tying in raws}) == 1:
-            result["skipped"] = f"fewer than {ADJUDICATE_MIN_FACTS} facts, one unit: the raw facts stand"
+        if len(raws) < ADJUDICATE_MIN_FACTS:         # nothing to consolidate, but the passages are still read
+            result["skipped"] = f"fewer than {ADJUDICATE_MIN_FACTS} facts: the raw facts stand, their support checked"
+            result["unsupported"] = unsupported_of(e["name"], [(f, stored_id) for f, direction, label, stored_id, tying in raws], ctx)
             return result
         listing = []
         for n, (f, direction, label, stored_id, tying) in enumerate(raws, 1):
@@ -1860,26 +1882,51 @@ def adjudicate(records, folded, ctx, watch=False):
                 line = f"{n}. (inverse) {f['subject']} {f['predicate']} {e['name']}"
             else:
                 line = f"{n}. (about {f['subject']}) {f['subject']} {f['predicate']} {f['object']}"
-            listing.append(line + (f" [{f['qualifiers']}]" if f["qualifiers"] else "") + f"  ({label}: \"{' '.join(f['quote'].split())[:120]}\")")
+            listing.append(line + (f" [{f['qualifiers']}]" if f["qualifiers"] else "") + f"  ({label}: \"{' '.join(f['quote'].split())}\")")
         reply = generate(adjudicate_prompt(e["name"], e["kinds"], listing, cells_of[e["index"]]), ADJUDICATE_SCHEMA, "adjudicate",
                          model=TERRA, effort="medium", ctx={**ctx, "entity": e["name"]})
         result["rejected"] = reply is None
         ids = [stored_id for f, direction, label, stored_id, tying in raws]
         result["unsupported"] = [ids[n - 1] for n in valid_sources((reply or {}).get("unsupported"), len(ids))]
+        aside = set(result["unsupported"])
         for key in ("facts", "attributes", "contradictions"):
             for item in (reply or {}).get(key, []):
-                sources = valid_sources(item.get("from"), len(ids))
+                # a consolidated item is redundant raw facts merged, so one supported source
+                # carries it; the ones set aside come out of its sources (decision 45)
+                sources = [ids[n - 1] for n in valid_sources(item.get("from"), len(ids))]
+                sources = [i for i in sources if i not in aside]
                 if not sources:
                     result["dropped"] += 1
                     continue
                 kept = {k: v for k, v in item.items() if k != "from"}
-                kept["from_facts"] = [ids[n - 1] for n in sources]
+                kept["from_facts"] = sources
                 result[key].append(kept)
         return result
 
+    def check_one(pair):
+        e, own = pair
+        return {"facts": [], "attributes": [], "contradictions": [], "raw": len(own), "riding": 0, "dropped": 0,
+                "skipped": "not a major: its facts stand, their support checked", "rejected": False,
+                "unsupported": unsupported_of(e["name"], own, ctx)}
+
     if watch:
-        print(f"adjudicate: {len(folded['majors'])} majors, {WORKERS} at a time; fewer than {ADJUDICATE_MIN_FACTS} facts in one unit is not sent")
-    return {e["index"]: result for e, result in zip(folded["majors"], in_parallel(adjudicate_one, folded["majors"]))}
+        print(f"adjudicate: {len(folded['majors'])} majors, {WORKERS} at a time; fewer than {ADJUDICATE_MIN_FACTS} facts is a support call on {LUNA}")
+    out = {e["index"]: result for e, result in zip(folded["majors"], in_parallel(adjudicate_one, folded["majors"]))}
+
+    # every other entity's facts are read where they stand, before any of them rides (decision 50)
+    minor_index = {(ui, local_name): e["index"] for e in folded["minors"] for ui, local_name in e["members"]}
+    own_of = {}
+    for r in records:
+        for f in r["facts"]:
+            index = minor_index.get((r["position"], f["subject"]))
+            if index is not None:
+                own_of.setdefault(index, []).append((f, f["fact_id"]))
+    pairs = [(e, own_of[e["index"]]) for e in folded["minors"] if own_of.get(e["index"])]
+    if watch and pairs:
+        print(f"support: {len(pairs)} minors with facts of their own, checked on {LUNA}")
+    for (e, own), result in zip(pairs, in_parallel(check_one, pairs)):
+        out[e["index"]] = result
+    return out
 
 
 def show_unit(rec, unit, diag, unit_cost, total_cost):
