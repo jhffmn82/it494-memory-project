@@ -129,10 +129,16 @@ def stub_generate(prompt, schema, stage, model=None, effort="low", ctx=None):
     if stage == "adjudicate":
         n = len(re.findall(r"^\d+\. ", prompt.split("FACTS:\n", 1)[1].split("\nCELLS:")[0], re.M))
         return {"facts": [{"predicate": "is_a", "object": "character", "qualifiers": None, "from": [1]},
+                          {"predicate": "is_kind_of", "object": "hero", "qualifiers": None, "from": [1]},   # the predicate judge folds this into is_a
                           {"predicate": "bogus", "object": "nothing", "qualifiers": None, "from": [999]}],   # points at nothing: dropped
                 "attributes": [{"attribute": "kind", "value": "character", "from": list(range(1, min(n, 3) + 1))},
                                {"attribute": "standing alone", "value": None, "from": [1]}],
                 "contradictions": []}
+    if stage == "predicates":
+        return {"merges": [{"predicate": "is_a", "absorbs": ["is_kind_of"], "reason": "stub: both say what the thing is"},
+                           {"predicate": "nothing", "absorbs": ["never_used"], "reason": "stub: names nothing the document uses"}]}
+    if stage == "facts" and "PREDICATES THIS DOCUMENT HAS USED" in prompt:
+        script["saw_predicate_list"] = True
     if stage in ("fold", "entity_abstract"):
         records = prompt.split("RECORDS:\n", 1)[1]
         names = sorted(set(CAP.findall(records)) - STOP)[:5]
@@ -249,6 +255,9 @@ check("a riding fact keeps its quote at document offsets", all(f["quote_start"] 
 loosely = [f for f in facts if f["predicate"] == "is_called"]
 check("a subject written with another case or a leading article is the listed entity, not an unlisted one", loosely and all(f["provenance"]["subject_name"] == f["provenance"]["subject_name"].strip() and not f["provenance"]["subject_name"].startswith("The ") for f in loosely))
 check("a quote wrapped in the model's own quotation marks is found once they come off, and says so", any(f["provenance"]["matched_by"] == "unwrapped" and f["quote"][:1] not in "\u201c\"" for f in facts))
+check("the fact prompt carries no list of used predicates", not script.get("saw_predicate_list"))
+check("an adjudicated fact keeps its raw predicate beside the one the predicate judge let stand", any(a["predicate_raw"] == "is_kind_of" and a["predicate"] == "is_a" for a in adjudicated) and all("predicate_raw" in a for a in adjudicated))
+check("a predicate merge is a record with its reason, and one naming nothing the document uses is dropped and counted", any(r["record"] == "predicate_merge" and r["absorbs"] == ["is_kind_of"] and r["reason"] for r in lines) and lines[-1]["counts"]["predicate_merges_dropped"] == 1)
 check("every adjudicated fact points only at raw facts of its own node", adjudicated and all(set(a["from_facts"]) <= fact_ids_of.get(a["node_id"], set()) for a in adjudicated))
 check("attributes point at raw facts too, and an item pointing at nothing was dropped and counted", by.get("attribute") and all(set(a["from_facts"]) <= fact_ids_of.get(a["node_id"], set()) for a in by["attribute"]) and lines[-1]["counts"]["adjudication_dropped"] == len(folded["majors"]))
 check("adjudicated predicates are snake_case", all(a["predicate"] == ns["snake_case"](a["predicate"]) for a in adjudicated))
