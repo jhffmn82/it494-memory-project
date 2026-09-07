@@ -849,14 +849,11 @@ FACTS:
 CELLS:
 {chr(10).join(cells) or '(none)'}"""
 
-ROSTER_SHOWN = 60
-
-
 def roster_text(roster):
     if not roster["entities"]:
         return ""
     lines = []
-    for e in roster["entities"][:ROSTER_SHOWN]:
+    for e in roster["entities"]:
         line = f"- {e['name']} ({e['kind']}; forms: {', '.join(e['forms'][:5])}"
         if e["is_a"]:
             line += f"; is: {', '.join(e['is_a'][:3])}"
@@ -1104,52 +1101,25 @@ def author_at(doc, offset):
     return doc.get("author")
 
 
-def roster_order(entry):
-    return (-entry["last_unit"], -entry["units"])
-
-
-def advance_roster(roster, rec):
-    """Entities that earned a place (a fact, or two mentions) and every predicate used, carried
-    to the next unit as suggestions, the most recently seen first."""
-    facts_of = {}
-    for f in rec["facts"]:
-        facts_of.setdefault(f["subject"], []).append(f)
-        roster["predicate_counts"][f["predicate"]] = roster["predicate_counts"].get(f["predicate"], 0) + 1
-    by_name = {e["name"]: e for e in roster["entities"]}
-    for e in rec["entities"]:
-        key = e["continues"] or e["name"]
-        earned = e["name"] in facts_of or e["mentions"] >= 2 or key in by_name
-        if not earned:
-            continue
-        entry = by_name.get(key)
-        if entry is None:
-            entry = {"name": key, "kind": e["kind"], "forms": [], "is_a": [], "units": 0, "last_unit": rec["position"]}
-            by_name[key] = entry
-            roster["entities"].append(entry)
-        entry["units"] += 1
-        entry["last_unit"] = rec["position"]
-        for form in e["forms"] + ([e["name"]] if e["name"] != key else []):
-            if form not in entry["forms"]:
-                entry["forms"].append(form)
-        for f in facts_of.get(e["name"], []):
-            if f["predicate"] == "is_a" and f["object"] not in entry["is_a"]:
-                entry["is_a"].append(f["object"])
-    roster["entities"].sort(key=roster_order)
-    roster["predicates"] = sorted(roster["predicate_counts"], key=roster["predicate_counts"].get, reverse=True)
-
 # %%
-# Block 8: reconcile the document's unit-local entities into document entities, bottom up, as
-# the demo did.
+# Block 8: reconcile the document's unit-local entities into document entities as the units
+# land: Justin's rolling tally, bottom up.
 #
-# Every local starts alone. A declared continuation of a named entity unites without a judge
-# (the roster's declared reuse). Every other candidate pair, nominated by a shared name or
-# surface form, a fact stating one is the other, or a shared name word, and involving at least
-# one unit-major, goes to the judge, strongest first, ten pairs a call, every cluster's dossier
-# sent once; an unsure verdict is deferred and judged once more against the finished clusters,
-# where unsure means apart. The name, co-occurrence and profile scores are computed and logged
-# for every pair but decide nothing. Every decision is a ledger row with its evidence.
+# Every local starts alone. As each unit lands, its locals are set against what the document
+# has established so far, in this order: the unit's majors against the rolling majors, the
+# unit's majors still new against the rolling minors (a minor a later chapter promotes), the
+# unit's minors against the rolling majors (an established thing arriving under a lesser
+# name). Minors are never set against minors. Two named entities with the same name and kind
+# unite on sight, and so does a declared continuation when both sides are named; a declared
+# continuation with an unnamed side is a candidate like any other. Everything a shared surface
+# form, a fact stating one is the other, or a shared name word nominates goes to the judge at
+# once, ten pairs a call, every cluster's dossier sent once, so the next unit's roster already
+# shows the merged entity. An unsure verdict is deferred and judged once more when the document
+# is done, where unsure means apart; a final sweep judges what the rolling lists never brought
+# together. The name, co-occurrence and profile scores are logged for every pair and decide
+# nothing. Every union is a ledger row with its evidence, and a unit's rows are checkpointed
+# with it, so a resumed run replays them without a judge.
 import difflib
-
 
 
 def name_score(a, b):
@@ -1186,8 +1156,9 @@ def fact_text(f):
     return text
 
 
-def locals_of(records):
-    """One record per entity per unit, with what the unit said about it."""
+def locals_of(records, start=0):
+    """One record per entity per unit, with what the unit said about it; ids count on from
+    `start`, so a unit's locals can be added to the ones before them."""
     out = []
     for rec in records:
         facts_of = {}
@@ -1199,8 +1170,9 @@ def locals_of(records):
         names_here = {e["name"] for e in rec["entities"]}
         for e in rec["entities"]:
             facts = facts_of.get(e["name"], [])
-            out.append({"id": len(out), "ui": rec["position"], "unit_id": rec["unit_id"], "name": e["name"],
+            out.append({"id": start + len(out), "ui": rec["position"], "unit_id": rec["unit_id"], "name": e["name"],
                         "kind": e["kind"], "named": e["named"], "major": e["major"], "continues": e["continues"],
+                        "mentions": e["mentions"],
                         "forms": list(dict.fromkeys(e["forms"] + [e["name"]])),
                         "surfaces": {s.casefold() for s in e["forms"]} | {e["name"].casefold()},
                         "is_a": [f["object"] for f in facts if f["predicate"] == "is_a"],
@@ -1243,10 +1215,7 @@ def score_pair(a, b, reason):
 TIER = {"declared": 1.0, "shared_surface": 1.0, "is_a_link": 0.85, "shared_word": 0.5}   # the demo's nomination strengths
 PAIRS_PER_CALL = 10                                # candidate pairs per judge call, as the demo did
 SCORE_WEIGHTS = (0.6, 0.25, 0.15)                  # name, co-occurrence, profile: logged for every pair, deciding nothing
-
-
-def tier_of(item):
-    return -item[1][0]
+ROSTER_MINORS = 60                                 # minors the next unit sees: the most recent that earned a place
 
 
 def unit_of_local(l):
@@ -1269,6 +1238,9 @@ class Clusters:
     def __init__(self, count):
         self.parent = list(range(count))
 
+    def add(self):
+        self.parent.append(len(self.parent))
+
     def find(self, i):
         while self.parent[i] != i:
             self.parent[i] = self.parent[self.parent[i]]
@@ -1287,33 +1259,127 @@ class Clusters:
         return [l for l in locals_ if self.find(l["id"]) == root]
 
 
+class Rolling:
+    """The document as it collapses unit by unit: the locals so far, their clusters, the pairs
+    settled, the ledger and the scored candidates, the predicates used, and what the last
+    roster's names stood for."""
+
+    def __init__(self):
+        self.locals_ = []
+        self.clusters = Clusters(0)
+        self.ledger = []
+        self.candidates = []
+        self.kept_apart = []                       # (root, root) judged different, or unsure at the last look
+        self.deferred = []                         # (root, root) judged unsure, kept for one last look
+        self.judge_calls = 0
+        self.pairs_judged = 0
+        self.predicate_counts = {}
+        self.roster_root = {}                      # a roster name, normalised -> the cluster it stood for
+
+    def settled(self, ra, rb):
+        for x, y in self.kept_apart + self.deferred:
+            if {self.clusters.find(x), self.clusters.find(y)} == {ra, rb}:
+                return True
+        return False
+
+    def major_roots(self):
+        """The clusters that hold a unit-major: the rolling majors."""
+        return {self.clusters.find(l["id"]) for l in self.locals_ if l["major"]}
+
+
 def ledger_row(locals_, a, b, verdict, how, evidence):
     return {"a": locals_[a]["name"], "a_unit": locals_[a]["ui"], "b": locals_[b]["name"], "b_unit": locals_[b]["ui"],
             "verdict": verdict, "how": how, "evidence": evidence}
 
 
-def nominate(locals_, clusters):
-    """The candidate pairs, the demo's way: two locals from different units, not already in one
-    cluster, at least one of them a unit-major, nominated by a shared surface (1.0), a fact
-    stating one is the other (0.85), or a shared name word (0.5), and never a possession against
-    its own anchor. {(a, b): (tier, reason, scores)}."""
-    pairs = {}
-    for a in locals_:
-        for b in locals_:
-            if a["id"] >= b["id"] or a["ui"] == b["ui"] or clusters.same(a["id"], b["id"]):
+def unite(state, a, b, how, evidence):
+    state.clusters.unite(a, b)
+    state.ledger.append(ledger_row(state.locals_, a, b, "same", how, evidence))
+
+
+def continued(state, l):
+    """The earlier local a declared continuation names: the latest one bearing that name, else
+    the latest member of the cluster the roster showed under that name."""
+    if not l["continues"]:
+        return None
+    wanted = norm(l["continues"])
+    for t in reversed(state.locals_):
+        if t["id"] < l["id"] and norm(t["name"]) == wanted:
+            return t
+    root = state.roster_root.get(wanted)
+    if root is not None:
+        members = [t for t in state.locals_ if t["id"] < l["id"] and state.clusters.same(t["id"], root)]
+        if members:
+            return members[-1]
+    return None
+
+
+def unite_on_sight(state, fresh):
+    """The unions that need no judge, both sides named (Justin's rule): a declared continuation
+    of a named entity by a named local, and a named local bearing an established named entity's
+    name and kind. A declared continuation with an unnamed side becomes a candidate."""
+    for l in fresh:
+        target = continued(state, l)
+        if target is not None and not state.clusters.same(target["id"], l["id"]):
+            if l["named"] and target["named"]:
+                unite(state, target["id"], l["id"], "declared", f"unit {l['ui']} continued {l['continues']!r}")
+            else:
+                state.ledger.append(ledger_row(state.locals_, target["id"], l["id"], "candidate", "declared",
+                                               f"unit {l['ui']} continued {l['continues']!r}; a side is unnamed, so judged"))
+        if not l["named"]:
+            continue
+        for t in state.locals_:
+            if t["id"] >= fresh[0]["id"] or not t["named"] or t["kind"] != l["kind"] or norm(t["name"]) != norm(l["name"]):
                 continue
-            if not (a["major"] or b["major"]):
+            ra, rb = state.clusters.find(t["id"]), state.clusters.find(l["id"])
+            if ra != rb and not state.settled(ra, rb):
+                unite(state, t["id"], l["id"], "same_name", f"both named {l['name']!r}, both {l['kind']}")
+                break
+
+
+def nominate(state, fresh, fresh_start):
+    """Candidate pairs between the fresh locals and the ones before `fresh_start`, in Justin's
+    order: a fresh major against a rolling major, a fresh major against a rolling minor, a
+    fresh minor against a rolling major, never a minor against a minor. A pair is two locals
+    from different units not in one cluster and not settled, nominated by a shared surface
+    (1.0), a fact stating one is the other (0.85), or a shared name word (0.5), never a
+    possession against its own anchor; strongest first within each order. The scores are
+    logged for every pair and decide nothing. [(a, b)]."""
+    major_roots = state.major_roots()
+    pairs = []
+    for a in fresh:
+        for b in state.locals_[:a["id"]]:
+            if b["id"] >= fresh_start or b["ui"] == a["ui"]:
                 continue
             reason = candidate_reason(a, b)
             if reason is None or anchored(a, b) or anchored(b, a):
                 continue
-            pairs[(a["id"], b["id"])] = (TIER[reason], reason, score_pair(a, b, reason))
-    return pairs
+            ra, rb = state.clusters.find(a["id"]), state.clusters.find(b["id"])
+            if ra == rb or state.settled(ra, rb):
+                continue
+            b_major = rb in major_roots
+            if a["major"] and b_major:
+                order = 0
+            elif a["major"]:
+                order = 1
+            elif b_major:
+                order = 2
+            else:
+                continue
+            pairs.append((order, -TIER[reason], b["id"], a["id"], reason, score_pair(a, b, reason)))
+    pairs.sort()
+    for order, tier, i, j, reason, (name, cooc, profile, combined) in pairs:
+        state.candidates.append({"a": state.locals_[i]["name"], "a_unit": state.locals_[i]["ui"],
+                                 "b": state.locals_[j]["name"], "b_unit": state.locals_[j]["ui"],
+                                 "tier": -tier, "reason": reason, "order": order, "name_score": round(name, 3),
+                                 "cooc_score": round(cooc, 3), "profile_score": round(profile, 3),
+                                 "combined": round(combined, 3), "decision": "judge"})
+    return [(i, j) for order, tier, i, j, reason, scores in pairs]
 
 
 def dossier(members):
     """What a cluster is, for the judge: names, forms, kinds, what it is said to be, its facts
-    and relations, the units it appears in."""
+    and relations, what it appears with, the units it appears in."""
     return "\n".join([
         f"names: {', '.join(sorted({l['name'] for l in members}))}",
         f"forms: {', '.join(sorted({s for l in members for s in l['surfaces']})[:12])}",
@@ -1321,6 +1387,7 @@ def dossier(members):
         f"is: {', '.join(sorted({x for l in members for x in l['is_a']})[:6]) or '(nothing stated)'}",
         f"facts: {'; '.join(sorted({x for l in members for x in l['facts']})[:10]) or '(none)'}",
         f"relations: {'; '.join(sorted({x for l in members for x in l['relations']})[:10]) or '(none)'}",
+        f"with: {', '.join(sorted({n for l in members for n in l['cooc']})[:10]) or '(nothing)'}",
         f"units: {', '.join(str(u) for u in sorted({l['ui'] for l in members}))}"])
 
 
@@ -1340,6 +1407,127 @@ def judge(batch, locals_, clusters, ctx):
         except (TypeError, ValueError):
             pass
     return verdicts
+
+
+def judge_pairs(state, pairs, ctx, final):
+    """The judge over candidate pairs, in batches of cluster roots as the clusters stand when
+    the batch is made: same unites, different stays apart, unsure is deferred, or at the final
+    look stays apart."""
+    how = "judged again" if final else "judged"
+    k = 0
+    while k < len(pairs):
+        batch, keys = [], set()
+        while k < len(pairs) and len(batch) < PAIRS_PER_CALL:
+            ra, rb = state.clusters.find(pairs[k][0]), state.clusters.find(pairs[k][1])
+            k += 1
+            key = frozenset((ra, rb))
+            if ra != rb and key not in keys and not state.settled(ra, rb):
+                batch.append((ra, rb))
+                keys.add(key)
+        if not batch:
+            continue
+        verdicts = judge(batch, state.locals_, state.clusters, ctx)
+        state.judge_calls += 1
+        state.pairs_judged += len(batch)
+        for n, (ra, rb) in enumerate(batch):
+            verdict, reason = verdicts.get(n, ("unsure", "no verdict returned"))
+            if verdict == "same":
+                state.clusters.unite(ra, rb)
+            elif verdict == "different" or final:
+                state.kept_apart.append((ra, rb))
+            else:
+                state.deferred.append((ra, rb))
+            state.ledger.append(ledger_row(state.locals_, ra, rb, verdict, how, reason))
+
+
+def local_named(state, ui, name):
+    """The local a ledger row names, by unit and name."""
+    for l in state.locals_:
+        if l["ui"] == ui and l["name"] == name:
+            return l
+    return None
+
+
+def replay_rows(state, rows):
+    """A checkpointed unit's ledger and candidate rows applied again, no judge called."""
+    for row in rows.get("ledger", []):
+        a, b = local_named(state, row["a_unit"], row["a"]), local_named(state, row["b_unit"], row["b"])
+        if a is None or b is None:
+            continue
+        if row["verdict"] == "same":
+            state.clusters.unite(a["id"], b["id"])
+        elif row["verdict"] == "different":
+            state.kept_apart.append((a["id"], b["id"]))
+        elif row["verdict"] == "unsure":
+            state.deferred.append((a["id"], b["id"]))
+        state.ledger.append(row)
+    state.candidates.extend(rows.get("candidates", []))
+
+
+def roll_unit(state, rec, ctx, replay=None, watch=False):
+    """One unit's locals set against the document so far. Returns the ledger and candidate rows
+    the unit produced, for its checkpoint; with `replay`, those rows are applied instead."""
+    for f in rec["facts"]:
+        state.predicate_counts[f["predicate"]] = state.predicate_counts.get(f["predicate"], 0) + 1
+    fresh = locals_of([rec], start=len(state.locals_))
+    for l in fresh:
+        state.locals_.append(l)
+        state.clusters.add()
+    ledger_at, candidates_at, calls_at = len(state.ledger), len(state.candidates), state.judge_calls
+    if replay is not None:
+        replay_rows(state, replay)
+    elif fresh:
+        unite_on_sight(state, fresh)
+        judge_pairs(state, nominate(state, fresh, fresh[0]["id"]), ctx, final=False)
+    rows = {"ledger": state.ledger[ledger_at:], "candidates": state.candidates[candidates_at:]}
+    if watch:
+        by = {}
+        for row in rows["ledger"]:
+            key = f"{row['how']} {row['verdict']}"
+            by[key] = by.get(key, 0) + 1
+        roots = {state.clusters.find(l["id"]) for l in state.locals_}
+        print(f"    rolling: {len(fresh)} locals in, {len(rows['candidates'])} pairs nominated, {state.judge_calls - calls_at} judge calls"
+              f" ({counts_text(by)}); {len(state.locals_)} locals -> {len(roots)} clusters, {len(state.major_roots())} major")
+    return rows
+
+
+def by_units_then_recency(entry):
+    return (-entry["units"], -entry["last_unit"])
+
+
+def by_recency(entry):
+    return (-entry["last_unit"], -entry["units"])
+
+
+def roster_of(state):
+    """What the next unit's entity call sees: every rolling major, then the most recent minors
+    that earned a place (a fact, or two mentions), each under its most used name with its forms
+    and what it is said to be. The predicates the document has used come along."""
+    groups = {}
+    for l in state.locals_:
+        groups.setdefault(state.clusters.find(l["id"]), []).append(l)
+    majors, minors = [], []
+    for root, members in groups.items():
+        named = [l for l in members if l["named"]] or members
+        names, kinds = {}, {}
+        for l in named:
+            names[l["name"]] = names.get(l["name"], 0) + 1
+        for l in members:
+            kinds[l["kind"]] = kinds.get(l["kind"], 0) + 1
+        entry = {"root": root, "name": best_name(names), "kind": best_name(kinds),
+                 "forms": list(dict.fromkeys(f for l in members for f in l["forms"])),
+                 "is_a": list(dict.fromkeys(x for l in members for x in l["is_a"])),
+                 "units": len({l["ui"] for l in members}), "last_unit": max(l["ui"] for l in members)}
+        if any(l["major"] for l in members):
+            majors.append(entry)
+        elif any(l["n_facts"] or l["mentions"] >= 2 for l in members):
+            minors.append(entry)
+    majors.sort(key=by_units_then_recency)
+    minors.sort(key=by_recency)
+    entries = majors + minors[:ROSTER_MINORS]
+    state.roster_root = {norm(e["name"]): e["root"] for e in entries}
+    predicates = sorted(state.predicate_counts, key=state.predicate_counts.get, reverse=True)
+    return {"entities": entries, "predicates": predicates}
 
 
 def cluster_entities(locals_, clusters):
@@ -1373,92 +1561,25 @@ def cluster_entities(locals_, clusters):
     return entities
 
 
-def reconcile(records, ctx, watch=False):
-    """The document's entities from its unit-locals: (entities, ledger, candidates, locals,
-    pairs, pairs judged). With `watch`, one line per judge call, since this is the slow step."""
-    locals_ = locals_of(records)
-    clusters = Clusters(len(locals_))
-    ledger, candidates = [], []
-
-    # 1. declared continuations of a named entity unite without a judge
-    by_name = {}
-    for l in locals_:
-        by_name.setdefault(norm(l["name"]), []).append(l)
-    for l in locals_:
-        if not l["continues"]:
-            continue
-        earlier = [t for t in by_name.get(norm(l["continues"]), []) if t["ui"] < l["ui"]]
-        named = [t for t in earlier if t["named"]]
-        if named:
-            clusters.unite(named[-1]["id"], l["id"])
-            ledger.append(ledger_row(locals_, named[-1]["id"], l["id"], "same", "declared", f"unit {l['ui']} continued {l['continues']!r}"))
-        elif earlier:
-            ledger.append(ledger_row(locals_, earlier[-1]["id"], l["id"], "candidate", "declared",
-                                     f"unit {l['ui']} continued the unnamed {l['continues']!r}; judged instead"))
-
-    # 2. every other candidate pair goes to the judge, strongest first; the scores are logged
-    pairs = nominate(locals_, clusters)
-    to_judge = []
-    for (i, j), (tier, reason, (name, cooc, profile, combined)) in sorted(pairs.items(), key=tier_of):
-        candidates.append({"a": locals_[i]["name"], "a_unit": locals_[i]["ui"], "b": locals_[j]["name"], "b_unit": locals_[j]["ui"],
-                           "tier": tier, "reason": reason, "name_score": round(name, 3), "cooc_score": round(cooc, 3),
-                           "profile_score": round(profile, 3), "combined": round(combined, 3), "decision": "judge"})
-        to_judge.append((i, j))
-
-    # 3. the judge, in batches; different stays apart, unsure is deferred to one last look
-    kept_apart, deferred = [], []
-
-    def settled(ra, rb):
-        for x, y in kept_apart + deferred:
-            if {clusters.find(x), clusters.find(y)} == {ra, rb}:
-                return True
-        return False
-
-    def decide(batch, verdicts, final):
-        how = "judged again" if final else "judged"
-        for n, (ra, rb) in enumerate(batch):
-            verdict, reason = verdicts.get(n, ("unsure", "no verdict returned"))
-            if verdict == "same":
-                clusters.unite(ra, rb)
-            elif verdict == "different" or final:
-                kept_apart.append((ra, rb))
-            else:
-                deferred.append((ra, rb))
-            ledger.append(ledger_row(locals_, ra, rb, verdict, how, reason))
-
+def finish(state, ctx, watch=False):
+    """The document's entities once every unit has landed: a sweep over the pairs the rolling
+    lists never brought together, one last look at the deferred pairs, then one entity per
+    cluster. (entities, ledger, candidates, locals, pairs scored, pairs judged)."""
+    sweep = nominate(state, state.locals_, len(state.locals_))
     if watch:
-        print(f"judge: {len(locals_)} unit-locals, {len(to_judge)} candidate pairs to judge, {PAIRS_PER_CALL} a call")
-    k, calls = 0, 0
-    while k < len(to_judge):
-        batch, keys = [], set()
-        while k < len(to_judge) and len(batch) < PAIRS_PER_CALL:
-            ra, rb = clusters.find(to_judge[k][0]), clusters.find(to_judge[k][1])
-            k += 1
-            key = frozenset((ra, rb))
-            if ra != rb and key not in keys and not settled(ra, rb):
-                batch.append((ra, rb))
-                keys.add(key)
-        if batch:
-            decide(batch, judge(batch, locals_, clusters, ctx), final=False)
-            calls += 1
-            if watch and calls % 5 == 0:
-                same = sum(1 for row in ledger if row["how"] == "judged" and row["verdict"] == "same")
-                print(f"    judge call {calls}: {k} of {len(to_judge)} pairs seen, {same} united so far, ${spend():.2f} spent this session")
-
-    # 4. the deferred pairs get one last look against the finished clusters; unsure stays apart
+        print(f"sweep: {len(state.locals_)} unit-locals, {len(sweep)} pairs the rolling lists never met, {len(state.deferred)} deferred")
+    judge_pairs(state, sweep, ctx, final=False)
     last_look, seen = [], set()
-    still_deferred, deferred = list(deferred), []
-    for a, b in still_deferred:
-        ra, rb = clusters.find(a), clusters.find(b)
+    deferred, state.deferred = list(state.deferred), []
+    for a, b in deferred:
+        ra, rb = state.clusters.find(a), state.clusters.find(b)
         key = frozenset((ra, rb))
-        if ra != rb and key not in seen and not settled(ra, rb):
+        if ra != rb and key not in seen and not state.settled(ra, rb):
             last_look.append((ra, rb))
             seen.add(key)
-    for at in range(0, len(last_look), PAIRS_PER_CALL):
-        batch = last_look[at:at + PAIRS_PER_CALL]
-        decide(batch, judge(batch, locals_, clusters, ctx), final=True)
-
-    return cluster_entities(locals_, clusters), ledger, candidates, len(locals_), len(pairs), len(to_judge)
+    judge_pairs(state, last_look, ctx, final=True)
+    return (cluster_entities(state.locals_, state.clusters), state.ledger, state.candidates,
+            len(state.locals_), len(state.candidates), state.pairs_judged)
 
 # %%
 # Block 9: fold the document.
@@ -2156,27 +2277,29 @@ def ingest(doc, ctx=None, diag=None):
     if diag.get("triage"):
         show_triage(doc, excluded, left_out, flags)
 
-    # the units, in order, each checkpointed as it lands
-    roster = {"entities": [], "predicates": [], "predicate_counts": {}}
+    # the units, in order, each set against the document so far and checkpointed as it lands
+    state = Rolling()
     previous = None
-    for rec in records:                           # replay what the sidecar holds
-        advance_roster(roster, rec)
+    for rec in records:                           # replay what the sidecar holds, its verdicts included
+        roll_unit(state, rec, ctx, replay=rec.get("rolling", {}))
         previous = rec["summary"] or previous
     if records and diag.get("units"):
         print(f"resuming {doc['source_uri']} from {len(records)} checkpointed units")
     for u in kept[len(records):]:
         unit = {**u, "text": doc["text"][u["start"]:u["end"]], "kind": unit_kind(doc, u)}
         spend_at, calls_at = spend(), len(CALLS)
-        rec = derive_unit(doc, unit, roster, previous, {**ctx, "unit": u["position"]})
-        records.append(rec)
-        append_sidecar(doc, {"rec": rec, "cost": round(spend() - spend_at, 6), "calls": len(CALLS) - calls_at})
-        advance_roster(roster, rec)
-        previous = rec["summary"] or previous
+        unit_ctx = {**ctx, "unit": u["position"]}
+        rec = derive_unit(doc, unit, roster_of(state), previous, unit_ctx)
         if diag.get("units"):
             show_unit(rec, unit, diag, spend() - spend_at, spend() - spend_before)
+        rec["rolling"] = roll_unit(state, rec, unit_ctx, watch=bool(diag.get("reconcile")))
+        records.append(rec)
+        append_sidecar(doc, {"rec": rec, "cost": round(spend() - spend_at, 6), "calls": len(CALLS) - calls_at})
+        previous = rec["summary"] or previous
 
-    # the document: reconcile, fold, salience, adjudicate, write
-    entities, ledger, candidates, n_locals, n_pairs, n_judged = reconcile(records, ctx, watch=bool(diag.get("reconcile")))
+    # the document: the sweep, fold, salience, adjudicate, write
+    roster = roster_of(state)
+    entities, ledger, candidates, n_locals, n_pairs, n_judged = finish(state, ctx, watch=bool(diag.get("reconcile")))
     if diag.get("reconcile"):
         show_reconcile(entities, ledger, candidates, n_locals, n_pairs, n_judged, diag)
     folded = fold_document(doc, records, entities, ctx)

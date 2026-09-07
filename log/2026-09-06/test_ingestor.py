@@ -60,6 +60,8 @@ def first_sentence_with(text, name):
 def stub_generate(prompt, schema, stage, model=None, effort="low", ctx=None):
     if script["stop_at"] is not None and len(ns["CALLS"]) >= script["stop_at"]:
         raise ns["SpendStop"]("test stop")
+    if script.get("stop_at_unit") is not None and (ctx or {}).get("unit") == script["stop_at_unit"]:
+        raise ns["SpendStop"]("test stop at a unit")
     ns["log_call"]({"stage": stage, "model": model or "stub", "in": len(prompt) // 4, "out": 50, "seconds": 0.0, "cost": 0.001, **(ctx or {})})
     text = unit_text_of(prompt)
     if stage == "entities":
@@ -71,7 +73,7 @@ def stub_generate(prompt, schema, stage, model=None, effort="low", ctx=None):
                 counts[w] = counts.get(w, 0) + 1
         names = sorted(counts, key=lambda w: -counts[w])[:6]
         withhold = len(text) % 3 == 0                                  # some units declare no continuation, so the judge is exercised
-        ents = [{"name": n, "named": True, "kind": "person", "salience": "major" if i < 3 else "minor", "surface_forms": [n],
+        ents = [{"name": n, "named": not withhold, "kind": "person", "salience": "major" if i < 3 else "minor", "surface_forms": [n],   # an unnamed unit: nothing unites on sight, the judge is exercised
                  "continues": n if f"- {n} (" in prompt and not withhold else None,
                  "profile": {"gender": "female" if n == "Dorothy" else None, "animacy": "animate", "role": None}} for i, n in enumerate(names)]
         ents.append({"name": "Phantom", "named": True, "kind": "person", "surface_forms": ["Zzyzx Qwerty"], "continues": None, "profile": None})
@@ -255,6 +257,8 @@ check("dossier per major with an embedding", len(by.get("dossier", [])) == len(f
 check("ledger rows carry evidence", by.get("ledger") and all(l["evidence"] for l in by["ledger"]))
 check("candidate rows carry three separate scores", all({"name_score", "cooc_score", "profile_score", "combined", "decision"} <= set(c) for c in by.get("candidate", [])))
 check("declared continuations united without a judge", any(l["how"] == "declared" for l in by["ledger"]))
+check("a named local bearing an established named entity's name and kind unites on sight", any(l["how"] == "same_name" and l["verdict"] == "same" for l in by["ledger"]))
+check("candidate pairs are nominated in the rolling order, majors against majors first, never minor against minor", by.get("candidate") and all(c["order"] in (0, 1, 2) for c in by["candidate"]) and [c["order"] for c in by["candidate"]] and all(c["order"] <= 2 for c in by["candidate"]))
 check("predicate census present", "predicate_census" in by and "is_a" in by["predicate_census"][0]["predicates"])
 check("edges: has_unit per unit and appears_in per major", sum(1 for e in by["edge"] if e["predicate"] == "has_unit") == len(doc["units"]) and sum(1 for e in by["edge"] if e["predicate"] == "appears_in") == len(folded["majors"]))
 check("completion counts consistent", lines[-1]["counts"]["facts_stored"] == len(facts) and lines[-1]["counts"]["mentions"] == len(mentions))
@@ -338,11 +342,16 @@ check("a fold rejected once is retried with the missing names and then stamped",
 gr = ns["load_document"](uri_of("/graphrag-bench/Novel-40700.txt"), BY_URI, UNITS, PIECES)
 gr_kinds = {ns["unit_kind"](gr, u) for u in gr["units"]}
 triage_calls = 1 if len(gr_kinds) > 1 else 0
-script["stop_at"] = len(ns["CALLS"]) + triage_calls + 11           # three units and a bit into the fourth
+gr_kept = [u["position"] for u in gr["units"] if ns["unit_kind"](gr, u) not in ("license", "front_matter", "references")]
+script["stop_at_unit"] = gr_kept[3]                                # three units finished, the fourth's first call stops
+calls_at_stop = len(ns["CALLS"])
 done, skipped = ns["run"]([gr["source_uri"]])
+script["stop_at_unit"] = None
+first_three = sum(1 for c in ns["CALLS"][calls_at_stop:] if c.get("unit") in gr_kept[:3])
 side = ns["sidecar_path"](gr)
 check("a spend stop mid-document leaves a sidecar of the triage and the finished units, and no package", done == 0 and side.exists() and not ns["package_path"](gr).exists() and len(ns["checkpointed"](gr)[1]) == 3, len(ns["checkpointed"](gr)[1]) if side.exists() else "no sidecar")
-check("the sidecar carries the cost of the units it holds", ns["checkpointed"](gr)[2] > 0 and ns["checkpointed"](gr)[3] == 9)
+check("the sidecar carries the cost and the calls of the units it holds, the judge's included", ns["checkpointed"](gr)[2] > 0 and ns["checkpointed"](gr)[3] == first_three, (ns["checkpointed"](gr)[3], first_three))
+check("a checkpointed unit carries its rolling verdicts", all("rolling" in rec for rec in ns["checkpointed"](gr)[1]))
 script["stop_at"] = None
 calls_before = len(ns["CALLS"])
 done, skipped = ns["run"]([gr["source_uri"]])
