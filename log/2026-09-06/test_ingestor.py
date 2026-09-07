@@ -70,8 +70,9 @@ def stub_generate(prompt, schema, stage, model=None, effort="low", ctx=None):
             if w not in STOP:
                 counts[w] = counts.get(w, 0) + 1
         names = sorted(counts, key=lambda w: -counts[w])[:6]
+        withhold = len(text) % 3 == 0                                  # some units declare no continuation, so the judge is exercised
         ents = [{"name": n, "named": True, "kind": "person", "salience": "major" if i < 3 else "minor", "surface_forms": [n],
-                 "continues": n if f"- {n} (" in prompt else None,
+                 "continues": n if f"- {n} (" in prompt and not withhold else None,
                  "profile": {"gender": "female" if n == "Dorothy" else None, "animacy": "animate", "role": None}} for i, n in enumerate(names)]
         ents.append({"name": "Phantom", "named": True, "kind": "person", "surface_forms": ["Zzyzx Qwerty"], "continues": None, "profile": None})
         if names:                                                   # every span of this one is already the first entity's
@@ -84,6 +85,10 @@ def stub_generate(prompt, schema, stage, model=None, effort="low", ctx=None):
             q = first_sentence_with(text, n)
             if q:
                 facts.append({"subject": n, "predicate": "is_a", "object": "character", "qualifiers": None, "quote": q, "valid_from": None, "valid_to": None})
+        if len(names) > 3:                                                 # a minor's fact about a major: lands on the major, inverse
+            q = first_sentence_with(text, names[3])
+            if q:
+                facts.append({"subject": names[3], "predicate": "knows", "object": names[0], "qualifiers": None, "quote": q, "valid_from": None, "valid_to": None})
         m = re.search(r"^user: (.{30,120}?)(?=[.!?\n])", text, re.M)       # a chat: one fact must come from the user's own turn
         if m and facts:
             facts.append({"subject": facts[0]["subject"], "predicate": "asked_about", "object": "something", "qualifiers": None, "quote": m.group(1), "valid_from": None, "valid_to": None})
@@ -109,8 +114,20 @@ def stub_generate(prompt, schema, stage, model=None, effort="low", ctx=None):
         out = []
         for n, a, b in pairs:
             same = script["judge"] == "all_same" or (script["judge"] == "by_name" and set(dossiers[a].split(", ")) & set(dossiers[b].split(", ")))
-            out.append({"pair": int(n), "verdict": "same" if same else "different", "reason": "stub"})
+            verdict = "same" if same else "different"
+            if "Toto" in dossiers[a] or "Toto" in dossiers[b]:                 # the judge can never settle Toto: deferred, then judged again
+                verdict = "unsure"
+            out.append({"pair": int(n), "verdict": verdict, "reason": "stub"})
         return {"verdicts": out}
+    if stage == "triage":                                        # leave out the kinds that are not the work
+        kinds = re.findall(r"^KIND '([^']+)':", prompt, re.M)
+        return {"exclude": [{"kind": k, "reason": "not the work"} for k in kinds if k in ("license", "front_matter", "references")]}
+    if stage == "adjudicate":
+        n = len(re.findall(r"^\d+\. ", prompt.split("FACTS:\n", 1)[1].split("\nCELLS:")[0], re.M))
+        return {"facts": [{"predicate": "is_a", "object": "character", "qualifiers": None, "from": [1]},
+                          {"predicate": "bogus", "object": "nothing", "qualifiers": None, "from": [999]}],   # points at nothing: dropped
+                "attributes": [{"attribute": "kind", "value": "character", "from": list(range(1, min(n, 3) + 1))}],
+                "contradictions": []}
     if stage in ("fold", "entity_abstract"):
         records = prompt.split("RECORDS:\n", 1)[1]
         names = sorted(set(CAP.findall(records)) - STOP)[:5]
@@ -199,21 +216,29 @@ check("a fact to a minor keeps the minor's name as its value", all(not f["object
 check("voice: every fact carries the document author for a novel", all(f["author"] == doc["author"] for f in facts), doc["author"])
 cells = by.get("cell", [])
 doc_node = ns["h"](doc["doc_id"], "document")
-check("a unit summary cell on the document node per unit", sum(1 for c in cells if c["node_id"] == doc_node) == len(doc["units"]))
+check("a unit summary cell on the document node per derived unit", sum(1 for c in cells if c["node_id"] == doc_node) == len(records))
 unit_majors = {(r["unit_id"], e["name"]) for r in records for e in r["entities"] if e["major"]}
 check("cells only for the unit's major entities, the model's salience call", all(all((c["unit_id"], n) in unit_majors for n in c["provenance"]["entity_names"]) for c in cells if c["node_id"] != doc_node))
 check("the fact rule is recorded beside the salience call in the agreement", all("fact_but_minor" in r["agreement"] for r in records if r["agreement"]))
 check("agreement check recorded per unit", all(r["agreement"] is not None for r in records))
 abstracts = by.get("abstract", [])
 doc_abs = [a for a in abstracts if a["node_id"] == doc_node]
-work = [r for r in records if r["summary"] and r["partition"] == "work"]
-check("document abstract present with children_hash over the work partition's summaries only", len(doc_abs) == 1 and doc_abs[0]["children_hash"] == ns["children_hash"]([f"[{r['label']}] {r['summary']}" for r in work]) and len(work) < len(records))
-check("the license unit is apparatus, the chapters and front matter are the work", {r["partition"] for r in records if r["kind"] == "license"} == {"license"} and all(r["partition"] == "work" for r in records if r["kind"] in ("body", "front_matter")))
+work = [r for r in records if r["summary"]]
+check("document abstract present with children_hash over the derived units' summaries", len(doc_abs) == 1 and doc_abs[0]["children_hash"] == ns["children_hash"]([f"[{r['label']}] {r['summary']}" for r in work]))
+check("triage left out the front matter and the license, and those units were never derived", {x["kind"] for x in lines[-1]["excluded"]} == {"front_matter", "license"} and lines[-1]["counts"]["units_excluded"] == 2 and len(records) == len(doc["units"]) - 2 and all(r["kind"] == "body" for r in records))
 check("abstract names all appear in the children", not ns["missing_names"](doc_abs[0]["text"], [f"[{r['label']}] {r['summary']}" for r in work]))
-part_of = {r["position"]: r["partition"] for r in records}
-check("no candidate pair crosses a partition except on the same proper name", all(part_of[c["a_unit"]] == part_of[c["b_unit"]] or c["a"].casefold() == c["b"].casefold() for c in by.get("candidate", [])))
-check("every candidate pair went to the judge and carries the demo's tier", by.get("candidate") and all(c["decision"] == "judge" and c["tier"] in (1.0, 0.85, 0.5) for c in by["candidate"]))
-check("an entity seen only in the license is never a document major", not any(e["partitions"] == ["license"] for e in folded["majors"]))
+check("every candidate pair went to the judge and carries the demo's tier", by.get("candidate") and all(c["decision"] == "judge" and c["tier"] in (1.0, 0.85, 0.5) for c in by["candidate"]) and any(c["stage"] == "judge" for c in ns["CALLS"]))
+check("a pair the judge could not settle was judged once more at the end", any(l["how"] == "judged again" for l in by.get("ledger", [])))
+check("a low-salience major was demoted to minor and has no node", lines[-1]["counts"]["demoted"] > 0 and all(not e["major"] for e in folded["minors"] if e["rank"]["demoted"]) and all(e["rank"]["demoted"] is False for e in folded["majors"]))
+inverse = [f for f in facts if f["direction"] == "inverse"]
+check("a minor's fact about a major lands on the major, marked inverse, with the minor's name as its value", inverse and all(f["subject"] in node_ids and not f["object_is_node"] and f["object"] not in node_ids for f in inverse))
+adjudicated = by.get("adjudicated_fact", [])
+fact_ids_of = {}
+for f in facts:
+    fact_ids_of.setdefault(f["subject"], set()).add(f["fact_id"])
+check("every adjudicated fact points only at raw facts of its own node", adjudicated and all(set(a["from_facts"]) <= fact_ids_of.get(a["node_id"], set()) for a in adjudicated))
+check("attributes point at raw facts too, and an item pointing at nothing was dropped and counted", by.get("attribute") and all(set(a["from_facts"]) <= fact_ids_of.get(a["node_id"], set()) for a in by["attribute"]) and lines[-1]["counts"]["adjudication_dropped"] == len(folded["majors"]))
+check("adjudicated predicates are snake_case", all(a["predicate"] == ns["snake_case"](a["predicate"]) for a in adjudicated))
 check("majors are exactly the entities named in the abstract", all(any(s in doc_abs[0]["text"].casefold() for s in e["surfaces"]) for e in folded["majors"]) and folded["majors"])
 check("dossier per major with an embedding", len(by.get("dossier", [])) == len(folded["majors"]) and all(d["embedding"] for d in by["dossier"]))
 check("ledger rows carry evidence", by.get("ledger") and all(l["evidence"] for l in by["ledger"]))
@@ -272,8 +297,9 @@ if picked:
     check("chat: every fact's author is the author of the piece holding its quote, or null when the same words occur in two voices",
           cf and all(f["author"] == piece_author(f["quote_start"]) or (f["author"] is None and f["provenance"]["voice_ambiguous"]) for f in cf))
     check("chat: facts from both voices, user and assistant", voices >= {"user", "assistant"}, voices)
-    check("chat: the header unit yields nothing, the turns unit's summary is the abstract, no fold call",
-          rows[-1]["counts"]["empty_units"] == 1 and any(r["record"] == "abstract" and r["node_id"] == ns["h"](picked["doc_id"], "document") for r in rows)
+    check("chat: triage leaves out the header unit, the turns unit's summary is the abstract, no fold call",
+          rows[-1]["counts"]["units_excluded"] == 1 and rows[-1]["counts"]["units"] == 1
+          and any(r["record"] == "abstract" and r["node_id"] == ns["h"](picked["doc_id"], "document") for r in rows)
           and not any(cc["stage"] == "fold" for cc in ns["CALLS"] if cc.get("doc") == picked["source_uri"]))
     check("chat: unit carries the session date and facts inherit nothing invented", all(f["valid_from"] is None for f in cf) and picked["units"][0]["occurred_at"] == picked["occurred_at"])
 
@@ -299,17 +325,20 @@ check("a fold rejected once is retried with the missing names and then stamped",
 
 # ---------------------------------------------------------------- the spend stop mid-document, then a resume from the sidecar
 gr = ns["load_document"](uri_of("/graphrag-bench/Novel-40700.txt"), BY_URI, UNITS, PIECES)
-script["stop_at"] = len(ns["CALLS"]) + 11                          # three units and a bit into the fourth
+gr_kinds = {ns["unit_kind"](gr, u) for u in gr["units"]}
+triage_calls = 1 if len(gr_kinds) > 1 else 0
+script["stop_at"] = len(ns["CALLS"]) + triage_calls + 11           # three units and a bit into the fourth
 done, skipped = ns["run"]([gr["source_uri"]])
 side = ns["sidecar_path"](gr)
-check("a spend stop mid-document leaves a sidecar of finished units and no package", done == 0 and side.exists() and not ns["package_path"](gr).exists() and len(ns["checkpointed"](gr)) == 3, len(ns["checkpointed"](gr)) if side.exists() else "no sidecar")
+check("a spend stop mid-document leaves a sidecar of the triage and the finished units, and no package", done == 0 and side.exists() and not ns["package_path"](gr).exists() and len(ns["checkpointed"](gr)[1]) == 3, len(ns["checkpointed"](gr)[1]) if side.exists() else "no sidecar")
 script["stop_at"] = None
 calls_before = len(ns["CALLS"])
 done, skipped = ns["run"]([gr["source_uri"]])
 p_gr = ns["package_path"](gr)
 rows = list(ns["read_jsonl"](p_gr))
-check("the resumed run finishes the document from the sidecar, deriving only the remaining units", done == 1 and rows[-1]["record"] == "completion" and rows[-1]["counts"]["units"] == len(gr["units"]) and not side.exists()
-      and sum(1 for c in ns["CALLS"][calls_before:] if c["stage"] == "entities") == len(gr["units"]) - 3, sum(1 for c in ns["CALLS"][calls_before:] if c["stage"] == "entities"))
+check("the resumed run reuses the triage and finishes the document from the sidecar, deriving only the remaining units", done == 1 and rows[-1]["record"] == "completion" and not side.exists()
+      and not any(c["stage"] == "triage" for c in ns["CALLS"][calls_before:])
+      and sum(1 for c in ns["CALLS"][calls_before:] if c["stage"] == "entities") == rows[-1]["counts"]["units"] - 3, sum(1 for c in ns["CALLS"][calls_before:] if c["stage"] == "entities"))
 
 # ---------------------------------------------------------------- staleness is a hash comparison
 rec = ns["receipt"]()
