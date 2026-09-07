@@ -243,3 +243,7 @@ ambiguous-subject rejection is verified by the review's reproduction, not by the
     relation clearly (has_aunt, is_carried_to are the examples given), per entity, with the raw
     facts keeping their own names underneath and `from_facts` tying them. No vocabulary is
     shared across entities and no call is added; this is not the merging ruled out in 39.
+41. **No renaming pass either** (Justin, 09-07, an hour after 40: "semantic search doesn't
+    care", with a page of raw facts that read well as written). The adjudication prompt is
+    back to naming consolidated facts as the listed facts name them; its work is collapsing
+    repeats, rolling minors in and flagging contradictions. 40 is withdrawn.
