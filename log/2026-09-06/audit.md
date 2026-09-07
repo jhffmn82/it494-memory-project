@@ -112,6 +112,8 @@ a package carries for each document-major, since the brief requires it and the m
 
 29. **Nothing to fold, no call** (Justin's ruling, 09-07, for the 19,206 chats where Terra stages would have dominated the spend): a major with fewer than `ADJUDICATE_MIN_FACTS` (4) landed facts, all from one unit, is not adjudicated and its raw facts stand (`adjudications_skipped` counted, the result says why); a document with fewer than `PREDICATES_MIN` (8) distinct predicates across its consolidated facts skips the predicate judge (`predicate_judge_skipped`). In the same spirit as the one-summary abstract and the two-record entity abstract that already cost nothing. Ingesting documents in parallel was offered and declined: in practice one does not ingest many novels at once.
 
+30. **The 0.5 review** (six lenses, one refuter per finding; `review-findings-4.json`): 30 confirmed, all fixed the same night; items 24 to 31 of `decisions-ingestor-0.5.md` say what changed. Refuted and left alone: forward-only landing between two majors, inverse lines not restated in the adjudication prompt, the census counting raw predicates.
+
 ## Part 2: the project against itself
 
 1. **SCHEMA.md opens "Nine record types plus logs" and lists ten.** `piece` was added on 09-04. One word.

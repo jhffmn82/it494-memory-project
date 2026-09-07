@@ -62,6 +62,10 @@ def stub_generate(prompt, schema, stage, model=None, effort="low", ctx=None):
         raise ns["SpendStop"]("test stop")
     if script.get("stop_at_unit") is not None and (ctx or {}).get("unit") == script["stop_at_unit"]:
         raise ns["SpendStop"]("test stop at a unit")
+    if script.get("stop_in_adjudication") and stage == "adjudicate":
+        script["adjudications_seen"] = script.get("adjudications_seen", 0) + 1
+        if script["adjudications_seen"] >= 2:
+            raise ns["SpendStop"]("test stop inside the adjudication")
     ns["log_call"]({"stage": stage, "model": model or "stub", "in": len(prompt) // 4, "out": 50, "seconds": 0.0, "cost": 0.001, **(ctx or {})})
     text = unit_text_of(prompt)
     if stage == "entities":
@@ -137,7 +141,10 @@ def stub_generate(prompt, schema, stage, model=None, effort="low", ctx=None):
                 "contradictions": []}
     if stage == "predicates":
         return {"merges": [{"predicate": "is_a", "absorbs": ["is_kind_of"], "reason": "stub: both say what the thing is"},
-                           {"predicate": "nothing", "absorbs": ["never_used"], "reason": "stub: names nothing the document uses"}]}
+                           {"predicate": "nothing", "absorbs": ["never_used"], "reason": "stub: names nothing the document uses"},
+                           {"predicate": "trait_1", "absorbs": ["trait_0"], "reason": "stub: a chain, first link"},
+                           {"predicate": "trait_2", "absorbs": ["trait_1"], "reason": "stub: a chain, second link"},
+                           {"predicate": "", "absorbs": ["trait_3"], "reason": "stub: a blank target"}]}
     if stage == "facts" and "PREDICATES THIS DOCUMENT HAS USED" in prompt:
         script["saw_predicate_list"] = True
     if stage in ("fold", "entity_abstract"):
@@ -259,6 +266,10 @@ check("a quote wrapped in the model's own quotation marks is found once they com
 check("the fact prompt carries no list of used predicates", not script.get("saw_predicate_list"))
 check("an adjudicated fact keeps its raw predicate beside the one the predicate judge let stand", any(a["predicate_raw"] == "is_kind_of" and a["predicate"] == "is_a" for a in adjudicated) and all("predicate_raw" in a for a in adjudicated))
 check("a predicate merge is a record with its reason, and one naming nothing the document uses is dropped and counted", any(r["record"] == "predicate_merge" and r["absorbs"] == ["is_kind_of"] and r["reason"] for r in lines) and lines[-1]["counts"]["predicate_merges_dropped"] == 1)
+absorbed = {x for r in lines if r["record"] == "predicate_merge" for x in r["absorbs"]}
+check("a predicate chain ends at its last link for every member, and no standing predicate was absorbed", any(a["predicate_raw"] == "trait_0" and a["predicate"] == "trait_2" for a in adjudicated) and not any(a["predicate"] in absorbed for a in adjudicated))
+check("a blank merge target is set aside and counted, not turned into a predicate", lines[-1]["counts"]["predicate_merges_set_aside"] >= 1 and not any(a["predicate"] == "related_to" for a in adjudicated))
+check("a riding fact names the fact it rides under, a stored fact of the same node", all(f["provenance"]["rides_on"] in fact_ids_of.get(f["subject"], set()) for f in facts if f["direction"] == "about"))
 check("every adjudicated fact points only at raw facts of its own node", adjudicated and all(set(a["from_facts"]) <= fact_ids_of.get(a["node_id"], set()) for a in adjudicated))
 check("attributes point at raw facts too, and an item pointing at nothing was dropped and counted", by.get("attribute") and all(set(a["from_facts"]) <= fact_ids_of.get(a["node_id"], set()) for a in by["attribute"]) and lines[-1]["counts"]["adjudication_dropped"] == len(folded["majors"]))
 check("adjudicated predicates are snake_case", all(a["predicate"] == ns["snake_case"](a["predicate"]) for a in adjudicated))
@@ -362,7 +373,7 @@ script["stop_at_unit"] = None
 first_three = sum(1 for c in ns["CALLS"][calls_at_stop:] if c.get("unit") in gr_kept[:3])
 side = ns["sidecar_path"](gr)
 check("a spend stop mid-document leaves a sidecar of the triage and the finished units, and no package", done == 0 and side.exists() and not ns["package_path"](gr).exists() and len(ns["checkpointed"](gr)[1]) == 3, len(ns["checkpointed"](gr)[1]) if side.exists() else "no sidecar")
-check("the sidecar carries the cost and the calls of the units it holds, the judge's included", ns["checkpointed"](gr)[2] > 0 and ns["checkpointed"](gr)[3] == first_three, (ns["checkpointed"](gr)[3], first_three))
+check("the sidecar carries the cost and the calls of the triage and of the units it holds, the judge's included", ns["checkpointed"](gr)[2] > 0 and ns["checkpointed"](gr)[3] == first_three + triage_calls, (ns["checkpointed"](gr)[3], first_three, triage_calls))
 check("a checkpointed unit carries its rolling verdicts", all("rolling" in rec for rec in ns["checkpointed"](gr)[1]))
 script["stop_at"] = None
 calls_before = len(ns["CALLS"])
@@ -375,12 +386,32 @@ check("the resumed run reuses the triage and finishes the document from the side
 check("the completion's cost and calls include the units paid for before the stop", rows[-1]["stats"]["calls"] > len(ns["CALLS"]) - calls_before and rows[-1]["stats"]["cost"] > sum(c["cost"] for c in ns["CALLS"][calls_before:]))
 side_cut = ns["sidecar_path"](gr)
 side_cut.write_text('{"ingestor": "x", "input_hash": "y", "triage": {}}\n{"ingestor": "x", "input_hash": "y", "rec": {"unit_id": "z", "broken', encoding="utf-8")
-check("a sidecar cut short by a kill does not poison the document", ns["checkpointed"](gr) == (None, [], 0.0, 0))
+check("a sidecar cut short by a kill does not poison the document", ns["checkpointed"](gr)[:4] == (None, [], 0.0, 0))
 side_cut.unlink()
 
 # ---------------------------------------------------------------- staleness is a hash comparison
 rec = ns["receipt"]()
 check("receipt sums matched_by and rejected_by across documents and costs from the packages", rec["documents"] >= 5 and rec["matched_by"].get("exact", 0) > 0 and rec["rejected_by"].get("not_found", 0) > 0 and rec["cost_of_packages"] > 0 and rec["in_flight_sidecars"] == [])
+# the gate: one matched pair of quotation marks comes off, a text's own apostrophe stays, and a bare quote lands on whole words
+check("a bare quote is found as whole words, not inside a longer word", ns["locate"]("Ozma ruled. The Wizard said he was Oz.", '"Oz"') == (35, 37, "unwrapped"))
+check("a matched pair of marks comes off and the text's own apostrophe stays", ns["locate"]("\u2019Tis a fine day, said Toto.", '"\u2019Tis a fine day"') == (0, 15, "unwrapped"))
+check("a lone apostrophe at the end is the text's own and stays", ns["locate"]("They crossed the Winkies\u2019 land at noon.", "the Winkies\u2019")[2] == "exact")
+
+# a stop inside the adjudication keeps every result that landed; the resume pays for none of them again
+gr2 = ns["load_document"](uri_of("/graphrag-bench/Novel-30752.txt"), BY_URI, UNITS, PIECES)
+script["stop_in_adjudication"], script["adjudications_seen"] = True, 0
+done, skipped = ns["run"]([gr2["source_uri"]])
+side2 = ns["sidecar_path"](gr2)
+kept2 = ns["checkpointed"](gr2)
+check("a stop inside the adjudication leaves the sweep, the fold and the finished adjudications in the sidecar", done == 0 and side2.exists() and "reconcile" in kept2[5] and "fold" in kept2[5] and len(kept2[5]["adjudicated"]) >= 1, (done, sorted(kept2[5]) if side2.exists() else "no sidecar"))
+script["stop_in_adjudication"] = False
+calls_before2 = len(ns["CALLS"])
+done, skipped = ns["run"]([gr2["source_uri"]])
+after = [c["stage"] for c in ns["CALLS"][calls_before2:]]
+check("the resumed document repeats no unit, no judge, no fold and no finished adjudication", done == 1 and not side2.exists() and not any(st in ("entities", "facts", "cells", "judge", "fold", "entity_abstract", "triage") for st in after), after)
+rows2 = list(ns["read_jsonl"](ns["package_path"](gr2)))
+check("the resumed completion counts the calls and cost paid before the stop", rows2[-1]["stats"]["calls"] > len(after) and rows2[-1]["stats"]["cost"] > sum(c["cost"] for c in ns["CALLS"][calls_before2:]))
+
 check("staleness: a changed child changes children_hash", ns["children_hash"](["a", "b"]) != ns["children_hash"](["a", "c"]) and ns["children_hash"](["a", "b"]) == ns["children_hash"](["a", "b"]))
 # withheld text: the public export ships the reference papers with null text and a papers.jsonl
 # row naming the PDF; the ingestor reads the PDF back exactly as the extractor did

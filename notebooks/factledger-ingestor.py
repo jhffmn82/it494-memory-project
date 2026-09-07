@@ -332,13 +332,25 @@ def record(name, row):
             f.write(json.dumps(row, ensure_ascii=False) + "\n")
 
 
-def in_parallel(function, items):
-    """function over each item, WORKERS at a time, the results in the items' order. An error
-    in one (a spend stop included) is raised once the calls in flight have returned."""
+def in_parallel(function, items, each=None):
+    """function over each item, WORKERS at a time, the results in the items' order; `each(item,
+    result)` runs in the caller's thread as each result lands, so a caller can checkpoint it.
+    An error in one (a spend stop included) is raised once the calls in flight have returned,
+    after the results before it were handed over."""
+    results = []
     if WORKERS <= 1 or len(items) <= 1:
-        return [function(item) for item in items]
+        for item in items:
+            result = function(item)
+            if each is not None:
+                each(item, result)
+            results.append(result)
+        return results
     with ThreadPoolExecutor(max_workers=WORKERS) as pool:
-        return list(pool.map(function, items))
+        for item, result in zip(items, pool.map(function, items)):
+            if each is not None:
+                each(item, result)
+            results.append(result)
+    return results
 
 
 def spend():
@@ -718,19 +730,61 @@ def classify_miss(ntext, nquote):
     return "not_found"
 
 
-WRAPPING_QUOTES = "\u201c\u201d\"\u2018\u2019'"
+QUOTE_PAIRS = {"\u201c": "\u201d", '"': '"', "\u2018": "\u2019", "'": "'"}
+
+
+def unwrapped(written):
+    """The quote with one layer of the model's own quotation marks taken off: a matched pair of
+    marks, or a stray double mark at either end. A single mark alone stays, since it may be
+    the text's own apostrophe."""
+    if len(written) >= 2 and written[0] in QUOTE_PAIRS and written[-1] == QUOTE_PAIRS[written[0]]:
+        return written[1:-1].strip()
+    bare = written
+    if bare[:1] in "\u201c\"":
+        bare = bare[1:]
+    if bare[-1:] in "\u201d\"":
+        bare = bare[:-1]
+    return bare.strip()
+
+
+def hits_as_written(text, needle, cache):
+    """Every (start, end) at which `needle` occurs in the text: exact hits, then normalised."""
+    out = []
+    i = text.find(needle)
+    while i >= 0:
+        out.append((i, i + len(needle)))
+        i = text.find(needle, i + 1)
+    ntext, back = normalised_unit(text, cache)
+    nneedle, _ = normalised(needle)
+    if nneedle:
+        i = ntext.find(nneedle)
+        while i >= 0:
+            out.append((back[i], back[i + len(nneedle) - 1] + 1))
+            i = ntext.find(nneedle, i + 1)
+    return out
+
+
+def whole_word_hit(text, needle, cache):
+    """The first place `needle` occurs as whole words, so a short bare quote cannot land inside
+    a longer word."""
+    for start, end in hits_as_written(text, needle, cache):
+        before = text[start - 1] if start > 0 else " "
+        after = text[end] if end < len(text) else " "
+        if not is_word_char(before) and not is_word_char(after):
+            return start, end
+    return None, None
 
 
 def locate(text, quote, cache=None):
     """(start, end, how) with offsets into `text`, how being 'exact', 'normalised', or
-    'unwrapped' (found once the quotation marks the model wrapped it in came off), or
-    (None, None, why)."""
+    'unwrapped' (found as whole words once the quotation marks the model wrapped it in came
+    off), or (None, None, why)."""
     start, end, how = locate_as_written(text, quote, cache)
     if start is None:
         written = (quote or "").strip()
-        bare = written.strip(WRAPPING_QUOTES)
+        bare = unwrapped(written)
         if bare and bare != written:
-            start, end, again = locate_as_written(text, bare, cache)
+            start, end = whole_word_hit(text, bare, cache)
             if start is not None:
                 return start, end, "unwrapped"
     return start, end, how
@@ -983,7 +1037,7 @@ def derive_unit(doc, unit, roster, previous_summary, ctx):
 
     # 1. entities, each surface form located; a form that is not in the unit is dropped
     reply = generate(entity_prompt(unit, roster), ENTITY_SCHEMA, "entities", ctx=ctx)
-    roster_names = {e["name"] for e in roster["entities"]}
+    roster_by_loose = {loose_name(e["name"]): e["name"] for e in roster["entities"]}   # a continuation as the model may write it
     seen_names = set()
     claimed = {}                                  # (start, end) -> the entity that got the span
     for e in (reply or {}).get("entities", []):
@@ -1010,7 +1064,7 @@ def derive_unit(doc, unit, roster, previous_summary, ctx):
         seen_names.add(name)
         for span in spans:
             claimed[span] = name
-        continues = e.get("continues") if e.get("continues") in roster_names else None
+        continues = roster_by_loose.get(loose_name(e.get("continues") or ""))
         profile = e.get("profile") if isinstance(e.get("profile"), dict) else {}
         rec["entities"].append({"name": name, "named": bool(e["named"]), "kind": str(e["kind"]).lower(),
                                 "major": e.get("salience") == "major",
@@ -1032,17 +1086,23 @@ def derive_unit(doc, unit, roster, previous_summary, ctx):
     majors = [e["name"] for e in rec["entities"] if e["major"]]
     reply = generate(fact_prompt(unit, names, majors), FACT_SCHEMA, "facts", ctx=ctx)
     name_set = set(names)
-    listed = {loose_name(name): name for name in names}   # the listed name, from the name as the model may write it
+    loose_count = {}
+    for name in names:
+        loose_count[loose_name(name)] = loose_count.get(loose_name(name), 0) + 1
+    listed = {loose_name(name): name for name in names if loose_count[loose_name(name)] == 1}   # loose names that mean one entity
     seen_facts = set()
     for f in (reply or {}).get("facts", []):
-        subject = listed.get(loose_name(f["subject"]))
+        written = str(f["subject"]).strip()
+        subject = written if written in name_set else listed.get(loose_name(written))
         predicate = snake_case(f["predicate"])
         obj = str(f["object"]).strip()
-        obj = listed.get(loose_name(obj), obj)              # an entity written loosely is that entity
-        rejection = {"subject": str(f["subject"]).strip(), "predicate": predicate, "object": obj, "quote": f["quote"][:160]}
+        if obj not in name_set and any(ch.isupper() for ch in obj):   # a name written loosely is that entity; a lowercase literal stays one
+            obj = listed.get(loose_name(obj), obj)
+        rejection = {"subject": written, "predicate": predicate, "object": obj, "quote": f["quote"][:160]}
         start, end, how = locate(text, f["quote"], cache)
         if subject is None:
-            rec["rejected_facts"].append({"category": "unlisted_subject", **rejection})
+            category = "ambiguous_subject" if loose_name(written) in loose_count else "unlisted_subject"
+            rec["rejected_facts"].append({"category": category, **rejection})
             continue
         if start is None:
             rec["rejected_facts"].append({"category": how, **rejection})
@@ -1302,7 +1362,7 @@ class Rolling:
         self.judge_calls = 0
         self.pairs_judged = 0
         self.predicate_counts = {}
-        self.roster_root = {}                      # a roster name, normalised -> the cluster it stood for
+        self.roster_root = {}                      # a roster name, normalised -> [(cluster, kind)] it stood for
 
     def settled(self, ra, rb):
         for x, y in self.kept_apart + self.deferred:
@@ -1313,6 +1373,10 @@ class Rolling:
     def major_roots(self):
         """The clusters that hold a unit-major: the rolling majors."""
         return {self.clusters.find(l["id"]) for l in self.locals_ if l["major"]}
+
+    def apart(self):
+        """The settled pairs as root pairs, as the clusters stand now, for one burst of tests."""
+        return {frozenset((self.clusters.find(x), self.clusters.find(y))) for x, y in self.kept_apart + self.deferred}
 
 
 def ledger_row(locals_, a, b, verdict, how, evidence):
@@ -1326,19 +1390,32 @@ def unite(state, a, b, how, evidence):
 
 
 def continued(state, l):
-    """The earlier local a declared continuation names: the latest one bearing that name, else
-    the latest member of the cluster the roster showed under that name."""
+    """The earlier local a declared continuation names: the latest member of the roster entry
+    the model copied, the one of the local's kind when several bore the name; else the latest
+    earlier local of that name and kind, else of that name. None when the name stood for
+    several roster entries and none is of the local's kind: that is the judge's call."""
     if not l["continues"]:
         return None
     wanted = norm(l["continues"])
-    for t in reversed(state.locals_):
-        if t["id"] < l["id"] and norm(t["name"]) == wanted:
-            return t
-    root = state.roster_root.get(wanted)
-    if root is not None:
-        members = [t for t in state.locals_ if t["id"] < l["id"] and state.clusters.same(t["id"], root)]
+    shown = state.roster_root.get(wanted, [])
+    of_kind = [root for root, kind in shown if kind == l["kind"]]
+    chosen = None
+    if len(of_kind) == 1:
+        chosen = of_kind[0]
+    elif len(shown) == 1:
+        chosen = shown[0][0]
+    if chosen is not None:
+        members = [t for t in state.locals_ if t["ui"] < l["ui"] and state.clusters.same(t["id"], chosen)]
         if members:
             return members[-1]
+    if shown:
+        return None
+    earlier = [t for t in state.locals_ if t["ui"] < l["ui"] and norm(t["name"]) == wanted]
+    of_kind = [t for t in earlier if t["kind"] == l["kind"]]
+    if of_kind:
+        return of_kind[-1]
+    if earlier:
+        return earlier[-1]
     return None
 
 
@@ -1349,11 +1426,19 @@ def unite_on_sight(state, fresh):
     for l in fresh:
         target = continued(state, l)
         if target is not None and not state.clusters.same(target["id"], l["id"]):
-            if l["named"] and target["named"]:
+            ra, rb = state.clusters.find(target["id"]), state.clusters.find(l["id"])
+            if state.settled(ra, rb):
+                state.ledger.append(ledger_row(state.locals_, target["id"], l["id"], "candidate", "declared",
+                                               f"unit {l['ui']} continued {l['continues']!r}, but the judge kept them apart earlier; not united"))
+            elif l["named"] and target["named"]:
                 unite(state, target["id"], l["id"], "declared", f"unit {l['ui']} continued {l['continues']!r}")
             else:
+                if l["major"] or ra in state.major_roots():
+                    outcome = "so judged"
+                else:
+                    outcome = "and neither is a major: not set against each other"
                 state.ledger.append(ledger_row(state.locals_, target["id"], l["id"], "candidate", "declared",
-                                               f"unit {l['ui']} continued {l['continues']!r}; a side is unnamed, so judged"))
+                                               f"unit {l['ui']} continued {l['continues']!r}; a side is unnamed, {outcome}"))
         if not l["named"]:
             continue
         for t in state.locals_:
@@ -1374,6 +1459,7 @@ def nominate(state, fresh, fresh_start):
     possession against its own anchor; strongest first within each order. The scores are
     logged for every pair and decide nothing. [(a, b)]."""
     major_roots = state.major_roots()
+    apart = state.apart()
     pairs = []
     for a in fresh:
         for b in state.locals_[:a["id"]]:
@@ -1383,12 +1469,12 @@ def nominate(state, fresh, fresh_start):
             if reason is None or anchored(a, b) or anchored(b, a):
                 continue
             ra, rb = state.clusters.find(a["id"]), state.clusters.find(b["id"])
-            if ra == rb or state.settled(ra, rb):
+            if ra == rb or frozenset((ra, rb)) in apart:
                 continue
-            b_major = rb in major_roots
-            if a["major"] and b_major:
+            a_major, b_major = a["major"] or ra in major_roots, rb in major_roots
+            if a_major and b_major:
                 order = 0
-            elif a["major"]:
+            elif a_major:
                 order = 1
             elif b_major:
                 order = 2
@@ -1445,11 +1531,12 @@ def judge_pairs(state, pairs, ctx, final):
     k = 0
     while k < len(pairs):
         batch, keys = [], set()
+        apart = state.apart()
         while k < len(pairs) and len(batch) < PAIRS_PER_CALL:
             ra, rb = state.clusters.find(pairs[k][0]), state.clusters.find(pairs[k][1])
             k += 1
             key = frozenset((ra, rb))
-            if ra != rb and key not in keys and not state.settled(ra, rb):
+            if ra != rb and key not in keys and key not in apart:
                 batch.append((ra, rb))
                 keys.add(key)
         if not batch:
@@ -1489,6 +1576,9 @@ def replay_rows(state, rows):
         elif row["verdict"] == "unsure":
             state.deferred.append((a["id"], b["id"]))
         state.ledger.append(row)
+        if row["how"] in ("judged", "judged again"):
+            state.pairs_judged += 1
+    state.judge_calls += rows.get("judge_calls", 0)
     state.candidates.extend(rows.get("candidates", []))
 
 
@@ -1507,7 +1597,8 @@ def roll_unit(state, rec, ctx, replay=None, watch=False):
     elif fresh:
         unite_on_sight(state, fresh)
         judge_pairs(state, nominate(state, fresh, fresh[0]["id"]), ctx, final=False)
-    rows = {"ledger": state.ledger[ledger_at:], "candidates": state.candidates[candidates_at:]}
+    rows = {"ledger": state.ledger[ledger_at:], "candidates": state.candidates[candidates_at:],
+            "judge_calls": state.judge_calls - calls_at}
     if watch:
         by = {}
         for row in rows["ledger"]:
@@ -1553,7 +1644,9 @@ def roster_of(state):
     majors.sort(key=by_units_then_recency)
     minors.sort(key=by_recency)
     entries = majors + minors[:ROSTER_MINORS]
-    state.roster_root = {norm(e["name"]): e["root"] for e in entries}
+    state.roster_root = {}
+    for e in entries:
+        state.roster_root.setdefault(norm(e["name"]), []).append((e["root"], e["kind"]))
     predicates = sorted(state.predicate_counts, key=state.predicate_counts.get, reverse=True)
     return {"entities": entries, "predicates": predicates}
 
@@ -1732,7 +1825,7 @@ def fold_document(doc, records, entities, ctx):
         dossier = "\n".join([f"name: {e['name']}", f"also: {', '.join(others)[:300]}",
                              f"kinds: {', '.join(e['kinds'])}", f"is: {', '.join(e['is_a'][:6])}",
                              f"facts: {'; '.join(facts[:20])}", f"cells: {' '.join(cells)[:1500]}"])
-        out["dossiers"].append({"entity": e["name"], "first_unit": e["first_unit"], "text": dossier, "children": facts + cells})
+        out["dossiers"].append({"entity": e["name"], "first_unit": e["first_unit"], "kinds": e["kinds"], "text": dossier, "children": facts + cells})
         texts.append(dossier)
     if texts and KEY:
         for dossier, vector in zip(out["dossiers"], embed(texts, ctx=ctx)):
@@ -1746,7 +1839,7 @@ def fold_document(doc, records, entities, ctx):
             return None, [], None
         if len(children) <= 2:
             return " ".join(c.split("] ", 1)[-1] for c in children), [], LUNA
-        text, missing, _ = fold(f"one entity, {e['name']}", children, ctx, stage="entity_abstract",
+        text, missing, _ = fold(f"one entity, {e['name']}", children, {**ctx, "entity": e["name"]}, stage="entity_abstract",
                                 allowed=e["names"] + e["surfaces"])
         return text, missing, TERRA
 
@@ -1755,7 +1848,7 @@ def fold_document(doc, records, entities, ctx):
         if not dossier["children"]:
             continue
         if text:
-            out["entity_abstracts"].append({"entity": e["name"], "first_unit": e["first_unit"], "text": text,
+            out["entity_abstracts"].append({"entity": e["name"], "first_unit": e["first_unit"], "kinds": e["kinds"], "text": text,
                                             "children_hash": children_hash(dossier["children"]), "tier": tier})
         else:
             out["entity_abstract_rejected"].append({"entity": e["name"], "missing": missing})
@@ -1792,9 +1885,14 @@ def input_hash(doc):
     return h(doc["doc_id"], *[u["unit_id"] for u in doc["units"]], INGESTOR)
 
 
+def entity_key(entity):
+    """What tells one document entity from another with the same name: its first unit and its
+    kinds. Two clusters the judge kept apart may share a name, and even a first unit."""
+    return entity["name"], entity["first_unit"], "/".join(entity["kinds"])
+
+
 def node_id_of(doc, entity):
-    """Name plus first unit: two clusters the judge kept apart may share a name."""
-    return h(doc["doc_id"], entity["name"], entity["first_unit"])
+    return h(doc["doc_id"], *entity_key(entity))
 
 
 def predicate_census(records):
@@ -1814,7 +1912,8 @@ def predicate_census(records):
 
 
 def landings(records, folded):
-    """Where every kept fact lands: {major index: [(fact, direction, unit label, stored id)]}.
+    """Where every kept fact lands: {major index: [(fact, direction, unit label, stored id, the
+    fact it rides under or None)]}.
     forward: the major is the subject. inverse: a minor's fact about the major. about: a
     minor's own fact (its object is not a major), riding under the first fact that ties that
     minor to this major, so the major's record can say what the minor is. A fact whose subject
@@ -1845,11 +1944,11 @@ def landings(records, folded):
                 node, direction, minor = obj, "inverse", subject
             else:
                 continue
-            landed[node].append((f, direction, r["label"], f["fact_id"]))
+            landed[node].append((f, direction, r["label"], f["fact_id"], None))
             if minor is not None and (node, minor) not in attached:
                 attached.add((node, minor))
                 for g, label in own_of.get(minor, []):
-                    landed[node].append((g, "about", label, h(g["fact_id"], "rides into", major[node]["name"], major[node]["first_unit"])))
+                    landed[node].append((g, "about", label, h(g["fact_id"], "rides into", *entity_key(major[node])), f["fact_id"]))
     return landed
 
 
@@ -1941,10 +2040,10 @@ def write_package(doc, records, entities, folded, adjudicated, merged, ledger, c
         lines.append({"record": "abstract", "node_id": doc_node, "scope_id": scope, "text": folded["abstract"]["text"],
                       "children_hash": folded["abstract"]["children_hash"], "tier": folded["abstract"]["tier"], "updated_at": written_at})
     for a in folded["entity_abstracts"]:
-        lines.append({"record": "abstract", "node_id": h(doc["doc_id"], a["entity"], a["first_unit"]), "scope_id": scope,
+        lines.append({"record": "abstract", "node_id": node_id_of(doc, {"name": a["entity"], "first_unit": a["first_unit"], "kinds": a["kinds"]}), "scope_id": scope,
                       "text": a["text"], "children_hash": a["children_hash"], "tier": a["tier"], "updated_at": written_at})
     for d in folded["dossiers"]:
-        lines.append({"record": "dossier", "node_id": h(doc["doc_id"], d["entity"], d["first_unit"]), "text": d["text"],
+        lines.append({"record": "dossier", "node_id": node_id_of(doc, {"name": d["entity"], "first_unit": d["first_unit"], "kinds": d["kinds"]}), "text": d["text"],
                       "embedding_model": EMBED_MODEL if "embedding" in d else None, "embedding": d.get("embedding")})
     for entry in ledger:
         lines.append({"record": "ledger", **entry})
@@ -1956,7 +2055,7 @@ def write_package(doc, records, entities, folded, adjudicated, merged, ledger, c
     landed_ids, riding = set(), 0
     for e in folded["majors"]:
         nid = node_id_of(doc, e)
-        for f, direction, label, stored_id in landed[e["index"]]:
+        for f, direction, label, stored_id, tying in landed[e["index"]]:
             landed_ids.add(f["fact_id"])
             riding += direction == "about"
             object_node = node_of.get((position_of[f["unit_id"]], f["object"])) if f["object_is_entity"] else None
@@ -1973,7 +2072,7 @@ def write_package(doc, records, entities, folded, adjudicated, merged, ledger, c
                           "valid_to": f["valid_to"], "tier": f["tier"], "author": f["author"],
                           "provenance": {"ingestor": INGESTOR, "matched_by": f["matched_by"], "subject_name": f["subject"],
                                          "voice_ambiguous": f["voice_ambiguous"],
-                                         "rides_on": f["fact_id"] if direction == "about" else None}})
+                                         "rides_on": tying, "copy_of": f["fact_id"] if direction == "about" else None}})
     dropped_minor = sum(len(r["facts"]) for r in records) - len(landed_ids)
     for m in merged["merges"]:
         lines.append({"record": "predicate_merge", **m, "tier": TERRA})
@@ -1987,8 +2086,9 @@ def write_package(doc, records, entities, folded, adjudicated, merged, ledger, c
     counts = {"units": len(records), "entities": len(entities), "majors": len(folded["majors"]), "minors": len(folded["minors"]),
               "mentions": sum(len(r["mentions"]) for r in records), "facts_kept": sum(len(r["facts"]) for r in records),
               "facts_stored": sum(1 for l in lines if l["record"] == "fact"), "facts_minor_subject": dropped_minor,
-              "facts_riding": riding, "predicates_distinct": merged["distinct"], "predicate_merges": len(merged["merges"]),
-              "predicate_merges_dropped": merged["dropped"],
+              "facts_riding": riding, "predicates_distinct": merged["distinct"], "predicates_standing": merged["standing"],
+              "predicate_merges": len(merged["merges"]), "predicate_merges_dropped": merged["dropped"],
+              "predicate_merges_set_aside": merged["blank"] + merged["repeated"], "predicates_unjudged": len(merged["unjudged"]),
               "facts_rejected": sum(len(r["rejected_facts"]) for r in records),
               "cells": sum(1 for l in lines if l["record"] == "cell"),
               "shared_spans": sum(r["shared_spans"] for r in records), "ambiguous_voice": sum(r["ambiguous_voice"] for r in records),
@@ -2003,6 +2103,7 @@ def write_package(doc, records, entities, folded, adjudicated, merged, ledger, c
               "contradictions": sum(1 for l in lines if l["record"] == "contradiction"),
               "adjudication_dropped": sum(a.get("dropped", 0) for a in adjudicated.values()),
               "adjudications_skipped": sum(1 for a in adjudicated.values() if a.get("skipped")),
+              "adjudications_rejected": sum(1 for a in adjudicated.values() if a.get("rejected")),
               "predicate_judge_skipped": merged["skipped"],
               "abstract": folded["abstract"] is not None}
     lines.append({"record": "completion", "doc_id": doc["doc_id"], "input_hash": input_hash(doc), "ingestor": INGESTOR,
@@ -2063,23 +2164,33 @@ def append_sidecar(doc, row):
 
 def checkpointed(doc):
     """What a previous attempt at this document left in its sidecar, when it belongs to this
-    input: (the kinds triage left out, the unit records in order, their cost, their calls).
-    (None, [], 0, 0) when there is nothing to resume."""
+    input: (the kinds triage left out, the unit records in order, the cost and calls of every
+    row, the triage flags, the document-level stages that finished: reconcile, fold, merged,
+    and adjudicated by entity index). (None, [], 0, 0, [], {}) when there is nothing to resume."""
+    nothing = (None, [], 0.0, 0, [], {"adjudicated": {}})
     side = sidecar_path(doc)
     if not side.exists():
-        return None, [], 0.0, 0
+        return nothing
     rows = [row for row in read_own_jsonl(side) if row.get("ingestor") == INGESTOR and row.get("input_hash") == input_hash(doc)]
     if not rows or "triage" not in rows[0]:
-        return None, [], 0.0, 0
-    excluded = rows[0]["triage"]
+        return nothing
+    excluded, flags = rows[0]["triage"], rows[0].get("flags", [])
+    cost, calls = rows[0].get("cost", 0.0), rows[0].get("calls", 0)
     kept_ids = [u["unit_id"] for u in doc["units"] if unit_kind(doc, u) not in excluded]
-    kept, cost, calls = [], 0.0, 0
+    kept, stages = [], {"adjudicated": {}}
     for row in rows[1:]:
         if "rec" in row and len(kept) < len(kept_ids) and row["rec"]["unit_id"] == kept_ids[len(kept)]:
             kept.append(row["rec"])
-            cost += row.get("cost", 0.0)
-            calls += row.get("calls", 0)
-    return excluded, kept, cost, calls
+        elif "stage" in row and len(kept) == len(kept_ids):
+            if row["stage"] == "adjudicated":
+                stages["adjudicated"][int(row["index"])] = row["result"]
+            else:
+                stages[row["stage"]] = row
+        else:
+            continue
+        cost += row.get("cost", 0.0)
+        calls += row.get("calls", 0)
+    return excluded, kept, cost, calls, flags, stages
 
 
 def triage(doc, ctx):
@@ -2130,7 +2241,7 @@ ADJUDICATE_MIN_FACTS = 4                    # fewer than this, all in one unit: 
 PREDICATES_MIN = 8                          # fewer distinct predicates than this: nothing to merge
 
 
-def adjudicate(records, folded, ctx, watch=False):
+def adjudicate(records, folded, ctx, watch=False, done=None, each=None):
     """One call per document-major over everything the document said about it: its raw facts
     (forward; inverse when the entity was the object of a minor's fact; about when a minor tied
     to it says something of itself) and its cells. The
@@ -2150,14 +2261,15 @@ def adjudicate(records, folded, ctx, watch=False):
     def adjudicate_one(e):
         raws = landed[e["index"]]
         result = {"facts": [], "attributes": [], "contradictions": [], "dropped": 0, "raw": len(raws),
-                  "riding": sum(1 for x in raws if x[1] == "about"), "skipped": None}
+                  "riding": sum(1 for x in raws if x[1] == "about"), "skipped": None, "rejected": False,
+                  "cost": 0.0, "calls": 0}
         if not raws:
             return result
-        if len(raws) < ADJUDICATE_MIN_FACTS and len({f["unit_id"] for f, direction, label, stored_id in raws}) == 1:
+        if len(raws) < ADJUDICATE_MIN_FACTS and len({f["unit_id"] for f, direction, label, stored_id, tying in raws}) == 1:
             result["skipped"] = f"fewer than {ADJUDICATE_MIN_FACTS} facts, one unit: the raw facts stand"
             return result
         listing = []
-        for n, (f, direction, label, stored_id) in enumerate(raws, 1):
+        for n, (f, direction, label, stored_id, tying) in enumerate(raws, 1):
             if direction == "forward":
                 line = f"{n}. {e['name']} {f['predicate']} {f['object']}"
             elif direction == "inverse":
@@ -2167,10 +2279,13 @@ def adjudicate(records, folded, ctx, watch=False):
             if f["qualifiers"]:
                 line += f" [{f['qualifiers']}]"
             listing.append(line + f"  ({label}: \"{' '.join(f['quote'].split())[:120]}\")")
-        predicates = sorted({f["predicate"] for f, direction, label, stored_id in raws})
+        predicates = sorted({f["predicate"] for f, direction, label, stored_id, tying in raws})
+        calls_at = len(CALLS)
         reply = generate(adjudicate_prompt(e["name"], e["kinds"], listing, cells_of[e["index"]], predicates),
-                         ADJUDICATE_SCHEMA, "adjudicate", model=TERRA, effort="medium", ctx=ctx)
-        ids = [stored_id for f, direction, label, stored_id in raws]
+                         ADJUDICATE_SCHEMA, "adjudicate", model=TERRA, effort="medium", ctx={**ctx, "entity": e["name"]})
+        mine = [c for c in CALLS[calls_at:] if c.get("stage") == "adjudicate" and c.get("entity") == e["name"]]
+        result["cost"], result["calls"], result["rejected"] = round(sum(c["cost"] for c in mine), 6), len(mine), reply is None
+        ids = [stored_id for f, direction, label, stored_id, tying in raws]
         for key in ("facts", "attributes", "contradictions"):
             for item in (reply or {}).get(key, []):
                 sources = valid_sources(item.get("from"), len(ids))
@@ -2183,13 +2298,14 @@ def adjudicate(records, folded, ctx, watch=False):
                 result[key].append(kept)
         return result
 
+    done = dict(done or {})
+    todo = [e for e in folded["majors"] if e["index"] not in done]
     if watch:
-        print(f"adjudicate: {len(folded['majors'])} majors, {WORKERS} at a time; a major with fewer than"
+        print(f"adjudicate: {len(folded['majors'])} majors ({len(done)} checkpointed), {WORKERS} at a time; a major with fewer than"
               f" {ADJUDICATE_MIN_FACTS} facts in one unit is not sent")
-    out = {}
-    for e, result in zip(folded["majors"], in_parallel(adjudicate_one, folded["majors"])):
-        out[e["index"]] = result
-    return out
+    for e, result in zip(todo, in_parallel(adjudicate_one, todo, each=each)):
+        done[e["index"]] = result
+    return done
 
 
 PREDICATES_PER_CALL = 80                     # a call sees at most this many predicates; a document with more is judged in slices
@@ -2198,8 +2314,10 @@ PREDICATES_PER_CALL = 80                     # a call sees at most this many pre
 def judge_predicates(adjudicated, folded, ctx):
     """After the majors are ruled and adjudicated, the predicates their consolidated facts use
     are judged together: a group merges only when one predicate fits every fact under it. The
-    map from each raw predicate to the one that stands, the merges with their reasons, and the
-    merges dropped for naming a predicate the document does not use."""
+    map from each raw predicate to the one that stands (chains followed to their end), the
+    merges with their reasons, and what was set aside: blank names, groups naming nothing the
+    document uses, groups repeating an earlier one, and the predicates of a slice whose reply
+    was rejected, which stay unjudged and are named."""
     examples, counts = {}, {}
     for e in folded["majors"]:
         for item in adjudicated.get(e["index"], {}).get("facts", []):
@@ -2211,26 +2329,54 @@ def judge_predicates(adjudicated, folded, ctx):
                 if item.get("qualifiers"):
                     line += f" [{item['qualifiers']}]"
                 shown.append(line)
-    out = {"map": {}, "merges": [], "dropped": 0, "distinct": len(counts), "skipped": len(counts) < PREDICATES_MIN}
+    out = {"map": {}, "merges": [], "dropped": 0, "blank": 0, "repeated": 0, "unjudged": [], "slices": 0,
+           "distinct": len(counts), "standing": len(counts), "skipped": len(counts) < PREDICATES_MIN}
     if out["skipped"]:
         return out
     ordered = sorted(counts, key=counts.get, reverse=True)
-    for at in range(0, len(ordered), PREDICATES_PER_CALL):
-        slice_ = ordered[at:at + PREDICATES_PER_CALL]
-        if len(slice_) < 2:
-            continue
+    slices = [ordered[at:at + PREDICATES_PER_CALL] for at in range(0, len(ordered), PREDICATES_PER_CALL)]
+    if len(slices) > 1 and len(slices[-1]) < 2:       # a tail of one joins the slice before it
+        slices[-2].extend(slices.pop())
+    for slice_ in slices:
+        out["slices"] += 1
         listing = [f"{name} ({counts[name]}): " + "; ".join(examples[name]) for name in slice_]
         reply = generate(predicate_prompt(listing), PREDICATE_SCHEMA, "predicates", model=TERRA, effort="medium", ctx=ctx)
-        for merge in (reply or {}).get("merges", []):
-            target = snake_case(str(merge["predicate"]))
-            absorbed = [snake_case(str(x)) for x in merge["absorbs"] if isinstance(x, str)]
-            absorbed = [x for x in absorbed if x in counts and x != target and x not in out["map"]]
-            if not target or not absorbed:
+        if reply is None:
+            out["unjudged"].extend(slice_)
+            continue
+        for merge in reply.get("merges", []):
+            written = str(merge.get("predicate", "")).strip()
+            if not written:
+                out["blank"] += 1
+                continue
+            target = snake_case(written)
+            absorbed = [snake_case(str(x)) for x in merge.get("absorbs", []) if isinstance(x, str) and x.strip()]
+            known = [x for x in absorbed if x in counts and x != target]
+            if not known:
                 out["dropped"] += 1
                 continue
-            for x in absorbed:
+            fresh = [x for x in known if x not in out["map"]]
+            if not fresh:
+                out["repeated"] += 1
+                continue
+            for x in fresh:
                 out["map"][x] = target
-            out["merges"].append({"predicate": target, "absorbs": absorbed, "reason": str(merge.get("reason", ""))})
+            out["merges"].append({"predicate": target, "absorbs": fresh, "reason": str(merge.get("reason", ""))})
+    # a chain (governs -> rules -> leads) ends at leads for every member; a cycle is left as it was
+    resolved = {}
+    for x in out["map"]:
+        seen, y = {x}, out["map"][x]
+        while y in out["map"] and y not in seen:
+            seen.add(y)
+            y = out["map"][y]
+        if y not in seen:
+            resolved[x] = y
+    out["map"] = resolved
+    for m in out["merges"]:
+        m["predicate"] = resolved.get(m["predicate"], m["predicate"])
+        m["absorbs"] = [x for x in m["absorbs"] if x in resolved]
+    out["merges"] = [m for m in out["merges"] if m["absorbs"]]
+    out["standing"] = len((set(counts) - set(resolved)) | set(resolved.values()))
     return out
 
 
@@ -2238,8 +2384,10 @@ def show_predicates(merged):
     if merged["skipped"]:
         print(f"predicates: {merged['distinct']} distinct across the majors' facts, fewer than {PREDICATES_MIN}: nothing to merge, no call")
         return
-    print(f"predicates: {merged['distinct']} distinct across the majors' facts -> {merged['distinct'] - len(merged['map'])}"
-          f" after {len(merged['merges'])} merges; {merged['dropped']} merges dropped for naming nothing the document uses")
+    print(f"predicates: {merged['distinct']} distinct across the majors' facts -> {merged['standing']} standing"
+          f" after {len(merged['merges'])} merges in {merged['slices']} call(s); set aside: {merged['dropped']} naming nothing the document uses,"
+          f" {merged['blank']} blank, {merged['repeated']} repeating an earlier group"
+          + (f"; {len(merged['unjudged'])} predicates unjudged (a reply was rejected): {', '.join(merged['unjudged'][:8])}" if merged["unjudged"] else ""))
     for m in merged["merges"]:
         print(f"    {m['predicate']} <- {', '.join(m['absorbs'])}  ({m['reason'][:90]})")
 
@@ -2366,14 +2514,14 @@ def ingest(doc, ctx=None, diag=None):
     calls_before, spend_before = len(CALLS), spend()
 
     # which kinds of unit to read: the sidecar's answer when resuming, else the judge's
-    excluded, records, cost_before, calls_before_stop = checkpointed(doc)
-    flags = []
+    excluded, records, cost_before, calls_before_stop, flags, stages = checkpointed(doc)
     if excluded is None:
         side = sidecar_path(doc)
         if side.exists():
             side.unlink()
+        spend_at, calls_at = spend(), len(CALLS)
         excluded, flags = triage(doc, ctx)
-        append_sidecar(doc, {"triage": excluded, "flags": flags})
+        append_sidecar(doc, {"triage": excluded, "flags": flags, "cost": round(spend() - spend_at, 6), "calls": len(CALLS) - calls_at})
     kept, left_out = [], []
     for u in doc["units"]:
         kind = unit_kind(doc, u)
@@ -2388,10 +2536,12 @@ def ingest(doc, ctx=None, diag=None):
     state = Rolling()
     previous = None
     for rec in records:                           # replay what the sidecar holds, its verdicts included
-        roll_unit(state, rec, ctx, replay=rec.get("rolling", {}))
+        if "reconcile" not in stages:             # (unless the sweep itself is checkpointed: nothing rolls again)
+            roll_unit(state, rec, ctx, replay=rec.get("rolling"))
         previous = rec["summary"] or previous
     if records and diag.get("units"):
-        print(f"resuming {doc['source_uri']} from {len(records)} checkpointed units")
+        print(f"resuming {doc['source_uri']} from {len(records)} checkpointed units"
+              + (f" and the stages {sorted(k for k in stages if k != 'adjudicated' or stages[k])}" if any(stages.values()) else ""))
     for u in kept[len(records):]:
         unit = {**u, "text": doc["text"][u["start"]:u["end"]], "kind": unit_kind(doc, u)}
         spend_at, calls_at = spend(), len(CALLS)
@@ -2399,23 +2549,54 @@ def ingest(doc, ctx=None, diag=None):
         rec = derive_unit(doc, unit, roster_of(state), previous, unit_ctx)
         if diag.get("units"):
             show_unit(rec, unit, diag, spend() - spend_at, spend() - spend_before)
-        rec["rolling"] = roll_unit(state, rec, unit_ctx, watch=bool(diag.get("reconcile")))
-        records.append(rec)
-        append_sidecar(doc, {"rec": rec, "cost": round(spend() - spend_at, 6), "calls": len(CALLS) - calls_at})
+        rec["rolling"] = None                     # a stop inside the rolling judge keeps the derive; the judge runs on resume
+        try:
+            rec["rolling"] = roll_unit(state, rec, unit_ctx, watch=bool(diag.get("reconcile")))
+        finally:
+            records.append(rec)
+            append_sidecar(doc, {"rec": rec, "cost": round(spend() - spend_at, 6), "calls": len(CALLS) - calls_at})
         previous = rec["summary"] or previous
 
-    # the document: the sweep, fold, salience, adjudicate, write
+    # the document: the sweep, fold, salience, adjudicate, predicates, write; each stage
+    # checkpointed as it lands, so a stop pays for nothing twice
+    def checkpoint(stage, spend_at, calls_at, **payload):
+        append_sidecar(doc, {"stage": stage, "cost": round(spend() - spend_at, 6), "calls": len(CALLS) - calls_at, **payload})
+
     roster = roster_of(state)
-    entities, ledger, candidates, n_locals, n_pairs, n_judged = finish(state, ctx, watch=bool(diag.get("reconcile")))
+    if "reconcile" in stages:
+        row = stages["reconcile"]
+        entities, ledger, candidates = row["entities"], row["ledger"], row["candidates"]
+        n_locals, n_pairs, n_judged = row["n_locals"], row["n_pairs"], row["n_judged"]
+    else:
+        spend_at, calls_at = spend(), len(CALLS)
+        entities, ledger, candidates, n_locals, n_pairs, n_judged = finish(state, ctx, watch=bool(diag.get("reconcile")))
+        checkpoint("reconcile", spend_at, calls_at, entities=entities, ledger=ledger, candidates=candidates,
+                   n_locals=n_locals, n_pairs=n_pairs, n_judged=n_judged)
     if diag.get("reconcile"):
         show_reconcile(entities, ledger, candidates, n_locals, n_pairs, n_judged, diag)
-    folded = fold_document(doc, records, entities, ctx)
+    if "fold" in stages:
+        folded, entities = stages["fold"]["folded"], stages["fold"]["entities"]
+    else:
+        spend_at, calls_at = spend(), len(CALLS)
+        folded = fold_document(doc, records, entities, ctx)
+        checkpoint("fold", spend_at, calls_at, folded=folded, entities=entities)
     if diag.get("fold"):
         show_fold(folded, diag)
-    adjudicated = adjudicate(records, folded, ctx, watch=bool(diag.get("adjudicate")))
+
+    def keep_adjudication(e, result):
+        append_sidecar(doc, {"stage": "adjudicated", "index": e["index"], "result": result,
+                             "cost": result.get("cost", 0.0), "calls": result.get("calls", 0)})
+
+    adjudicated = adjudicate(records, folded, ctx, watch=bool(diag.get("adjudicate")),
+                             done=stages["adjudicated"], each=keep_adjudication)
     if diag.get("adjudicate"):
         show_adjudication(folded, adjudicated)
-    merged = judge_predicates(adjudicated, folded, ctx)
+    if "merged" in stages:
+        merged = stages["merged"]["merged"]
+    else:
+        spend_at, calls_at = spend(), len(CALLS)
+        merged = judge_predicates(adjudicated, folded, ctx)
+        checkpoint("merged", spend_at, calls_at, merged=merged)
     if diag.get("adjudicate"):
         show_predicates(merged)
     stats = {"locals": n_locals, "candidate_pairs": n_pairs, "judged_pairs": n_judged,
