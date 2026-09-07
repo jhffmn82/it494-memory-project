@@ -107,6 +107,20 @@ chat had built or recommended, that is said plainly.
     into the majors as any minor's do. It is also the salience test the 92-major fallback
     lacked.
 
+53. **The clustering pairs entities off round by round** (Justin, in his own words: "all
+    existing entities entered into clustering, for each entity in clustering its similarity is
+    compared to all other entities in clustering, then those above threshold are filtered by
+    eligibility, then top pair both removed from clustering and entered into pairing queue. When
+    no entities remain in clustering consideration, check each in queue and repeat until nothing
+    is queued"). This replaces the single all-pairs queue and the sweep of 51, which are gone.
+    No entity is in two pairs of one round, so a round's merges cannot conflict and the
+    transitive union that A7's refusal was written for cannot arise inside a round; the refusal
+    stays as a guard the rules should make unreachable. Every round re-scores against the merged
+    clusters, so the strongest evidence merges first and the later rounds see fewer, larger
+    clusters. The threshold is now explicit, `SIMILAR_ENOUGH = 0.35`, the demo's old keep-apart
+    line; on the battery's scripted Oz the rounds converge 19, 9, 3, 1, judging 32 pairs in 6
+    calls where 144 unit-locals become 47 entities.
+
 ## Two corrections to the chat's own claims
 
 - **The judge does not cost 190 pairs for a twenty-chapter character** (Justin: "it shouldn't
