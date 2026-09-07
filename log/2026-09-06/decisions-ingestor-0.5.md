@@ -227,3 +227,12 @@ ambiguous-subject rejection is verified by the review's reproduction, not by the
 38. **Quotes are stored as text**, not only as offsets (Justin's check). Every fact record
     carries `quote` beside `quote_start` and `quote_end`; the battery slices the document at the
     offsets and requires the stored quote back, for every fact and every mention.
+39. **Predicates are not merged** (Justin's ruling, 09-07, and the same ruling he gave on
+    09-06: keep the model's predicate string, a census, no consolidation call). Facts are
+    searched semantically; redundant facts are collapsed by the adjudication and redundant
+    edges by the entity reconciliation; a merged predicate name fits neither original exactly
+    and is one more place to be wrong. The chat had argued for a "consolidated vocabulary" from
+    the 09-02 demo's section 9 and brought it back twice, as the sliced judge (25) and the
+    pairwise judge (32); Justin: "you keep overruling me even when I am right." The pairwise
+    judge, its prompt, schema, map and `predicate_merge` records are out; `adjudicated_fact`
+    carries the predicate the model wrote; the census stays as a count. 2,269 lines.

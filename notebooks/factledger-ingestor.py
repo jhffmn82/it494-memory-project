@@ -9,8 +9,8 @@
 # for the merge that comes next. Nothing here looks at a second document.
 #
 # Every unit is read on its own, with no look back. All merging happens at the end: the
-# unit-local entities are reconciled bottom up through a priority queue of pairs, the facts of
-# each major are consolidated, and the predicates are merged pairwise. Block 1 finds the files.
+# unit-local entities are reconciled bottom up through a priority queue of pairs and the facts
+# of each major are consolidated; predicates stay as the model wrote them. Block 1 finds the files.
 # Block 2 is the model interface, block 3 tests the connection. Block 4 is ids and helpers,
 # block 5 the quote gate, block 6 the prompts. Block 7 derives one unit. Block 8 reconciles,
 # block 9 folds the abstract and decides salience, block 10 writes the package. Block 11 is
@@ -832,8 +832,8 @@ def surface_spans(text, surface, cache=None):
 # %%
 # Block 6: the prompts. One triage per document (which kinds of unit to read), three per unit
 # (entities with surface forms, salience and profile; facts with quotes; summary and cells),
-# one judge over entity pairs, one fold, one adjudication per major, one judge over predicate
-# pairs. None of them knows what kind of document it is reading, and none sees another unit.
+# one judge over entity pairs, one fold, one adjudication per major. None of them knows what
+# kind of document it is reading, and none sees another unit.
 
 ENTITY_SCHEMA = {"type": "object", "required": ["entities"], "properties": {"entities": {"type": "array", "items": {
     "type": "object", "required": ["name", "named", "kind", "surface_forms"], "properties": {
@@ -870,12 +870,6 @@ ADJUDICATE_SCHEMA = {"type": "object", "required": ["facts", "attributes", "cont
         "attribute": {"type": "string"}, "value": {"type": ["string", "null"]}, "from": {"type": "array"}}}},
     "contradictions": {"type": "array", "items": {"type": "object", "required": ["note", "from"], "properties": {
         "note": {"type": "string"}, "from": {"type": "array"}}}}}}
-
-PREDICATE_SCHEMA = {"type": "object", "required": ["verdicts"], "properties": {"verdicts": {"type": "array", "items": {
-    "type": "object", "required": ["pair", "merge"], "properties": {
-        "pair": {"type": ["integer", "string"]}, "merge": {"type": "boolean"}, "name": {"type": ["string", "null"]},
-        "reason": {"type": "string"}}}}}}
-
 
 def triage_prompt(doc, kinds):
     """kinds: {kind: [(position, label, words, first line), ...]} for every unit."""
@@ -976,13 +970,6 @@ FACTS:
 CELLS:
 {chr(10).join(cells) or '(none)'}"""
 
-
-def predicate_prompt(pairs):
-    return f"""Each PAIR below names two predicates used by one document's consolidated facts, each with how many facts use it and examples. The facts were written one unit at a time, so one relation may go by two names. For each pair decide whether the two name the SAME relation in the same direction, so that one name would fit every fact under both; if so, give that name: one of the two where it fits, else a new lowercase_snake_case name in the present tense. Never merge predicates that differ in direction (has_part and is_part_of) or in meaning (rules and serves); a poor fit is worse than two names.
-
-Return JSON {{"verdicts": [{{"pair": n, "merge": true | false, "name": "the name that fits both, or null", "reason": "one sentence"}}]}}
-
-{chr(10).join(pairs)}"""
 
 # %%
 # Block 7: derive one unit. Three calls, every gate applied by code, and one record back with
@@ -1562,7 +1549,7 @@ def landings(records, folded):
     return landed
 
 
-def write_package(doc, records, entities, folded, adjudicated, merged, ledger, candidates, excluded, stats):
+def write_package(doc, records, entities, folded, adjudicated, ledger, candidates, excluded, stats):
     path = package_path(doc)
     path.parent.mkdir(parents=True, exist_ok=True)
     scope, written_at, doc_node = doc["doc_id"], datetime.now(timezone.utc).isoformat(timespec="seconds"), h(doc["doc_id"], "document")
@@ -1615,12 +1602,11 @@ def write_package(doc, records, entities, folded, adjudicated, merged, ledger, c
                           "text": " ".join(c["text"] for c in cells), "tier": LUNA,
                           "provenance": {"ingestor": INGESTOR, "entity_names": [c["entity"] for c in cells]}})
 
-    # the adjudicated record of each major, its predicates as the pairwise judge left them
+    # the adjudicated record of each major, its predicates as the model wrote them
     for e in folded["majors"]:
         nid, result = node_id_of(doc, e), adjudicated.get(e["index"], {"facts": [], "attributes": [], "contradictions": []})
         for item in result["facts"]:
-            raw = snake_case(item["predicate"]) or "related_to"
-            lines.append({"record": "adjudicated_fact", "node_id": nid, "predicate": merged["map"].get(raw, raw), "predicate_raw": raw,
+            lines.append({"record": "adjudicated_fact", "node_id": nid, "predicate": snake_case(item["predicate"]) or "related_to",
                           "object": item["object"], "qualifiers": item.get("qualifiers") or None, "from_facts": item["from_facts"], "tier": TERRA})
         for item in result["attributes"]:
             lines.append({"record": "attribute", "node_id": nid, "attribute": item["attribute"], "value": item["value"], "from_facts": item["from_facts"], "tier": TERRA})
@@ -1660,7 +1646,6 @@ def write_package(doc, records, entities, folded, adjudicated, merged, ledger, c
                           "provenance": {"ingestor": INGESTOR, "matched_by": f["matched_by"], "subject_name": f["subject"],
                                          "voice_ambiguous": f["voice_ambiguous"], "rides_on": tying,
                                          "copy_of": f["fact_id"] if direction == "about" else None}})
-    lines += [{"record": "predicate_merge", **m, "tier": TERRA} for m in merged["merges"]]
     lines.append({"record": "predicate_census", "predicates": predicate_census(records)})
     for r in records:
         lines += [{"record": "rejection", "stage": "facts", "unit_id": r["unit_id"], **x} for x in r["rejected_facts"]]
@@ -1680,8 +1665,7 @@ def write_package(doc, records, entities, folded, adjudicated, merged, ledger, c
               "adjudications_skipped": sum(1 for a in adjudicated.values() if a.get("skipped")),
               "adjudications_rejected": sum(1 for a in adjudicated.values() if a.get("rejected")),
               "facts_unsupported": sum(1 for l in lines if l["record"] == "fact" and l["rank"] == "unsupported"),
-              "predicates_distinct": merged["distinct"], "predicates_standing": merged["standing"], "predicate_pairs": merged["pairs"],
-              "predicate_merges": len(merged["merges"]), "predicate_judge_skipped": merged["skipped"],
+              "predicates_distinct": len({snake_case(item["predicate"]) for a in adjudicated.values() for item in a.get("facts", [])}),
               "abstract": folded["abstract"] is not None}
     lines.append({"record": "completion", "doc_id": doc["doc_id"], "input_hash": input_hash(doc), "ingestor": INGESTOR, "counts": counts,
                   "stats": stats, "empty": counts["facts_stored"] == 0 and counts["cells"] == 0, "excluded": excluded,
@@ -1706,7 +1690,7 @@ def completed(doc):
 #
 # The steps in order: triage (which kinds of unit to read), derive_unit for each unit kept,
 # each checkpointed as it lands, then, all at the end, reconcile, fold_document, adjudicate,
-# judge_predicates, write_package. `diag` is a dict of flags naming what to print as it
+# write_package. `diag` is a dict of flags naming what to print as it
 # happens: triage, units, entities, facts, rejections, cells, reconcile, ledger, fold,
 # adjudicate, package. A finished package for the same input is skipped; a document stopped
 # mid-way resumes from the units its sidecar holds. Every document appends an entry to
@@ -1716,7 +1700,6 @@ DIAG_ALL = {"triage": True, "units": True, "entities": True, "facts": True, "rej
             "reconcile": True, "ledger": False, "fold": True, "adjudicate": True, "package": True}
 RESULTS = []                                  # (source_uri, records, counts, stats) for every document this session ingested
 ADJUDICATE_MIN_FACTS = 4                      # fewer than this, all in one unit: nothing to consolidate, the raw facts stand
-PREDICATES_MIN = 8                            # fewer distinct predicates than this: nothing to merge
 
 
 def append_sidecar(doc, row):
@@ -1830,59 +1813,6 @@ def adjudicate(records, folded, ctx, watch=False):
     return {e["index"]: result for e, result in zip(folded["majors"], in_parallel(adjudicate_one, folded["majors"]))}
 
 
-def judge_predicates(adjudicated, folded, ctx):
-    """After the majors are ruled and adjudicated, their predicates are merged pairwise: every
-    pair of predicates that share a word or read alike is queued, strongest first, and the
-    judge says for each whether one name fits both and what it is. Predicates found the same
-    form a group under the judge's latest name for it. The map from each raw predicate to the
-    name that stands, and the merges with their reasons."""
-    counts, examples = {}, {}
-    for e in folded["majors"]:
-        for item in adjudicated.get(e["index"], {}).get("facts", []):
-            predicate = snake_case(item["predicate"]) or "related_to"
-            counts[predicate] = counts.get(predicate, 0) + 1
-            if len(examples.setdefault(predicate, [])) < 3:
-                examples[predicate].append(f"{e['name']} {predicate} {item['object']}" + (f" [{item['qualifiers']}]" if item.get("qualifiers") else ""))
-    out = {"map": {}, "merges": [], "pairs": 0, "calls": 0, "distinct": len(counts), "standing": len(counts), "skipped": len(counts) < PREDICATES_MIN}
-    if out["skipped"]:
-        return out
-    names = sorted(counts)
-    queue = []
-    for i, a in enumerate(names):
-        for b in names[i + 1:]:
-            alike = difflib.SequenceMatcher(None, a, b).ratio()
-            if name_words(a) & name_words(b) or alike >= 0.6:
-                queue.append((alike + (0.5 if name_words(a) & name_words(b) else 0.0), a, b))
-    queue.sort(reverse=True)
-    out["pairs"] = len(queue)
-    groups, name_of_group, index = Clusters(len(names)), {}, {name: i for i, name in enumerate(names)}
-    for at in range(0, len(queue), PAIRS_PER_CALL):
-        batch = [(a, b) for score, a, b in queue[at:at + PAIRS_PER_CALL] if not groups.same(index[a], index[b])]
-        if not batch:
-            continue
-        listing = [f"PAIR {n}: {a} ({counts[a]}): {'; '.join(examples[a])}  ~  {b} ({counts[b]}): {'; '.join(examples[b])}"
-                   for n, (a, b) in enumerate(batch, 1)]
-        reply = generate(predicate_prompt(listing), PREDICATE_SCHEMA, "predicates", model=TERRA, effort="medium", ctx=ctx)
-        out["calls"] += 1
-        for v in (reply or {}).get("verdicts", []):
-            try:
-                a, b = batch[int(v["pair"]) - 1]
-            except (TypeError, ValueError, IndexError):
-                continue
-            if not v.get("merge"):
-                continue
-            name = snake_case(str(v.get("name") or "")) or a
-            groups.unite(index[a], index[b])
-            name_of_group[groups.find(index[a])] = name
-            out["merges"].append({"a": a, "b": b, "name": name, "reason": str(v.get("reason", ""))})
-    for name in names:
-        root = groups.find(index[name])
-        if root in name_of_group and name != name_of_group[root]:
-            out["map"][name] = name_of_group[root]
-    out["standing"] = len((set(names) - set(out["map"])) | set(out["map"].values()))
-    return out
-
-
 def show_unit(rec, unit, diag, unit_cost, total_cost):
     """One unit as it lands, in the demo's shape."""
     by_category, by_path = {}, {}
@@ -1942,7 +1872,7 @@ def show_fold(folded):
               + (f"also: {', '.join(others)[:60]}" if others else ""))
 
 
-def show_adjudication(folded, adjudicated, merged):
+def show_adjudication(folded, adjudicated):
     total = {"raw": 0, "riding": 0, "facts": 0, "attributes": 0, "contradictions": 0, "unsupported": 0, "dropped": 0}
     for e in folded["majors"]:
         a = adjudicated.get(e["index"])
@@ -1958,15 +1888,6 @@ def show_adjudication(folded, adjudicated, merged):
     print(f"adjudicated: {total['raw']} raw facts ({total['riding']} riding in from minors) -> {total['facts']} facts, {total['attributes']} attributes,"
           f" {total['contradictions']} contradictions; {total['unsupported']} raw facts set aside as unsupported by their passage;"
           f" {total['dropped']} dropped; {sum(1 for a in adjudicated.values() if a['skipped'])} majors left to their raw facts")
-    if merged["skipped"]:
-        print(f"predicates: {merged['distinct']} distinct, fewer than {PREDICATES_MIN}: nothing to merge, no call")
-    else:
-        print(f"predicates: {merged['distinct']} distinct -> {merged['standing']} standing after {len(merged['merges'])} merges"
-              f" ({merged['pairs']} pairs queued, {merged['calls']} calls)")
-        for m in merged["merges"]:
-            print(f"    {m['name']} <- {m['a']} + {m['b']}  ({m['reason'][:90]})")
-
-
 def ingest(doc, ctx=None, diag=None):
     """One document, start to finish: the units on their own, then everything merged at the end."""
     diag, ctx = diag or {}, {"doc": doc["source_uri"], **(ctx or {})}
@@ -2017,9 +1938,8 @@ def ingest(doc, ctx=None, diag=None):
     if diag.get("fold"):
         show_fold(folded)
     adjudicated = adjudicate(records, folded, ctx, watch=bool(diag.get("adjudicate")))
-    merged = judge_predicates(adjudicated, folded, ctx)
     if diag.get("adjudicate"):
-        show_adjudication(folded, adjudicated, merged)
+        show_adjudication(folded, adjudicated)
     stats.update({"calls": len(CALLS) - calls_before + calls_before_stop, "cost": round(spend() - spend_before + cost_before, 4),
                   "matched_by": {}, "rejected_by": {}, "units_excluded": len(left_out), "triage_flags": flags})
     for r in records:
@@ -2027,7 +1947,7 @@ def ingest(doc, ctx=None, diag=None):
             stats["matched_by"][f["matched_by"]] = stats["matched_by"].get(f["matched_by"], 0) + 1
         for x in r["rejected_facts"]:
             stats["rejected_by"][x["category"]] = stats["rejected_by"].get(x["category"], 0) + 1
-    path, counts = write_package(doc, records, entities, folded, adjudicated, merged, ledger, candidates, left_out, stats)
+    path, counts = write_package(doc, records, entities, folded, adjudicated, ledger, candidates, left_out, stats)
     if sidecar_path(doc).exists():
         sidecar_path(doc).unlink()
     if diag.get("package"):

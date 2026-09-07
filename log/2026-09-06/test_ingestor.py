@@ -149,16 +149,6 @@ def stub_generate(prompt, schema, stage, model=None, effort="low", ctx=None):
                 "attributes": [{"attribute": "kind", "value": "character", "from": list(range(1, min(n, 3) + 1))},
                                {"attribute": "standing alone", "value": None, "from": [1]}],
                 "contradictions": [], "unsupported": unsupported}
-    if stage == "predicates":
-        out = []
-        for n, a, b in re.findall(r"^PAIR (\d+): (\S+) \(\d+\).*?  ~  (\S+) \(\d+\)", prompt, re.M):
-            if {a, b} == {"lives_in", "lives_at"}:
-                out.append({"pair": int(n), "merge": True, "name": "lives_in", "reason": "stub: both say where the thing lives"})
-            elif a.startswith("trait_") and b.startswith("trait_"):
-                out.append({"pair": int(n), "merge": True, "name": "" if a == "trait_0" else "trait", "reason": "stub: one trait"})   # a blank name falls back
-            else:
-                out.append({"pair": int(n), "merge": False, "name": None, "reason": "stub: different"})
-        return {"verdicts": out}
     if stage in ("fold", "entity_abstract"):
         records = prompt.split("RECORDS:\n", 1)[1]
         names = sorted(set(CAP.findall(records)) - STOP)[:5]
@@ -295,10 +285,7 @@ loosely = [f for f in facts if f["predicate"] == "is_called"]
 check("a subject written with another case or a leading article is the listed entity", loosely and all(not f["provenance"]["subject_name"].startswith("The ") for f in loosely))
 check("a quote wrapped in the model's own quotation marks is found once they come off, and says so", any(f["provenance"]["matched_by"] == "unwrapped" and f["quote"][:1] not in "“\"" for f in facts))
 check("a quote cited with an ellipsis is kept, its stored quote spanning the pieces", any(f["provenance"]["matched_by"] == "pieces" and " " in f["quote"] for f in facts))
-check("an adjudicated fact keeps its raw predicate beside the one the pairwise judge let stand", any(a["predicate_raw"] == "lives_at" and a["predicate"] == "lives_in" for a in adjudicated) and all("predicate_raw" in a for a in adjudicated))
-check("a predicate merge is a record naming both predicates, the name that stands, and its reason", any(r["record"] == "predicate_merge" and {r["a"], r["b"]} == {"lives_in", "lives_at"} and r["name"] == "lives_in" and r["reason"] for r in lines))
-check("predicates merged in a chain end under one name for every member", len({a["predicate"] for a in adjudicated if a["predicate_raw"].startswith("trait_")}) == 1 and sum(1 for a in adjudicated if a["predicate_raw"].startswith("trait_")) > 2)
-check("a blank merge name falls back to one of the pair, never to a made-up predicate", not any(a["predicate"] in ("", "related_to") for a in adjudicated))
+check("adjudicated predicates are the model's own, unmerged, in snake_case", {"lives_in", "lives_at"} <= {a["predicate"] for a in adjudicated} and not any(r["record"] == "predicate_merge" for r in lines) and "predicate_raw" not in adjudicated[0])
 check("every adjudicated fact points only at raw facts of its own node", adjudicated and all(set(a["from_facts"]) <= fact_ids_of.get(a["node_id"], set()) for a in adjudicated))
 check("attributes point at raw facts too, and an item pointing at nothing was dropped and counted", by.get("attribute") and all(set(a["from_facts"]) <= fact_ids_of.get(a["node_id"], set()) for a in by["attribute"]) and lines[-1]["counts"]["adjudication_dropped"] == len(folded["majors"]))
 check("an adjudicated attribute may stand without a value", any(a["value"] is None for a in by.get("attribute", [])))
@@ -361,7 +348,6 @@ if picked:
           and any(r["record"] == "abstract" and r["node_id"] == ns["h"](picked["doc_id"], "document") for r in rows)
           and not any(cc["stage"] == "fold" for cc in ns["CALLS"] if cc.get("doc") == picked["source_uri"]))
     check("chat: a major with fewer than four facts in one unit is not adjudicated, its raw facts stand", rows[-1]["counts"]["adjudications_skipped"] >= 1)
-    check("chat: fewer than eight distinct predicates means no predicate judge call", rows[-1]["counts"]["predicate_judge_skipped"] and not any(c["stage"] == "predicates" and c.get("doc") == picked["source_uri"] for c in ns["CALLS"]))
     check("chat: unit carries the session date and facts inherit nothing invented", all(f["valid_from"] is None for f in cf) and picked["units"][0]["occurred_at"] == picked["occurred_at"])
 
 # ---------------------------------------------------------------- a paper
