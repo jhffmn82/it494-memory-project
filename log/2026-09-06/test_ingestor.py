@@ -283,6 +283,8 @@ check("the queue is strongest first", [(-c["tier"], -c["combined"]) for c in by[
 check("never minor against minor in the queue", all(any(e["major"] and e["name"] in (c["a"], c["b"]) and r["position"] in (c["a_unit"], c["b_unit"]) for r in records for e in r["entities"]) for c in by["candidate"]))
 check("a pair the judge could not settle was judged once more at the end", any(l["how"] == "judged again" for l in by.get("ledger", [])))
 check("two named locals with the same name and kind unite on sight, no judge", any(l["how"] == "same_name" and l["verdict"] == "same" for l in by["ledger"]))
+check("an object is a node only when the text wrote it as a name, never a lowercase common noun (E3)",
+      not any(f["object_is_node"] and f["object"] and f["object"][:1].islower() for f in facts))
 check("a low-salience major was demoted to minor and has no node", lines[-1]["counts"]["demoted"] > 0 and all(not e["major"] for e in folded["minors"] if e["rank"]["demoted"]) and all(e["rank"]["demoted"] is False for e in folded["majors"]))
 inverse = [f for f in facts if f["direction"] == "inverse"]
 check("a minor's fact about a major lands on the major, marked inverse, with the minor's name as its value", inverse and all(f["subject"] in node_ids and not f["object_is_node"] and f["object"] not in node_ids for f in inverse))
@@ -304,6 +306,11 @@ check("no consolidated fact rests only on facts the same reply set aside; a sour
 check("every entity with facts of its own had them read before anything rode: a minor's unsupported fact rides ranked unsupported (decision 50)",
       any(f["direction"] == "about" and f["rank"] == "unsupported" for f in facts)
       or not any(f["direction"] == "about" for f in facts))
+raw_by_id = {f["fact_id"]: f for f in facts}
+check("a consolidated fact's sources are the raw facts it was drawn from, not any facts of the node (A17)",
+      any(a["predicate"] == "is_a" for a in adjudicated)
+      and all(all(raw_by_id[i]["predicate"] == "is_a" for i in a["from_facts"] if i in raw_by_id)
+              for a in adjudicated if a["predicate"] == "is_a"))
 check("every adjudicated fact points only at raw facts of its own node", adjudicated and all(set(a["from_facts"]) <= fact_ids_of.get(a["node_id"], set()) for a in adjudicated))
 check("attributes point at raw facts too, and an item pointing at nothing was dropped and counted", by.get("attribute") and all(set(a["from_facts"]) <= fact_ids_of.get(a["node_id"], set()) for a in by["attribute"]) and lines[-1]["counts"]["adjudication_dropped"] == len(folded["majors"]))
 check("an adjudicated attribute may stand without a value", any(a["value"] is None for a in by.get("attribute", [])))
@@ -560,10 +567,24 @@ def fake_call(url, payload, model, stage, ctx, prompt_chars):
     return bodies.pop(0)
 
 
+bad_twice = [{"choices": [{"message": {"content": json.dumps({"summary": 7})}}]},
+             {"choices": [{"message": {"content": json.dumps({"summary": None})}}]}]
+
+
+def failing_call(url, payload, model, stage, ctx, prompt_chars):
+    return bad_twice.pop(0)
+
+
+saved_call, ns["call"] = ns["call"], failing_call
+rejected_before = len(ns["REJECTIONS"])
+twice_refused = real_generate("p", ns["FOLD_SCHEMA"], "fold", ctx={"doc": "t"}) is None and len(ns["REJECTIONS"]) == rejected_before + 1
+ns["call"] = saved_call
+
 saved_call, ns["call"] = ns["call"], fake_call
 before = len(ns["RETRIES"])
 reply = real_generate("p", ns["FOLD_SCHEMA"], "fold", ctx={"doc": "t"})
 ns["call"] = saved_call
+check("a reply that misses the shape twice is refused, and the refusal is recorded (E4)", twice_refused, twice_refused)
 check("a reply that misses the shape is asked for again, and the miss is logged as a retry", reply == {"summary": "fine"} and len(ns["RETRIES"]) == before + 1 and "expected string" in ns["RETRIES"][-1]["detail"] and (SCR / "retries.jsonl").exists())
 
 
