@@ -957,7 +957,7 @@ def adjudicate_prompt(name, kinds, facts, cells):
     return f"""Below is everything one document says about one entity, {name} ({', '.join(kinds)}): its facts, numbered, each with the unit it came from and the words it rests on, then its narrative cells in reading order. The units were read one at a time, so the facts repeat, overlap and sometimes disagree, and some are stated from the side of a lesser thing (marked inverse: the entity is the object of that statement). A line marked (about X) is what the document says of a lesser thing X that another line ties to the entity; it is not a fact of the entity itself: fold it into the object or qualifiers of the fact or attribute that names X (Boq, the richest Munchkin), and point "from" at it as well.
 
 Write the entity's consolidated record:
-- "facts": each durable relationship or fact stated once, with "predicate" (lowercase_snake_case, present tense, as the listed facts name it), "object", "qualifiers" (or null), and "from": the numbers of every listed fact it is drawn from. A fact drawn from nothing listed is not allowed.
+- "facts": each durable relationship or fact stated once, with "predicate" (lowercase_snake_case, present tense, as the listed facts name it), "object" (a string), "qualifiers" (one short phrase for role, manner or condition, as a string, else null; never an object), and "from": the numbers of every listed fact it is drawn from. A fact drawn from nothing listed is not allowed.
 - "attributes": what the entity is, has or is like, as "attribute", "value" (or null when the attribute stands on its own) and "from", folding the lesser things named in the facts into the entity itself: a house that has a cellar has the attribute cellar, not a relationship to one.
 - "contradictions": where listed facts disagree, a one-sentence "note" and the "from" numbers; do not resolve them.
 - "unsupported": the numbers of listed facts whose own passage does not state them (a loose citation that says something else, or only part of it); draw on none of these.
@@ -2104,7 +2104,7 @@ def rollup(path, top=5):
     abstracts = {a["node_id"]: a["text"] for a in by.get("abstract", [])}
     cells_of, facts_of = grouped(by.get("cell", []), "node_id"), grouped(by.get("fact", []), "subject")
     adjudicated_of, attributes_of = grouped(by.get("adjudicated_fact", []), "node_id"), grouped(by.get("attribute", []), "node_id")
-    contradictions_of, aliases_of, profile_of = grouped(by.get("contradiction", []), "node_id"), grouped(by.get("alias", []), "node_id"), grouped(by.get("profile", []), "node_id")
+    contradictions_of, aliases_of = grouped(by.get("contradiction", []), "node_id"), grouped(by.get("alias", []), "node_id")
     name_of = {n["node_id"]: n["name"] for n in by.get("node", [])}
 
     print(f"\n{'#' * 8} ROLL-UP: {doc['title'] or doc['source_uri']}  ({doc['source_uri']}; {len(units)} units)")
@@ -2128,8 +2128,6 @@ def rollup(path, top=5):
             print(f"also called: {', '.join(others)}")
         if aliases_of.get(nid):
             print(f"forms: {' | '.join(a['alias'] for a in aliases_of[nid][:20])}")
-        for attribute, value in dict.fromkeys((p["attribute"], p["value"]) for p in profile_of.get(nid, [])):
-            print(f"profile: {attribute} = {value}")
         if nid in abstracts:
             print(f"abstract: {abstracts[nid]}")
         if cells_of.get(nid):
