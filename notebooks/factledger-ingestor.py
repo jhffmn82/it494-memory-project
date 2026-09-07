@@ -905,7 +905,7 @@ Return JSON {{"entities": [{{"name", "named", "kind", "salience", "surface_forms
 - kind: one lowercase word: person, group, place, object, event, topic, or another if none fits
 - salience: "major" only if it would appear in a two-sentence summary of this text, else "minor"
 - surface_forms: every distinct verbatim string the text uses to refer to it, copied exactly, bare pronouns excluded; a string that refers to two different entities in this text is listed under only one of them
-- continues: the name of the established entity this one is, exactly as listed below, or null if it is new to the document
+- continues: the name of the established entity this one is, exactly as listed below, or null if it is new to the document. An established entity that this text involves is listed again, with continues set: that is how its story goes on
 - profile: attributes you infer from context rather than read in the text, as {{"gender", "age_band", "animacy", "role"}} with a value or null each; null when nothing can be inferred{roster_text(roster)}"""
 
 
