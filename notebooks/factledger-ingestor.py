@@ -1220,17 +1220,41 @@ def ledger_row(locals_, a, b, verdict, how, evidence):
             "verdict": verdict, "how": how, "evidence": evidence}
 
 
-def nominate(locals_, clusters):
-    """The priority queue: every pair of locals from different units, not already one cluster,
-    with at least one unit-major, a reason, and no anchor between them; strongest first.
-    [(tier, combined score, a, b, reason, scores)]."""
-    queue = []
+def cluster_members(locals_, clusters):
+    """The locals of each cluster, by its root."""
+    groups = {}
+    for l in locals_:
+        groups.setdefault(clusters.find(l["id"]), []).append(l)
+    return groups
+
+
+def ineligible(members, ra, rb, ruled_apart):
+    """Two clusters are never paired when they hold a local from one unit (that unit already
+    listed them as two things) or a pair the judge ruled different (decisions 44 and 51)."""
+    here, there = members.get(ra, []), members.get(rb, [])
+    if {x["ui"] for x in here} & {y["ui"] for y in there}:
+        return True
+    for x in here:
+        for y in there:
+            if frozenset((x["id"], y["id"])) in ruled_apart:
+                return True
+    return False
+
+
+def nominate(locals_, clusters, ruled_apart):
+    """The priority queue: every pair of locals from different clusters, with at least one
+    unit-major, a reason, no anchor between them and nothing making them ineligible; strongest
+    first. [(tier, combined score, a, b, reason, scores)]."""
+    members, queue = cluster_members(locals_, clusters), []
     for a in locals_:
         for b in locals_[:a["id"]]:
-            if b["ui"] == a["ui"] or not (a["major"] or b["major"]) or clusters.same(a["id"], b["id"]):
+            ra, rb = clusters.find(a["id"]), clusters.find(b["id"])
+            if ra == rb or not (a["major"] or b["major"]):
                 continue
             reason = candidate_reason(a, b)
             if reason is None or anchored(a, b) or anchored(b, a):
+                continue
+            if ineligible(members, ra, rb, ruled_apart):
                 continue
             scores = score_pair(a, b, reason)
             queue.append((TIER[reason], scores[3], b["id"], a["id"], reason, scores))
@@ -1273,46 +1297,50 @@ def reconcile(records, ctx, watch=False):
     """The document's entities from its unit-locals: (entities, ledger, candidates, stats)."""
     locals_ = locals_of(records)
     clusters = Clusters(len(locals_))
-    ledger, candidates = [], []
+    ledger, candidates, ruled_apart = [], [], set()
 
-    # 1. the same proper name and kind: one entity, no judge
+    # 1. the same proper name and kind, nothing in their is_a conflicting: one entity, no judge
     first_named = {}
     for l in locals_:
         if not l["named"]:
             continue
         key = (norm(l["name"]), l["kind"])
-        if key in first_named:
-            clusters.unite(first_named[key]["id"], l["id"])
-            ledger.append(ledger_row(locals_, first_named[key]["id"], l["id"], "same", "same_name", f"both named {l['name']!r}, both {l['kind']}"))
-        else:
+        first = first_named.get(key)
+        if first is None:
             first_named[key] = l
+        elif first["is_a"] and l["is_a"] and not set(first["is_a"]) & set(l["is_a"]):
+            ledger.append(ledger_row(locals_, first["id"], l["id"], "unsure", "same_name_conflicting_is_a",
+                                     f"both named {l['name']!r} but {first['is_a'][:2]} against {l['is_a'][:2]}: the judge decides"))
+        else:
+            clusters.unite(first["id"], l["id"])
+            ledger.append(ledger_row(locals_, first["id"], l["id"], "same", "same_name", f"both named {l['name']!r}, both {l['kind']}"))
 
-    # 2. the queue, and the scores logged for every pair in it
-    queue = nominate(locals_, clusters)
-    for tier, combined, i, j, reason, (name, cooc, profile, _) in queue:
-        candidates.append({"a": locals_[i]["name"], "a_unit": locals_[i]["ui"], "b": locals_[j]["name"], "b_unit": locals_[j]["ui"],
-                           "tier": tier, "reason": reason, "name_score": round(name, 3), "cooc_score": round(cooc, 3),
-                           "profile_score": round(profile, 3), "combined": round(combined, 3)})
-    if watch:
-        print(f"judge: {len(locals_)} unit-locals, {len(ledger)} same-name unions, {len(queue)} pairs queued, {PAIRS_PER_CALL} a call")
-
-    # 3. the judge, from the top of the queue; same unites, different stays apart, unsure waits
-    apart, deferred, judged, calls = [], [], 0, 0
+    # 2. the judge over the queue: same unites, different stays apart, unsure waits for the last
+    #    look. A union that would join a pair already ruled different is refused.
+    apart, deferred, judged, calls, rounds, queued = [], [], 0, 0, 0, 0
 
     def decide(batch, final):
         nonlocal judged, calls
         verdicts = judge(batch, locals_, clusters, ctx)
+        members = cluster_members(locals_, clusters)
         calls += 1
         judged += len(batch)
         for n, (ra, rb) in enumerate(batch):
             verdict, reason = verdicts.get(n, ("unsure", "no verdict returned"))
-            if verdict == "same":
+            how = "judged again" if final else "judged"
+            if verdict == "same" and ineligible(members, clusters.find(ra), clusters.find(rb), ruled_apart):
+                how, reason = "refused", reason + "; would join locals a unit kept apart or the judge ruled different"
+                apart.append((ra, rb))
+                ruled_apart.add(frozenset((ra, rb)))
+            elif verdict == "same":
                 clusters.unite(ra, rb)
+                members = cluster_members(locals_, clusters)
             elif verdict == "different" or final:
                 apart.append((ra, rb))
+                ruled_apart.add(frozenset((ra, rb)))
             else:
                 deferred.append((ra, rb))
-            ledger.append(ledger_row(locals_, ra, rb, verdict, "judged again" if final else "judged", reason))
+            ledger.append(ledger_row(locals_, ra, rb, verdict, how, reason))
 
     def batches(pairs, final):
         k = 0
@@ -1331,12 +1359,32 @@ def reconcile(records, ctx, watch=False):
                 if watch and calls % 5 == 0:
                     print(f"    judge call {calls}: {k} of {len(pairs)} pairs seen, ${spend():.2f} spent this session")
 
-    batches([(i, j) for tier, combined, i, j, reason, scores in queue], final=False)
+    # 3. round after round: a merged cluster carries its members' surfaces, so nominating again
+    #    can turn up pairs that had no reason before. Stop when a round brings nothing new.
+    seen_pairs = set()
+    while True:
+        queue = nominate(locals_, clusters, ruled_apart)
+        fresh = []
+        for tier, combined, i, j, reason, (name, cooc, profile, _) in queue:
+            key = frozenset((clusters.find(i), clusters.find(j)))
+            if key in seen_pairs:
+                continue
+            seen_pairs.add(key)
+            fresh.append((i, j))
+            candidates.append({"a": locals_[i]["name"], "a_unit": locals_[i]["ui"], "b": locals_[j]["name"], "b_unit": locals_[j]["ui"],
+                               "round": rounds + 1, "tier": tier, "reason": reason, "name_score": round(name, 3),
+                               "cooc_score": round(cooc, 3), "profile_score": round(profile, 3), "combined": round(combined, 3)})
+        if not fresh:
+            break
+        rounds, queued = rounds + 1, queued + len(fresh)
+        if watch:
+            print(f"judge round {rounds}: {len(locals_)} unit-locals, {len(fresh)} pairs queued, {PAIRS_PER_CALL} a call")
+        batches(fresh, final=False)
 
     # 4. the deferred pairs' last look against the finished clusters
     last_look, deferred = list(deferred), []
     batches(last_look, final=True)
-    stats = {"locals": len(locals_), "candidate_pairs": len(queue), "judged_pairs": judged, "judge_calls": calls}
+    stats = {"locals": len(locals_), "candidate_pairs": queued, "judged_pairs": judged, "judge_calls": calls, "judge_rounds": rounds}
     return cluster_entities(locals_, clusters), ledger, candidates, stats
 
 
@@ -1859,7 +1907,7 @@ def show_reconcile(entities, ledger, stats, diag):
     for entry in ledger:
         by_how[f"{entry['how']} {entry['verdict']}"] = by_how.get(f"{entry['how']} {entry['verdict']}", 0) + 1
     print(f"reconcile: {stats['locals']} unit-locals -> {len(entities)} document entities; ledger {counts_text(by_how)};"
-          f" {stats['candidate_pairs']} pairs queued, {stats['judged_pairs']} judged in {stats['judge_calls']} calls")
+          f" {stats['candidate_pairs']} pairs queued over {stats['judge_rounds']} rounds, {stats['judged_pairs']} judged in {stats['judge_calls']} calls")
     if diag.get("ledger"):
         for entry in ledger:
             print(f"    {entry['verdict']:<9} {entry['how']:<12} {entry['a'][:28]:<28} (u{entry['a_unit']}) ~ {entry['b'][:28]:<28} (u{entry['b_unit']})  {str(entry['evidence'])[:70]}")

@@ -454,6 +454,66 @@ if zep_uri and Path("papers").exists():
 else:
     print("SKIP  withheld text checks (no Zep paper or no papers/ folder)")
 
+# reconciliation's own rules, on records written by hand so the verdicts can be scripted
+def one_local(position, name, kind, named, major, forms, is_a):
+    return {"unit_id": f"u{position}", "position": position, "label": f"unit {position}", "kind": "chapter",
+            "entities": [{"name": name, "kind": kind, "named": named, "major": major, "forms": forms}],
+            "facts": [{"subject": name, "predicate": "is_a", "object": is_a, "object_is_entity": False,
+                       "qualifiers": None, "quote": "q", "unit_id": f"u{position}"}] if is_a else [],
+            "profile": [], "cells": [], "summary": "s", "mentions": [], "rejected_facts": [], "dropped_entities": [],
+            "shared_spans": 0, "ambiguous_voice": 0, "split_by_voice": 0, "empty": False}
+
+
+def scripted_judge(answers):
+    def judge(batch, locals_, clusters, ctx):
+        out = {}
+        for n, (ra, rb) in enumerate(batch):
+            pair = frozenset((locals_[ra]["name"], locals_[rb]["name"]))
+            out[n] = answers.get(pair, ("unsure", "no rule"))
+        return out
+    return judge
+
+
+saved_judge = ns["judge"]
+
+# A and B ruled different; C then judged the same as both: the second union is refused
+ns["judge"] = scripted_judge({frozenset(("Al", "Bo")): ("different", "two men"),
+                              frozenset(("Al", "Cy")): ("same", "one man"),
+                              frozenset(("Bo", "Cy")): ("same", "one man")})
+recs = [one_local(1, "Al", "person", False, True, ["Al", "the man"], ""),
+        one_local(2, "Bo", "person", False, True, ["Bo", "the man"], ""),
+        one_local(3, "Cy", "person", False, True, ["Cy", "the man"], "")]
+ents, ledger, cands, st = ns["reconcile"](recs, {"doc": "t"})
+groups = [sorted(e["names"]) for e in ents]
+check("a union that would join a pair the judge ruled different is refused, and the ledger says so",
+      not any(sorted(g) == ["Al", "Bo", "Cy"] for g in groups) and any(r["how"] == "refused" for r in ledger), groups)
+
+# two locals of one unit are two things: their clusters are never paired
+two_in_one = one_local(1, "Al", "person", False, True, ["Al", "the man"], "")
+two_in_one["entities"].append({"name": "Bo", "kind": "person", "named": False, "major": True, "forms": ["Bo", "the man"]})
+ns["judge"] = scripted_judge({frozenset(("Al", "Bo")): ("same", "should never be asked")})
+ents2, ledger2, cands2, st2 = ns["reconcile"]([two_in_one], {"doc": "t"})
+check("two locals the same unit listed apart are never nominated, so the judge is never asked",
+      st2["candidate_pairs"] == 0 and st2["judge_calls"] == 0 and len(ents2) == 2)
+
+# the same proper name and kind, with is_a that conflicts: the judge decides instead of an instant union
+ns["judge"] = scripted_judge({frozenset(("Ajax", "Ajax")): ("different", "son of Oileus against son of Telamon")})
+ajax = [one_local(1, "Ajax", "person", True, True, ["Ajax"], "son of Oileus"),
+        one_local(2, "Ajax", "person", True, True, ["Ajax"], "son of Telamon")]
+ents3, ledger3, cands3, st3 = ns["reconcile"](ajax, {"doc": "t"})
+check("the same proper name and kind with conflicting is_a goes to the judge, not an instant union (decision 49)",
+      len(ents3) == 2 and st3["judge_calls"] == 1 and any(r["how"] == "same_name_conflicting_is_a" for r in ledger3))
+
+# the same proper name and kind with is_a that agrees: united on sight, no call
+ns["judge"] = scripted_judge({})
+agree = [one_local(1, "Ajax", "person", True, True, ["Ajax"], "warrior"),
+         one_local(2, "Ajax", "person", True, True, ["Ajax"], "warrior")]
+ents4, ledger4, cands4, st4 = ns["reconcile"](agree, {"doc": "t"})
+check("the same proper name and kind that agree unite on sight, with no judge call",
+      len(ents4) == 1 and st4["judge_calls"] == 0 and any(r["how"] == "same_name" for r in ledger4))
+
+ns["judge"] = saved_judge
+
 # a first reply that misses the shape is logged as a retry, and the second reply is used
 bodies = [{"choices": [{"message": {"content": json.dumps({"summary": 7})}}]},
           {"choices": [{"message": {"content": json.dumps({"summary": "fine"})}}]}]
