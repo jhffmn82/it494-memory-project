@@ -16,8 +16,9 @@
 # reconciled, the abstract folded, each major adjudicated, the package written, with flags that
 # print each step as it happens. Block 12 names documents and block 13 is the run.
 #
-# **On Kaggle:** attach the export dataset (`jhffmn/it494-factledger-step0`), attach
-# `OPENAI_API_KEY` under Add-ons > Secrets, turn Internet on under Settings, run block 3 to see
+# **On Kaggle:** attach the export dataset (`jhffmn/it494-factledger-step0`) and, to read the
+# reference papers whose text it withholds, the private PDFs (`jhffmn/it494-reference-papers`);
+# attach `OPENAI_API_KEY` under Add-ons > Secrets, turn Internet on under Settings, run block 3 to see
 # the connection work, set `RUN` and `SPEND_STOP` in block 13, and Save & Run All. The packages
 # land under `/kaggle/working/packages` and are kept as the version's output. To continue a
 # stopped run, make a dataset from that output and attach it: finished packages are copied in
@@ -46,6 +47,9 @@ KAGGLE_EXPORTS = (Path("/kaggle/input/datasets/jhffmn/it494-factledger-step0"), 
 LOCAL_EXPORT = Path("data/export")
 KAGGLE_OUT = Path("/kaggle/working/packages")
 LOCAL_OUT = Path("data/packages")
+KAGGLE_PAPERS = (Path("/kaggle/input/datasets/jhffmn/it494-reference-papers"),   # the private PDFs, either mount
+                 Path("/kaggle/input/it494-reference-papers"))
+LOCAL_PAPERS = Path("papers")
 
 if hasattr(sys.stdout, "reconfigure"):            # a console that is not UTF-8 must not end the run
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
@@ -70,8 +74,68 @@ def choose_out():
     return LOCAL_OUT
 
 
+def choose_papers():
+    """The folder holding the reference papers' PDFs, or None. The public export withholds
+    their text, so it is read back from the PDF when one of them is wanted."""
+    if os.environ.get("PAPERS"):
+        return Path(os.environ["PAPERS"])
+    for path in KAGGLE_PAPERS + (LOCAL_PAPERS,):
+        if path.exists():
+            return path
+    return None
+
+
+def index_papers():
+    """doc_id -> the papers.jsonl row (file, pdf_sha256, source_url) for every document whose
+    text the export withholds; empty when the export withholds nothing."""
+    path = EXPORT / "papers.jsonl"
+    if not path.exists():
+        return {}
+    return {row["doc_id"]: row for row in read_jsonl(path)}
+
+
+def pdf_reader():
+    """PyMuPDF, the extractor's one dependency, imported only when a withheld text is wanted."""
+    try:
+        import pymupdf
+    except ImportError:
+        try:
+            import fitz as pymupdf                # PyMuPDF before 1.24.3 has only its old module name
+        except ImportError:
+            import subprocess
+            subprocess.run([sys.executable, "-m", "pip", "install", "-q", "pymupdf"], check=True)
+            import pymupdf
+    return pymupdf
+
+
+def pdf_text(data):
+    """The extractor's reading of a PDF, kept verbatim so the export's offsets resolve: the text
+    layer page by page, pages joined with a newline."""
+    doc = pdf_reader().open(stream=data, filetype="pdf")
+    return "\n".join(page.get_text() for page in doc)
+
+
+def withheld_text(doc):
+    """The text of a document the export withholds: the PDF that papers.jsonl names, found
+    under PAPERS, checked against the recorded sha256, read the extractor's way."""
+    row = PAPERS_ROWS.get(doc["doc_id"])
+    if row is None:
+        raise ValueError(f"{doc['source_uri']}: the text is withheld and papers.jsonl does not name its PDF")
+    if PAPERS is None:
+        raise ValueError(f"{doc['source_uri']}: the text is withheld; attach the papers dataset"
+                         " (jhffmn/it494-reference-papers) or set PAPERS to the folder of PDFs")
+    path = PAPERS / row["file"]
+    if not path.exists():
+        raise ValueError(f"{doc['source_uri']}: the text is withheld and {path} is not there")
+    data = path.read_bytes()
+    if hashlib.sha256(data).hexdigest() != row["pdf_sha256"]:
+        raise ValueError(f"{doc['source_uri']}: {path.name} is not the PDF the export was made from (its sha256 differs)")
+    return pdf_text(data)
+
+
 EXPORT = choose_export()
 OUT = choose_out()
+PAPERS = choose_papers()
 OUT.mkdir(parents=True, exist_ok=True)
 
 
@@ -160,6 +224,12 @@ def load_document(uri, by_uri, units, pieces):
     assert doc["doc_id"] == entry["doc_id"]
     doc["units"] = units.get(doc["doc_id"], [])
     doc["pieces"] = pieces.get(doc["doc_id"], [])
+    doc["text_rebuilt"] = doc["text"] is None
+    if doc["text_rebuilt"]:                       # the export withholds it: read the PDF the extractor's way
+        doc["text"] = withheld_text(doc)
+        if doc["units"] and doc["units"][-1]["end"] != len(doc["text"]):
+            raise ValueError(f"{uri}: the rebuilt text has {len(doc['text']):,} chars but the units end at"
+                             f" {doc['units'][-1]['end']:,}; the PDF was read differently from the extractor")
     for u in doc["units"]:                        # every unit must be a real slice of the text
         assert 0 <= u["start"] < u["end"] <= len(doc["text"]), (uri, u["position"])
         assert doc["text"][u["start"]:u["end"]].strip(), (uri, u["position"])
@@ -191,10 +261,14 @@ def find_document(name):
 
 SEEDED = seed_from_prior_output()
 BY_URI = index_documents()
+PAPERS_ROWS = index_papers()
 UNITS = group_by_document(read_jsonl(EXPORT / "units.jsonl"))
 PIECES = group_by_document(read_jsonl(EXPORT / "pieces.jsonl"))
 print(f"export {EXPORT}: {len(BY_URI)} documents, {sum(len(g) for g in UNITS.values())} units,"
       f" {sum(len(g) for g in PIECES.values())} pieces; packages to {OUT}")
+if PAPERS_ROWS:
+    print(f"{len(PAPERS_ROWS)} documents have their text withheld; their PDFs are"
+          f" {'under ' + str(PAPERS) if PAPERS else 'NOT attached: attach jhffmn/it494-reference-papers to read them'}")
 if SEEDED:
     print(f"{SEEDED} files seeded from a previous run's output")
 
@@ -2084,7 +2158,7 @@ def run(uris, diag=None, stop_on_error=False):
                 skipped += 1
                 continue
             if diag and diag.get("units"):
-                print(f"\n=== {uri}: {len(doc['units'])} units, {len(doc['text']):,} chars,"
+                print(f"\n=== {uri}: {len(doc['units'])} units, {len(doc['text']):,} chars{' (text rebuilt from the PDF)' if doc.get('text_rebuilt') else ''},"
                       f" author {doc.get('author')!r}, date {doc.get('occurred_at')} ===")
             path, counts, stats, records, entities, folded = ingest(doc, diag=diag)
             with MANIFEST.open("a", encoding="utf-8") as f:

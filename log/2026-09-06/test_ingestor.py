@@ -350,5 +350,35 @@ side_cut.unlink()
 rec = ns["receipt"]()
 check("receipt sums matched_by and rejected_by across documents and costs from the packages", rec["documents"] >= 5 and rec["matched_by"].get("exact", 0) > 0 and rec["rejected_by"].get("not_found", 0) > 0 and rec["cost_of_packages"] > 0 and rec["in_flight_sidecars"] == [])
 check("staleness: a changed child changes children_hash", ns["children_hash"](["a", "b"]) != ns["children_hash"](["a", "c"]) and ns["children_hash"](["a", "b"]) == ns["children_hash"](["a", "b"]))
+# withheld text: the public export ships the reference papers with null text and a papers.jsonl
+# row naming the PDF; the ingestor reads the PDF back exactly as the extractor did
+zep_uri = ns["find_document"]("rasmussen2025-zep.pdf")
+if zep_uri and Path("papers").exists():
+    real = ns["load_document"](zep_uri, ns["BY_URI"], ns["UNITS"], ns["PIECES"])
+    withheld = {"doc_id": real["doc_id"], "source_uri": real["source_uri"], "text": None}
+    saved_rows, saved_papers = ns["PAPERS_ROWS"], ns["PAPERS"]
+    ns["PAPERS_ROWS"] = {real["doc_id"]: {"file": "rasmussen2025-zep.pdf", "pdf_sha256": real["sha256"]}}
+    try:
+        ns["pdf_reader"]()
+        ns["PAPERS"] = Path("papers")
+        check("a withheld text is rebuilt from its PDF exactly as the extractor read it", ns["withheld_text"](withheld) == real["text"])
+        ns["PAPERS_ROWS"][real["doc_id"]]["pdf_sha256"] = "0" * 64
+        try:
+            ns["withheld_text"](withheld)
+            check("a PDF that does not hash to the export's record is refused", False)
+        except ValueError as e:
+            check("a PDF that does not hash to the export's record is refused", "sha256" in str(e))
+    except ImportError:
+        print("SKIP  withheld text rebuild (PyMuPDF not installed)")
+    ns["PAPERS"] = None
+    try:
+        ns["withheld_text"](withheld)
+        check("without the papers dataset a withheld text is a clear error, not a crash", False)
+    except ValueError as e:
+        check("without the papers dataset a withheld text is a clear error, not a crash", "attach" in str(e))
+    ns["PAPERS_ROWS"], ns["PAPERS"] = saved_rows, saved_papers
+else:
+    print("SKIP  withheld text checks (no Zep paper or no papers/ folder)")
+
 print(f"\n{sum(results)} of {len(results)} checks pass")
 sys.exit(0 if all(results) else 1)
