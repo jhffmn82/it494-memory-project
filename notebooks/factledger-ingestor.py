@@ -9,10 +9,12 @@
 # for the merge that comes next. Nothing here looks at a second document.
 #
 # Every step is a function. Block 1 finds the files. Block 2 is the model interface and block 3
-# tests the connection. Block 4 is ids and helpers. Block 5 is the quote gate. Blocks 6 to 8
-# derive one unit and reconcile a document. Block 9 folds the abstract. Block 10 writes the
-# package. Block 11 is the pipeline as one function, with flags that print each step as it
-# happens. Block 12 names documents and block 13 is the run.
+# tests the connection. Block 4 is ids and helpers. Block 5 is the quote gate. Block 6 holds the
+# prompts. Block 7 derives one unit and block 8 reconciles a document's entities. Block 9 folds
+# the abstract and decides salience. Block 10 writes the package. Block 11 is the pipeline as one
+# function: a judge decides which kinds of unit to read, the units are derived, the entities
+# reconciled, the abstract folded, each major adjudicated, the package written, with flags that
+# print each step as it happens. Block 12 names documents and block 13 is the run.
 #
 # **On Kaggle:** attach the export dataset (`jhffmn/it494-factledger-step0`), attach
 # `OPENAI_API_KEY` under Add-ons > Secrets, turn Internet on under Settings, run block 3 to see
@@ -38,8 +40,9 @@ import unicodedata
 from datetime import datetime, timezone
 from pathlib import Path
 
-INGESTOR = "factledger-ingestor 0.3"
-KAGGLE_EXPORT = Path("/kaggle/input/datasets/jhffmn/it494-factledger-step0")
+INGESTOR = "factledger-ingestor 0.4"
+KAGGLE_EXPORTS = (Path("/kaggle/input/datasets/jhffmn/it494-factledger-step0"),   # Kaggle mounts a dataset at either
+                  Path("/kaggle/input/it494-factledger-step0"))
 LOCAL_EXPORT = Path("data/export")
 KAGGLE_OUT = Path("/kaggle/working/packages")
 LOCAL_OUT = Path("data/packages")
@@ -51,8 +54,9 @@ if hasattr(sys.stdout, "reconfigure"):            # a console that is not UTF-8 
 def choose_export():
     if os.environ.get("EXPORT"):
         return Path(os.environ["EXPORT"])
-    if KAGGLE_EXPORT.exists():
-        return KAGGLE_EXPORT
+    for path in KAGGLE_EXPORTS:
+        if path.exists():
+            return path
     if LOCAL_EXPORT.exists():
         return LOCAL_EXPORT
     raise SystemExit("no export found: attach the dataset on Kaggle, or set EXPORT to a folder holding documents.jsonl")
@@ -78,6 +82,21 @@ def read_jsonl(path):
         for line in f:
             if line.strip():
                 rows.append(json.loads(line))
+    return rows
+
+
+def read_own_jsonl(path):
+    """The ingestor's own files, which a killed session can leave cut short: the rows up to the
+    first line that does not parse."""
+    rows = []
+    with path.open(encoding="utf-8") as f:
+        for line in f:
+            if not line.strip():
+                continue
+            try:
+                rows.append(json.loads(line))
+            except ValueError:
+                break
     return rows
 
 
@@ -687,7 +706,7 @@ def triage_prompt(doc, kinds):
     """kinds: {kind: [(position, label, words, first line), ...]} for every unit of the document."""
     lines = []
     for kind, units in kinds.items():
-        lines.append(f"KIND {kind!r}: {len(units)} unit(s)")
+        lines.append(f"KIND {kind}: {len(units)} unit(s)")
         for position, label, words, first in units:
             lines.append(f"  unit {position} ({label[:40]}, {words:,} words): {first}")
         lines.append("")
@@ -846,8 +865,11 @@ def derive_unit(doc, unit, roster, previous_summary, ctx):
                 forms.append(surface)
                 spans.extend(free_hits)
         if not spans:
-            why = "every span already claimed by an earlier entity" if found_any else "no surface form in unit"
-            rec["dropped_entities"].append({"name": name, "why": why, "forms": e["surface_forms"][:5]})
+            if found_any:
+                why, category = "every span already claimed by an earlier entity", "span_claimed"
+            else:
+                why, category = "no surface form in unit", "no_surface_form"
+            rec["dropped_entities"].append({"name": name, "why": why, "category": category, "forms": e["surface_forms"][:5]})
             continue
         seen_names.add(name)
         for span in spans:
@@ -1101,11 +1123,14 @@ def score_pair(a, b, reason):
         profile = sum(a["profile"][k] == b["profile"][k] for k in shared_keys) / len(shared_keys)
     else:
         profile = 0.5
-    combined = 0.6 * name + 0.25 * cooc + 0.15 * profile
+    w_name, w_cooc, w_profile = SCORE_WEIGHTS
+    combined = w_name * name + w_cooc * cooc + w_profile * profile
     return name, cooc, profile, combined
 
 
 TIER = {"declared": 1.0, "shared_surface": 1.0, "is_a_link": 0.85, "shared_word": 0.5}   # the demo's nomination strengths
+PAIRS_PER_CALL = 10                                # candidate pairs per judge call, as the demo did
+SCORE_WEIGHTS = (0.6, 0.25, 0.15)                  # name, co-occurrence, profile: logged for every pair, deciding nothing
 
 
 def tier_of(item):
@@ -1147,7 +1172,7 @@ def reconcile(doc, records, ctx):
             parent[rb] = ra
         row(a, b, "same", how, evidence)
 
-    # 1. declared continuations of a named entity, and the same proper name in two units
+    # 1. declared continuations of a named entity unite without a judge
     by_name = {}
     for l in locals_:
         by_name.setdefault(norm(l["name"]), []).append(l)
@@ -1197,14 +1222,13 @@ def reconcile(doc, records, ctx):
             f"units: {', '.join(str(u) for u in sorted({l['ui'] for l in ks}))}"])
 
     kept_apart = []                                # pairs the judge ruled different, read through find()
+    deferred = []                                  # pairs the judge called unsure, to be judged once more at the end
 
     def ruled_apart(ra, rb):
-        for x, y in kept_apart:
+        for x, y in kept_apart + deferred:
             if {find(x), find(y)} == {ra, rb}:
                 return True
         return False
-
-    deferred = []
 
     def judge(batch):
         """One call over up to ten pairs of cluster roots; the verdicts in batch order."""
@@ -1237,7 +1261,7 @@ def reconcile(doc, records, ctx):
     k = 0
     while k < len(to_judge):
         batch, keys = [], set()
-        while k < len(to_judge) and len(batch) < 10:
+        while k < len(to_judge) and len(batch) < PAIRS_PER_CALL:
             ra, rb = find(to_judge[k][0]), find(to_judge[k][1])
             k += 1
             key = frozenset((ra, rb))
@@ -1249,14 +1273,15 @@ def reconcile(doc, records, ctx):
 
     # deferred pairs get one last look against the finished clusters; the default is to stay split
     final, seen = [], set()
-    for a, b in deferred:
+    still_deferred, deferred = list(deferred), []
+    for a, b in still_deferred:
         ra, rb = find(a), find(b)
         key = frozenset((ra, rb))
         if ra != rb and key not in seen and not ruled_apart(ra, rb):
             final.append((ra, rb))
             seen.add(key)
-    for start in range(0, len(final), 10):
-        batch = final[start:start + 10]
+    for start in range(0, len(final), PAIRS_PER_CALL):
+        batch = final[start:start + PAIRS_PER_CALL]
         decide(batch, judge(batch), final=True)
 
     # 4. the document entities, one per cluster
@@ -1293,7 +1318,8 @@ def reconcile(doc, records, ctx):
 # there, as whole words, is major, unit count then fact count break ties; with no abstract the
 # tie-breakers decide alone, and the node says so. A major of low salience at document level, seen
 # in fewer units and with fewer facts than the numbers below, is demoted to minor so the merge is
-# never asked to nominate it. Majors get a dossier with an embedding and their own abstract with
+# never asked to nominate it; in a document with fewer units than the first number (a chat is
+# one), the unit count means nothing and no one is demoted. Majors get a dossier with an embedding and their own abstract with
 # children_hash.
 DEMOTE_UNITS = 2      # a major seen in fewer units than this ...
 DEMOTE_FACTS = 3      # ... and with fewer facts than this is demoted to minor
@@ -1301,7 +1327,9 @@ DEMOTE_FACTS = 3      # ... and with fewer facts than this is demoted to minor
 
 def fold(what, children, ctx, stage="fold", model=TERRA, allowed=None):
     """(text, missing names, limit); text is None when the fold was rejected twice. `allowed`
-    are names the prompt itself supplies (the entity being summarised), which count as present."""
+    are names the prompt itself supplies (the entity being summarised), which count as present.
+    The model that wrote the fold is the caller's `model`; a fold that needed no call is Luna's,
+    because its text is a Luna unit summary or cell copied whole."""
     child_words = sum(word_count(c) for c in children)
     limit = min(400, max(1, child_words // 2))
     asked = limit if limit < 12 else limit * 9 // 10        # a little under the bound, never over it
@@ -1343,13 +1371,14 @@ def fold_document(doc, records, entities, ctx):
     work = [r for r in records if r["summary"]]
     summaries = [f"[{r['label']}] {r['summary']}" for r in work]
     if len(summaries) == 1:                       # one summarised unit: its summary is the abstract, no call
-        text, missing, limit = work[0]["summary"], [], None
+        text, missing, limit, tier = work[0]["summary"], [], None, LUNA
     elif summaries:
         text, missing, limit = fold("one document", summaries, ctx)
+        tier = TERRA
     else:
-        text, missing, limit = None, ["(no unit summaries)"], None
+        text, missing, limit, tier = None, ["(no unit summaries)"], None, None
     if text:
-        out["abstract"] = {"text": text, "children_hash": children_hash(summaries), "limit": limit}
+        out["abstract"] = {"text": text, "children_hash": children_hash(summaries), "limit": limit, "tier": tier}
     else:
         out["abstract_rejected"] = missing
 
@@ -1368,7 +1397,7 @@ def fold_document(doc, records, entities, ctx):
     for major, n_units, n_facts, in_abstract, e in ranked:
         e["major"] = major
         e["rank"] = {"in_abstract": in_abstract, "units": n_units, "facts": n_facts, "demoted": False}
-        if major and n_units < DEMOTE_UNITS and n_facts < DEMOTE_FACTS:
+        if major and len(records) >= DEMOTE_UNITS and n_units < DEMOTE_UNITS and n_facts < DEMOTE_FACTS:
             e["major"] = False                    # low salience at document level: demoted to minor
             e["rank"]["demoted"] = True
         if e["major"]:
@@ -1414,13 +1443,14 @@ def fold_document(doc, records, entities, ctx):
             continue
         if len(children) <= 2:                    # too little to fold: the children stand as the abstract
             text = " ".join(c.split("] ", 1)[-1] for c in children)
-            missing = []
+            missing, tier = [], LUNA
         else:
             text, missing, _ = fold(f"one entity, {e['name']}", children, ctx, stage="entity_abstract",
                                     allowed=e["names"] + e["surfaces"])
+            tier = TERRA
         if text:
             out["entity_abstracts"].append({"entity": e["name"], "first_unit": e["first_unit"], "text": text,
-                                            "children_hash": children_hash(children)})
+                                            "children_hash": children_hash(children), "tier": tier})
         else:
             out["entity_abstract_rejected"].append({"entity": e["name"], "missing": missing})
     return out
@@ -1429,7 +1459,7 @@ def fold_document(doc, records, entities, ctx):
 # Block 10: the package.
 #
 # One JSONL file per document, mirroring the raw layout (raw/oz/01_55.txt becomes
-# packages/oz/01_55.jsonl), every line one record with a "record" field naming its type, in the
+# packages/oz/01_55.jsonl, a paper lands under its own folder's name), every line one record with a "record" field naming its type, in the
 # order the merge applies them, ending in a completion record whose input_hash says which
 # extractor output it came from. Minors have no node and their mentions carry node_id null. A
 # fact from a major to a minor is a property with the minor's name as its value; a fact from a
@@ -1440,10 +1470,9 @@ def fold_document(doc, records, entities, ctx):
 
 
 def package_path(doc):
+    """packages/<the folder the source sits in>/<its file name>.jsonl"""
     parts = doc["source_uri"].split("/")
     group = parts[-2] if len(parts) > 1 else "misc"
-    if doc["source_uri"].endswith(".pdf"):
-        group = "papers"
     return OUT / group / (Path(parts[-1]).stem + ".jsonl")
 
 
@@ -1580,10 +1609,10 @@ def write_package(doc, records, entities, folded, adjudicated, ledger, candidate
     # the document level: abstracts, dossiers, the ledger, the candidates, the census, rejections
     if folded["abstract"]:
         lines.append({"record": "abstract", "node_id": doc_node, "scope_id": scope, "text": folded["abstract"]["text"],
-                      "children_hash": folded["abstract"]["children_hash"], "tier": LUNA, "updated_at": written_at})
+                      "children_hash": folded["abstract"]["children_hash"], "tier": folded["abstract"]["tier"], "updated_at": written_at})
     for a in folded["entity_abstracts"]:
         lines.append({"record": "abstract", "node_id": h(doc["doc_id"], a["entity"], a["first_unit"]), "scope_id": scope,
-                      "text": a["text"], "children_hash": a["children_hash"], "tier": LUNA, "updated_at": written_at})
+                      "text": a["text"], "children_hash": a["children_hash"], "tier": a["tier"], "updated_at": written_at})
     for d in folded["dossiers"]:
         lines.append({"record": "dossier", "node_id": h(doc["doc_id"], d["entity"], d["first_unit"]), "text": d["text"],
                       "embedding_model": EMBED_MODEL if "embedding" in d else None, "embedding": d.get("embedding")})
@@ -1596,8 +1625,7 @@ def write_package(doc, records, entities, folded, adjudicated, ledger, candidate
         for x in r["rejected_facts"]:
             lines.append({"record": "rejection", "stage": "facts", "unit_id": r["unit_id"], **x})
         for x in r["dropped_entities"]:
-            category = "no_surface_form" if x["why"].startswith("no ") else "span_claimed"
-            lines.append({"record": "rejection", "stage": "entities", "category": category, "unit_id": r["unit_id"], **x})
+            lines.append({"record": "rejection", "stage": "entities", "unit_id": r["unit_id"], **x})
 
     counts = {"units": len(records), "entities": len(entities), "majors": len(folded["majors"]), "minors": len(folded["minors"]),
               "mentions": sum(len(r["mentions"]) for r in records), "facts_kept": sum(len(r["facts"]) for r in records),
@@ -1606,6 +1634,10 @@ def write_package(doc, records, entities, folded, adjudicated, ledger, candidate
               "cells": sum(1 for l in lines if l["record"] == "cell"),
               "shared_spans": sum(r["shared_spans"] for r in records), "ambiguous_voice": sum(r["ambiguous_voice"] for r in records),
               "empty_units": sum(r["empty"] for r in records), "units_excluded": len(excluded),
+              "in_summary_without_cell": sum(len(r["agreement"]["in_summary_without_cell"]) for r in records if r["agreement"]),
+              "cell_without_summary_name": sum(len(r["agreement"]["cell_without_summary_name"]) for r in records if r["agreement"]),
+              "major_without_fact": sum(len(r["agreement"]["major_without_fact"]) for r in records if r["agreement"]),
+              "fact_but_minor": sum(len(r["agreement"]["fact_but_minor"]) for r in records if r["agreement"]),
               "demoted": len(folded.get("demoted", [])),
               "adjudicated_facts": sum(1 for l in lines if l["record"] == "adjudicated_fact"),
               "attributes": sum(1 for l in lines if l["record"] == "attribute"),
@@ -1626,7 +1658,7 @@ def completed(doc):
     path = package_path(doc)
     if not path.exists():
         return None
-    rows = read_jsonl(path)
+    rows = read_own_jsonl(path)
     if not rows:
         return None
     last = rows[-1]
@@ -1670,27 +1702,29 @@ def append_sidecar(doc, row):
 
 def checkpointed(doc):
     """What a previous attempt at this document left in its sidecar, when it belongs to this
-    input: (the kinds triage left out, the unit records in order). (None, []) when there is
-    nothing to resume."""
+    input: (the kinds triage left out, the unit records in order, their cost, their calls).
+    (None, [], 0, 0) when there is nothing to resume."""
     side = sidecar_path(doc)
     if not side.exists():
-        return None, []
-    rows = [row for row in read_jsonl(side) if row.get("ingestor") == INGESTOR and row.get("input_hash") == input_hash(doc)]
+        return None, [], 0.0, 0
+    rows = [row for row in read_own_jsonl(side) if row.get("ingestor") == INGESTOR and row.get("input_hash") == input_hash(doc)]
     if not rows or "triage" not in rows[0]:
-        return None, []
+        return None, [], 0.0, 0
     excluded = rows[0]["triage"]
     kept_ids = [u["unit_id"] for u in doc["units"] if unit_kind(doc, u) not in excluded]
-    kept = []
+    kept, cost, calls = [], 0.0, 0
     for row in rows[1:]:
         if "rec" in row and len(kept) < len(kept_ids) and row["rec"]["unit_id"] == kept_ids[len(kept)]:
             kept.append(row["rec"])
-    return excluded, kept
+            cost += row.get("cost", 0.0)
+            calls += row.get("calls", 0)
+    return excluded, kept, cost, calls
 
 
 def triage(doc, ctx):
     """The judge's call on which kinds of unit are not the work: {kind: reason}, plus any flags.
     One call per document; none when the document has a single kind, since leaving it out would
-    leave nothing. An answer that would leave out more than half the units is ignored."""
+    leave nothing. The judge's answer stands whatever it leaves out, short of everything."""
     kinds = {}
     for u in doc["units"]:
         text = doc["text"][u["start"]:u["end"]]
@@ -1699,14 +1733,21 @@ def triage(doc, ctx):
         return {}, []
     reply = generate(triage_prompt(doc, kinds), TRIAGE_SCHEMA, "triage", ctx=ctx)
     excluded, flags = {}, []
+    if reply is None:
+        flags.append("triage reply rejected twice; every kind was read")
     for item in (reply or {}).get("exclude", []):
-        if item["kind"] in kinds:
-            excluded[item["kind"]] = item["reason"]
-        else:
+        named = str(item["kind"]).strip().strip("'\"").casefold()
+        matched = None
+        for kind in kinds:
+            if kind.casefold() == named:
+                matched = kind
+        if matched is None:
             flags.append(f"triage named a kind the document does not have: {item['kind']!r}")
+        else:
+            excluded[matched] = item["reason"]
     left_out = sum(len(kinds[kind]) for kind in excluded)
-    if left_out > len(doc["units"]) / 2:
-        flags.append(f"triage would leave out {left_out} of {len(doc['units'])} units; ignored")
+    if left_out >= len(doc["units"]):                    # the judge may leave out anything but everything
+        flags.append(f"triage would leave out every unit ({len(doc['units'])}); ignored")
         excluded = {}
     return excluded, flags
 
@@ -1896,7 +1937,7 @@ def ingest(doc, ctx=None, diag=None):
     calls_before, spend_before = len(CALLS), spend()
 
     # which kinds of unit to read: the sidecar's answer when resuming, else the judge's
-    excluded, records = checkpointed(doc)
+    excluded, records, cost_before, calls_before_stop = checkpointed(doc)
     flags = []
     if excluded is None:
         side = sidecar_path(doc)
@@ -1924,10 +1965,10 @@ def ingest(doc, ctx=None, diag=None):
         print(f"resuming {doc['source_uri']} from {len(records)} checkpointed units")
     for u in kept[len(records):]:
         unit = {**u, "text": doc["text"][u["start"]:u["end"]], "kind": unit_kind(doc, u)}
-        spend_at = spend()
+        spend_at, calls_at = spend(), len(CALLS)
         rec = derive_unit(doc, unit, roster, previous, {**ctx, "unit": u["position"]})
         records.append(rec)
-        append_sidecar(doc, {"rec": rec})
+        append_sidecar(doc, {"rec": rec, "cost": round(spend() - spend_at, 6), "calls": len(CALLS) - calls_at})
         advance_roster(roster, rec)
         previous = rec["summary"] or previous
         if diag.get("units"):
@@ -1944,7 +1985,7 @@ def ingest(doc, ctx=None, diag=None):
     if diag.get("adjudicate"):
         show_adjudication(folded, adjudicated)
     stats = {"locals": n_locals, "candidate_pairs": n_pairs, "judged_pairs": n_judged,
-             "calls": len(CALLS) - calls_before, "cost": round(spend() - spend_before, 4),
+             "calls": len(CALLS) - calls_before + calls_before_stop, "cost": round(spend() - spend_before + cost_before, 4),
              "matched_by": {}, "rejected_by": {}, "roster_size": len(roster["entities"]), "predicates": len(roster["predicates"]),
              "units_excluded": len(left_out), "triage_flags": flags}
     for r in records:
@@ -2040,7 +2081,7 @@ def receipt():
         if path.name.endswith(".units.jsonl"):
             rec["in_flight_sidecars"].append(str(path.relative_to(OUT)).replace("\\", "/"))
             continue
-        rows = read_jsonl(path)
+        rows = read_own_jsonl(path)
         if not rows or rows[-1].get("record") != "completion":
             continue
         last = rows[-1]

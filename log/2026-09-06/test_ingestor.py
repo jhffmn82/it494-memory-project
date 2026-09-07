@@ -120,7 +120,7 @@ def stub_generate(prompt, schema, stage, model=None, effort="low", ctx=None):
             out.append({"pair": int(n), "verdict": verdict, "reason": "stub"})
         return {"verdicts": out}
     if stage == "triage":                                        # leave out the kinds that are not the work
-        kinds = re.findall(r"^KIND '([^']+)':", prompt, re.M)
+        kinds = re.findall(r"^KIND ([^:]+):", prompt, re.M)
         return {"exclude": [{"kind": k, "reason": "not the work"} for k in kinds if k in ("license", "front_matter", "references")]}
     if stage == "adjudicate":
         n = len(re.findall(r"^\d+\. ", prompt.split("FACTS:\n", 1)[1].split("\nCELLS:")[0], re.M))
@@ -331,6 +331,7 @@ script["stop_at"] = len(ns["CALLS"]) + triage_calls + 11           # three units
 done, skipped = ns["run"]([gr["source_uri"]])
 side = ns["sidecar_path"](gr)
 check("a spend stop mid-document leaves a sidecar of the triage and the finished units, and no package", done == 0 and side.exists() and not ns["package_path"](gr).exists() and len(ns["checkpointed"](gr)[1]) == 3, len(ns["checkpointed"](gr)[1]) if side.exists() else "no sidecar")
+check("the sidecar carries the cost of the units it holds", ns["checkpointed"](gr)[2] > 0 and ns["checkpointed"](gr)[3] == 9)
 script["stop_at"] = None
 calls_before = len(ns["CALLS"])
 done, skipped = ns["run"]([gr["source_uri"]])
@@ -339,6 +340,11 @@ rows = list(ns["read_jsonl"](p_gr))
 check("the resumed run reuses the triage and finishes the document from the sidecar, deriving only the remaining units", done == 1 and rows[-1]["record"] == "completion" and not side.exists()
       and not any(c["stage"] == "triage" for c in ns["CALLS"][calls_before:])
       and sum(1 for c in ns["CALLS"][calls_before:] if c["stage"] == "entities") == rows[-1]["counts"]["units"] - 3, sum(1 for c in ns["CALLS"][calls_before:] if c["stage"] == "entities"))
+check("the completion's cost and calls include the units paid for before the stop", rows[-1]["stats"]["calls"] > len(ns["CALLS"]) - calls_before and rows[-1]["stats"]["cost"] > sum(c["cost"] for c in ns["CALLS"][calls_before:]))
+side_cut = ns["sidecar_path"](gr)
+side_cut.write_text('{"ingestor": "x", "input_hash": "y", "triage": {}}\n{"ingestor": "x", "input_hash": "y", "rec": {"unit_id": "z", "broken', encoding="utf-8")
+check("a sidecar cut short by a kill does not poison the document", ns["checkpointed"](gr) == (None, [], 0.0, 0))
+side_cut.unlink()
 
 # ---------------------------------------------------------------- staleness is a hash comparison
 rec = ns["receipt"]()
