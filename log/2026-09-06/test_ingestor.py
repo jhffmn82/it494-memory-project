@@ -238,6 +238,10 @@ adjudicated = by.get("adjudicated_fact", [])
 fact_ids_of = {}
 for f in facts:
     fact_ids_of.setdefault(f["subject"], set()).add(f["fact_id"])
+about = [f for f in facts if f["direction"] == "about"]
+check("a minor's own fact rides into the major it is tied to, marked about, under an id of its own naming the fact it rides on", about and all(f["subject"] in node_ids and not f["object_is_node"] and f["provenance"]["rides_on"] and f["fact_id"] != f["provenance"]["rides_on"] for f in about) and lines[-1]["counts"]["facts_riding"] == len(about))
+check("a minor tied to no major keeps nothing, and the count says so", lines[-1]["counts"]["facts_minor_subject"] > 0)
+check("a riding fact keeps its quote at document offsets", all(f["quote_start"] < f["quote_end"] and f["quote"] for f in about))
 check("every adjudicated fact points only at raw facts of its own node", adjudicated and all(set(a["from_facts"]) <= fact_ids_of.get(a["node_id"], set()) for a in adjudicated))
 check("attributes point at raw facts too, and an item pointing at nothing was dropped and counted", by.get("attribute") and all(set(a["from_facts"]) <= fact_ids_of.get(a["node_id"], set()) for a in by["attribute"]) and lines[-1]["counts"]["adjudication_dropped"] == len(folded["majors"]))
 check("adjudicated predicates are snake_case", all(a["predicate"] == ns["snake_case"](a["predicate"]) for a in adjudicated))

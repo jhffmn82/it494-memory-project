@@ -800,7 +800,7 @@ Which kinds, if any, should be left out entirely? A kind is left out whole, so k
 
 def adjudicate_prompt(name, kinds, facts, cells, predicates):
     """facts: numbered lines; cells: in reading order; predicates: the names the document used."""
-    return f"""Below is everything one document says about one entity, {name} ({', '.join(kinds)}): its facts, numbered, each with the unit it came from and the words it rests on, then its narrative cells in reading order. The units were read one at a time, so the facts repeat, overlap and sometimes disagree, and some are stated from the side of a lesser thing (marked inverse: the entity is the object of that statement).
+    return f"""Below is everything one document says about one entity, {name} ({', '.join(kinds)}): its facts, numbered, each with the unit it came from and the words it rests on, then its narrative cells in reading order. The units were read one at a time, so the facts repeat, overlap and sometimes disagree, and some are stated from the side of a lesser thing (marked inverse: the entity is the object of that statement). A line marked (about X) is what the document says of a lesser thing X that another line ties to the entity; it is not a fact of the entity itself: fold it into the object or qualifiers of the fact or attribute that names X (Boq, the richest Munchkin), and point "from" at it as well.
 
 Write the entity's consolidated record:
 - "facts": each durable relationship or fact stated once, with "predicate" (lowercase_snake_case, present tense, reusing a name from the list below where one fits), "object", "qualifiers" (or null), and "from": the numbers of every listed fact it is drawn from. A fact drawn from nothing listed is not allowed.
@@ -1624,6 +1624,46 @@ def predicate_census(records):
     return census
 
 
+def landings(records, folded):
+    """Where every kept fact lands: {major index: [(fact, direction, unit label, stored id)]}.
+    forward: the major is the subject. inverse: a minor's fact about the major. about: a
+    minor's own fact (its object is not a major), riding under the first fact that ties that
+    minor to this major, so the major's record can say what the minor is. A fact whose subject
+    is a minor tied to no major lands nowhere. A riding fact is stored under each major it
+    rides into, under an id of its own that names the fact it rides on."""
+    entity_of, major = {}, {}
+    for e in folded["majors"] + folded["minors"]:
+        for ui, local_name in e["members"]:
+            entity_of[(ui, local_name)] = e["index"]
+    for e in folded["majors"]:
+        major[e["index"]] = e
+    own_of = {}                                   # a minor's facts about itself, in reading order
+    for r in records:
+        for f in r["facts"]:
+            subject = entity_of.get((r["position"], f["subject"]))
+            obj = entity_of.get((r["position"], f["object"])) if f["object_is_entity"] else None
+            if subject is not None and subject not in major and obj not in major:
+                own_of.setdefault(subject, []).append((f, r["label"]))
+    landed = {index: [] for index in major}
+    attached = set()
+    for r in records:
+        for f in r["facts"]:
+            subject = entity_of.get((r["position"], f["subject"]))
+            obj = entity_of.get((r["position"], f["object"])) if f["object_is_entity"] else None
+            if subject in major:
+                node, direction, minor = subject, "forward", obj if obj is not None and obj not in major else None
+            elif obj in major:
+                node, direction, minor = obj, "inverse", subject
+            else:
+                continue
+            landed[node].append((f, direction, r["label"], f["fact_id"]))
+            if minor is not None and (node, minor) not in attached:
+                attached.add((node, minor))
+                for g, label in own_of.get(minor, []):
+                    landed[node].append((g, "about", label, h(g["fact_id"], "rides into", major[node]["name"], major[node]["first_unit"])))
+    return landed
+
+
 def write_package(doc, records, entities, folded, adjudicated, ledger, candidates, excluded, stats):
     path = package_path(doc)
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -1678,23 +1718,6 @@ def write_package(doc, records, entities, folded, adjudicated, ledger, candidate
                 seen_profile.add(key)
                 lines.append({"record": "profile", "node_id": nid, "attribute": p["attribute"], "value": p["value"],
                               "confidence": p["confidence"], "from_unit": p["from_unit"]})
-        for f in r["facts"]:
-            subject_node = node_of.get((r["position"], f["subject"]))
-            object_node = node_of.get((r["position"], f["object"])) if f["object_is_entity"] else None
-            if subject_node is not None:
-                node, obj, is_node, direction = subject_node, object_node or f["object"], object_node is not None, "forward"
-            elif object_node is not None:            # a minor's fact about a major: it lands on the major
-                node, obj, is_node, direction = object_node, f["subject"], False, "inverse"
-            else:
-                dropped_minor += 1
-                continue
-            lines.append({"record": "fact", "fact_id": f["fact_id"], "subject": node, "predicate": f["predicate"],
-                          "object": obj, "object_is_node": is_node, "direction": direction,
-                          "qualifiers": f["qualifiers"], "rank": "active", "unit_id": f["unit_id"], "quote": f["quote"],
-                          "quote_start": f["quote_start"], "quote_end": f["quote_end"], "valid_from": f["valid_from"],
-                          "valid_to": f["valid_to"], "tier": f["tier"], "author": f["author"],
-                          "provenance": {"ingestor": INGESTOR, "matched_by": f["matched_by"], "subject_name": f["subject"],
-                                         "voice_ambiguous": f["voice_ambiguous"]}})
         if r["summary"]:
             lines.append({"record": "cell", "cell_id": h(doc_node, r["unit_id"]), "node_id": doc_node, "unit_id": r["unit_id"],
                           "scope_id": scope, "text": r["summary"], "tier": LUNA,
@@ -1737,6 +1760,31 @@ def write_package(doc, records, entities, folded, adjudicated, ledger, candidate
         lines.append({"record": "ledger", **entry})
     for entry in candidates:
         lines.append({"record": "candidate", **entry})
+    # facts, each under the major it lands on: forward, inverse, or about (a minor's own fact,
+    # riding under the fact that ties the minor to the major); a fact landing nowhere is counted
+    landed = landings(records, folded)
+    landed_ids, riding = set(), 0
+    for e in folded["majors"]:
+        nid = node_id_of(doc, e)
+        for f, direction, label, stored_id in landed[e["index"]]:
+            landed_ids.add(f["fact_id"])
+            riding += direction == "about"
+            object_node = node_of.get((position_of[f["unit_id"]], f["object"])) if f["object_is_entity"] else None
+            if direction == "forward":
+                obj, is_node = object_node or f["object"], object_node is not None
+            elif direction == "inverse":              # the minor's name is the value
+                obj, is_node = f["subject"], False
+            else:                                     # about: the minor's own fact, its name in the provenance
+                obj, is_node = f["object"], False
+            lines.append({"record": "fact", "fact_id": stored_id, "subject": nid, "predicate": f["predicate"],
+                          "object": obj, "object_is_node": is_node, "direction": direction,
+                          "qualifiers": f["qualifiers"], "rank": "active", "unit_id": f["unit_id"], "quote": f["quote"],
+                          "quote_start": f["quote_start"], "quote_end": f["quote_end"], "valid_from": f["valid_from"],
+                          "valid_to": f["valid_to"], "tier": f["tier"], "author": f["author"],
+                          "provenance": {"ingestor": INGESTOR, "matched_by": f["matched_by"], "subject_name": f["subject"],
+                                         "voice_ambiguous": f["voice_ambiguous"],
+                                         "rides_on": f["fact_id"] if direction == "about" else None}})
+    dropped_minor = sum(len(r["facts"]) for r in records) - len(landed_ids)
     lines.append({"record": "predicate_census", "predicates": predicate_census(records)})
     for r in records:
         for x in r["rejected_facts"]:
@@ -1747,6 +1795,7 @@ def write_package(doc, records, entities, folded, adjudicated, ledger, candidate
     counts = {"units": len(records), "entities": len(entities), "majors": len(folded["majors"]), "minors": len(folded["minors"]),
               "mentions": sum(len(r["mentions"]) for r in records), "facts_kept": sum(len(r["facts"]) for r in records),
               "facts_stored": sum(1 for l in lines if l["record"] == "fact"), "facts_minor_subject": dropped_minor,
+              "facts_riding": riding,
               "facts_rejected": sum(len(r["rejected_facts"]) for r in records),
               "cells": sum(1 for l in lines if l["record"] == "cell"),
               "shared_spans": sum(r["shared_spans"] for r in records), "ambiguous_voice": sum(r["ambiguous_voice"] for r in records),
@@ -1884,47 +1933,44 @@ def valid_sources(numbers, n):
 
 def adjudicate(records, folded, ctx):
     """One call per document-major over everything the document said about it: its raw facts
-    (forward, and inverse when the entity was the object of a minor's fact) and its cells. The
+    (forward; inverse when the entity was the object of a minor's fact; about when a minor tied
+    to it says something of itself) and its cells. The
     consolidated facts, attributes and contradictions come back pointing at the numbered raw
     facts; an item pointing at nothing listed is dropped and counted. Keyed by entity index."""
     member_index = {}
     for e in folded["majors"]:
         for ui, local_name in e["members"]:
             member_index[(ui, local_name)] = e["index"]
-    raw_of = {e["index"]: [] for e in folded["majors"]}
+    landed = landings(records, folded)
     cells_of = {e["index"]: [] for e in folded["majors"]}
     for r in records:
-        for f in r["facts"]:
-            as_subject = member_index.get((r["position"], f["subject"]))
-            as_object = member_index.get((r["position"], f["object"])) if f["object_is_entity"] else None
-            if as_subject is not None:
-                raw_of[as_subject].append((f, "forward", r["label"]))
-            elif as_object is not None:
-                raw_of[as_object].append((f, "inverse", r["label"]))
         for c in r["cells"]:
             index = member_index.get((r["position"], c["entity"]))
             if index is not None:
                 cells_of[index].append(f"[{r['label']}] {c['text']}")
     out = {}
     for e in folded["majors"]:
-        raws = raw_of[e["index"]]
-        result = {"facts": [], "attributes": [], "contradictions": [], "dropped": 0, "raw": len(raws)}
+        raws = landed[e["index"]]
+        result = {"facts": [], "attributes": [], "contradictions": [], "dropped": 0, "raw": len(raws),
+                  "riding": sum(1 for x in raws if x[1] == "about")}
         out[e["index"]] = result
         if not raws:
             continue
         listing = []
-        for n, (f, direction, label) in enumerate(raws, 1):
+        for n, (f, direction, label, stored_id) in enumerate(raws, 1):
             if direction == "forward":
                 line = f"{n}. {e['name']} {f['predicate']} {f['object']}"
-            else:
+            elif direction == "inverse":
                 line = f"{n}. (inverse) {f['subject']} {f['predicate']} {e['name']}"
+            else:
+                line = f"{n}. (about {f['subject']}) {f['subject']} {f['predicate']} {f['object']}"
             if f["qualifiers"]:
                 line += f" [{f['qualifiers']}]"
             listing.append(line + f"  ({label}: \"{' '.join(f['quote'].split())[:120]}\")")
-        predicates = sorted({f["predicate"] for f, direction, label in raws})
+        predicates = sorted({f["predicate"] for f, direction, label, stored_id in raws})
         reply = generate(adjudicate_prompt(e["name"], e["kinds"], listing, cells_of[e["index"]], predicates),
                          ADJUDICATE_SCHEMA, "adjudicate", model=TERRA, effort="medium", ctx=ctx)
-        ids = [f["fact_id"] for f, direction, label in raws]
+        ids = [stored_id for f, direction, label, stored_id in raws]
         for key in ("facts", "attributes", "contradictions"):
             for item in (reply or {}).get(key, []):
                 sources = valid_sources(item.get("from"), len(ids))
@@ -2012,16 +2058,16 @@ def show_triage(doc, excluded, left_out, flags):
 
 
 def show_adjudication(folded, adjudicated):
-    total = {"raw": 0, "facts": 0, "attributes": 0, "contradictions": 0, "dropped": 0}
+    total = {"raw": 0, "riding": 0, "facts": 0, "attributes": 0, "contradictions": 0, "dropped": 0}
     for e in folded["majors"]:
         a = adjudicated.get(e["index"])
         if not a:
             continue
         for key in total:
-            total[key] += a[key] if key in ("raw", "dropped") else len(a[key])
+            total[key] += a[key] if key in ("raw", "riding", "dropped") else len(a[key])
         print(f"    {e['name'][:34]:<34} {a['raw']:>3} raw facts -> {len(a['facts']):>3} facts, {len(a['attributes']):>3} attributes,"
               f" {len(a['contradictions'])} contradictions" + (f", {a['dropped']} dropped for pointing at nothing" if a["dropped"] else ""))
-    print(f"adjudicated: {total['raw']} raw facts -> {total['facts']} facts, {total['attributes']} attributes,"
+    print(f"adjudicated: {total['raw']} raw facts ({total['riding']} riding in from minors) -> {total['facts']} facts, {total['attributes']} attributes,"
           f" {total['contradictions']} contradictions; {total['dropped']} dropped")
 
 
