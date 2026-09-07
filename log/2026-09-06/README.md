@@ -220,6 +220,11 @@ The offline battery ended the night at 111 checks. An adversarial review of the 
 
 The 0.5 run showed the rolling reconciliation costing four times the derive and stalling; Justin
 ruled it out. 0.6 reads every unit on its own and merges everything at the end: an agglomerative
-priority queue of entity pairs judged ten a call, the majors' facts consolidated, predicates
-merged pairwise by a judge. Ellipsis quotes are kept. The file is 2,284 lines (from 3,000); the
-battery is at 105 checks. Rulings 32 to 35 in `decisions-ingestor-0.5.md`, audit item 31.
+priority queue of entity pairs judged ten a call, then the majors' facts consolidated. Predicates
+are not merged and not renamed: they stay as the model wrote them, at both layers, a ruling
+Justin had given on 09-06 and had to give again. The gate keeps ellipsis quotes (`pieces`) and
+citations reworded at the edges (`words`, a longest-common-subsequence match storing the text's
+own passage); the adjudication ranks a fact `unsupported` when its passage does not state it.
+The file is 2,269 lines (from 3,000); the battery is at 106 checks. Rulings 32 to 41 in
+`decisions-ingestor-0.5.md`, audit items 31 and 32; the chat's account is in
+`devlog-ingestor-0.5.md`.
