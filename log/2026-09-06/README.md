@@ -198,3 +198,20 @@ that version's output as an input before the next Save & Run All.
   13); the header unit costs one call that returns nothing.
 - The reconciliation numbers (0.6/0.25/0.15, 0.85/0.35) and `ROSTER_SHOWN` 60, to rule after
   the run.
+
+## 0.5, the night of 09-06 into 09-07
+
+The first real run (0.4, Oz book 1: 358 entities, 38 majors, 869 facts, 74 rejected, $2.23, receipt and rejections in this folder's `receipt.json` and `rejections.jsonl` as Justin uploaded them) was read against the design, and the five papers failed to load because the public export withholds their text. Rulings 24 to 29 in `audit.md` followed within the evening. Commits, each with the battery green:
+
+- `7b0b2c6` a withheld text is rebuilt from its PDF (private papers dataset), sha256 and units' end checked.
+- `53971fd` a first schema miss is logged in `retries.jsonl`; an attribute may have a null value.
+- `7f6aba0` a minor's own facts ride into the major it is tied to (`about`); `landings` decides where every fact lands.
+- `12c3ebe` stage A: loose subject match, unwrapped quotes, rejected abstracts printed, adjudication progress; version 0.5.
+- `e60f0a1` stage B: rolling reconciliation, the both-named rule, the roster of all majors plus sixty recent minors, verdicts replayed on resume.
+- `76438c1` stage C: predicates free during derive, judged after adjudication; `predicate_raw`, `predicate_merge`.
+- `d9cb559` stage D: entity abstracts and adjudications four at a time.
+- `890a849` the entity prompt re-lists an established entity the unit involves.
+- `2d7a307` nothing to fold, no call: adjudication skipped under four facts in one unit; the predicate judge under eight predicates.
+- `8525579` the final roll-up per document and one knowledge graph per document, the 09-02 demo's way; block 14 (five papers) in the repo.
+
+The offline battery is at 102 checks. An adversarial review of the 0.5 code (six lenses, one refuter per finding) ran after stage D; its confirmed findings and fixes are recorded below when it returns.
