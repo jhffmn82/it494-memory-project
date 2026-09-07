@@ -331,6 +331,13 @@ else:
     torn_resume_ok = [k["unit_id"] for k in kept_] == [u["unit_id"] for u in doc["units"][:2]]
     side.unlink()
 
+import io, contextlib
+buffer = io.StringIO()
+with contextlib.redirect_stdout(buffer):
+    ns["rollup"](path, top=2)
+printed = buffer.getvalue()
+check("the roll-up reads a finished package back and prints it, abstract, units, majors and the audit",
+      "ROLL-UP" in printed and "MAJOR ENTITIES" in printed and "consolidated facts" in printed, printed[:80])
 check("each document keeps its own folder, named after its file, with the package inside it",
       path.parent.name == "01_55" and path.name == "01_55.jsonl" and path.parent.parent.name == "oz")
 check("two entities the judge kept apart never share a node id (decision 48)",
