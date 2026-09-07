@@ -126,7 +126,8 @@ def stub_generate(prompt, schema, stage, model=None, effort="low", ctx=None):
         n = len(re.findall(r"^\d+\. ", prompt.split("FACTS:\n", 1)[1].split("\nCELLS:")[0], re.M))
         return {"facts": [{"predicate": "is_a", "object": "character", "qualifiers": None, "from": [1]},
                           {"predicate": "bogus", "object": "nothing", "qualifiers": None, "from": [999]}],   # points at nothing: dropped
-                "attributes": [{"attribute": "kind", "value": "character", "from": list(range(1, min(n, 3) + 1))}],
+                "attributes": [{"attribute": "kind", "value": "character", "from": list(range(1, min(n, 3) + 1))},
+                               {"attribute": "standing alone", "value": None, "from": [1]}],
                 "contradictions": []}
     if stage in ("fold", "entity_abstract"):
         records = prompt.split("RECORDS:\n", 1)[1]
@@ -142,6 +143,7 @@ def stub_embed(texts, stage="embed", ctx=None):
     return [[float(int(ns["h"](t)[:8], 16) % 1000) / 1000.0] * 4 for t in texts]
 
 
+real_generate = ns["generate"]                                   # kept for the retry check below
 ns["generate"], ns["embed"] = stub_generate, stub_embed
 
 # ---------------------------------------------------------------- unit checks of the helpers
@@ -379,6 +381,22 @@ if zep_uri and Path("papers").exists():
     ns["PAPERS_ROWS"], ns["PAPERS"] = saved_rows, saved_papers
 else:
     print("SKIP  withheld text checks (no Zep paper or no papers/ folder)")
+
+# a first reply that misses the shape is logged as a retry, and the second reply is used
+bodies = [{"choices": [{"message": {"content": json.dumps({"summary": 7})}}]},
+          {"choices": [{"message": {"content": json.dumps({"summary": "fine"})}}]}]
+
+
+def fake_call(url, payload, model, stage, ctx, prompt_chars):
+    return bodies.pop(0)
+
+
+saved_call, ns["call"] = ns["call"], fake_call
+before = len(ns["RETRIES"])
+reply = real_generate("p", ns["FOLD_SCHEMA"], "fold", ctx={"doc": "t"})
+ns["call"] = saved_call
+check("a reply that misses the shape is asked for again, and the miss is logged as a retry", reply == {"summary": "fine"} and len(ns["RETRIES"]) == before + 1 and "expected string" in ns["RETRIES"][-1]["detail"] and (SCR / "retries.jsonl").exists())
+check("an adjudicated attribute may stand without a value", any(a["value"] is None for a in by.get("attribute", [])))
 
 print(f"\n{sum(results)} of {len(results)} checks pass")
 sys.exit(0 if all(results) else 1)

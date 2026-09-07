@@ -176,7 +176,7 @@ def seed_from_prior_output():
         if not folder.is_dir():
             continue
         for src in folder.rglob("*.jsonl"):
-            if src.name in ("manifest.jsonl", "calls.jsonl", "rejections.jsonl"):
+            if src.name in ("manifest.jsonl", "calls.jsonl", "rejections.jsonl", "retries.jsonl"):
                 continue
             dst = OUT / src.relative_to(folder)
             if not dst.exists():
@@ -279,7 +279,7 @@ if SEEDED:
 # that name. Raw HTTP to the API. The API rejects temperature, so reasoning_effort steers it.
 # Every call is appended to CALLS and to calls.jsonl on disk the moment it returns, with model,
 # tokens, latency and cost. A reply that does not fit its schema is asked for once more with
-# the error appended, then counted as a rejection. A timeout, a dropped connection, a 429 or a
+# the error appended, then counted as a rejection; the first miss is logged in retries.jsonl. A timeout, a dropped connection, a 429 or a
 # 5xx is retried three times; a 429 for exhausted quota ends the run like the spend stop. The
 # stop is checked before every call.
 import http.client
@@ -305,6 +305,7 @@ if not KEY:
 
 CALLS = []                                 # every call this session
 REJECTIONS = []                            # every reply rejected this session
+RETRIES = []                               # every reply asked for again this session
 
 
 class SpendStop(Exception):
@@ -442,6 +443,9 @@ def generate(prompt, schema, stage, model=LUNA, effort="low", ctx=None):
         except (SchemaError, ValueError, TypeError, KeyError, IndexError) as e:
             error = f"{type(e).__name__}: {e}"
             if attempt == 0:
+                row = {"stage": stage, "category": "schema", "detail": error[:200], **ctx}
+                RETRIES.append(row)
+                record("retries.jsonl", row)
                 prompt = prompt + f"\n\nYour previous reply did not fit the required shape ({error}). Reply again, in exactly the shape asked for."
     row = {"stage": stage, "category": "schema", "detail": error[:200], **ctx}
     REJECTIONS.append(row)
@@ -771,7 +775,7 @@ ADJUDICATE_SCHEMA = {"type": "object", "required": ["facts", "attributes", "cont
         "predicate": {"type": "string"}, "object": {"type": "string"}, "qualifiers": {"type": ["string", "null"]},
         "from": {"type": "array"}}}},
     "attributes": {"type": "array", "items": {"type": "object", "required": ["attribute", "value", "from"], "properties": {
-        "attribute": {"type": "string"}, "value": {"type": "string"}, "from": {"type": "array"}}}},
+        "attribute": {"type": "string"}, "value": {"type": ["string", "null"]}, "from": {"type": "array"}}}},
     "contradictions": {"type": "array", "items": {"type": "object", "required": ["note", "from"], "properties": {
         "note": {"type": "string"}, "from": {"type": "array"}}}}}}
 
@@ -800,7 +804,7 @@ def adjudicate_prompt(name, kinds, facts, cells, predicates):
 
 Write the entity's consolidated record:
 - "facts": each durable relationship or fact stated once, with "predicate" (lowercase_snake_case, present tense, reusing a name from the list below where one fits), "object", "qualifiers" (or null), and "from": the numbers of every listed fact it is drawn from. A fact drawn from nothing listed is not allowed.
-- "attributes": what the entity is, has or is like, as "attribute", "value" and "from", folding the lesser things named in the facts into the entity itself: a house that has a cellar has the attribute cellar, not a relationship to one.
+- "attributes": what the entity is, has or is like, as "attribute", "value" (or null when the attribute stands on its own) and "from", folding the lesser things named in the facts into the entity itself: a house that has a cellar has the attribute cellar, not a relationship to one.
 - "contradictions": where listed facts disagree, a one-sentence "note" and the "from" numbers; do not resolve them.
 
 Return JSON {{"facts": [...], "attributes": [...], "contradictions": [...]}}
@@ -2184,7 +2188,7 @@ def receipt():
     """Sums over every package on disk, plus the calls this session logged to calls.jsonl."""
     rec = {"ingestor": INGESTOR, "documents": 0, "by_group": {}, "counts": {}, "matched_by": {}, "rejected_by": {},
            "cost_of_packages": 0.0, "cost_this_session": round(spend(), 4), "calls_this_session": len(CALLS),
-           "calls_by_stage": {}, "schema_rejections_this_session": len(REJECTIONS), "empty_completions": 0,
+           "calls_by_stage": {}, "schema_rejections_this_session": len(REJECTIONS), "schema_retries_this_session": len(RETRIES), "empty_completions": 0,
            "abstract_rejected": 0, "in_flight_sidecars": []}
     for c in CALLS:
         rec["calls_by_stage"][c["stage"]] = rec["calls_by_stage"].get(c["stage"], 0) + 1
