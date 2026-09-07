@@ -787,6 +787,13 @@ def locate(text, quote, cache=None):
     return None, None, how
 
 
+def sentence_at(text, start, end):
+    """The sentence holding a span, so an alias can carry the words it was first read in."""
+    left = max(text.rfind(mark, 0, start) for mark in (". ", "! ", "? ", "\n"))
+    right = min((at for at in (text.find(mark, end) for mark in (". ", "! ", "? ", "\n")) if at >= 0), default=-1)
+    return text[left + 1 if left >= 0 else 0:right + 1 if right >= 0 else len(text)].strip()
+
+
 def occurrences(text, found):
     """Every offset at which the located string recurs verbatim, the first one included."""
     starts, i = [], text.find(found) if found else -1
@@ -1529,9 +1536,6 @@ def fold_document(records, entities, ctx):
                           f"is: {', '.join(e['is_a'][:6])}", f"facts: {'; '.join(facts[:20])}", f"cells: {' '.join(cells)[:1500]}"])
         out["dossiers"].append({"entity": e["name"], "name": e["name"], "first_unit": e["first_unit"], "kinds": e["kinds"],
                                 "first_mention": e["first_mention"], "text": text, "children": facts + cells})
-    for d, vector in zip(out["dossiers"], embed([d["text"] for d in out["dossiers"]], ctx=ctx)):
-        d["embedding"] = vector
-
     def abstract_of(pair):
         """(text, missing names, tier); two records or fewer stand as the abstract without a call."""
         e, d = pair
@@ -1671,14 +1675,20 @@ def write_package(doc, records, entities, folded, adjudicated, ledger, candidate
     path = package_path(doc)
     path.parent.mkdir(parents=True, exist_ok=True)
     scope, written_at, doc_node = doc["doc_id"], datetime.now(timezone.utc).isoformat(timespec="seconds"), h(doc["doc_id"], "document")
-    lines = [{"record": "package", "doc_id": doc["doc_id"], "source_uri": doc["source_uri"], "ingestor": INGESTOR,
-              "loader": doc.get("loader"), "input_hash": input_hash(doc), "written_at": written_at},
-             {"record": "document", "doc_id": doc["doc_id"], "source_uri": doc["source_uri"], "sha256": doc["sha256"], "title": doc["title"],
+    lines = [{"record": "document", "doc_id": doc["doc_id"], "source_uri": doc["source_uri"], "sha256": doc["sha256"], "title": doc["title"],
               "author": doc["author"], "source_class": doc["source_class"], "ingested_at": doc["ingested_at"], "occurred_at": doc["occurred_at"],
               "loader": doc["loader"], "flags": doc.get("flags", []), "text_length": len(doc["text"])}]
     lines += [{"record": "unit", **u} for u in doc["units"]] + [{"record": "piece", **p} for p in doc["pieces"]]
     lines.append({"record": "node", "node_id": doc_node, "name": doc.get("title") or doc["source_uri"], "kind": "document",
                   "created_from_unit": doc["units"][0]["unit_id"] if doc["units"] else None, "provenance": {"ingestor": INGESTOR}})
+
+    # the sentence each surface form was first read in, so an alias carries its own evidence
+    first_words = {}
+    for r in records:
+        for m in r["mentions"]:
+            key = (m["unit_id"], norm(m["surface"]))
+            if key not in first_words:
+                first_words[key] = sentence_at(doc["text"], m["start"], m["end"])
 
     # nodes, aliases and edges for the majors; the map from a unit-local name to its node
     node_of, position_of, minted = {}, {u["unit_id"]: u["position"] for u in doc["units"]}, {}
@@ -1694,9 +1704,11 @@ def write_package(doc, records, entities, folded, adjudicated, ledger, candidate
             continue
         lines.append({"record": "node", "node_id": nid, "name": e["name"], "kind": "/".join(e["kinds"]),
                       "created_from_unit": min(e["unit_ids"], key=position_of.get),
+                      "named": e["named"],       # a proper name somewhere in the document: Step 2's both-named rule
                       "provenance": {"ingestor": INGESTOR, "salience": e["rank"], "names": e["names"][:12]}})
         for form, uid in e["first_unit_of"].items():
-            lines.append({"record": "alias", "alias": form, "node_id": nid, "first_seen_unit": uid, "evidence_quote": None})
+            lines.append({"record": "alias", "alias": form, "node_id": nid, "first_seen_unit": uid,
+                          "evidence_quote": first_words.get((uid, norm(form)))})
         lines.append({"record": "edge", "predicate": "appears_in", "subject": nid, "object": doc_node, "units": e["unit_ids"]})
     for u in doc["units"]:
         lines.append({"record": "edge", "predicate": "has_unit", "subject": doc_node, "object": u["unit_id"], "position": u["position"]})
@@ -1711,7 +1723,7 @@ def write_package(doc, records, entities, folded, adjudicated, ledger, candidate
             nid = node_of.get((r["position"], p["entity"]))
             if nid and (nid, p["attribute"], p["value"]) not in seen_profile:
                 seen_profile.add((nid, p["attribute"], p["value"]))
-                lines.append({"record": "profile", "node_id": nid, "attribute": p["attribute"], "value": p["value"], "confidence": 0.5, "from_unit": p["from_unit"]})
+                lines.append({"record": "profile", "node_id": nid, "attribute": p["attribute"], "value": p["value"], "from_unit": p["from_unit"]})
         if r["summary"]:
             lines.append({"record": "cell", "cell_id": h(doc_node, r["unit_id"]), "node_id": doc_node, "unit_id": r["unit_id"], "scope_id": scope,
                           "text": r["summary"], "tier": LUNA, "provenance": {"ingestor": INGESTOR, "kind": "unit_summary"}})
@@ -1744,7 +1756,7 @@ def write_package(doc, records, entities, folded, adjudicated, ledger, candidate
                       "scope_id": scope, "text": a["text"], "children_hash": a["children_hash"], "tier": a["tier"], "updated_at": written_at})
     for d in folded["dossiers"]:
         lines.append({"record": "dossier", "node_id": node_id_of(doc, d),
-                      "text": d["text"], "embedding_model": EMBED_MODEL if "embedding" in d else None, "embedding": d.get("embedding")})
+                      "text": d["text"]})
     lines += [{"record": "ledger", **entry} for entry in ledger] + [{"record": "candidate", **entry} for entry in candidates]
 
     # facts, each under the major it lands on; a fact the adjudication set aside is ranked unsupported
@@ -1790,7 +1802,6 @@ def write_package(doc, records, entities, folded, adjudicated, ledger, candidate
               "adjudications_skipped": sum(1 for a in adjudicated.values() if a.get("skipped")),
               "adjudications_rejected": sum(1 for a in adjudicated.values() if a.get("rejected")),
               "facts_unsupported": sum(1 for l in lines if l["record"] == "fact" and l["rank"] == "unsupported"),
-              "predicates_distinct": len({snake_case(item["predicate"]) for a in adjudicated.values() for item in a.get("facts", [])}),
               "abstract": folded["abstract"] is not None}
     lines.append({"record": "completion", "doc_id": doc["doc_id"], "input_hash": input_hash(doc), "ingestor": INGESTOR, "counts": counts,
                   "stats": stats, "empty": counts["facts_stored"] == 0 and counts["cells"] == 0, "excluded": excluded,
@@ -1807,18 +1818,17 @@ def completed(doc):
     return bool(rows) and rows[-1].get("record") == "completion" and rows[-1].get("input_hash") == input_hash(doc)
 
 # %%
-# Block 11: the pipeline as one function, ingest(doc, diag).
+# Block 11: the pipeline as one function, ingest(doc).
 #
 # The steps in order: triage (which kinds of unit to read), derive_unit for each unit kept,
 # each checkpointed as it lands, then, all at the end, reconcile, fold_document, adjudicate,
-# write_package. `diag` is a dict of flags naming what to print as it
+# write_package. WATCH says whether the run narrates what it
 # happens: triage, units, entities, facts, rejections, cells, reconcile, ledger, fold,
 # adjudicate, package. A finished package for the same input is skipped; a document stopped
 # mid-way resumes from the units its sidecar holds. Every document appends an entry to
 # ingest.log and a row to manifest.jsonl; the receipt sums the packages on disk.
-LOG, MANIFEST = OUT / "ingest.log", OUT / "manifest.jsonl"
-DIAG_ALL = {"triage": True, "units": True, "entities": True, "facts": True, "rejections": True, "cells": True,
-            "reconcile": True, "ledger": False, "fold": True, "adjudicate": True, "package": True}
+LOG = OUT / "ingest.log"
+WATCH = True                                  # narrate each stage as the run goes
 RESULTS = []                                  # (source_uri, records, counts, stats) for every document this session ingested
 ADJUDICATE_MIN_FACTS = 4                      # fewer than this: nothing to consolidate, so a support call instead
 
@@ -1872,8 +1882,9 @@ def triage(doc, ctx):
             excluded[matched[0]] = item["reason"]
         else:
             flags.append(f"triage named a kind the document does not have: {item['kind']!r}")
-    if sum(len(kinds[kind]) for kind in excluded) >= len(doc["units"]):
-        flags.append(f"triage would leave out every unit ({len(doc['units'])}); ignored")
+    left_out = sum(len(kinds[kind]) for kind in excluded)
+    if left_out * 2 > len(doc["units"]):      # an answer that drops most of a document is a mistake more often than a judgement
+        flags.append(f"triage would leave out {left_out} of {len(doc['units'])} units, more than half; ignored")
         excluded = {}
     return excluded, flags
 
@@ -1970,7 +1981,7 @@ def adjudicate(records, folded, ctx, watch=False):
     return out
 
 
-def show_unit(rec, unit, diag, unit_cost, total_cost):
+def show_unit(rec, unit, unit_cost, total_cost):
     """One unit as it lands, in the demo's shape."""
     by_category, by_path = {}, {}
     for x in rec["rejected_facts"]:
@@ -1981,32 +1992,32 @@ def show_unit(rec, unit, diag, unit_cost, total_cost):
           f" {len(rec['entities'])} entities ({len(rec['dropped_entities'])} dropped), {len(rec['mentions'])} mentions;"
           f" {len(rec['facts'])} facts kept ({counts_text(by_path)}), {len(rec['rejected_facts'])} rejected ({counts_text(by_category)});"
           f" {len(rec['cells'])} cells; ${unit_cost:.3f} this unit, ${total_cost:.3f} so far")
-    if diag.get("entities"):
+    if WATCH:
         for e in rec["entities"]:
             print(f"    {e['name'][:34]:<34} {e['kind'][:9]:<9} {'named' if e['named'] else 'unnamed':<8}"
                   f" {'major' if e['major'] else 'minor':<6} x{e['mentions']:<3} forms: {' | '.join(e['forms'][:4])[:70]}")
         for d in rec["dropped_entities"]:
             print(f"    DROPPED {d['name'][:34]}: {d['why']} {d['forms'][:3]}")
-    if diag.get("facts"):
+    if WATCH:
         for f in rec["facts"]:
             print(f"    {f['subject']} -{f['predicate']}-> {f['object']}{' [' + f['qualifiers'] + ']' if f['qualifiers'] else ''}"
                   f"  ({f['matched_by']}{', voice ambiguous' if f['voice_ambiguous'] else ''})  \"{' '.join(f['quote'].split())[:90]}\"")
-    if diag.get("rejections"):
+    if WATCH:
         for x in rec["rejected_facts"]:
             print(f"    REJECTED {x['category']}: {x['subject']} -{x['predicate']}-> {x['object']}  \"{' '.join(x['quote'].split())[:90]}\"")
-    if diag.get("cells") and rec["summary"]:
+    if WATCH and rec["summary"]:
         print(f"    SUMMARY {rec['summary']}")
         for c in rec["cells"]:
             print(f"    [{c['entity']}] {c['text']}")
 
 
-def show_reconcile(entities, ledger, stats, diag):
+def show_reconcile(entities, ledger, stats):
     by_how = {}
     for entry in ledger:
         by_how[f"{entry['how']} {entry['verdict']}"] = by_how.get(f"{entry['how']} {entry['verdict']}", 0) + 1
     print(f"reconcile: {stats['locals']} unit-locals -> {len(entities)} document entities; ledger {counts_text(by_how)};"
           f" {stats['candidate_pairs']} pairs queued over {stats['judge_rounds']} rounds, {stats['judged_pairs']} judged in {stats['judge_calls']} calls")
-    if diag.get("ledger"):
+    if False:                                     # every judged pair, line by line
         for entry in ledger:
             print(f"    {entry['verdict']:<9} {entry['how']:<12} {entry['a'][:28]:<28} (u{entry['a_unit']}) ~ {entry['b'][:28]:<28} (u{entry['b_unit']})  {str(entry['evidence'])[:70]}")
 
@@ -2046,9 +2057,9 @@ def show_adjudication(folded, adjudicated):
     print(f"adjudicated: {total['raw']} raw facts ({total['riding']} riding in from minors) -> {total['facts']} facts, {total['attributes']} attributes,"
           f" {total['contradictions']} contradictions; {total['unsupported']} raw facts set aside as unsupported by their passage;"
           f" {total['dropped']} dropped; {sum(1 for a in adjudicated.values() if a['skipped'])} majors left to their raw facts")
-def ingest(doc, ctx=None, diag=None):
+def ingest(doc, ctx=None):
     """One document, start to finish: the units on their own, then everything merged at the end."""
-    diag, ctx = diag or {}, {"doc": doc["source_uri"], **(ctx or {})}
+    ctx = {"doc": doc["source_uri"], **(ctx or {})}
     calls_before, spend_before = len(CALLS), spend()
 
     # which kinds of unit to read: the sidecar's answer when resuming, else the judge's
@@ -2066,7 +2077,7 @@ def ingest(doc, ctx=None, diag=None):
             left_out.append({"position": u["position"], "kind": kind, "label": u["label"], "reason": excluded[kind]})
         else:
             kept.append(u)
-    if diag.get("triage"):
+    if WATCH:
         counts = {}
         for u in doc["units"]:
             counts[unit_kind(doc, u)] = counts.get(unit_kind(doc, u), 0) + 1
@@ -2077,7 +2088,7 @@ def ingest(doc, ctx=None, diag=None):
             print(f"    FLAG {flag}")
 
     # the units, each on its own, checkpointed as it lands
-    if records and diag.get("units"):
+    if records and WATCH:
         print(f"resuming {doc['source_uri']} from {len(records)} checkpointed units")
     for u in kept[len(records):]:
         unit = {**u, "text": doc["text"][u["start"]:u["end"]], "kind": unit_kind(doc, u)}
@@ -2085,19 +2096,19 @@ def ingest(doc, ctx=None, diag=None):
         rec = derive_unit(doc, unit, {**ctx, "unit": u["position"]})
         records.append(rec)
         append_sidecar(doc, {"rec": rec, "cost": round(spend() - spend_at, 6), "calls": len(CALLS) - calls_at})
-        if diag.get("units"):
-            show_unit(rec, unit, diag, spend() - spend_at, spend() - spend_before)
+        if WATCH:
+            show_unit(rec, unit, spend() - spend_at, spend() - spend_before)
 
     # the document, all at the end: reconcile, fold, salience, adjudicate, predicates, write
-    entities, ledger, candidates, stats = reconcile(records, ctx, watch=bool(diag.get("reconcile")))
+    entities, ledger, candidates, stats = reconcile(records, ctx, watch=WATCH)
     stamp_first_mention(records, entities)        # a node id is the moniker and its first mention
-    if diag.get("reconcile"):
-        show_reconcile(entities, ledger, stats, diag)
+    if WATCH:
+        show_reconcile(entities, ledger, stats)
     folded = fold_document(records, entities, ctx)
-    if diag.get("fold"):
+    if WATCH:
         show_fold(folded)
-    adjudicated = adjudicate(records, folded, ctx, watch=bool(diag.get("adjudicate")))
-    if diag.get("adjudicate"):
+    adjudicated = adjudicate(records, folded, ctx, watch=WATCH)
+    if WATCH:
         show_adjudication(folded, adjudicated)
     stats.update({"calls": len(CALLS) - calls_before + calls_before_stop, "cost": round(spend() - spend_before + cost_before, 4),
                   "matched_by": {}, "rejected_by": {}, "units_excluded": len(left_out), "triage_flags": flags})
@@ -2109,7 +2120,7 @@ def ingest(doc, ctx=None, diag=None):
     path, counts = write_package(doc, records, entities, folded, adjudicated, ledger, candidates, left_out, stats)
     if sidecar_path(doc).exists():
         sidecar_path(doc).unlink()
-    if diag.get("package"):
+    if WATCH:
         print(f"package {path}: {counts}")
     RESULTS.append((doc["source_uri"], records, counts, stats))
     return path, counts, stats, records, entities, folded
@@ -2121,7 +2132,7 @@ def note(text):
         f.write(text + "\n\n")
 
 
-def run(uris, diag=None):
+def run(uris):
     if not KEY:
         raise SystemExit("no OPENAI_API_KEY: set it in the environment, or attach it as a Kaggle secret")
     done = skipped = 0
@@ -2135,13 +2146,10 @@ def run(uris, diag=None):
             if completed(doc):
                 skipped += 1
                 continue
-            if diag and diag.get("units"):
+            if WATCH:
                 print(f"\n=== {uri}: {len(doc['units'])} units, {len(doc['text']):,} chars{' (text rebuilt from the PDF)' if doc['text_rebuilt'] else ''},"
                       f" author {doc.get('author')!r}, date {doc.get('occurred_at')} ===")
-            path, counts, stats, records, entities, folded = ingest(doc, diag=diag)
-            with MANIFEST.open("a", encoding="utf-8") as f:
-                f.write(json.dumps({"doc_id": doc["doc_id"], "source_uri": uri, "package": str(path.relative_to(OUT)).replace("\\", "/"),
-                                    "input_hash": input_hash(doc), "counts": counts, "cost": stats["cost"]}) + "\n")
+            path, counts, stats, records, entities, folded = ingest(doc)
             abstract = folded["abstract"]["text"][:200] if folded["abstract"] else f"REJECTED {folded['abstract_rejected']}"
             entry = [f"{uri}  units {counts['units']}  entities {counts['entities']} ({counts['majors']} major)  mentions {counts['mentions']}"
                      f"  facts {counts['facts_kept']} kept / {counts['facts_rejected']} rejected / {counts['facts_stored']} stored"
@@ -2374,20 +2382,19 @@ def draw_graph(path):
 # %%
 # Block 13: the run, Oz book 1.
 #
-# RUN names the documents, by title or by the end of their source_uri; DIAG says what to print
-# as each unit lands; SPEND_STOP ends the run past that many dollars, the document in flight
+# RUN names the documents, by title or by the end of their source_uri; WATCH in block 11 says
+# whether each stage narrates itself; SPEND_STOP ends the run past that many dollars, the document
 # keeping its finished units in a sidecar for next time. For reference, the 09-02 demo on Oz
 # book 1: v3 632 entities, 969 facts, 53 dropped, $1.26; the 0.4 run of 09-06: 358 entities
 # (38 major), 869 facts, 74 rejected, $2.23. Each document ends in its roll-up.
 RUN = ["The Wonderful Wizard of Oz"]
-DIAG = dict(DIAG_ALL)
 SPEND_STOP = 5.00
 
 
-def run_and_roll_up(uris, diag, top=5):
+def run_and_roll_up(uris, top=5):
     """The run, then the roll-up of every package that exists for the documents named."""
     try:
-        run(uris, diag=diag)
+        run(uris)
     finally:
         print(json.dumps(receipt(), indent=1))
     for uri in uris:
@@ -2399,7 +2406,7 @@ def run_and_roll_up(uris, diag, top=5):
 if __name__ == "__main__":
     uris = targets(RUN)
     print(f"ingesting {len(uris)} documents, stop at ${SPEND_STOP:.2f}: {[BY_URI[u]['title'] or u for u in uris]}")
-    run_and_roll_up(uris, DIAG)
+    run_and_roll_up(uris)
 
 # %%
 # Block 14: the run, five papers, Zep first. The papers' text is withheld from the public
@@ -2415,7 +2422,7 @@ if __name__ == "__main__" and PAPERS_TO_RUN:
     random.Random(SEED).shuffle(others)
     chosen += others[:PAPERS_TO_RUN - len(chosen)]
     print(f"papers: {[BY_URI[u]['title'] or u for u in chosen]}; stop at ${SPEND_STOP:.2f} for the session")
-    run_and_roll_up(chosen, DIAG_ALL)
+    run_and_roll_up(chosen)
 
 # %%
 # Block 15: the run, one chat user across their sessions. LongMemEval names the evidence
@@ -2428,7 +2435,7 @@ SPEND_STOP = 3.00
 if __name__ == "__main__" and CHAT_QUESTION:
     chats = sorted(u for u in BY_URI if "/longmemeval/" in u and CHAT_QUESTION in u.split("/")[-1])
     print(f"chats: {len(chats)} sessions of question {CHAT_QUESTION}; stop at ${SPEND_STOP:.2f} for the session")
-    run_and_roll_up(chats, DIAG_ALL)
+    run_and_roll_up(chats)
 
 # %%
 # Block 16: the run, one Greek work and one novel from the GraphRAG benchmark, so the entity and
@@ -2440,7 +2447,7 @@ if __name__ == "__main__" and OTHERS:
     chosen = [find_document(name) for name in OTHERS]
     chosen = [u for u in chosen if u]
     print(f"others: {[BY_URI[u]['title'] or u for u in chosen]}; stop at ${SPEND_STOP:.2f} for the session")
-    run_and_roll_up(chosen, DIAG_ALL)
+    run_and_roll_up(chosen)
 
 # %%
 # Block 17: the graphs. One knowledge graph per document ingested this session, drawn the
