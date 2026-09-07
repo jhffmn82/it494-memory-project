@@ -327,22 +327,17 @@ def check_schema(value, schema, path="$"):
             check_schema(item, schema["items"], f"{path}[{i}]")
 
 
+TYPES = {"object": dict, "array": list, "string": str, "boolean": bool, "integer": int, "number": (int, float)}
+
+
 def is_of_type(value, name):
-    if name == "object":
-        return isinstance(value, dict)
-    if name == "array":
-        return isinstance(value, list)
-    if name == "string":
-        return isinstance(value, str)
-    if name == "boolean":
-        return isinstance(value, bool)
     if name == "null":
         return value is None
-    if name == "integer":
-        return isinstance(value, int) and not isinstance(value, bool)
-    if name == "number":
-        return isinstance(value, (int, float)) and not isinstance(value, bool)
-    return False
+    if name == "boolean":
+        return isinstance(value, bool)
+    if name not in TYPES:
+        return False
+    return isinstance(value, TYPES[name]) and not isinstance(value, bool)
 
 
 def post(url, payload):
