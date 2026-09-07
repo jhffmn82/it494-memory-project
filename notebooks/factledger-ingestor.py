@@ -41,7 +41,7 @@ import unicodedata
 from datetime import datetime, timezone
 from pathlib import Path
 
-INGESTOR = "factledger-ingestor 0.4"
+INGESTOR = "factledger-ingestor 0.5"
 KAGGLE_EXPORTS = (Path("/kaggle/input/datasets/jhffmn/it494-factledger-step0"),   # Kaggle mounts a dataset at either
                   Path("/kaggle/input/it494-factledger-step0"))
 LOCAL_EXPORT = Path("data/export")
@@ -504,6 +504,20 @@ def word_count(s):
     return len(s.split())
 
 
+ARTICLES = ("the ", "a ", "an ")
+
+
+def loose_name(name):
+    """A name as the model may write it back: case folded, one space between words, a leading
+    article dropped, so "The Scarecrow" and "Dainty China Country" find "the Scarecrow" and
+    "the Dainty China Country"."""
+    loose = norm(name)
+    for article in ARTICLES:
+        if loose.startswith(article):
+            return loose[len(article):]
+    return loose
+
+
 def is_word_char(ch):
     return ch.isalnum() or ch == "_"
 
@@ -684,7 +698,25 @@ def classify_miss(ntext, nquote):
     return "not_found"
 
 
+WRAPPING_QUOTES = "\u201c\u201d\"\u2018\u2019'"
+
+
 def locate(text, quote, cache=None):
+    """(start, end, how) with offsets into `text`, how being 'exact', 'normalised', or
+    'unwrapped' (found once the quotation marks the model wrapped it in came off), or
+    (None, None, why)."""
+    start, end, how = locate_as_written(text, quote, cache)
+    if start is None:
+        written = (quote or "").strip()
+        bare = written.strip(WRAPPING_QUOTES)
+        if bare and bare != written:
+            start, end, again = locate_as_written(text, bare, cache)
+            if start is not None:
+                return start, end, "unwrapped"
+    return start, end, how
+
+
+def locate_as_written(text, quote, cache=None):
     """(start, end, 'exact' or 'normalised') with offsets into `text`, or (None, None, why)."""
     quote = (quote or "").strip()
     if not quote:
@@ -974,14 +1006,16 @@ def derive_unit(doc, unit, roster, previous_summary, ctx):
     majors = [e["name"] for e in rec["entities"] if e["major"]]
     reply = generate(fact_prompt(unit, names, majors, roster["predicates"]), FACT_SCHEMA, "facts", ctx=ctx)
     name_set = set(names)
+    listed = {loose_name(name): name for name in names}   # the listed name, from the name as the model may write it
     seen_facts = set()
     for f in (reply or {}).get("facts", []):
-        subject = f["subject"].strip()
+        subject = listed.get(loose_name(f["subject"]))
         predicate = snake_case(f["predicate"])
         obj = str(f["object"]).strip()
-        rejection = {"subject": subject, "predicate": predicate, "object": obj, "quote": f["quote"][:160]}
+        obj = listed.get(loose_name(obj), obj)              # an entity written loosely is that entity
+        rejection = {"subject": str(f["subject"]).strip(), "predicate": predicate, "object": obj, "quote": f["quote"][:160]}
         start, end, how = locate(text, f["quote"], cache)
-        if subject not in name_set:
+        if subject is None:
             rec["rejected_facts"].append({"category": "unlisted_subject", **rejection})
             continue
         if start is None:
@@ -1931,7 +1965,7 @@ def valid_sources(numbers, n):
     return good
 
 
-def adjudicate(records, folded, ctx):
+def adjudicate(records, folded, ctx, watch=False):
     """One call per document-major over everything the document said about it: its raw facts
     (forward; inverse when the entity was the object of a minor's fact; about when a minor tied
     to it says something of itself) and its cells. The
@@ -1949,7 +1983,7 @@ def adjudicate(records, folded, ctx):
             if index is not None:
                 cells_of[index].append(f"[{r['label']}] {c['text']}")
     out = {}
-    for e in folded["majors"]:
+    for n, e in enumerate(folded["majors"], 1):
         raws = landed[e["index"]]
         result = {"facts": [], "attributes": [], "contradictions": [], "dropped": 0, "raw": len(raws),
                   "riding": sum(1 for x in raws if x[1] == "about")}
@@ -1971,6 +2005,8 @@ def adjudicate(records, folded, ctx):
         reply = generate(adjudicate_prompt(e["name"], e["kinds"], listing, cells_of[e["index"]], predicates),
                          ADJUDICATE_SCHEMA, "adjudicate", model=TERRA, effort="medium", ctx=ctx)
         ids = [stored_id for f, direction, label, stored_id in raws]
+        if watch and n % 5 == 0:
+            print(f"    adjudicate: {n} of {len(folded['majors'])} majors, ${spend():.2f} spent this session")
         for key in ("facts", "attributes", "contradictions"):
             for item in (reply or {}).get(key, []):
                 sources = valid_sources(item.get("from"), len(ids))
@@ -2081,6 +2117,8 @@ def show_fold(folded, diag):
           f" {len(folded['entity_abstracts'])} entity abstracts, {len(folded['entity_abstract_rejected'])} rejected")
     if folded.get("demoted"):
         print(f"    demoted to minor (fewer than {DEMOTE_UNITS} units and {DEMOTE_FACTS} facts): {', '.join(folded['demoted'])[:200]}")
+    for x in folded["entity_abstract_rejected"]:
+        print(f"    entity abstract REJECTED for {x['entity']}: names not in its records {x['missing']}")
     for e in folded["majors"]:
         if e["rank"]["in_abstract"]:
             why = "in abstract"
@@ -2144,7 +2182,7 @@ def ingest(doc, ctx=None, diag=None):
     folded = fold_document(doc, records, entities, ctx)
     if diag.get("fold"):
         show_fold(folded, diag)
-    adjudicated = adjudicate(records, folded, ctx)
+    adjudicated = adjudicate(records, folded, ctx, watch=bool(diag.get("adjudicate")))
     if diag.get("adjudicate"):
         show_adjudication(folded, adjudicated)
     stats = {"locals": n_locals, "candidate_pairs": n_pairs, "judged_pairs": n_judged,

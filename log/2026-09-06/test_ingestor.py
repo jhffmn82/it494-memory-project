@@ -102,6 +102,8 @@ def stub_generate(prompt, schema, stage, model=None, effort="low", ctx=None):
                 {"subject": n0, "predicate": "eats", "object": "cake", "qualifiers": None, "quote": "the purple giraffe danced on the moon tonight", "valid_from": None, "valid_to": None},   # not found
                 {"subject": "Nobody Listed", "predicate": "is_a", "object": "ghost", "qualifiers": None, "quote": good, "valid_from": None, "valid_to": None},   # unlisted subject
                 {"subject": n0, "predicate": "is_a", "object": "Character", "qualifiers": None, "quote": good, "valid_from": None, "valid_to": None},   # duplicate
+                {"subject": "The " + n0.upper(), "predicate": "is_called", "object": "loudly", "qualifiers": None, "quote": good, "valid_from": None, "valid_to": None},   # the listed name, written loosely
+                {"subject": n0, "predicate": "is_quoted_as", "object": "wrapped", "qualifiers": None, "quote": "\u201c" + good + "\u201d", "valid_from": None, "valid_to": None},   # the model's own quotation marks
             ]
         return {"facts": facts}
     if stage == "cells":
@@ -242,6 +244,9 @@ about = [f for f in facts if f["direction"] == "about"]
 check("a minor's own fact rides into the major it is tied to, marked about, under an id of its own naming the fact it rides on", about and all(f["subject"] in node_ids and not f["object_is_node"] and f["provenance"]["rides_on"] and f["fact_id"] != f["provenance"]["rides_on"] for f in about) and lines[-1]["counts"]["facts_riding"] == len(about))
 check("a minor tied to no major keeps nothing, and the count says so", lines[-1]["counts"]["facts_minor_subject"] > 0)
 check("a riding fact keeps its quote at document offsets", all(f["quote_start"] < f["quote_end"] and f["quote"] for f in about))
+loosely = [f for f in facts if f["predicate"] == "is_called"]
+check("a subject written with another case or a leading article is the listed entity, not an unlisted one", loosely and all(f["provenance"]["subject_name"] == f["provenance"]["subject_name"].strip() and not f["provenance"]["subject_name"].startswith("The ") for f in loosely))
+check("a quote wrapped in the model's own quotation marks is found once they come off, and says so", any(f["provenance"]["matched_by"] == "unwrapped" and f["quote"][:1] not in "\u201c\"" for f in facts))
 check("every adjudicated fact points only at raw facts of its own node", adjudicated and all(set(a["from_facts"]) <= fact_ids_of.get(a["node_id"], set()) for a in adjudicated))
 check("attributes point at raw facts too, and an item pointing at nothing was dropped and counted", by.get("attribute") and all(set(a["from_facts"]) <= fact_ids_of.get(a["node_id"], set()) for a in by["attribute"]) and lines[-1]["counts"]["adjudication_dropped"] == len(folded["majors"]))
 check("adjudicated predicates are snake_case", all(a["predicate"] == ns["snake_case"](a["predicate"]) for a in adjudicated))
