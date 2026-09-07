@@ -239,7 +239,7 @@ if SEEDED:
     print(f"{SEEDED} files seeded from a previous run's output")
 
 # %%
-# Block 2: the model interface: generate(prompt, schema) and embed(texts).
+# Block 2: the model interface: generate(prompt, schema).
 #
 # The key comes from the OPENAI_API_KEY environment variable, else from the Kaggle secret of
 # that name. Raw HTTP. The API rejects temperature, so reasoning_effort steers it. Every call
@@ -257,8 +257,7 @@ from concurrent.futures import ThreadPoolExecutor
 
 LUNA = "gpt-5.6-luna"                      # derive
 TERRA = "gpt-5.6-terra"                    # judge, folds, adjudication
-EMBED_MODEL = "text-embedding-3-small"
-PRICE = {LUNA: (0.20, 1.20), TERRA: (2.00, 12.00), EMBED_MODEL: (0.02, 0.0)}   # $ per million tokens in, out
+PRICE = {LUNA: (0.20, 1.20), TERRA: (2.00, 12.00)}          # $ per million tokens in, out
 SPEND_STOP = float(os.environ.get("SPEND_STOP", "25"))
 WORKERS = int(os.environ.get("WORKERS", "4"))
 
@@ -420,33 +419,16 @@ def generate(prompt, schema, stage, model=LUNA, effort="low", ctx=None):
     return None
 
 
-def embedding_index(row):
-    return row["index"]
-
-
-def embed(texts, stage="embed", ctx=None):
-    """One vector per text, in batches of a hundred, each request logged like any call."""
-    vectors = []
-    for start in range(0, len(texts), 100):
-        batch = texts[start:start + 100]
-        body = call("https://api.openai.com/v1/embeddings", {"model": EMBED_MODEL, "input": batch}, EMBED_MODEL, stage, ctx or {},
-                    sum(len(t) for t in batch))
-        for row in sorted(body["data"], key=embedding_index):
-            vectors.append(row["embedding"])
-    return vectors
-
-
-print(f"models {LUNA} (derive), {TERRA} (judge), {EMBED_MODEL}; key {'present' if KEY else 'MISSING'}")
+print(f"models {LUNA} (derive), {TERRA} (judge and fold); key {'present' if KEY else 'MISSING'}")
 
 # %%
-# Block 3: test the connection before anything spends. One tiny call to each endpoint.
+# Block 3: test the connection before anything spends. One tiny call.
 if __name__ == "__main__":
     if not KEY:
         print("no key: attach OPENAI_API_KEY under Add-ons > Secrets, then rerun this cell")
     else:
         ping = generate('Reply with exactly the JSON object {"ok": true}.', {"type": "object", "required": ["ok"]}, "ping", ctx={"doc": "connection test"})
-        vector = embed(["connection test"], ctx={"doc": "connection test"})
-        print(f"chat reply {ping}; embedding of {len(vector[0])} dimensions; {len(CALLS)} calls, ${spend():.5f}")
+        print(f"chat reply {ping}; {len(CALLS)} calls, ${spend():.5f}")
 
 # %%
 # Block 4: ids and small text helpers. Every id is a content hash, so re-deriving unchanged
@@ -1449,7 +1431,7 @@ def cluster_entities(locals_, clusters):
 # missing names listed, then left unstamped. Salience is reassessed against the abstract:
 # named there, as whole words, is major; with no abstract, two units or two facts decide. A
 # major seen in fewer units and with fewer facts than the numbers below is demoted to minor.
-# Majors get a dossier with an embedding and their own abstract.
+# Majors get a dossier and their own abstract.
 DEMOTE_UNITS, DEMOTE_FACTS = 2, 3
 
 
