@@ -163,6 +163,14 @@ pairs, the re-judging of unsure pairs, and Terra for the folds. All four were re
   inverse. An adjudication call per major, on Terra, consolidates its facts and attributes and
   flags contradictions, every item pointing at the raw facts it was drawn from. Battery 79 of 79.
 
+A review of 0.4 against Justin's goals as stated (four lenses: goals, style, correctness, Kaggle;
+one refuter per finding) confirmed a dozen things, all applied before the hand-over: the cap
+that overrode the judge's triage on documents with more apparatus than body is gone; the version
+string; abstracts stamped with the tier that wrote them; an unsure pair judged once more at the
+end and never mid-run; no demotion in a one-unit document, which every chat is; a sidecar cut
+short by a kill cannot poison a document; cost carried through a resume; both Kaggle mount paths;
+no per-corpus rule in the package path; `reconcile` split into named pieces. Battery 82 of 82.
+
 Under the scripted model, Oz book 1 now runs: front matter and license left out, 24 chapters
 derived, 144 unit-locals, every candidate pair to the judge, majors demoted, each major
 adjudicated. The real numbers are the run's.
