@@ -87,7 +87,8 @@ The 141 papers keep their publishers' licenses and most may not be redistributed
 text is withheld**: the document row is here with `"text": null` and the flag
 `text withheld: license`, and its units and pieces are here in full. To rebuild the text, take
 the row in `papers.jsonl`, fetch `source_url`, check the PDF against `pdf_sha256`, and run the
-text extraction in block 1 of the notebook. The offsets then resolve.
+text extraction in block 2 of the notebook, which is PyMuPDF page text joined by newlines. The
+offsets then resolve.
 
 ## Provenance and license
 

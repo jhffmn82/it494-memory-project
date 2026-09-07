@@ -43,9 +43,10 @@ text, its units and pieces, and a row in `papers.jsonl` with the source URL and 
 sha256.
 
 Rebuilding one is three steps. Fetch the source URL, confirm the bytes hash to the recorded
-sha256, and run the text extraction in block 1 of the notebook, which is page text from
-`pdfplumber` joined with form feeds. The offsets in `units.jsonl` and `pieces.jsonl` then
-resolve against the result.
+sha256, and run the text extraction in block 2 of the notebook, which is
+`pymupdf.open(stream=data, filetype="pdf")` with each page's `get_text()` joined by a single
+newline. The offsets in `units.jsonl` and `pieces.jsonl` resolve against exactly that string, so
+a different library or a different page separator will not line up.
 
 One paper appears twice in the fetch under two names and is exported once, as the receipt's
 `duplicate_files` records.
