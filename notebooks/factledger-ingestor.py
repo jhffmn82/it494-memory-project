@@ -970,7 +970,6 @@ FACTS:
 CELLS:
 {chr(10).join(cells) or '(none)'}"""
 
-
 # %%
 # Block 7: derive one unit. Three calls, every gate applied by code, and one record back with
 # everything the model said and everything code kept or rejected. Offsets are document
