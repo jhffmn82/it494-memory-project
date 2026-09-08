@@ -952,5 +952,13 @@ check("a correction that says something is kept, and keeps the fact's subject wh
       ns["corrected_fact"](raw_fact, {"predicate": "reduces_latency_by", "object": "90 percent"})
       == {"subject": "Zep", "predicate": "reduces_latency_by", "object": "90 percent", "qualifiers": None})
 
+# ---------------------------------------------------- the ordering this file cannot otherwise see
+sys.path.insert(0, str(ROOT / "scripts"))
+import check_cell_order
+
+forward = check_cell_order.offences(src)
+check("no cell can reach a name a later cell defines: the battery execs one namespace, the notebook does not",
+      not forward, [f"cell {c} reaches {n!r} from cell {d}" for c, n, d in forward][:4])
+
 print(f"\n{sum(results)} of {len(results)} checks pass")
 sys.exit(0 if all(results) else 1)

@@ -279,6 +279,9 @@ if not KEY:
 CALLS, REJECTIONS, RETRIES = [], [], []
 LOG_LOCK = threading.Lock()
 REPLIES, REPLIES_LOCK, IN_FLIGHT = {}, threading.Lock(), {}   # per document: what it has already paid for
+REPLY_SINK = []          # block 12 installs the checkpoint writer here. generate() must not name
+                         # it directly: this block runs the connection test, and a call reaching
+                         # forward into a later block is a NameError before any document is read
 
 
 class SpendStop(Exception):
@@ -386,6 +389,12 @@ def log_call(row):
     record("calls.jsonl", row)
 
 
+def h(*parts):
+    """A content hash over its parts. Defined here rather than with the other id helpers of block
+    4 because generate() keys its reply cache on it, and block 3 runs the connection test."""
+    return hashlib.sha256("\n".join(str(p) for p in parts).encode("utf-8")).hexdigest()
+
+
 def call(url, payload, model, stage, ctx, prompt_chars):
     """One exchange with the API under the retry policy; the parsed body. Cost is logged here."""
     if not KEY:
@@ -447,7 +456,9 @@ def generate(prompt, schema, stage, model=LUNA, effort="low", ctx=None):
             reply = json.loads(message["content"])
             check_schema(reply, schema)
             if uri is not None:
-                remember_reply(uri, key, reply)
+                REPLIES.setdefault(uri, {})[key] = reply
+                for write_it in REPLY_SINK:              # nothing installed yet during the ping
+                    write_it(uri, key, reply)
             return reply
         except (SchemaError, ValueError, TypeError, KeyError, IndexError) as e:
             error = f"{type(e).__name__}: {e}"
@@ -475,11 +486,7 @@ if __name__ == "__main__":
 
 # %%
 # Block 4: ids and small text helpers. Every id is a content hash, so re-deriving unchanged
-# input mints the same ids.
-
-
-def h(*parts):
-    return hashlib.sha256("\n".join(str(p) for p in parts).encode("utf-8")).hexdigest()
+# input mints the same ids. h() itself is in block 3, where the reply cache keys on it.
 
 
 def norm(s):
@@ -1986,12 +1993,17 @@ ADJUDICATE_MIN_FACTS = 4                      # fewer than this: nothing to cons
 
 
 def remember_reply(uri, key, reply):
-    """One bought reply, held for this run and written beside the document so a resume has it."""
+    """One bought reply, written beside its document so a resume has it. generate() holds the
+    reply in memory itself and reaches this through REPLY_SINK, so that block 3 names nothing
+    defined here."""
     doc = IN_FLIGHT.get(uri)
     with REPLIES_LOCK:
         REPLIES.setdefault(uri, {})[key] = reply
         if doc is not None:
             append_sidecar(doc, {"cached": key, "reply": reply})
+
+
+REPLY_SINK.append(remember_reply)
 
 
 def sidecar_rows(doc):

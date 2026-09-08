@@ -64,5 +64,13 @@ NB.write_text(json.dumps({"cells": nb_cells, "metadata": meta, "nbformat": 4, "n
 back = json.loads(NB.read_text(encoding="utf-8"))
 rebuilt = join_cells([(c["cell_type"], "".join(c["source"])) for c in back["cells"]])
 same = rebuilt.rstrip("\n") == text.rstrip("\n")
-print(f"{NB}: {len(nb_cells)} cells; round trip {'identical' if same else 'DIFFERS'}")
-sys.exit(0 if same else 1)
+# the last gate before the notebook leaves this machine: the battery execs the script as one
+# namespace and cannot see cell ordering, and that is what shipped a NameError to Kaggle in 0.8
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from check_cell_order import offences
+forward = offences(text)
+for cell, name, defined in forward:
+    print(f"  cell {cell} reaches {name!r}, which cell {defined} defines")
+print(f"{NB}: {len(nb_cells)} cells; round trip {'identical' if same else 'DIFFERS'}"
+      f"; {len(forward)} forward reference(s)")
+sys.exit(0 if same and not forward else 1)
