@@ -140,7 +140,7 @@ def render_html(by, top=5, note=None):
         o.append("<h2>Unit summaries</h2>")
         for u in units:
             if u["unit_id"] in summary_of:
-                o.append(f'<div class="unit"><span class="u">{esc(label_of[u["unit_id"]])}</span> &mdash; {esc(summary_of[u["unit_id"]])}</div>')
+                o.append(f'<div class="unit"><span class="u">{esc(label_of[u["unit_id"]])}:</span> {esc(summary_of[u["unit_id"]])}</div>')
 
     ranked = ranked_majors(by)
     o.append(f"<h2>Entities ({len(ranked)})</h2>")
@@ -178,7 +178,7 @@ def render_html(by, top=5, note=None):
         if cells:
             o.append("<p><b>Across the document</b></p>")
             for c in cells:
-                o.append(f'<div class="unit"><span class="u">{esc(label_of.get(c["unit_id"], ""))}</span> &mdash; {esc(c["text"])}</div>')
+                o.append(f'<div class="unit"><span class="u">{esc(label_of.get(c["unit_id"], ""))}:</span> {esc(c["text"])}</div>')
         attrs = attributes_of.get(nid, [])
         if attrs:
             o.append("<p><b>Attributes</b></p><ul class='attrs'>")
