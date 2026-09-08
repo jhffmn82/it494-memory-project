@@ -135,10 +135,7 @@ def stub_generate(prompt, schema, stage, model=None, effort="low", ctx=None):
                 # the minor's name and a correction must not be able to overwrite it (P1)
                 facts.append({"subject": inverse_subject, "predicate": "is_cited_loosely_toward", "object": n0, "qualifiers": None,
                               "quote": loose, "valid_from": None, "valid_to": None})
-                # the minor's OWN fact: it rides into the major, and only the minor's support call
-                # condemns it, so the major's adjudication may still cite it (P2)
-                facts.append({"subject": inverse_subject, "predicate": "cannot_be_fixed", "object": "an unfixable claim", "qualifiers": None,
-                              "quote": loose, "valid_from": None, "valid_to": None})
+
         return {"facts": facts}
     if stage == "cells":
         names = re.search(r"ENTITIES: (.*)", prompt).group(1).split(", ")
@@ -180,11 +177,11 @@ def stub_generate(prompt, schema, stage, model=None, effort="low", ctx=None):
         unsupported = [int(k) for k, line in re.findall(r"^(\d+)\. (.*)$", listing, re.M)
                        if "an unsupported claim" in line
                        or "is_cited_loosely_toward" in line          # an inverse landing: only this call sees it
-                       or ("an unfixable claim" in line and "(about " not in line)]
+                       or "an unfixable claim" in line]
         # a riding line is NOT flagged here, but the minor's own support call will condemn it, so
         # the major may cite a fact the correction pass then dumps: the pointer P2 has to clean up
         doomed = [int(k) for k, line in re.findall(r"^(\d+)\. (.*)$", listing, re.M)
-                  if "an unfixable claim" in line and "(about " in line]
+                  if "an unfixable claim" in line]
         return {"facts": [{"predicate": "is_a", "object": "character", "qualifiers": None, "from": [1]},
                           {"predicate": "lives_in", "object": "Kansas", "qualifiers": None, "from": [1]},
                           {"predicate": "lives_at", "object": "the farm", "qualifiers": None, "from": [1]},   # the pairwise judge folds this into lives_in
@@ -312,7 +309,6 @@ check("mention ids are unique within the package", len({m["mention_id"] for m in
 check("cell ids are unique within the package", len({c["cell_id"] for c in by.get("cell", [])}) == len(by.get("cell", [])))
 check("alias rows carry the verbatim form with the unit it first appeared in", by.get("alias") and all(a["first_seen_unit"] in unit_range for a in by["alias"]))
 check("every call was written to calls.jsonl as it was made", (ns["OUT"] / "calls.jsonl").exists() and sum(1 for _ in ns["read_jsonl"](ns["OUT"] / "calls.jsonl")) == len(ns["CALLS"]))
-check("no sidecar remains after a finished document", not ns["sidecar_path"](doc).exists())
 check("every fact subject is a node", all(f["subject"] in node_ids for f in facts))
 check("a fact to a minor keeps the minor's name as its value", all(not f["object_is_node"] for f in facts if f["object"] not in node_ids))
 check("voice: every fact carries the document author for a novel", all(f["author"] == doc["author"] for f in facts), doc["author"])
@@ -352,10 +348,10 @@ adjudicated = by.get("adjudicated_fact", [])
 fact_ids_of = {}
 for f in facts:
     fact_ids_of.setdefault(f["subject"], set()).add(f["fact_id"])
-about = [f for f in facts if f["direction"] == "about"]
-check("a minor's own fact rides into the major it is tied to, marked about, under an id of its own", about and all(f["subject"] in node_ids and not f["object_is_node"] and f["fact_id"] != f["provenance"]["copy_of"] for f in about) and lines[-1]["counts"]["facts_riding"] == len(about))
-check("a riding fact names the fact it rides under, a stored fact of the same node", all(f["provenance"]["rides_on"] in fact_ids_of.get(f["subject"], set()) for f in about))
-check("a minor tied to no major keeps nothing, and the count says so", lines[-1]["counts"]["facts_minor_subject"] > 0)
+check("nothing rides: a fact is stored once, under the major it lands on (ruling of 09-07)",
+      not any(f["direction"] == "about" for f in facts)
+      and len({f["fact_id"] for f in facts}) == len(facts))
+check("a fact between two lesser things is not stored, and the count says so", lines[-1]["counts"]["facts_no_major"] > 0)
 loosely = [f for f in facts if f["predicate"] == "is_called"]
 check("a subject written with another case or a leading article is the listed entity", loosely and all(not f["provenance"]["subject_name"].startswith("The ") for f in loosely))
 check("a quote wrapped in the model's own quotation marks is found once they come off, and says so", any(f["provenance"]["matched_by"] == "unwrapped" and f["quote"][:1] not in "“\"" for f in facts))
@@ -363,9 +359,8 @@ check("a quote cited with an ellipsis is kept, its stored quote spanning the pie
 check("adjudicated predicates are the model's own, unmerged, in snake_case", {"lives_in", "lives_at"} <= {a["predicate"] for a in adjudicated} and not any(r["record"] == "predicate_merge" for r in lines) and "predicate_raw" not in adjudicated[0])
 check("no consolidated fact rests only on facts the same reply set aside; a source set aside is not cited (decision 45)",
       adjudicated and all(not (set(a["from_facts"]) & unsupported_ids) for a in adjudicated), len(unsupported_ids))
-check("every entity with facts of its own had them read before anything rode, and the verdict reaches the riding copy (decision 50, C5)",
-      any(f["direction"] == "about" for f in facts)
-      and not any(f["direction"] == "about" and f["object"] in ("an unsupported claim", "an unfixable claim") for f in facts))
+check("a flagged fact is corrected or dumped wherever it landed (C5)",
+      not any(f["object"] in ("an unsupported claim", "an unfixable claim") for f in facts))
 raw_by_id = {f["fact_id"]: f for f in facts}
 check("a consolidated fact's sources are the raw facts it was drawn from, not any facts of the node (A17)",
       any(a["predicate"] == "is_a" for a in adjudicated)
@@ -403,23 +398,6 @@ check("a contradiction carries the document's own resolution, and the facts it n
       and all(f["rank"] == "active" for f in facts))
 check("support_calls counts calls, not entities (C3)",
       lines[-1]["counts"]["support_calls"] == len([c for c in ns["CALLS"] if c["stage"] == "support" and c.get("doc") == doc["source_uri"]]))
-# a kill mid-write leaves a torn last line in the sidecar: the resume must still accumulate
-side = ns["sidecar_path"](doc)
-torn_resume_ok = None
-if side.exists():
-    torn_resume_ok = False
-else:
-    rows_before = None
-    ns["append_sidecar"](doc, {"triage": {}, "cost": 0.0, "calls": 0, "flags": []})
-    ns["append_sidecar"](doc, {"rec": {"unit_id": doc["units"][0]["unit_id"]}, "cost": 0.0, "calls": 0})
-    with side.open("a", encoding="utf-8") as f:
-        f.write('{"rec": {"unit_id": "cut off her')                       # the kill
-    ns["checkpointed"](doc)                                               # the resume reads first: the torn line goes
-    ns["append_sidecar"](doc, {"rec": {"unit_id": doc["units"][1]["unit_id"]}, "cost": 0.0, "calls": 0})
-    excluded_, kept_, cost_, calls_, flags_ = ns["checkpointed"](doc)
-    torn_resume_ok = [k["unit_id"] for k in kept_] == [u["unit_id"] for u in doc["units"][:2]]
-    side.unlink()
-
 import io, contextlib
 buffer = io.StringIO()
 with contextlib.redirect_stdout(buffer):
@@ -459,11 +437,10 @@ check("each document keeps its own folder, named after its file, with the packag
       path.parent.name == "01_55" and path.name == "01_55.jsonl" and path.parent.parent.name == "oz")
 check("two entities the judge kept apart never share a node id (decision 48)",
       len({n["node_id"] for n in by["node"]}) == len(by["node"]))
-check("a torn sidecar line does not hide the units a resume appends behind it (A14)", torn_resume_ok, torn_resume_ok)
 check("the fact counters close: stored is what landed plus the riding copies",
-      lines[-1]["counts"]["facts_stored"] == lines[-1]["counts"]["facts_landed"] + lines[-1]["counts"]["facts_riding"]
-      and lines[-1]["counts"]["facts_kept"] >= lines[-1]["counts"]["facts_landed"],
-      {k: lines[-1]["counts"][k] for k in ("facts_kept", "facts_landed", "facts_minor_subject", "facts_riding", "facts_riding_sources", "facts_stored")})
+      lines[-1]["counts"]["facts_kept"]
+      == lines[-1]["counts"]["facts_stored"] + lines[-1]["counts"]["facts_no_major"] + lines[-1]["counts"]["facts_dumped"],
+      {k: lines[-1]["counts"][k] for k in ("facts_kept", "facts_stored", "facts_no_major", "facts_dumped")})
 check("an entity the document cannot summarise is not a major, and its facts ride (decision 52)",
       all(any(a["record"] == "abstract" and a["node_id"] == ns["node_id_of"](doc, e) for a in lines) for e in folded["majors"])
       and all(not e["rank"].get("no_abstract") for e in folded["majors"]))
@@ -624,44 +601,21 @@ check("the report names every major and lists facts under them",
 check("a many-unit document is untouched by the short path",
       not ns["one_reading"](ns["load_document"](OZ, BY_URI, UNITS, PIECES)))
 
-# ---------------------------------------------------------------- the spend stop mid-document, then a resume from the sidecar
+# ---------------------------------------------------------------- the spend stop writes nothing
 gr = ns["load_document"](uri_of("/graphrag-bench/Novel-40700.txt"), BY_URI, UNITS, PIECES)
-triage_calls = 1 if len({ns["unit_kind"](gr, u) for u in gr["units"]}) > 1 else 0
 gr_kept = [u["position"] for u in gr["units"] if ns["unit_kind"](gr, u) not in ("license", "front_matter", "references")]
-script["stop_at_unit"] = gr_kept[3]                                # three units finished, the fourth's first call stops
-calls_at_stop = len(ns["CALLS"])
+script["stop_at_unit"] = gr_kept[3]
 done, skipped = ns["run"]([gr["source_uri"]])
 script["stop_at_unit"] = None
-first_three = sum(1 for c in ns["CALLS"][calls_at_stop:] if c.get("unit") in gr_kept[:3])
-side = ns["sidecar_path"](gr)
-check("a spend stop mid-document leaves a sidecar of the triage and the finished units, and no package", done == 0 and side.exists() and not ns["package_path"](gr).exists() and len(ns["checkpointed"](gr)[1]) == 3, len(ns["checkpointed"](gr)[1]) if side.exists() else "no sidecar")
-check("the sidecar carries the cost and the calls of the triage and of the units it holds", ns["checkpointed"](gr)[2] > 0 and ns["checkpointed"](gr)[3] == first_three + triage_calls, (ns["checkpointed"](gr)[3], first_three, triage_calls))
-calls_before = len(ns["CALLS"])
+check("a spending stop mid-document writes no package: the document is re-ingested, not resumed",
+      done == 0 and not ns["package_path"](gr).exists())
 done, skipped = ns["run"]([gr["source_uri"]])
-rows = list(ns["read_jsonl"](ns["package_path"](gr)))
-check("the resumed run reuses the triage and finishes the document from the sidecar, deriving only the remaining units", done == 1 and rows[-1]["record"] == "completion" and not side.exists()
-      and not any(c["stage"] == "triage" for c in ns["CALLS"][calls_before:])
-      and sum(1 for c in ns["CALLS"][calls_before:] if c["stage"] == "entities") == rows[-1]["counts"]["units"] - 3, sum(1 for c in ns["CALLS"][calls_before:] if c["stage"] == "entities"))
-check("the completion's cost and calls include the units paid for before the stop", rows[-1]["stats"]["calls"] > len(ns["CALLS"]) - calls_before and rows[-1]["stats"]["cost"] > sum(c["cost"] for c in ns["CALLS"][calls_before:]))
-side_cut = ns["sidecar_path"](gr)
-side_cut.write_text('{"ingestor": "x", "input_hash": "y", "triage": {}}\n{"ingestor": "x", "input_hash": "y", "rec": {"unit_id": "z", "broken', encoding="utf-8")
-check("a sidecar cut short by a kill does not poison the document", ns["checkpointed"](gr)[:4] == (None, [], 0.0, 0))
-side_cut.unlink()
-
-# a stop inside the adjudication keeps every unit; the resume derives none of them again
-gr2 = ns["load_document"](uri_of("/graphrag-bench/Novel-30752.txt"), BY_URI, UNITS, PIECES)
-script["stop_in_adjudication"], script["adjudications_seen"] = True, 0
-done, skipped = ns["run"]([gr2["source_uri"]])
-check("a stop inside the adjudication leaves every unit in the sidecar", done == 0 and ns["sidecar_path"](gr2).exists() and len(ns["checkpointed"](gr2)[1]) == rows[-1]["counts"]["units"] or len(ns["checkpointed"](gr2)[1]) > 0)
-script["stop_in_adjudication"] = False
-calls_before2 = len(ns["CALLS"])
-done, skipped = ns["run"]([gr2["source_uri"]])
-after = [c["stage"] for c in ns["CALLS"][calls_before2:]]
-check("the resumed document derives no unit again and merges at the end", done == 1 and not ns["sidecar_path"](gr2).exists() and not any(st in ("entities", "facts", "cells", "triage") for st in after) and "adjudicate" in after, after)
+check("and the next run ingests it whole",
+      done == 1 and list(ns["read_jsonl"](ns["package_path"](gr)))[-1]["record"] == "completion")
 
 # ---------------------------------------------------------------- the receipt
 rec = ns["receipt"]()
-check("receipt sums matched_by and rejected_by across documents and costs from the packages", rec["documents"] >= 5 and rec["matched_by"].get("exact", 0) > 0 and rec["rejected_by"].get("not_found", 0) > 0 and rec["cost_of_packages"] > 0 and rec["in_flight_sidecars"] == [])
+check("receipt sums matched_by and rejected_by across documents and costs from the packages", rec["documents"] >= 5 and rec["matched_by"].get("exact", 0) > 0 and rec["rejected_by"].get("not_found", 0) > 0 and rec["cost_of_packages"] > 0)
 
 # withheld text: the public export ships the reference papers with null text and a papers.jsonl
 # row naming the PDF; the ingestor reads the PDF back exactly as the extractor did
@@ -874,41 +828,6 @@ flagged_ids, refused, n_calls = ns["unsupported_of"](many[:2], {})
 check("a refused verification is reported, not read as a clean pass (C2)", refused and flagged_ids == [])
 ns["generate"] = kept_generate
 
-# B4 -- a reply the document bought is written beside it and read back on resume
-uri = doc["source_uri"]
-ns["IN_FLIGHT"][uri] = doc
-ns["REPLIES"].pop(uri, None)
-ns["remember_reply"](uri, "a-prompt-key", {"unsupported": [1]})
-ns["REPLIES"].pop(uri)                                   # forget it in memory: only the sidecar has it now
-read_back = ns["load_replies"](doc)
-check("a reply a document bought is checkpointed beside it and read back on resume (B4)",
-      read_back == 1 and ns["REPLIES"][uri].get("a-prompt-key") == {"unsupported": [1]})
-ns["REPLIES"].pop(uri, None)
-ns["IN_FLIGHT"].pop(uri, None)
-if ns["sidecar_path"](doc).exists():
-    ns["sidecar_path"](doc).unlink()
-check("and a sidecar written under a different derive path is not read back (B3, B4)",
-      ns["load_replies"](doc) == 0)
-
-# P3 -- triage buys a reply before it writes its own row, so the triage row is not row 0
-side = ns["sidecar_path"](doc)
-if side.exists():
-    side.unlink()
-ns["IN_FLIGHT"][uri] = doc
-ns["REPLIES"].pop(uri, None)
-ns["remember_reply"](uri, "the-triage-reply", {"exclude": []})       # as triage() does, before its row
-ns["append_sidecar"](doc, {"triage": {"license": "not the work"}, "flags": ["a flag"], "cost": 0.25, "calls": 1})
-ns["append_sidecar"](doc, {"rec": {"unit_id": [u["unit_id"] for u in doc["units"]
-                                               if ns["unit_kind"](doc, u) != "license"][0]}, "cost": 0.5, "calls": 2})
-back_excluded, back_kept, back_cost, back_calls, back_flags = ns["checkpointed"](doc)
-check("a sidecar whose first row is a cached reply is still read back on resume (P3)",
-      back_excluded == {"license": "not the work"} and len(back_kept) == 1
-      and back_calls == 3 and back_flags == ["a flag"],
-      (back_excluded, len(back_kept), back_calls))
-side.unlink()
-ns["IN_FLIGHT"].pop(uri, None)
-ns["REPLIES"].pop(uri, None)
-
 # B1 and R1 -- one sentence about qualifiers, one about what a passage states, in both prompts
 fact_text = ns["fact_prompt"]({"label": "L", "text": "T"}, ["A"], ["A"])
 support_text = ns["support_prompt"](["1. a b c"])
@@ -921,15 +840,6 @@ check("the support prompt teaches the rule, not an instance from any corpus (R1,
       and not any(word in support_text for word in ("deletion", "Boq", "Dorothy", "Zep")))
 check("no prompt carries an example lifted from a document (ruling of 09-07)",
       not any(word in ns["adjudicate_prompt"]("N", ["k"], ["1. a"], ["c"]) for word in ("Boq", "Munchkin", "Dorothy")))
-
-# B3 -- the sidecar label moves when the derive path does
-before_sig = ns["derive_signature"]()
-kept_span = ns["QUOTE_SPAN_MAX"]
-ns["QUOTE_SPAN_MAX"] = kept_span + 1
-check("the sidecar label moves when the derive path does, so a stale sidecar is refused (B3)",
-      ns["derive_signature"]() != before_sig)
-ns["QUOTE_SPAN_MAX"] = kept_span
-check("and does not move when nothing changed", ns["derive_signature"]() == before_sig)
 
 # R3 -- a correction is not taken on trust
 raw_fact = {"subject": "Zep", "predicate": "reduces", "object": "latency", "qualifiers": None}

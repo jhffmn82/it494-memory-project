@@ -278,10 +278,6 @@ if not KEY:
 
 CALLS, REJECTIONS, RETRIES = [], [], []
 LOG_LOCK = threading.Lock()
-REPLIES, REPLIES_LOCK, IN_FLIGHT = {}, threading.Lock(), {}   # per document: what it has already paid for
-REPLY_SINK = []          # block 12 installs the checkpoint writer here. generate() must not name
-                         # it directly: this block runs the connection test, and a call reaching
-                         # forward into a later block is a NameError before any document is read
 
 
 class SpendStop(Exception):
@@ -435,15 +431,8 @@ def call(url, payload, model, stage, ctx, prompt_chars):
 
 
 def generate(prompt, schema, stage, model=LUNA, effort="low", ctx=None):
-    """The reply as a dict that fits `schema`, or None after one retry with the error appended.
-    A reply this document has already bought is returned from its sidecar instead of bought
-    again: units were checkpointed one at a time, but everything after the last unit was not
-    checkpointed at all, and a spending stop there threw away the judge and the adjudication
-    (fixed 09-07)."""
+    """The reply as a dict that fits `schema`, or None after one retry with the error appended."""
     ctx = ctx or {}
-    uri, key = ctx.get("doc"), h(stage, model, effort, prompt)
-    if uri is not None and key in REPLIES.get(uri, {}):
-        return REPLIES[uri][key]
     error = ""
     for attempt in range(2):
         body = call("https://api.openai.com/v1/chat/completions",
@@ -455,10 +444,6 @@ def generate(prompt, schema, stage, model=LUNA, effort="low", ctx=None):
                 raise SchemaError("empty reply" + (f" (refusal: {message.get('refusal')})" if message.get("refusal") else ""))
             reply = json.loads(message["content"])
             check_schema(reply, schema)
-            if uri is not None:
-                REPLIES.setdefault(uri, {})[key] = reply
-                for write_it in REPLY_SINK:              # nothing installed yet during the ping
-                    write_it(uri, key, reply)
             return reply
         except (SchemaError, ValueError, TypeError, KeyError, IndexError) as e:
             error = f"{type(e).__name__}: {e}"
@@ -1678,30 +1663,16 @@ def fold_document(records, entities, ctx, light=False):
 
 
 def package_path(doc):
-    """Every document keeps its own folder, named after its file: the package, the unit sidecar
+    """Every document keeps its own folder, named after its file: the package
     and the graph sit together, under the corpus the document came from."""
     parts = doc["source_uri"].split("/")
     stem = Path(parts[-1]).stem
     return OUT / (parts[-2] if len(parts) > 1 else "misc") / stem / (stem + ".jsonl")
 
 
-def sidecar_path(doc):
-    """Unit records checkpointed while a document is in flight."""
-    return package_path(doc).with_suffix(".units.jsonl")
-
-
-def derive_signature():
-    """What a checkpointed unit depends on, as one string: the words the derive path will send,
-    the models it will send them to, and the constant that gates which quotes it keeps. INGESTOR
-    was the whole label, and a hand-typed version string does not move when the code under it
-    does -- it stayed at 0.7 across eight commits that changed this path (A12; fixed 09-07)."""
-    sample = {"label": "L", "text": "T"}
-    return h(INGESTOR, LUNA, TERRA, QUOTE_SPAN_MAX,
-             entity_prompt(sample), fact_prompt(sample, ["A"], ["A"]), cells_prompt(sample, ["A"]))
-
-
 def input_hash(doc):
-    return h(doc["doc_id"], *[u["unit_id"] for u in doc["units"]], derive_signature())
+    """What a finished package was built from, so completed() knows it still applies."""
+    return h(doc["doc_id"], *[u["unit_id"] for u in doc["units"]], INGESTOR)
 
 
 def first_mention(records, entity):
@@ -1739,33 +1710,24 @@ def node_id_of(doc, entity):
 
 
 def landings(records, folded):
-    """Where every kept fact lands: {major index: [(fact, direction, unit label, stored id, the
-    fact it rides under or None)]}."""
+    """Where every kept fact lands: {major index: [(fact, direction, unit label)]}. A fact whose
+    subject is a major lands forward; one that points AT a major lands under it as inverse, with
+    the lesser thing's name as its value. A fact between two lesser things is not stored: nothing
+    is demoted any more, so there is nothing to rescue by copying it (ruling of 09-07)."""
     entity_of = {(ui, local_name): e["index"] for e in folded["majors"] + folded["minors"] for ui, local_name in e["members"]}
     major = {e["index"]: e for e in folded["majors"]}
-    own_of = {}                                   # a minor's facts about itself, in reading order
-    for r in records:
-        for f in r["facts"]:
-            subject = entity_of.get((r["position"], f["subject"]))
-            obj = entity_of.get((r["position"], f["object"])) if f["object_is_entity"] else None
-            if subject is not None and subject not in major and obj not in major:
-                own_of.setdefault(subject, []).append((f, r["label"]))
-    landed, attached = {index: [] for index in major}, set()
+    landed = {index: [] for index in major}
     for r in records:
         for f in r["facts"]:
             subject = entity_of.get((r["position"], f["subject"]))
             obj = entity_of.get((r["position"], f["object"])) if f["object_is_entity"] else None
             if subject in major:
-                node, direction, minor = subject, "forward", obj if obj is not None and obj not in major else None
+                node, direction = subject, "forward"
             elif obj in major:
-                node, direction, minor = obj, "inverse", subject
+                node, direction = obj, "inverse"
             else:
                 continue
-            landed[node].append((f, direction, r["label"], f["fact_id"], None))
-            if minor is not None and (node, minor) not in attached:
-                attached.add((node, minor))
-                for g, label in own_of.get(minor, []):
-                    landed[node].append((g, "about", label, h(g["fact_id"], "rides into", *entity_key(major[node])), f["fact_id"]))
+            landed[node].append((f, direction, r["label"]))
     return landed
 
 
@@ -1870,11 +1832,12 @@ def write_package(doc, records, entities, folded, adjudicated, ledger, candidate
     # only if it was corrected against that passage; otherwise it is dumped and recorded as a
     # rejection, never written with a flag (R3, ruling of 09-07)
     when_of = {u["unit_id"]: (u.get("occurred_at"), u.get("occurred_until")) for u in doc["units"]}
-    landed, landed_ids, riding = landings(records, folded), set(), 0
+    landed, landed_ids = landings(records, folded), set()
     dumped = []
     for e in folded["majors"]:
         nid = node_id_of(doc, e)
-        for f, direction, label, stored_id, tying in landed[e["index"]]:
+        for f, direction, label in landed[e["index"]]:
+            stored_id = f["fact_id"]
             fix = corrections.get(stored_id)
             if stored_id in flagged and fix is None:          # its passage does not state it and it could not be corrected
                 dumped.append({"record": "rejection", "stage": "verify", "unit_id": f["unit_id"], "category": "unsupported",
@@ -1882,17 +1845,14 @@ def write_package(doc, records, entities, folded, adjudicated, ledger, candidate
                                "quote": f["quote"], "why": "the passage does not state it and it could not be corrected"})
                 continue
             landed_ids.add(f["fact_id"])
-            riding += direction == "about"
             object_node = node_of.get((position_of[f["unit_id"]], f["object"])) if f["object_is_entity"] else None
             # a correction may move the predicate, the qualifiers and the object; it may not move
             # the subject (corrected_fact refuses that), and on an inverse landing the object slot
             # structurally holds the other entity's name, so it is not the correction's to set (P1)
             if direction == "forward":
                 obj, is_node = (fix["object"], False) if fix else (object_node or f["object"], object_node is not None)
-            elif direction == "inverse":
+            else:                                     # inverse: the lesser thing's name is the value
                 obj, is_node = f["subject"], False
-            else:                                     # about: the minor's own fact, riding into this major
-                obj, is_node = (fix["object"] if fix else f["object"]), False
             lines.append({"record": "fact", "fact_id": stored_id, "subject": nid,
                           "predicate": fix["predicate"] if fix else f["predicate"], "object": obj,
                           "object_is_node": is_node, "direction": direction,
@@ -1905,8 +1865,7 @@ def write_package(doc, records, entities, folded, adjudicated, ledger, candidate
                           "occurred_until": when_of.get(f["unit_id"], (None, None))[1],
                           "tier": f["tier"], "author": f["author"],
                           "provenance": {"ingestor": INGESTOR, "matched_by": f["matched_by"], "subject_name": f["subject"],
-                                         "voice_ambiguous": f["voice_ambiguous"], "rides_on": tying,
-                                         "copy_of": f["fact_id"] if direction == "about" else None,
+                                         "voice_ambiguous": f["voice_ambiguous"],
                                          "corrected_from": {"predicate": f["predicate"], "object": f["object"],
                                                             "qualifiers": f["qualifiers"]} if fix else None}})
     lines += dumped
@@ -1916,10 +1875,8 @@ def write_package(doc, records, entities, folded, adjudicated, ledger, candidate
 
     counts = {"units": len(records), "entities": len(entities), "majors": len(folded["majors"]), "minors": len(folded["minors"]),
               "mentions": sum(len(r["mentions"]) for r in records), "facts_kept": sum(len(r["facts"]) for r in records),
-              "facts_stored": sum(1 for l in lines if l["record"] == "fact"),   # landed + riding copies
-              "facts_landed": sum(1 for l in lines if l["record"] == "fact" and l["direction"] != "about"),
-              "facts_minor_subject": sum(len(r["facts"]) for r in records) - len(landed_ids), "facts_riding": riding,
-              "facts_riding_sources": len({f["fact_id"] for e in folded["majors"] for f, direction, label, stored_id, tying in landed[e["index"]] if direction == "about"}),
+              "facts_stored": sum(1 for l in lines if l["record"] == "fact"),
+              "facts_no_major": sum(len(r["facts"]) for r in records) - len(landed_ids) - len(dumped),
               "facts_rejected": sum(len(r["rejected_facts"]) for r in records) + len(dumped), "cells": sum(1 for l in lines if l["record"] == "cell"),
               "cells_unlisted": sum(r.get("cells_unlisted", 0) for r in records),
               "shared_spans": sum(r["shared_spans"] for r in records), "ambiguous_voice": sum(r["ambiguous_voice"] for r in records),
@@ -1963,67 +1920,6 @@ LOG = OUT / "ingest.log"
 WATCH = True                                  # narrate each stage as the run goes
 RESULTS = []                                  # (source_uri, records, counts, stats) for every document this session ingested
 ADJUDICATE_MIN_FACTS = 4                      # fewer than this: nothing to consolidate, so a support call instead
-
-
-def remember_reply(uri, key, reply):
-    """One bought reply, written beside its document so a resume has it. generate() holds the
-    reply in memory itself and reaches this through REPLY_SINK, so that block 3 names nothing
-    defined here."""
-    doc = IN_FLIGHT.get(uri)
-    with REPLIES_LOCK:
-        REPLIES.setdefault(uri, {})[key] = reply
-        if doc is not None:
-            append_sidecar(doc, {"cached": key, "reply": reply})
-
-
-REPLY_SINK.append(remember_reply)
-
-
-def sidecar_rows(doc):
-    """The rows of this document's sidecar that belong to this input, torn last line dropped."""
-    side = sidecar_path(doc)
-    if side.exists():
-        data = side.read_bytes()                  # a kill mid-write leaves a torn last line: drop it,
-        if not data.endswith(b"\n"):             # or the resume appends behind it and is never read past
-            side.write_bytes(data[:data.rfind(b"\n") + 1])
-    if not side.exists():
-        return []
-    return [row for row in read_own_jsonl(side)
-            if row.get("ingestor") == INGESTOR and row.get("input_hash") == input_hash(doc)]
-
-
-def load_replies(doc):
-    """What a stopped attempt already paid for, so the resume does not buy it twice."""
-    REPLIES[doc["source_uri"]] = {row["cached"]: row["reply"] for row in sidecar_rows(doc) if "cached" in row}
-    return len(REPLIES[doc["source_uri"]])
-
-
-def append_sidecar(doc, row):
-    side = sidecar_path(doc)
-    side.parent.mkdir(parents=True, exist_ok=True)
-    with side.open("a", encoding="utf-8") as f:
-        f.write(json.dumps({"ingestor": INGESTOR, "input_hash": input_hash(doc), **row}, ensure_ascii=False) + "\n")
-
-
-def checkpointed(doc):
-    """What a previous attempt left in its sidecar, when it belongs to this input: (the kinds
-    triage left out, the unit records in order, their cost, their calls, the triage flags)."""
-    rows = sidecar_rows(doc)
-    # the triage row is no longer first: triage() buys a reply, and that reply is checkpointed
-    # before the triage row is written. Requiring it at index 0 rejected every full-path sidecar
-    # and the resume then deleted it, re-buying what it had already paid for (P3, fixed 09-07)
-    head = next((row for row in rows if "triage" in row), None)
-    if head is None:
-        return None, [], 0.0, 0, []
-    excluded = head["triage"]
-    kept_ids = [u["unit_id"] for u in doc["units"] if unit_kind(doc, u) not in excluded]
-    kept, cost, calls = [], head.get("cost", 0.0), head.get("calls", 0)
-    for row in rows:
-        if "rec" in row and len(kept) < len(kept_ids) and row["rec"]["unit_id"] == kept_ids[len(kept)]:
-            kept.append(row["rec"])
-            cost += row.get("cost", 0.0)
-            calls += row.get("calls", 0)
-    return excluded, kept, cost, calls, head.get("flags", [])
 
 
 def triage(doc, ctx):
@@ -2098,27 +1994,25 @@ def adjudicate(records, folded, ctx, watch=False, light=False):
     def adjudicate_one(e):
         raws = landed[e["index"]]
         result = {"facts": [], "attributes": [], "contradictions": [], "unsupported": [], "dropped": 0, "raw": len(raws),
-                  "riding": sum(1 for x in raws if x[1] == "about"), "skipped": None, "rejected": False}
+                  "skipped": None, "rejected": False}
         if not raws:
             return result
         if len(raws) < ADJUDICATE_MIN_FACTS:         # nothing to consolidate, but the passages are still read
             result["skipped"] = f"fewer than {ADJUDICATE_MIN_FACTS} facts: the raw facts stand, their support checked"
             result["unsupported"], result["rejected"], result["support_calls"] = unsupported_of(
-                [(f, stored_id) for f, direction, label, stored_id, tying in raws], ctx, entity=e["name"])
+                [(f, f["fact_id"]) for f, direction, label in raws], ctx, entity=e["name"])
             return result
         listing = []
-        for n, (f, direction, label, stored_id, tying) in enumerate(raws, 1):
+        for n, (f, direction, label) in enumerate(raws, 1):
             if direction == "forward":
                 line = f"{n}. {e['name']} {f['predicate']} {f['object']}"
-            elif direction == "inverse":
-                line = f"{n}. (inverse) {f['subject']} {f['predicate']} {e['name']}"
             else:
-                line = f"{n}. (about {f['subject']}) {f['subject']} {f['predicate']} {f['object']}"
+                line = f"{n}. (inverse) {f['subject']} {f['predicate']} {e['name']}"
             listing.append(line + (f" [{f['qualifiers']}]" if f["qualifiers"] else "") + f"  ({label}: \"{' '.join(f['quote'].split())}\")")
         reply = generate(adjudicate_prompt(e["name"], e["kinds"], listing, cells_of.get(e["index"], [])), ADJUDICATE_SCHEMA, "adjudicate",
                          model=TERRA, effort="medium", ctx={**ctx, "entity": e["name"]})
         result["rejected"] = reply is None
-        ids = [stored_id for f, direction, label, stored_id, tying in raws]
+        ids = [f["fact_id"] for f, direction, label in raws]
         result["unsupported"] = [ids[n - 1] for n in valid_sources((reply or {}).get("unsupported"), len(ids))]
         aside = set(result["unsupported"])
         for key in ("facts", "attributes", "contradictions"):
@@ -2138,23 +2032,12 @@ def adjudicate(records, folded, ctx, watch=False, light=False):
                 result[key].append(kept)
         return result
 
-    minor_index = {(ui, local_name): e["index"] for e in folded["minors"] for ui, local_name in e["members"]}
-    own_of = {}
-    for r in records:
-        for f in r["facts"]:
-            index = minor_index.get((r["position"], f["subject"]))
-            if index is not None:
-                own_of.setdefault(index, []).append((f, f["fact_id"]))
-
     if light:
         # one reading: nothing to consolidate, so every fact stands and the document's whole
         # fact list is read against its passages in a single call (ruling of 09-07)
-        # every landed list already carries each minor's facts as riding copies, under the ids
-        # the package will use; listing the minors' own facts again duplicated every rider and
-        # named ids no record carries (fixed 09-07)
         every, out = [], {}
         for e in folded["majors"]:
-            every += [(f, stored_id) for f, direction, label, stored_id, tying in landed[e["index"]]]
+            every += [(f, f["fact_id"]) for f, direction, label in landed[e["index"]]]
         if watch:
             print(f"verify: {len(every)} facts of the whole document, one pass on {LUNA}")
         flagged, refused, support_calls = unsupported_of(every, ctx) if every else ([], False, 0)
@@ -2163,55 +2046,23 @@ def adjudicate(records, folded, ctx, watch=False, light=False):
         for e in folded["majors"]:
             raws = landed[e["index"]]
             out[e["index"]] = {"facts": [], "attributes": [], "contradictions": [], "dropped": 0, "raw": len(raws),
-                               "riding": sum(1 for x in raws if x[1] == "about"), "skipped": stands, "rejected": refused,
-                               "support_calls": support_calls,
-                               "unsupported": [sid for f, direction, label, sid, tying in raws if sid in aside]}
+                               "skipped": stands, "rejected": refused, "support_calls": support_calls,
+                               "unsupported": [f["fact_id"] for f, direction, label in raws if f["fact_id"] in aside]}
             support_calls = 0                    # the one pass covers the document: counted once
         return out
 
-    def check_one(pair):
-        e, own = pair
-        flagged, refused, calls = unsupported_of(own, ctx, entity=e["name"])
-        return {"facts": [], "attributes": [], "contradictions": [], "raw": len(own), "riding": 0, "dropped": 0,
-                "skipped": "not a major: its facts stand, their support checked", "rejected": refused,
-                "unsupported": flagged, "support_calls": calls}
-
     if watch:
         print(f"adjudicate: {len(folded['majors'])} majors, {WORKERS} at a time; fewer than {ADJUDICATE_MIN_FACTS} facts is a support call on {LUNA}")
-    out = {e["index"]: result for e, result in zip(folded["majors"], in_parallel(adjudicate_one, folded["majors"]))}
-
-    # every other entity's facts are read where they stand, before any of them rides (decision 50)
-    # only the facts that ride are ever written, so only those are worth a call (fixed 09-07)
-    rides_somewhere = {f["fact_id"] for e in folded["majors"]
-                       for f, direction, label, stored_id, tying in landed[e["index"]] if direction == "about"}
-    pairs = []
-    for e in folded["minors"]:
-        own = [(f, fid) for f, fid in own_of.get(e["index"], []) if fid in rides_somewhere]
-        if own:
-            pairs.append((e, own))
-    if watch and pairs:
-        print(f"support: {len(pairs)} minors with facts of their own, checked on {LUNA}")
-    for (e, own), result in zip(pairs, in_parallel(check_one, pairs)):
-        out[e["index"]] = result
-    return out
+    return {e["index"]: result for e, result in zip(folded["majors"], in_parallel(adjudicate_one, folded["majors"]))}
 
 
 def flagged_facts(records, folded, adjudicated):
     """{stored id: the raw fact behind it} for every fact a verification set aside. A minor's
-    verdict names its raw fact, but the package holds that fact only as riding copies, so the
-    verdict is carried to those; a fact that rides nowhere names no line here at all."""
-    landed, by_stored, rides = landings(records, folded), {}, {}
-    for e in folded["majors"]:
-        for f, direction, label, stored_id, tying in landed[e["index"]]:
-            by_stored[stored_id] = f
-            if direction == "about":
-                rides.setdefault(f["fact_id"], []).append(stored_id)
-    out = {}
-    for sid in {x for result in adjudicated.values() for x in result.get("unsupported", [])}:
-        for target in rides.get(sid, [sid]):
-            if target in by_stored:
-                out[target] = by_stored[target]
-    return out
+verdict names the fact by its own id, which is the id the package carries."""
+    landed = landings(records, folded)
+    by_id = {f["fact_id"]: f for e in folded["majors"] for f, direction, label in landed[e["index"]]}
+    flagged = {x for result in adjudicated.values() for x in result.get("unsupported", [])}
+    return {fid: by_id[fid] for fid in flagged if fid in by_id}
 
 
 def corrected_fact(f, item):
@@ -2323,19 +2174,19 @@ def show_fold(folded):
 
 
 def show_adjudication(folded, adjudicated):
-    total = {"raw": 0, "riding": 0, "facts": 0, "attributes": 0, "contradictions": 0, "unsupported": 0, "dropped": 0}
+    total = {"raw": 0, "facts": 0, "attributes": 0, "contradictions": 0, "unsupported": 0, "dropped": 0}
     for e in folded["majors"]:
         a = adjudicated.get(e["index"])
         if not a:
             continue
         for key in total:
-            total[key] += a[key] if key in ("raw", "riding", "dropped") else len(a.get(key, []))
+            total[key] += a[key] if key in ("raw", "dropped") else len(a.get(key, []))
         if a["skipped"]:
             print(f"    {e['name'][:34]:<34} {a['raw']:>3} raw facts stand: {a['skipped']}")
         else:
             print(f"    {e['name'][:34]:<34} {a['raw']:>3} raw facts -> {len(a['facts']):>3} facts, {len(a['attributes']):>3} attributes,"
                   f" {len(a['contradictions'])} contradictions" + (f", {a['dropped']} dropped for pointing at nothing" if a["dropped"] else ""))
-    print(f"adjudicated: {total['raw']} raw facts ({total['riding']} riding in from minors) -> {total['facts']} facts, {total['attributes']} attributes,"
+    print(f"adjudicated: {total['raw']} raw facts -> {total['facts']} facts, {total['attributes']} attributes,"
           f" {total['contradictions']} contradictions; {total['unsupported']} raw facts their passage does not state, to be corrected or dumped;"
           f" {total['dropped']} dropped; {sum(1 for a in adjudicated.values() if a['skipped'])} majors left to their raw facts")
 def ingest(doc, ctx=None):
@@ -2343,21 +2194,10 @@ def ingest(doc, ctx=None):
     ctx = {"doc": doc["source_uri"], **(ctx or {})}
     logged_before = len(CALLS)                  # this document's own calls start here
     light = one_reading(doc)          # one unit to read: nothing to merge, so the short path
-    IN_FLIGHT[doc["source_uri"]] = doc           # so every reply this document buys is checkpointed
-    reused = load_replies(doc)                   # and every reply it already bought is not bought again
-    if reused and WATCH:
-        print(f"resuming {doc['source_uri']}: {reused} replies already paid for")
 
-    # which kinds of unit to read: the sidecar's answer when resuming, else the judge's
-    excluded, records, cost_before, calls_before_stop, flags = checkpointed(doc)   # what a stopped run already paid
-    if excluded is None:
-        # a sidecar still holding replies for THIS input is not thrown away: sidecar_rows already
-        # filtered it by input hash, so what is there was paid for and still applies (P3)
-        if sidecar_path(doc).exists() and not REPLIES.get(doc["source_uri"]):
-            sidecar_path(doc).unlink()
-        spend_at, calls_at = spend(), len(CALLS)
-        excluded, flags = boilerplate_of(doc) if light else triage(doc, ctx)
-        append_sidecar(doc, {"triage": excluded, "flags": flags, "cost": round(spend() - spend_at, 6), "calls": len(CALLS) - calls_at})
+    # which kinds of unit to read
+    records, cost_before, calls_before_stop = [], 0.0, 0
+    excluded, flags = boilerplate_of(doc) if light else triage(doc, ctx)
     kept, left_out = [], []
     for u in doc["units"]:
         kind = unit_kind(doc, u)
@@ -2375,14 +2215,12 @@ def ingest(doc, ctx=None):
         for flag in flags:
             print(f"    FLAG {flag}")
 
-    # the units, each on its own, checkpointed as it lands
-    if records and WATCH:
-        print(f"resuming {doc['source_uri']} from {len(records)} checkpointed units")
+    # the units, each on its own
     def derive_one(unit):
         try:
             return derive_unit(doc, unit, {**ctx, "unit": unit["position"]}, light=light)
         except SpendStop as stop:
-            return stop          # the batch's finished units are still checkpointed; the stop is raised after them
+            return stop          # reported after the rest of the batch lands, then raised
 
     todo, width = kept[len(records):], max(WORKERS, 1)
     for at in range(0, len(todo), width):        # a batch derives together, then lands in reading order
@@ -2392,7 +2230,6 @@ def ingest(doc, ctx=None):
                 raise rec
             cost, calls = unit_spend(doc, unit["position"])
             records.append(rec)
-            append_sidecar(doc, {"rec": rec, "cost": round(cost, 6), "calls": calls})
             if WATCH:
                 show_unit(rec, unit, cost, document_spend(doc, logged_before)[0])
 
@@ -2425,8 +2262,6 @@ def ingest(doc, ctx=None):
     stats["correct_calls"] = correct_calls
     path, counts = write_package(doc, records, entities, folded, adjudicated, ledger, candidates, left_out, stats,
                                  flagged, corrections)
-    if sidecar_path(doc).exists():
-        sidecar_path(doc).unlink()
     if WATCH:
         print(f"package {path}: {counts}")
     RESULTS.append((doc["source_uri"], records, counts, stats))
@@ -2486,12 +2321,9 @@ def one_document(uri):
         return {"done": True, "text": "\n".join(entry + [f"    -> {path}"])}
     except SpendStop as e:
         return {"stop": True, "text": f"{uri}: {e} after ${document_spend({'source_uri': uri})[0]:.3f} on this document;"
-                                      f" everything it has already paid for is checkpointed and the run stops here"}
+                                      f" the run stops here"}
     except Exception as e:
         return {"text": f"{uri}  ERROR {type(e).__name__}: {e}"}
-    finally:
-        IN_FLIGHT.pop(uri, None)                 # the sidecar keeps the replies; memory need not
-        REPLIES.pop(uri, None)
 
 
 def run(uris, at_once=None):
@@ -2533,14 +2365,11 @@ def receipt():
     rec = {"ingestor": INGESTOR, "documents": 0, "by_group": {}, "counts": {}, "matched_by": {}, "rejected_by": {}, "cost_of_packages": 0.0,
            "cost_this_session": round(spend(), 4), "calls_this_session": len(CALLS), "calls_by_stage": {},
            "schema_rejections_this_session": len(REJECTIONS), "schema_retries_this_session": len(RETRIES),
-           "in_flight_sidecars": []}
+           }
     for c in CALLS:
         rec["calls_by_stage"][c["stage"]] = rec["calls_by_stage"].get(c["stage"], 0) + 1
     for path in sorted(OUT.rglob("*.jsonl")):
         if path.parent == OUT:
-            continue
-        if path.name.endswith(".units.jsonl"):
-            rec["in_flight_sidecars"].append(str(path.relative_to(OUT)).replace("\\", "/"))
             continue
         rows = read_own_jsonl(path)
         if not rows or rows[-1].get("record") != "completion":
@@ -2831,5 +2660,7 @@ if __name__ == "__main__" and OTHERS:
 # 09-02 demo's way and saved beside the packages. Needs networkx and matplotlib, which Kaggle has.
 if __name__ == "__main__":
     for uri, records_, counts_, stats_ in RESULTS:
+        if len(records_) < 2:              # a chat session is one reading: a graph of it says nothing
+            continue
         if package_path({"source_uri": uri}).exists():
             draw_graph(package_path({"source_uri": uri}))
