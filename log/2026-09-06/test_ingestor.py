@@ -132,6 +132,7 @@ def stub_generate(prompt, schema, stage, model=None, effort="low", ctx=None):
                 facts.append({"subject": n0, "predicate": "is_cited_loosely", "object": "and supported", "qualifiers": None, "quote": loose, "valid_from": None, "valid_to": None})
                 facts.append({"subject": n0, "predicate": "is_cited_loosely", "object": "an unsupported claim", "qualifiers": None, "quote": loose, "valid_from": None, "valid_to": None})
                 facts.append({"subject": n0, "predicate": "cannot_be_fixed", "object": "an unfixable claim", "qualifiers": None, "quote": loose, "valid_from": None, "valid_to": None})   # flagged, and the correction refuses it: dumped
+                facts.append({"subject": n0, "predicate": "is_cited_well", "object": "wrongly flagged", "qualifiers": None, "quote": loose, "valid_from": None, "valid_to": None})   # flagged by the cheap check, upheld by the second look
             if len(names) > 4 and len(words) >= 8:
                 inverse_subject = names[-1]
                 # a lesser thing speaking about a major: lands inverse, so its object slot holds
@@ -162,23 +163,26 @@ def stub_generate(prompt, schema, stage, model=None, effort="low", ctx=None):
         listing = prompt.split("FACTS:\n", 1)[1]
         return {"unsupported": [int(k) for k, line in re.findall(r"^(\d+)\. (.*)$", listing, re.M)
                                 if "an unsupported claim" in line or "an unfixable claim" in line
-                                or "is_cited_loosely_toward" in line]}
+                                or "is_cited_loosely_toward" in line or "wrongly flagged" in line]}
     if stage == "correct":                                       # the passage is fixed; the claim moves to fit it (R3)
         listing = prompt.split("STATEMENTS:" + chr(10), 1)[1]
         out = []
         for k, line in re.findall(r"^(\d+)\. (.*)$", listing, re.M):
-            if "loosely" in line:                                # correctable: a real claim the passage does carry
-                out.append({"fact": int(k), "subject": line.split(" is_cited_loosely")[0].split(". ", 1)[-1].strip(),
+            if "is_cited_loosely_toward" in line or "an unsupported claim" in line:   # the passage states something else
+                out.append({"fact": int(k), "verdict": "corrected",
                             "predicate": "is_cited_loosely", "object": "a corrected claim", "qualifiers": None})
+            elif "an unfixable claim" in line:                   # the passage carries nothing
+                out.append({"fact": int(k), "verdict": "drop"})
             elif "restate_me" in line:                           # answered, but the answer says nothing: dumped anyway
-                out.append({"fact": int(k), "subject": "x", "predicate": "restate_me", "object": "restate_me", "qualifiers": None})
-            # anything else is left out of the reply entirely: not correctable, so dumped
+                out.append({"fact": int(k), "verdict": "corrected", "predicate": "restate_me", "object": "restate_me"})
+            else:                                                # the first check was wrong: it stands as written
+                out.append({"fact": int(k), "verdict": "stands"})
         return {"corrections": out}
     if stage == "adjudicate":
         listing = prompt.split("FACTS:\n", 1)[1].split("\nCELLS:")[0]
         n = len(re.findall(r"^\d+\. ", listing, re.M))
         unsupported = [int(k) for k, line in re.findall(r"^(\d+)\. (.*)$", listing, re.M)
-                       if "an unsupported claim" in line
+                       if "an unsupported claim" in line or "wrongly flagged" in line
                        or "is_cited_loosely_toward" in line          # an inverse landing: only this call sees it
                        or "an unfixable claim" in line]
         # a riding line is NOT flagged here, but the minor's own support call will condemn it, so
@@ -291,13 +295,17 @@ check("no fact is written with a flag: every stored fact is active (R3)",
 check("a fact its passage does not state is corrected against that passage, keeping its quote (R3)",
       any(f["object"] == "a corrected claim" and f["provenance"]["corrected_from"]["object"] == "an unsupported claim" for f in facts)
       and not any(f["object"] == "an unsupported claim" for f in facts))
+check("a fact the second look upholds is written unchanged, not dumped (09-08)",
+      lines[-1]["counts"]["facts_upheld"] > 0
+      and any(f["object"] == "wrongly flagged" and not f["provenance"]["corrected_from"] for f in facts))
+check("the flagged facts account for themselves: upheld plus corrected plus dumped",
+      lines[-1]["counts"]["facts_flagged"] == lines[-1]["counts"]["facts_upheld"]
+      + lines[-1]["counts"]["facts_corrected"] + lines[-1]["counts"]["facts_dumped"])
 check("a fact that could not be corrected is dumped, not stored, and recorded as a rejection (R3)",
       lines[-1]["counts"]["facts_dumped"] > 0
       and any(r["record"] == "rejection" and r["stage"] == "verify" and r["category"] == "unsupported" for r in lines))
 check("a correction that says nothing is refused and the fact dumped with it (R3)",
       not any(f["predicate"] == "restate_me" for f in facts))
-check("the flagged, corrected and dumped counts agree", lines[-1]["counts"]["facts_flagged"] ==
-      lines[-1]["counts"]["facts_corrected"] + lines[-1]["counts"]["facts_dumped"])
 check("a fact its passage does state is left alone", any(f["object"] == "and supported" and not f["provenance"]["corrected_from"] for f in facts))
 check("rejections classified: paraphrase, not_found, unlisted_subject, duplicate", set(stats["rejected_by"]) >= {"paraphrase", "not_found", "unlisted_subject", "duplicate"}, stats["rejected_by"])
 check("predicate normalised to snake_case", any(f["predicate"] == "has_trait" for f in facts))

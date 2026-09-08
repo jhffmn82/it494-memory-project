@@ -845,8 +845,8 @@ TRIAGE_SCHEMA = {"type": "object", "required": ["exclude"], "properties": {"excl
 
 SUPPORT_SCHEMA = {"type": "object", "required": ["unsupported"], "properties": {"unsupported": {"type": "array"}}}
 CORRECT_SCHEMA = {"type": "object", "required": ["corrections"], "properties": {"corrections": {"type": "array", "items": {
-    "type": "object", "required": ["fact"], "properties": {
-        "fact": {"type": ["integer", "string"]}, "subject": {"type": ["string", "null"]},
+    "type": "object", "required": ["fact", "verdict"], "properties": {
+        "fact": {"type": ["integer", "string"]}, "verdict": {"type": "string", "enum": ["stands", "corrected", "drop"]},
         "predicate": {"type": ["string", "null"]}, "object": {"type": ["string", "null"]},
         "qualifiers": {"type": ["string", "null"]}}}}}}
 ADJUDICATE_SCHEMA = {"type": "object", "required": ["facts", "attributes", "contradictions"], "properties": {
@@ -938,13 +938,16 @@ Return JSON {"verdicts": [{"pair": n, "verdict": "same" | "different" | "unsure"
 
 
 def correct_prompt(facts):
-    return f"""Below are statements one document makes, numbered, each with the passage it rests on. The passage is right; the statement is what is wrong. Your task is to rewrite each statement so that its own passage states it.
+    return f"""Below are statements one document makes, numbered, each with the passage it rests on. An earlier and cheaper check suspected the passage does not state the statement. That check is often wrong, and this is the second look: decide each one on the passage in front of you.
 
-Keep the same subject. Rewrite the predicate and the object to say what the passage actually says about that subject: give "predicate" (lowercase_snake_case, present tense) and "object", with "qualifiers" or null. {QUOTE_RULE}. Most of these are a true claim carrying a passage that says something narrower or something adjacent, and those are all correctable.
+{QUOTE_RULE}.
 
-Answer for every statement you can. Omit one only when its passage says nothing durable about that subject at all.
+Answer for EVERY statement, with a "verdict":
+- "stands": the passage does state the statement as written. This is the right answer whenever the claim is there, even if the passage says it in other words or says more besides.
+- "corrected": the passage states something about the same subject, but not this. Give the "predicate" (lowercase_snake_case, present tense) and "object" it does state, with "qualifiers" or null. Keep the subject.
+- "drop": the passage says nothing durable about that subject at all.
 
-Return JSON {{"corrections": [{{"fact", "predicate", "object", "qualifiers"}}]}}
+Return JSON {{"corrections": [{{"fact", "verdict", "predicate", "object", "qualifiers"}}]}}
 
 STATEMENTS:
 {chr(10).join(facts)}"""
@@ -1810,7 +1813,7 @@ def write_package(doc, records, entities, folded, adjudicated, ledger, candidate
         for f, direction, label in landed[e["index"]]:
             stored_id = f["fact_id"]
             fix = corrections.get(stored_id)
-            if stored_id in flagged and fix is None:          # its passage does not state it and it could not be corrected
+            if stored_id in flagged and stored_id not in corrections:          # its passage does not state it and it could not be corrected
                 dumped.append({"record": "rejection", "stage": "verify", "unit_id": f["unit_id"], "category": "unsupported",
                                "subject": f["subject"], "predicate": f["predicate"], "object": f["object"],
                                "quote": f["quote"], "why": "the passage does not state it and it could not be corrected"})
@@ -1861,7 +1864,8 @@ def write_package(doc, records, entities, folded, adjudicated, ledger, candidate
               "adjudications_skipped": sum(1 for e in folded["majors"] if adjudicated.get(e["index"], {}).get("skipped")),
               "support_calls": sum(a.get("support_calls", 0) for a in adjudicated.values()),
               "adjudications_rejected": sum(1 for a in adjudicated.values() if a.get("rejected")),
-              "facts_flagged": len(flagged), "facts_corrected": len(corrections), "facts_dumped": len(dumped),
+              "facts_flagged": len(flagged), "facts_upheld": sum(1 for v in corrections.values() if v is None),
+              "facts_corrected": sum(1 for v in corrections.values() if v is not None), "facts_dumped": len(dumped),
               "adjudication_stranded": stranded,        # items whose every source was dumped (P2)
               "has_abstract": folded["abstract"] is not None}
     lines.append({"record": "completion", "doc_id": doc["doc_id"], "input_hash": input_hash(doc), "ingestor": INGESTOR, "counts": counts,
@@ -2070,9 +2074,10 @@ def refusal(f, item):
 
 
 def corrections_of(flagged, ctx, watch=False):
-    """({stored id: the corrected statement}, calls). The passage is fixed and the claim moves to
-    fit it (R3, 09-07); a fact the reply leaves out, or whose correction fails corrected_fact, is
-    not corrected and will be dumped rather than written with a flag."""
+    """({stored id: the corrected statement or None to keep it as written}, calls). The second
+    look at what the support check flagged: a fact whose passage does state it stands unchanged,
+    one whose passage states something else is rewritten to that, and one whose passage carries
+    nothing is dumped. A fact the reply leaves out entirely is dumped, as before."""
     items, out, calls, offered, refused = sorted(flagged.items()), {}, 0, 0, {}
     if watch and items:
         print(f"correct: {len(items)} facts their passage does not state, on {LUNA}")
@@ -2093,15 +2098,21 @@ def corrections_of(flagged, ctx, watch=False):
                 refused["misnumbered"] = refused.get("misnumbered", 0) + 1
                 continue
             stored_id, f = batch[numbered[0] - 1]
+            verdict = str(item.get("verdict") or "").strip()
+            if verdict == "drop":
+                continue
+            if verdict == "stands":
+                out[stored_id] = None                 # written as it was: the first check was wrong
+                continue
             fixed = corrected_fact(f, item)
             if fixed is None:
-                why = refusal(f, item)
-                refused[why] = refused.get(why, 0) + 1
+                refused[refusal(f, item)] = refused.get(refusal(f, item), 0) + 1
                 continue
             out[stored_id] = fixed
     if watch:
-        print(f"    {len(items)} flagged, {offered} corrections offered, {len(out)} kept"
-              + (f"; refused {refused}" if refused else ""))
+        upheld = sum(1 for v in out.values() if v is None)
+        print(f"    {len(items)} flagged, {offered} answered: {upheld} stand, {len(out) - upheld} corrected,"
+              f" {len(items) - len(out)} dumped" + (f"; refused {refused}" if refused else ""))
     return out, calls
 
 
