@@ -1591,7 +1591,7 @@ def fold_document(records, entities, ctx, light=False):
     else:
         text, limit, tier = None, None, None
     if text:
-        out["abstract"] = {"text": text, "children_hash": h(*summaries), "limit": limit, "tier": tier}
+        out["abstract"] = {"text": text, "limit": limit, "tier": tier}
 
     # salience is a union of promotions and nothing is ever demoted (ruling of 09-07): an entity
     # is a document-major if anything made it one -- a unit called it major, the abstract names
@@ -1663,7 +1663,7 @@ def fold_document(records, entities, ctx, light=False):
         e["kind"] = kind or e["kinds"][0]     # one kind for the merged entity; the units' most common if no call
         if text:
             out["entity_abstracts"].append({"entity": e["name"], "name": e["name"], "first_unit": e["first_unit"], "kinds": e["kinds"],
-                                            "first_mention": e["first_mention"], "text": text, "children_hash": h(*d["children"]), "tier": tier})
+                                            "first_mention": e["first_mention"], "text": text, "tier": tier})
     out["majors"] = [e for e, d in pairs]
     out["dossiers"] = [d for e, d in pairs]
     return out
@@ -1738,19 +1738,6 @@ def node_id_of(doc, entity):
     return h(doc["doc_id"], *entity_key(entity))
 
 
-def predicate_census(records):
-    """Every raw predicate the document used, with count and samples, for the merge across documents."""
-    census = {}
-    for r in records:
-        for f in r["facts"]:
-            c = census.setdefault(f["predicate"], {"count": 0, "objects": [], "object_is_entity": 0})
-            c["count"] += 1
-            c["object_is_entity"] += f["object_is_entity"]
-            if f["object"] not in c["objects"] and len(c["objects"]) < 6:
-                c["objects"].append(f["object"])
-    return census
-
-
 def landings(records, folded):
     """Where every kept fact lands: {major index: [(fact, direction, unit label, stored id, the
     fact it rides under or None)]}."""
@@ -1786,21 +1773,13 @@ def write_package(doc, records, entities, folded, adjudicated, ledger, candidate
                   flagged=None, corrections=None):
     path = package_path(doc)
     path.parent.mkdir(parents=True, exist_ok=True)
-    scope, written_at, doc_node = doc["doc_id"], datetime.now(timezone.utc).isoformat(timespec="seconds"), h(doc["doc_id"], "document")
+    written_at, doc_node = datetime.now(timezone.utc).isoformat(timespec="seconds"), h(doc["doc_id"], "document")
     lines = [{"record": "document", "doc_id": doc["doc_id"], "source_uri": doc["source_uri"], "sha256": doc["sha256"], "title": doc["title"],
               "author": doc["author"], "source_class": doc["source_class"], "ingested_at": doc["ingested_at"], "occurred_at": doc["occurred_at"],
               "loader": doc["loader"], "flags": doc.get("flags", []), "text_length": len(doc["text"])}]
     lines += [{"record": "unit", **u} for u in doc["units"]] + [{"record": "piece", **p} for p in doc["pieces"]]
     lines.append({"record": "node", "node_id": doc_node, "name": doc.get("title") or doc["source_uri"], "kind": "document",
                   "created_from_unit": doc["units"][0]["unit_id"] if doc["units"] else None, "provenance": {"ingestor": INGESTOR}})
-
-    # the sentence each surface form was first read in, so an alias carries its own evidence
-    first_words = {}
-    for r in records:
-        for m in r["mentions"]:
-            key = (m["unit_id"], norm(m["surface"]))
-            if key not in first_words:
-                first_words[key] = sentence_at(doc["text"], m["start"], m["end"])
 
     # nodes, aliases and edges for the majors; the map from a unit-local name to its node
     node_of, position_of, minted = {}, {u["unit_id"]: u["position"] for u in doc["units"]}, {}
@@ -1816,11 +1795,9 @@ def write_package(doc, records, entities, folded, adjudicated, ledger, candidate
             continue
         lines.append({"record": "node", "node_id": nid, "name": e["name"], "kind": e.get("kind") or e["kinds"][0],
                       "created_from_unit": min(e["unit_ids"], key=position_of.get),
-                      "named": e["named"],       # a proper name somewhere in the document: Step 2's both-named rule
                       "provenance": {"ingestor": INGESTOR, "salience": e["rank"], "names": e["names"][:12]}})
         for form, uid in e["first_unit_of"].items():
-            lines.append({"record": "alias", "alias": form, "node_id": nid, "first_seen_unit": uid,
-                          "evidence_quote": first_words.get((uid, norm(form)))})
+            lines.append({"record": "alias", "alias": form, "node_id": nid, "first_seen_unit": uid})
         lines.append({"record": "edge", "predicate": "appears_in", "subject": nid, "object": doc_node, "units": e["unit_ids"]})
     for u in doc["units"]:
         lines.append({"record": "edge", "predicate": "has_unit", "subject": doc_node, "object": u["unit_id"], "position": u["position"]})
@@ -1837,14 +1814,14 @@ def write_package(doc, records, entities, folded, adjudicated, ledger, candidate
                 seen_profile.add((nid, p["attribute"], p["value"]))
                 lines.append({"record": "profile", "node_id": nid, "attribute": p["attribute"], "value": p["value"], "from_unit": p["from_unit"]})
         if r["summary"]:
-            lines.append({"record": "cell", "cell_id": h(doc_node, r["unit_id"]), "node_id": doc_node, "unit_id": r["unit_id"], "scope_id": scope,
+            lines.append({"record": "cell", "cell_id": h(doc_node, r["unit_id"]), "node_id": doc_node, "unit_id": r["unit_id"],
                           "text": r["summary"], "tier": LUNA, "provenance": {"ingestor": INGESTOR, "kind": "unit_summary"}})
         cells_by_node = {}
         for c in r["cells"]:
             if node_of.get((r["position"], c["entity"])):
                 cells_by_node.setdefault(node_of[(r["position"], c["entity"])], []).append(c)
         for nid, cells in cells_by_node.items():
-            lines.append({"record": "cell", "cell_id": h(nid, r["unit_id"]), "node_id": nid, "unit_id": r["unit_id"], "scope_id": scope,
+            lines.append({"record": "cell", "cell_id": h(nid, r["unit_id"]), "node_id": nid, "unit_id": r["unit_id"],
                           "text": " ".join(c["text"] for c in cells), "tier": LUNA,
                           "provenance": {"ingestor": INGESTOR, "entity_names": [c["entity"] for c in cells]}})
 
@@ -1882,14 +1859,11 @@ def write_package(doc, records, entities, folded, adjudicated, ledger, candidate
 
     # the document level: abstracts, dossiers, the ledger, the candidates
     if folded["abstract"]:
-        lines.append({"record": "abstract", "node_id": doc_node, "scope_id": scope, "text": folded["abstract"]["text"],
-                      "children_hash": folded["abstract"]["children_hash"], "tier": folded["abstract"]["tier"], "updated_at": written_at})
+        lines.append({"record": "abstract", "node_id": doc_node, "text": folded["abstract"]["text"],
+                      "tier": folded["abstract"]["tier"], "updated_at": written_at})
     for a in folded["entity_abstracts"]:
         lines.append({"record": "abstract", "node_id": node_id_of(doc, a),
-                      "scope_id": scope, "text": a["text"], "children_hash": a["children_hash"], "tier": a["tier"], "updated_at": written_at})
-    for d in folded["dossiers"]:
-        lines.append({"record": "dossier", "node_id": node_id_of(doc, d),
-                      "text": d["text"]})
+                      "text": a["text"], "tier": a["tier"], "updated_at": written_at})
     lines += [{"record": "ledger", **entry} for entry in ledger] + [{"record": "candidate", **entry} for entry in candidates]
 
     # facts, each under the major it lands on. A fact whose passage does not state it is written
@@ -1935,7 +1909,6 @@ def write_package(doc, records, entities, folded, adjudicated, ledger, candidate
                                          "copy_of": f["fact_id"] if direction == "about" else None,
                                          "corrected_from": {"predicate": f["predicate"], "object": f["object"],
                                                             "qualifiers": f["qualifiers"]} if fix else None}})
-    lines.append({"record": "predicate_census", "predicates": predicate_census(records)})
     lines += dumped
     for r in records:
         lines += [{"record": "rejection", "stage": "facts", "unit_id": r["unit_id"], **x} for x in r["rejected_facts"]]

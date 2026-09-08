@@ -94,8 +94,8 @@ which told a reader nothing the sentence above does not; the field is gone.
     fact      fact_id, subject, predicate, object, qualifiers, rank, unit_id,
               quote, quote_start, quote_end, valid_from, valid_to,
               occurred_at, occurred_until, tier, provenance
-    cell      cell_id, node_id, unit_id, scope_id, text, tier, provenance
-    abstract  node_id, scope_id, text, children_hash, tier, updated_at
+    cell      cell_id, node_id, unit_id, text, tier, provenance
+    abstract  node_id, text, tier, updated_at
     contradiction  node_id, note, from_facts, holds, because
 
 A fact carries its unit's `occurred_at` and `occurred_until`, copied down: when
@@ -153,13 +153,12 @@ controlled list with a table of which subject and object kinds each may join,
 which catches the error a quote cannot: a fabricated relationship carrying a
 perfectly real quote.
 
-Cells and abstracts are scoped by `scope_id`, so importance is a property of
-the collection, not the entity: a character can be major in one corpus and a
-footnote in another. Salience is decided twice. Per unit, it decides who gets
-a cell. Per document, it is a union of promotions and nothing is ever demoted
-(ruled 2026-09-07): an entity is a document-major if a unit called it major, or
-the document abstract names it, or it carries a proper name. Bare unit and fact
-counts do not promote, because an unnamed thing that merely recurs is scenery.
+Salience decides a major entity and nothing else does (ruled 2026-09-07).
+It is decided per unit -- major only if the entity would appear in a
+two-sentence summary of that unit -- and a unit's judgement stands for the
+document: if any unit called it major it is a document-major, and nothing
+demotes it. Being named in the document abstract does not promote, and neither
+does carrying a proper name.
 
 Until 2026-09-07 the abstract was the ONLY route -- "an entity named in the
 abstract is major, with unit count and fact count as tie-breakers" -- which made

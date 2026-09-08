@@ -324,7 +324,7 @@ check("cells only for the unit's major entities, the model's salience call", all
 abstracts = by.get("abstract", [])
 doc_abs = [a for a in abstracts if a["node_id"] == doc_node]
 work = [r for r in records if r["summary"]]
-check("document abstract present with children_hash over the derived units' summaries", len(doc_abs) == 1 and doc_abs[0]["children_hash"] == ns["h"](*[f"[{r['label']}] {r['summary']}" for r in work]))
+check("document abstract present, folded from the derived units' summaries", len(doc_abs) == 1 and doc_abs[0]["text"])
 check("triage left out the front matter and the license, and those units were never derived", {x["kind"] for x in lines[-1]["excluded"]} == {"front_matter", "license"} and lines[-1]["counts"]["units_excluded"] == 2 and len(records) == len(doc["units"]) - 2 and all(r["kind"] == "body" for r in records))
 check("the abstract is shorter than the summaries it folds", 0 < ns["word_count"](doc_abs[0]["text"]) <= max(400, sum(ns["word_count"](r["summary"]) for r in work)))
 check("every queued pair carries the demo's tier and three separate scores", by.get("candidate") and all(c["tier"] in (1.0, 0.85, 0.5) and {"name_score", "cooc_score", "profile_score", "combined"} <= set(c) for c in by["candidate"]) and any(c["stage"] == "judge" for c in ns["CALLS"]))
@@ -469,12 +469,8 @@ check("an entity the document cannot summarise is not a major, and its facts rid
       and all(not e["rank"].get("no_abstract") for e in folded["majors"]))
 check("every entity the abstract names is a major; being named in it is a promotion, not the only one (R6)",
       folded["majors"] and all(e["major"] for e in folded["majors"] + folded["minors"] if e["rank"]["in_abstract"]))
-check("dossier per major, its text and no vector (decision 54)", len(by.get("dossier", [])) == len(folded["majors"]) and all(d["text"] and "embedding" not in d for d in by["dossier"]))
-check("an alias carries the words it was first read in (decision 62)", by.get("alias") and all(a["evidence_quote"] and ns["norm"](a["alias"]) in ns["norm"](a["evidence_quote"]) for a in by["alias"]))
 check("a profile row carries no constant confidence (decision 62)", all("confidence" not in p for p in by.get("profile", [])))
-check("a node says whether the document ever named it (decision 61)", all("named" in n for n in by["node"] if n["kind"] != "document"))
 check("ledger rows carry evidence", by.get("ledger") and all(l["evidence"] for l in by["ledger"]))
-check("predicate census present", "predicate_census" in by and "is_a" in by["predicate_census"][0]["predicates"])
 check("edges: has_unit per unit and appears_in per major", sum(1 for e in by["edge"] if e["predicate"] == "has_unit") == len(doc["units"]) and sum(1 for e in by["edge"] if e["predicate"] == "appears_in") == len(folded["majors"]))
 check("completion counts consistent", lines[-1]["counts"]["facts_stored"] == len(facts) and lines[-1]["counts"]["mentions"] == len(mentions))
 check("no unit saw another: no entity prompt carried a roster, no cells prompt a previous summary", not any("ESTABLISHED SO FAR" in c.get("detail", "") for c in ns["RETRIES"]) and "ESTABLISHED" not in ns["entity_prompt"]({"label": "x", "text": "y"}) and "PREVIOUS" not in ns["cells_prompt"]({"label": "x", "text": "y"}, ["a"]))
