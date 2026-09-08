@@ -86,6 +86,22 @@ Embeddings live in a rebuildable sidecar keyed by record id and model id. The
 store never depends on them, and the sidecar's row map is verified against ids
 on load, because a partial write there fails silently.
 
+The embedder is small, local, cached once, and model-agnostic behind `embed()`,
+because the serving side must run offline on the user's own machine and
+Anthropic has no embedding endpoint. Default: `bge-small-en-v1.5` through
+fastembed, 384 dimensions, ONNX with no torch, the model fetched once (~130 MB)
+and then offline on CPU. `model2vec` (static, ~256 dimensions, no encoder to
+load) is the lighter option for a hot path; sentence-transformers/mpnet is an
+optional heavier one; reuse Ollama if the user already runs it. 384 dimensions
+is deliberate: brute-force exact cosine at personal scale is one matrix multiply
+and a wider vector buys nothing, which is why retrieval is benchmarked on brute
+force rather than an ANN index (the ANN option sits behind the same port call,
+so the recall confound stays out of the measurement). The sidecar carries a
+header (model, dimension, built_at); a mismatch on load rebuilds rather than
+serves stale vectors. This settles the 2026-09-03 embedder choice into the
+consolidated design; the 1,536-dimension provider vectors the ingestor once
+stored were removed on 2026-09-07 (ingestor decision 54).
+
 ## The stop comes before the run
 
 Set a hard per-run spending stop and check it against the run log before
