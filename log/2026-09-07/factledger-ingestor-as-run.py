@@ -844,11 +844,9 @@ TRIAGE_SCHEMA = {"type": "object", "required": ["exclude"], "properties": {"excl
     "type": "object", "required": ["kind", "reason"], "properties": {"kind": {"type": "string"}, "reason": {"type": "string"}}}}}}
 
 SUPPORT_SCHEMA = {"type": "object", "required": ["unsupported"], "properties": {"unsupported": {"type": "array"}}}
-CORRECT_SCHEMA = {"type": "object", "required": ["corrections"], "properties": {"corrections": {"type": "array", "items": {
-    "type": "object", "required": ["fact", "verdict"], "properties": {
-        "fact": {"type": ["integer", "string"]}, "verdict": {"type": "string", "enum": ["stands", "corrected", "drop"]},
-        "predicate": {"type": ["string", "null"]}, "object": {"type": ["string", "null"]},
-        "qualifiers": {"type": ["string", "null"]}}}}}}
+# only the shape the reply must have. Each item is judged on its own below, so one malformed
+# entry costs one fact instead of voiding the batch and dumping every fact in it (fixed 09-08).
+CORRECT_SCHEMA = {"type": "object", "required": ["corrections"], "properties": {"corrections": {"type": "array"}}}
 ADJUDICATE_SCHEMA = {"type": "object", "required": ["facts", "attributes", "contradictions"], "properties": {
     "unsupported": {"type": "array"},
     "facts": {"type": "array", "items": {"type": "object", "required": ["predicate", "object", "from"], "properties": {
@@ -2087,18 +2085,28 @@ def corrections_of(flagged, ctx, watch=False):
             listing.append(f"{n}. {f['subject']} {f['predicate']} {f['object']}"
                            + (f" [{f['qualifiers']}]" if f["qualifiers"] else "")
                            + f"  (\"{' '.join(f['quote'].split())}\")")
-        reply = generate(correct_prompt(listing), CORRECT_SCHEMA, "correct", ctx=ctx)
+        reply = generate(correct_prompt(listing), CORRECT_SCHEMA, "correct", effort="medium", ctx=ctx)
         calls += 1
         if reply is None:
+            # the check could not reach a verdict, which is not evidence against a fact: the
+            # batch stands, and the receipt says the call was refused (fixed 09-08)
+            refused["call refused"] = refused.get("call refused", 0) + len(batch)
+            for stored_id, f in batch:
+                out[stored_id] = None
             continue
-        offered += len(reply.get("corrections", []))
-        for item in reply.get("corrections", []):
+        answers = [item for item in reply.get("corrections", []) if isinstance(item, dict)]
+        offered += len(answers)
+        for item in answers:
             numbered = valid_sources([item.get("fact")], len(batch))
             if not numbered:
                 refused["misnumbered"] = refused.get("misnumbered", 0) + 1
                 continue
             stored_id, f = batch[numbered[0] - 1]
-            verdict = str(item.get("verdict") or "").strip()
+            verdict = str(item.get("verdict") or "").strip().lower()
+            if verdict not in ("stands", "corrected", "drop"):
+                refused["no verdict"] = refused.get("no verdict", 0) + 1
+                out[stored_id] = None                 # unreadable answer: the fact stands
+                continue
             if verdict == "drop":
                 continue
             if verdict == "stands":
@@ -2113,7 +2121,7 @@ def corrections_of(flagged, ctx, watch=False):
         upheld = sum(1 for v in out.values() if v is None)
         print(f"    {len(items)} flagged, {offered} answered: {upheld} stand, {len(out) - upheld} corrected,"
               f" {len(items) - len(out)} dumped" + (f"; refused {refused}" if refused else ""))
-    return out, calls
+    return out, calls, {"offered": offered, **refused}
 
 
 def show_unit(rec, unit, unit_cost, total_cost):
@@ -2247,7 +2255,7 @@ def ingest(doc, ctx=None):
     # a fact its passage does not state is corrected if it can be and dumped if it cannot; it is
     # never written with a flag (R3, ruling of 09-07)
     flagged = flagged_facts(records, folded, adjudicated)
-    corrections, correct_calls = corrections_of(flagged, ctx, watch=WATCH) if flagged else ({}, 0)
+    corrections, correct_calls, correction_notes = corrections_of(flagged, ctx, watch=WATCH) if flagged else ({}, 0, {})
     if WATCH and flagged:
         print(f"    {len(corrections)} of {len(flagged)} corrected against their passage; {len(flagged) - len(corrections)} dumped")
     own_cost, own_calls = document_spend(doc, logged_before)
@@ -2259,7 +2267,7 @@ def ingest(doc, ctx=None):
             stats["matched_by"][f["matched_by"]] = stats["matched_by"].get(f["matched_by"], 0) + 1
         for x in r["rejected_facts"]:
             stats["rejected_by"][x["category"]] = stats["rejected_by"].get(x["category"], 0) + 1
-    stats["correct_calls"] = correct_calls
+    stats["correct_calls"], stats["correction_notes"] = correct_calls, correction_notes
     path, counts = write_package(doc, records, entities, folded, adjudicated, ledger, candidates, left_out, stats,
                                  flagged, corrections)
     if WATCH:

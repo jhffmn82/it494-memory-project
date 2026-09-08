@@ -865,5 +865,21 @@ forward = check_cell_order.offences(src)
 check("no cell can reach a name a later cell defines: the battery execs one namespace, the notebook does not",
       not forward, [f"cell {c} reaches {n!r} from cell {d}" for c, n, d in forward][:4])
 
+# a refused correction call must leave its facts standing: three runs dumped every flagged fact
+# because one malformed item voided the reply and the refusal was swallowed (09-08)
+kept_generate = ns["generate"]
+
+
+def refuses(prompt, schema, stage, model=None, effort="low", ctx=None):
+    return None
+
+
+sample = {"subject": "Zep", "predicate": "reduces", "object": "latency", "qualifiers": None, "quote": "q"}
+ns["generate"] = refuses
+verdicts, n_calls, notes = ns["corrections_of"]({"id1": sample, "id2": sample}, {})
+ns["generate"] = kept_generate
+check("a refused correction call leaves every flagged fact standing, and says so (09-08)",
+      verdicts == {"id1": None, "id2": None} and notes.get("call refused") == 2, (verdicts, notes))
+
 print(f"\n{sum(results)} of {len(results)} checks pass")
 sys.exit(0 if all(results) else 1)
