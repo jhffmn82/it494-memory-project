@@ -299,13 +299,11 @@ check("rejections classified: paraphrase, not_found, unlisted_subject, duplicate
 check("predicate normalised to snake_case", any(f["predicate"] == "has_trait" for f in facts))
 check("valid_from kept only when the quote states the year", all(f["valid_from"] is None for f in facts if "1900" not in f["quote"]))
 mentions = by.get("mention", [])
-check("every mention has a span that slices to its surface", mentions and all(text[m["start"]:m["end"]] == m["surface"] for m in mentions))
+check("mentions are not written to the package (ruling of 09-08)", not mentions)
 minor_names = {e["name"] for e in folded["minors"]}
 node_ids = {n["node_id"] for n in by["node"]}
-check("major mentions carry a node that exists", all(m["node_id"] in node_ids for m in mentions if m["node_id"]))
 check("phantom entity dropped for no surface form", any(x["category"] == "no_surface_form" and x["name"] == "Phantom" for x in by.get("rejection", [])))
 check("an entity whose every span is already claimed is dropped and the spans counted", any(x["category"] == "span_claimed" and x["name"] == "Shadow" for x in by.get("rejection", [])) and lines[-1]["counts"]["shared_spans"] > 0)
-check("mention ids are unique within the package", len({m["mention_id"] for m in mentions}) == len(mentions))
 check("cell ids are unique within the package", len({c["cell_id"] for c in by.get("cell", [])}) == len(by.get("cell", [])))
 check("alias rows carry the verbatim form with the unit it first appeared in", by.get("alias") and all(a["first_seen_unit"] in unit_range for a in by["alias"]))
 check("every call was written to calls.jsonl as it was made", (ns["OUT"] / "calls.jsonl").exists() and sum(1 for _ in ns["read_jsonl"](ns["OUT"] / "calls.jsonl")) == len(ns["CALLS"]))
@@ -445,7 +443,7 @@ check("an entity the document cannot summarise is not a major, and its facts rid
 check("a profile row carries no constant confidence (decision 62)", all("confidence" not in p for p in by.get("profile", [])))
 check("ledger rows carry evidence", by.get("ledger") and all(l["evidence"] for l in by["ledger"]))
 check("edges: has_unit per unit and appears_in per major", sum(1 for e in by["edge"] if e["predicate"] == "has_unit") == len(doc["units"]) and sum(1 for e in by["edge"] if e["predicate"] == "appears_in") == len(folded["majors"]))
-check("completion counts consistent", lines[-1]["counts"]["facts_stored"] == len(facts) and lines[-1]["counts"]["mentions"] == len(mentions))
+check("completion counts consistent", lines[-1]["counts"]["facts_stored"] == len(facts) and lines[-1]["counts"]["mentions"] > 0)
 check("no unit saw another: no entity prompt carried a roster, no cells prompt a previous summary", not any("ESTABLISHED SO FAR" in c.get("detail", "") for c in ns["RETRIES"]) and "ESTABLISHED" not in ns["entity_prompt"]({"label": "x", "text": "y"}) and "PREVIOUS" not in ns["cells_prompt"]({"label": "x", "text": "y"}, ["a"]))
 
 # ---------------------------------------------------------------- re-run mints nothing

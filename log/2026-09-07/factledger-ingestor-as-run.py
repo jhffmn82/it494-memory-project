@@ -1578,7 +1578,7 @@ def fold_document(records, entities, ctx, light=False):
     # so it is a major of the document, and nothing takes that away.
     for e in entities:
         e["major"] = e["unit_major"]
-        e["rank"] = {"units": len(e["units"]), "facts": e["n_facts"], "no_abstract": False}
+        e["rank"] = {"no_abstract": False}      # decision 52 is all that is left to record
         (out["majors"] if e["major"] else out["minors"]).append(e)
 
     # dossiers and per-entity abstracts for the majors, keyed by index (two clusters may share a name)
@@ -1750,11 +1750,10 @@ def write_package(doc, records, entities, folded, adjudicated, ledger, candidate
     for u in doc["units"]:
         lines.append({"record": "edge", "predicate": "has_unit", "subject": doc_node, "object": u["unit_id"], "position": u["position"]})
 
-    # per unit: mentions, profiles, the summary cell, the entity cells
+    # per unit: profiles, the summary cell, the entity cells. Mentions are not written: they were
+    # 53% of the package and nothing read them (ruling of 09-08). They are still derived, because
+    # a node id is its moniker and its first mention, and a fact's span comes from them.
     for r in records:
-        for m in r["mentions"]:
-            lines.append({"record": "mention", "mention_id": m["mention_id"], "node_id": node_of.get((r["position"], m["entity"])),
-                          "unit_id": m["unit_id"], "start": m["start"], "end": m["end"], "surface": m["surface"], "resolved_by": m["resolved_by"]})
         seen_profile = set()
         for p in r["profile"]:
             nid = node_of.get((r["position"], p["entity"]))
