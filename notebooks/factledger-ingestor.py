@@ -1129,9 +1129,17 @@ def stated_date(value, quote):
 
 
 def voice_spans(doc, base, text, start, end):
-    """A quote may not span a change of speaker (decision 46): the located span cut at every
-    piece boundary inside it, each cut trimmed of whitespace, as offsets into the unit."""
-    inside = sorted(pp["start"] - base for pp in doc["pieces"] if start < pp["start"] - base < end)
+    """A quote may not span a change of speaker (decision 46): the located span cut where the
+    speaker changes, each cut trimmed of whitespace, as offsets into the unit. A boundary
+    between two pieces of one author is not a change of speaker and is not a cut; cutting
+    there split a quote whose halves then collided on one author, so only the first was
+    stored and the fact could lose the words that stated it (fixed 09-07)."""
+    marks = sorted(pp["start"] for pp in doc["pieces"])
+    speaker = {pp["start"]: pp.get("author") for pp in doc["pieces"]}
+    inside = []
+    for k, at in enumerate(marks):
+        if k and start < at - base < end and speaker[at] != speaker[marks[k - 1]]:
+            inside.append(at - base)
     cuts, spans = [start] + inside + [end], []
     for k in range(len(cuts) - 1):
         s0, e0 = cuts[k], cuts[k + 1]
