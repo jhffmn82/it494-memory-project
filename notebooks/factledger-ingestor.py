@@ -44,7 +44,7 @@ from datetime import datetime, timezone
 from contextlib import redirect_stdout
 from pathlib import Path
 
-INGESTOR = "factledger-ingestor 0.8"
+INGESTOR = "factledger-ingestor 0.9"
 KAGGLE_EXPORTS = (Path("/kaggle/input/datasets/jhffmn/it494-factledger-step0"), Path("/kaggle/input/it494-factledger-step0"))
 KAGGLE_PAPERS = (Path("/kaggle/input/datasets/jhffmn/it494-reference-papers"), Path("/kaggle/input/it494-reference-papers"))
 LOCAL_EXPORT, LOCAL_PAPERS = Path("data/export"), Path("papers")
