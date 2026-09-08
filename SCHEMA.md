@@ -22,7 +22,7 @@ The document holds the text, once: the source decoded to a string at load,
 never normalized, with the sha256 of the original bytes beside it as proof of
 which bytes it came from. A unit is a range in that string, `start` to `end`
 in character offsets, and its text is that slice; nothing stores a second
-copy. Every offset anywhere in the store, on units, mentions, and fact quotes,
+copy. Every offset anywhere in the store, on units and fact quotes,
 is a document offset in this one coordinate system, so a quote resolves to
 text with a single slice and no join. A unit is the atom every other record
 points at. `position` is one integer, 0-based, no gaps. `label` is a free
@@ -31,8 +31,8 @@ string with no meaning to the system: keep "chapter 4" or "turns
 
 `author` and `source_class` are set by the loader, never by the model reading
 the text: the Gutenberg Author line, the first page of a PDF, the role prefix on a
-chat turn; a session itself has no author unless the file names one. An author string is resolved to an entity through the merge
-before the document's facts commit, because the collision rule has nothing to
+chat turn; a session itself has no author unless the file names one. An author string is resolved to an entity in the document's reconciliation,
+before its facts commit, because the collision rule has nothing to
 compare without it; an unknown author is flagged and can contest but never
 supersede. Source classes: canonical, published, record, authored,
 tool-output. The voice of a chat turn is its piece's `author`, not a
@@ -73,21 +73,17 @@ ordering rule for time.
     mention   mention_id, node_id?, unit_id, start, end, surface, resolved_by
     profile   node_id, attribute, value, from_unit
 
-Mentions are what resolution measurements read: duplicate counting needs the
-node link, cluster purity needs the full set per node, and coreference scoring
-against gold needs the character span. Without spans, that whole class of test
-requires a re-ingest, which is why the field exists from day one. `node_id`
-is null when the mention names a minor entity: the mention keeps its surface
-and span inside its document and never enters the merge. A minor is minor
-because the text gave too little to disambiguate it, so tracking it across
-documents would mean merging hundreds of names per work on no evidence.
+A `mention` is derived, not written to a package: a node id is a moniker plus
+its first mention, and a fact's span is found through them. `node_id` is null
+for a minor entity, whose surface and span stay inside its document. A minor is
+minor because the text gave too little to disambiguate it, so tracking it across
+documents would mean linking hundreds of names per work on no evidence.
 
 The profile is not a fact. It holds low-confidence attributes the model
 inferred from context (gender, age band, animacy, role), read only by the
 matcher, never rendered and never exported. The text never says "Tip is male,"
 so these rows have no quote, and putting them in the fact table would make the
-quote gate a lie. They carried a constant confidence of 0.5 until 2026-09-07,
-which told a reader nothing the sentence above does not; the field is gone.
+quote gate a lie.
 
 ## The record side
 
@@ -100,9 +96,7 @@ which told a reader nothing the sentence above does not; the field is gone.
 
 A fact carries its unit's `occurred_at` and `occurred_until`, copied down: when
 it was said. `valid_from` and `valid_to` are when it is true, and only when the
-text states them. The read rule below has always ordered facts by "its unit's
-`occurred_at`"; the record line simply never listed the fields, and the code
-followed the record line (corrected 2026-09-07).
+text states them.
 
 Every stored fact is one its own passage states. A passage states a fact when
 it carries the claim itself, in whatever words the document uses: a table row,
@@ -110,8 +104,8 @@ a heading or a caption states what it lists. A fact whose passage does not is
 restated against that passage if it can be -- the passage is fixed and the
 claim moves to fit it, so the quote and its offsets never change -- and dumped
 if it cannot, recorded as a rejection with category `unsupported`. It is never
-stored with a flag (ruled 2026-09-07): a flag on a shipped fact is a claim the
-reader has to know to distrust.
+stored with a flag: a flag on a shipped fact is a claim the reader has to know
+to distrust.
 
 A document is a fixed point in time. Before anything reaches the global layer,
 a contradiction within a document is resolved by the end state of the entity:
@@ -146,34 +140,26 @@ controlled list with a table of which subject and object kinds each may join,
 which catches the error a quote cannot: a fabricated relationship carrying a
 perfectly real quote.
 
-Salience decides a major entity and nothing else does (ruled 2026-09-07).
-It is decided per unit -- major only if the entity would appear in a
-two-sentence summary of that unit -- and a unit's judgement stands for the
-document: if any unit called it major it is a document-major, and nothing
-demotes it. Being named in the document abstract does not promote, and neither
-does carrying a proper name.
+Salience decides a major entity and nothing else does. It is decided per unit --
+major only if the entity would appear in a two-sentence summary of that unit --
+and a unit's judgement stands for the document: if any unit called it major it is
+a document-major, and nothing demotes it, except a major with nothing to
+summarise (no facts, no cells), which falls to minor. Being named in the document
+abstract does not promote, and neither does carrying a proper name.
 
-Until 2026-09-07 the abstract was the ONLY route -- "an entity named in the
-abstract is major, with unit count and fact count as tie-breakers" -- which made
-the abstract's word limit the document's entity budget: a Greek play with thirty
-speaking characters cannot fit them in four hundred words, and every character
-the fold had no room to name was reduced to a mention with a null node_id. That
-rule was written on 2026-09-04 alongside its reason, "only document-majors carry
-a dossier into the merge". It was a budget on the global merge, and the merge has
-since been deleted; the reason is recorded here so the rule is not re-derived
-from it. Minor entities never become nodes: a fact from a major
-to a minor is a property of the major with the minor's name as its value, and a
-fact between two minors is not stored. Below that line a minor leaves no record
-of its own; what the document says about it survives only in the per-unit
-summary, a cell on the document's own node. Mentions are not written (2026-09-08). There is no community layer: groupings the user or a loader
-declares (a series, a thread) exist for ordering and disambiguation scope, and
-nothing is clustered.
+Minor entities never become nodes: a fact from a major to a minor is a property
+of the major with the minor's name as its value, and a fact between two minors is
+not stored. Below that line a minor leaves no record of its own; what the
+document says about it survives only in the per-unit summary, a cell on the
+document's own node. Mentions are not written. There is no community layer:
+groupings the user or a loader declare (a series, a thread) exist for ordering
+and disambiguation scope, and nothing is clustered.
 
 ## What the code enforces
 
 1. Raw text is never edited. Ids are content hashes, so a corrected split
    changes one id instead of every id after it.
-2. Nothing is overwritten. Supersession and merges resolve at read time.
+2. Nothing is overwritten. Supersession resolves at read time.
 3. Every fact carries a verbatim quote that must appear in its unit, and the
    offsets where it was found. A fact whose quote does not is dropped and
    logged, never stored. The gate proves the quote exists, not that it
@@ -192,7 +178,3 @@ nothing is clustered.
 6. A relationship that violates the predicate type table is rejected before
    it is stored.
 7. Model calls, rejections, consults, and costs go to the run log.
-
-Gate 4's proportion clause was added after a real failure: Metamorphoses
-volume 1 split into 7 units taken from its summary section, left 97% of the
-book in the last unit, and passed the monotonic check while doing so.

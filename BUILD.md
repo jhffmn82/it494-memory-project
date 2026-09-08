@@ -9,10 +9,7 @@ nothing else, and is scored by an evaluator that reads the finished store and
 computes one metric. A loader must fill `author` (quote-backed from the file bytes, or flagged unknown) and `source_class` (from the sniffed format), may fill
 `occurred_at` on the document, `occurred_at` and `occurred_until` on units when
 the file carries times, and `label`, may not add fields, and the system may not branch
-on which loader ran. The loader sees the file bytes and nothing else: the format is sniffed from them, never taken from a flag, and no manifest, metadata record, or question set is an input. Structured inputs (a chat session with turns) become units with no model call. A paper is the text layer of its PDF, read through one dependency: the whole paper is the document, its sections the units, the abstract first. Unstructured text is
-split by one model call per document that proposes verbatim marker lines
-(body start, body end, headings) from a compressed view of the text; code
-locates the markers and cuts, the three gates verify, and the split plan is stored per document as the piece table (one row per piece: kind, range, unit, author when the file names a speaker, time when it carries one) so a re-run is a replay and a fact's voice is a lookup. On either path a unit is a size-bounded run of the document's natural pieces (chapters, turns, sections), cut only at a piece boundary, never a turn alone, never across a day change when the file carries times, with a short tail merged into the unit before it. There are no per-work or
+on which loader ran. The loader sees the file bytes and nothing else: the format is sniffed from them, never taken from a flag, and no manifest, metadata record, or question set is an input. Structured inputs (a chat session with turns) become pieces with no model call, the role the author. Unstructured text is split by one model call per document that numbers the document's lines; the model points at each boundary by line number and copies the line, code verifies the number against the copy and cuts (`docs/extractor.md`). The three gates verify, and the split plan is stored as the piece table (one row per piece: kind, range, unit, author when the file names a speaker, time when it carries one) so a re-run is a replay and a fact's voice is a lookup. A unit is a size-bounded run of the document's natural pieces (chapters, turns, sections), cut only at a piece boundary, never a turn alone, never across a day change when the file carries times, with a short tail merged into the unit before it. There are no per-work or
 per-corpus rules in the splitter; a document the gates reject is stored as
 one unit and flagged, never dropped. Gold files and
 question sets keep whatever shape they shipped in, because each evaluator is
@@ -21,9 +18,7 @@ missing a field.
 
 Ingest runs in corpus order. A book loaded all at once is static and tests
 nothing temporal; read in sequence, the store's state after chunk 10
-differs from chunk 20, which is what supersession is for. Every mention gets
-recorded with its span at ingest, because resolution measurements read
-mentions and spans cannot be reconstructed after merging.
+differs from chunk 20, which is what supersession is for.
 
 ## Two interfaces, every failure measured
 
@@ -46,28 +41,25 @@ empty completion record, so a resumed run can tell done-but-empty from failed.
 ## Re-runs mint nothing
 
 Re-running any stage over unchanged input mints zero new entities and rewrites
-zero accepted records. Entity merges are read-time redirection: the losing
-entity is marked merged-into and never rewritten. Every fact read passes
-through one resolve() that follows merged-into chains with a cycle guard,
-because chains and cycles both occur and a read that skips resolve() misses
-merged entities silently. After a merge, collision detection re-runs under the
-merged identity: conflicts supersede, the rest stay.
+zero accepted records. Identity is a tree, not a merge: a child entity belongs
+to one document and an up-edge attaches it to a parent that holds only derived
+fields. Re-deciding identity re-points an edge; nothing is rewritten or unioned,
+so there is no merged-into chain to resolve and no un-merge problem.
 
-Resolution scores name similarity, co-occurrence, and profile compatibility
-together, and the guards in `docs/entity-resolution.md` are binding: profile
-mismatch lowers a score and never blocks a merge, inherited facts never count
-as independent corroboration, every merge records its evidence and stays
-revocable, cluster size is capped, and the merge rate per chunk is watched,
-because a spike is a black hole forming.
+Within a document, entity pairs are nominated by a shared surface form, a shared
+name word, or a fact saying one is the other, and a judge rules
+same/different/unsure on their dossiers; every verdict and every scored pair is
+logged. The guards in `docs/entity-resolution.md` are binding: a different
+verdict never vetoes a later one reached on more evidence, every decision records
+its evidence and stays revocable, cluster size is capped, and the pairing rate is
+watched, because a spike is a black hole forming. Which resolution signals the
+paper ablates is the open item there.
 
 Summaries rebuild only when the hash of their inputs changes, and staleness
 markers are stripped before hashing so stamping a summary cannot cascade. A
-rebuild reads the ordered child texts, never raw source, and is bounded: at
-most half the combined child word count, capped at 400 words, and every name
-it emits must appear in the child content by case-insensitive substring, which
-is the cheap fabrication check. A rejected rebuild is never stamped; the node
-stays stale and retries next pass. Supersession applies only to a small list
-of functional predicates, and that list is maintained by hand.
+rebuild reads the ordered child texts, never raw source, and is bounded to 400
+words; the fold is a summary of the children and stands as written. Supersession
+applies only to a small list of functional predicates, maintained by hand.
 
 ## Exact match, whole items, byte-for-byte replay
 
@@ -98,9 +90,8 @@ and a wider vector buys nothing, which is why retrieval is benchmarked on brute
 force rather than an ANN index (the ANN option sits behind the same port call,
 so the recall confound stays out of the measurement). The sidecar carries a
 header (model, dimension, built_at); a mismatch on load rebuilds rather than
-serves stale vectors. This settles the 2026-09-03 embedder choice into the
-consolidated design; the 1,536-dimension provider vectors the ingestor once
-stored were removed on 2026-09-07 (ingestor decision 54).
+serves stale vectors. The ingestor stores no vector; only the dossier text it
+would embed.
 
 ## The stop comes before the run
 
