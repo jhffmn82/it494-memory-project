@@ -945,7 +945,7 @@ Answer for EVERY statement, with a "verdict":
 - "corrected": the passage states something about the same subject, but not this. Give the "predicate" (lowercase_snake_case, present tense) and "object" it does state, with "qualifiers" or null. Keep the subject.
 - "drop": the passage says nothing durable about that subject at all.
 
-Return JSON {{"corrections": [{{"fact", "verdict", "predicate", "object", "qualifiers"}}]}}
+Return JSON {{"corrections": [{{"number", "verdict", "predicate", "object", "qualifiers"}}]}}, where "number" is the number of the statement you are answering, as it is printed below.
 
 STATEMENTS:
 {chr(10).join(facts)}"""
@@ -2058,6 +2058,27 @@ def corrected_fact(f, item):
     return {"subject": subject, "predicate": predicate, "object": obj, "qualifiers": item.get("qualifiers") or None}
 
 
+def statement_number(item, n):
+    """The statement an answer is about, as a number in 1..n, or None. The model is asked for
+    "number"; "fact" is what the field used to be called, and a value like "3." or "3)" is three.
+    Refusing to read one of these cost four runs every fact they flagged (fixed 09-08)."""
+    for key in ("number", "fact", "n", "id"):
+        if key not in item:
+            continue
+        value = item[key]
+        if isinstance(value, str):
+            digits = ""
+            for ch in value.strip():
+                if not ch.isdigit():
+                    break
+                digits += ch
+            value = digits
+        found = valid_sources([value], n)
+        if found:
+            return found[0]
+    return None
+
+
 def refusal(f, item):
     """Why corrected_fact refused a correction, so a run that corrects nothing says why."""
     subject = str(item.get("subject") or f["subject"]).strip()
@@ -2077,6 +2098,7 @@ def corrections_of(flagged, ctx, watch=False):
     one whose passage states something else is rewritten to that, and one whose passage carries
     nothing is dumped. A fact the reply leaves out entirely is dumped, as before."""
     items, out, calls, offered, refused = sorted(flagged.items()), {}, 0, 0, {}
+    told_to_drop = set()
     if watch and items:
         print(f"correct: {len(items)} facts their passage does not state, on {LUNA}")
     for at in range(0, len(items), VERIFY_BATCH):
@@ -2097,17 +2119,18 @@ def corrections_of(flagged, ctx, watch=False):
         answers = [item for item in reply.get("corrections", []) if isinstance(item, dict)]
         offered += len(answers)
         for item in answers:
-            numbered = valid_sources([item.get("fact")], len(batch))
-            if not numbered:
+            numbered = statement_number(item, len(batch))
+            if numbered is None:
                 refused["misnumbered"] = refused.get("misnumbered", 0) + 1
                 continue
-            stored_id, f = batch[numbered[0] - 1]
+            stored_id, f = batch[numbered - 1]
             verdict = str(item.get("verdict") or "").strip().lower()
             if verdict not in ("stands", "corrected", "drop"):
                 refused["no verdict"] = refused.get("no verdict", 0) + 1
                 out[stored_id] = None                 # unreadable answer: the fact stands
                 continue
             if verdict == "drop":
+                told_to_drop.add(stored_id)
                 continue
             if verdict == "stands":
                 out[stored_id] = None                 # written as it was: the first check was wrong
@@ -2117,6 +2140,11 @@ def corrections_of(flagged, ctx, watch=False):
                 refused[refusal(f, item)] = refused.get(refusal(f, item), 0) + 1
                 continue
             out[stored_id] = fixed
+    unanswered = [stored_id for stored_id, f in items if stored_id not in out and stored_id not in told_to_drop]
+    if unanswered:
+        refused["unanswered"] = len(unanswered)
+        for stored_id in unanswered:
+            out[stored_id] = None            # no verdict reached it: the fact stands
     if watch:
         upheld = sum(1 for v in out.values() if v is None)
         print(f"    {len(items)} flagged, {offered} answered: {upheld} stand, {len(out) - upheld} corrected,"

@@ -881,5 +881,12 @@ ns["generate"] = kept_generate
 check("a refused correction call leaves every flagged fact standing, and says so (09-08)",
       verdicts == {"id1": None, "id2": None} and notes.get("call refused") == 2, (verdicts, notes))
 
+# the answer's number, however the model writes it: four runs lost every flagged fact because the
+# field was called "fact" in a numbered listing of facts, and the model put the fact there (09-08)
+check("an answer is matched to its statement by number, written plainly or as 3. or 3)",
+      [ns["statement_number"]({"number": 3}, 5), ns["statement_number"]({"fact": "3."}, 5),
+       ns["statement_number"]({"number": "3)"}, 5), ns["statement_number"]({"fact": "Zep excels"}, 5),
+       ns["statement_number"]({"number": 9}, 5)] == [3, 3, 3, None, None])
+
 print(f"\n{sum(results)} of {len(results)} checks pass")
 sys.exit(0 if all(results) else 1)
