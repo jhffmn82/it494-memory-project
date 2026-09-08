@@ -921,8 +921,11 @@ check("the fact prompt types qualifiers and forbids an object, as the adjudicati
       "as a string, else null; never an object" in fact_text)
 check("the fact prompt and the support prompt carry the same standard for a quote (R1)",
       ns["QUOTE_RULE"] in fact_text and ns["QUOTE_RULE"] in support_text)
-check("the worked example no longer licenses a bare table cell (R1)",
-      "carries the numbers but not what they measure" in support_text)
+check("the support prompt teaches the rule, not an instance from any corpus (R1, ruling of 09-07)",
+      "carries the figure but not the claim" in support_text
+      and not any(word in support_text for word in ("deletion", "Boq", "Dorothy", "Zep")))
+check("no prompt carries an example lifted from a document (ruling of 09-07)",
+      not any(word in ns["adjudicate_prompt"]("N", ["k"], ["1. a"], ["c"]) for word in ("Boq", "Munchkin", "Dorothy")))
 
 # B3 -- the sidecar label moves when the derive path does
 before_sig = ns["derive_signature"]()

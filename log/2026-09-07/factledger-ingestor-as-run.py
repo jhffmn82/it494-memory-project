@@ -986,7 +986,7 @@ def support_prompt(facts):
 
 Return JSON {{"unsupported": [numbers]}}: the numbers of the facts whose own passage does not state them (a loose citation that says something else, or only part of it).
 
-{QUOTE_RULE}. So "optimized accuracy ... deletion 0.02 to 0.42" states that deletion has an optimized accuracy of 0.42, while "deletion 0.02 to 0.42" alone does not: it carries the numbers but not what they measure. Only call a fact unsupported when its passage genuinely does not carry the claim. Return an empty list when every passage states its fact.
+{QUOTE_RULE}. A bare value is the usual near miss: a number quoted without the heading or label that names what it measures carries the figure but not the claim, and does not state it. Only call a fact unsupported when its passage genuinely does not carry the claim. Return an empty list when every passage states its fact.
 
 FACTS:
 {chr(10).join(facts)}"""
@@ -1012,7 +1012,7 @@ RECORDS:
 
 
 def adjudicate_prompt(name, kinds, facts, cells):
-    return f"""Below is everything one document says about one entity, {name} ({', '.join(kinds)}): its facts, numbered, each with the unit it came from and the words it rests on, then its narrative cells in reading order. The units were read one at a time, so the facts repeat, overlap and sometimes disagree, and some are stated from the side of a lesser thing (marked inverse: the entity is the object of that statement). A line marked (about X) is what the document says of a lesser thing X that another line ties to the entity; it is not a fact of the entity itself: fold it into the object or qualifiers of the fact or attribute that names X (Boq, the richest Munchkin), and point "from" at it as well.
+    return f"""Below is everything one document says about one entity, {name} ({', '.join(kinds)}): its facts, numbered, each with the unit it came from and the words it rests on, then its narrative cells in reading order. The units were read one at a time, so the facts repeat, overlap and sometimes disagree, and some are stated from the side of a lesser thing (marked inverse: the entity is the object of that statement). A line marked (about X) is what the document says of a lesser thing X that another line ties to the entity; it is not a fact of the entity itself: fold it into the object or qualifiers of the fact or attribute that names X, so that what the document says of X qualifies the entity's own statement, and point "from" at it as well.
 
 Write the entity's consolidated record:
 - "facts": each durable relationship or fact stated once, with "predicate" (lowercase_snake_case, present tense, as the listed facts name it), "object" (a string), "qualifiers" (one short phrase for role, manner or condition, as a string, else null; never an object), and "from": the numbers of every listed fact it is drawn from. A fact drawn from nothing listed is not allowed.
