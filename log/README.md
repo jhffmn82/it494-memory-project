@@ -64,13 +64,10 @@ their saved outputs as run.
   Nothing is ever merged; it is a tree. A parent holds no asserted content, only a derived name,
   profile and abstract, and every sentence on it must be reducible to "N of M children say X".
   Insertion becomes append-only, deletion becomes a delete, and provenance becomes total.
-- [2026-09-08](2026-09-08/review.md): a whole-repository review after the tree decision, and the
-  housekeeping pass that followed. [review.md](2026-09-08/review.md) is the assistant review
-  (every finding PROPOSED until ruled): the merge-scorer-to-tree drift in the measurement slate,
-  schema record-by-record, documents that disagree, the defensibility questions, and ten rulings
-  requested. The housekeeping executed the same day: master fast-forwarded 137 commits, the
-  ingestor branch merged, this index and the schema brought level with the code.
-- [2026-09-08](2026-09-08/review.md): whole-repo review, the publishability review, and the forward
-  plan. [review.md](2026-09-08/review.md) (drift and schema), [publishability-review.md](2026-09-08/publishability-review.md)
-  (scope, rigor, feasibility, the reviewer's ten questions), [forward-plan.md](2026-09-08/forward-plan.md)
-  (the execution timeline to the fall paper, build and write tracks on one calendar).
+- [2026-09-08](2026-09-08/review.md): the housekeeping pass after the tree decision, three reviews,
+  and the forward plan. Housekeeping: master fast-forwarded 137 commits, the ingestor 0.9 notebook
+  synced, SCHEMA/BUILD brought level with the code and stripped of changelog meta, docs/extractor.md
+  and docs/ingestor.md written. [review.md](2026-09-08/review.md) (drift and schema, ten rulings),
+  [publishability-review.md](2026-09-08/publishability-review.md) (scope, rigor, feasibility, the
+  reviewer's ten questions), [forward-plan.md](2026-09-08/forward-plan.md) (the execution timeline,
+  build and write tracks on one calendar).
