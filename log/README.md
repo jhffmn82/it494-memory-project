@@ -47,3 +47,17 @@ their saved outputs as run.
   the roster. Audit: [audit.md](2026-09-06/audit.md), the ingestor against SCHEMA.md,
   BUILD.md and the brief record by record, the decisions taken and the PROPOSED items, and
   the project's documents against each other. Findings: [review-findings.json](2026-09-06/review-findings.json).
+- [2026-09-07](2026-09-07/README.md): the ingestor from 0.6 to 0.7 and then to the one-reading
+  path. The fold's fabrication check removed after it read possessives as names and cost Oz its
+  major characters; twenty-four rulings taken one at a time; a full run over 48 documents
+  ($11.47, 2,656 calls) with the cost measured by stage rather than assumed — adjudication 62%,
+  output 81% of the spend; four defects it exposed and fixed (an unbounded pieces span reaching
+  17,131 characters, a support check that asked the wrong question of every inverse fact,
+  per-document accounting that counted its neighbours' calls under parallelism, a parallel helper
+  that ignored the width it was given); the LongMemEval chat corpus measured and the one-reading
+  path built for it, four calls a document instead of twenty-five, sixteen documents at a time;
+  a 200-session run at $1.906 and 954 seconds with the unsupported rate down from 37.8% to 20.4%;
+  the battery at 146 checks. Decisions: [decisions-ingestor-0.7.md](2026-09-07/decisions-ingestor-0.7.md),
+  every ruling with what it changed. Audit: [audit-answers.md](2026-09-07/audit-answers.md), the
+  outside audit answered item by item. Build: `factledger-ingestor-as-run.py` and `.ipynb`, the
+  notebook as the day ended.

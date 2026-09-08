@@ -8,6 +8,7 @@ Every check prints PASS or FAIL; the last line counts them.
 """
 import json
 import os
+import time
 import re
 import shutil
 import sys
@@ -20,7 +21,7 @@ shutil.rmtree(SCR, ignore_errors=True)
 SCR.mkdir(parents=True)
 os.environ["OUT"] = str(SCR)
 os.environ.setdefault("EXPORT", str(ROOT / "data" / "export"))
-os.environ["OPENAI_API_KEY"] = "test-key-never-sent"        # so embed() runs through the stub
+os.environ["OPENAI_API_KEY"] = "test-key-never-sent"        # nothing is sent: the calls are stubbed
 
 src = Path("notebooks/factledger-ingestor.py").read_text(encoding="utf-8")
 cells = src.split("\n# %%\n")
@@ -165,17 +166,17 @@ def stub_generate(prompt, schema, stage, model=None, effort="low", ctx=None):
         names = sorted(set(CAP.findall(records)) - STOP)[:5]
         if script["bad_fold"] > 0:                          # each bad answer spends one; the retry is bad too while any remain
             script["bad_fold"] -= 1
-            return {"summary": f"A tale of {', '.join(names)} and Rumpelstiltskin."}
-        return {"summary": f"A record of {', '.join(names)}."}
+            summary = f"A tale of {', '.join(names)} and Rumpelstiltskin."
+        else:
+            summary = f"A record of {', '.join(names)}."
+        if stage == "entity_abstract":                      # one kind for the merged entity (ruling of 09-07)
+            return {"summary": summary, "kind": "PERSON "}
+        return {"summary": summary}
     raise AssertionError(stage)
 
 
-def stub_embed(texts, stage="embed", ctx=None):
-    return [[float(int(ns["h"](t)[:8], 16) % 1000) / 1000.0] * 4 for t in texts]
-
-
 real_generate = ns["generate"]                                   # kept for the retry check below
-ns["generate"], ns["embed"] = stub_generate, stub_embed
+ns["generate"] = stub_generate
 
 # ---------------------------------------------------------------- unit checks of the helpers
 locate, normalised, surface_spans = ns["locate"], ns["normalised"], ns["surface_spans"]
@@ -339,8 +340,36 @@ buffer = io.StringIO()
 with contextlib.redirect_stdout(buffer):
     ns["rollup"](path, top=2)
 printed = buffer.getvalue()
-check("the roll-up reads a finished package back and prints it, abstract, units, majors and the audit",
-      "ROLL-UP" in printed and "MAJOR ENTITIES" in printed and "consolidated facts" in printed, printed[:80])
+written = path.with_name("roll-up.txt").read_text(encoding="utf-8")
+check("the roll-up reads a finished package back and writes it, abstract, units, majors and the audit",
+      "ROLL-UP" in written and "MAJOR ENTITIES" in written and "consolidated facts" in written, written[:80])
+check("the roll-up is a file beside the package, not a second copy of the log (ruling of 09-07)",
+      "ROLL-UP" not in printed and "roll-up.txt" in printed and len(printed) < 200, printed[:120])
+
+# ---------------------------------------------------------------- the 09-07 rulings
+rows = list(ns["read_jsonl"](path))
+kinds = [r["kind"] for r in rows if r["record"] == "node" and r["kind"] != "document"]
+positions = [r["position"] for r in rows if r["record"] == "unit"]
+check("the units land in reading order though they derive WORKERS at a time (ruling of 09-07)",
+      positions == sorted(positions) and len(positions) > ns["WORKERS"], positions[:8])
+check("a merged entity carries one kind, not the joined set (ruling of 09-07)",
+      kinds and not any("/" in k for k in kinds), kinds[:4])
+check("the kind the entity abstract answered is the kind stored, cased down",
+      all(k == "person" for k in kinds), sorted(set(kinds)))
+# an inverse fact names the other entity in "object" and in subject_name both, so it is only a
+# self reference when the fact is stated forward
+restating = [r for r in rows if r["record"] == "fact" and r["direction"] == "forward"
+             and not r["object_is_node"]
+             and str(r["object"]).strip().casefold() == r["provenance"].get("subject_name", "").strip().casefold()]
+check("a fact whose object restates its subject is rejected at the gate, and says why",
+      not restating or any(r["record"] == "rejection" and r["category"] == "self_reference" for r in rows),
+      [(r["provenance"]["subject_name"], r["predicate"], r["object"]) for r in restating[:3]])
+
+spent_before = ns["spend"]()
+ns["start_block"](0.25)
+check("a block's budget is counted from the block's start, not the session's (ruling of 09-07)",
+      spent_before > 0 and ns["BLOCK_START"] == spent_before and ns["SPEND_STOP"] == 0.25,
+      (spent_before, ns["BLOCK_START"], ns["SPEND_STOP"]))
 check("each document keeps its own folder, named after its file, with the package inside it",
       path.parent.name == "01_55" and path.name == "01_55.jsonl" and path.parent.parent.name == "oz")
 check("two entities the judge kept apart never share a node id (decision 48)",
@@ -447,6 +476,60 @@ check("salience is read from the abstract, and the majors are the entities it na
 check("an entity with nothing to summarise is not a major (decision 52)",
       all(any(a["record"] == "abstract" and a["node_id"] == r["node_id"] for a in rows) for r in rows if r["record"] == "node" and r["kind"] != "document"))
 script["bad_fold"] = 0
+
+# ---------------------------------------------------------------- the two fixes of 09-07
+near = "alpha " + ("word " * 20) + "omega"
+far = "alpha " + ("word " * 200) + "omega"
+s1, e1, h1 = ns["locate"](near, "alpha ... omega")
+s2, e2, h2 = ns["locate"](far, "alpha ... omega")
+check("a quote whose two halves are close is still a pieces match", h1 == "pieces" and s1 == 0, (s1, e1, h1))
+check("a quote whose halves are further apart than the cap is refused (ruling of 09-07)",
+      s2 is None and h2 == "span_too_wide", (s2, h2))
+check("no other path can outrun the cap: every one matches a single run of text",
+      ns["locate"](near, "alpha")[2] == "exact" and ns["QUOTE_SPAN_MAX"] >= 300)
+opening = ns["support_prompt"](["1. a b c  (\"q\")"]).split(chr(10))[0]
+check("the support check asks whether a passage states a statement, naming no entity (fixed 09-07)",
+      "about" not in opening, opening[:90])
+
+# ---------------------------------------------------------------- one reading: the short path
+one = ns["load_document"](uri_of("/oz/03_486.txt"), BY_URI, UNITS, PIECES)
+body = [x for x in one["units"] if ns["unit_kind"](one, x) not in ns["BOILERPLATE"]]
+one["units"] = [x for x in one["units"] if ns["unit_kind"](one, x) in ns["BOILERPLATE"]] + body[:1]
+check("a document whose boilerplate leaves one unit is read once, not merged",
+      ns["one_reading"](one) and len(one["units"]) >= 1, [ns["unit_kind"](one, x) for x in one["units"]])
+at = len(ns["CALLS"])
+light_path, light_counts, light_stats, light_records, _, light_folded = ns["ingest"](one)
+stages = [c["stage"] for c in ns["CALLS"][at:]]
+light_rows = list(ns["read_jsonl"](light_path))
+check("the short path buys no triage, no entity abstract and no adjudication",
+      not {"triage", "entity_abstract", "adjudicate"} & set(stages), sorted(set(stages)))
+check("its facts are verified in a single pass over the whole document",
+      stages.count("support") == 1, stages)
+check("four calls a document: entities, facts, cells, and the one verification",
+      len(stages) == 4, stages)
+check("nothing is consolidated, so the facts stand with their quotes",
+      not any(r["record"] in ("adjudicated_fact", "attribute") for r in light_rows)
+      and all(r["quote"] for r in light_rows if r["record"] == "fact")
+      and light_counts["facts_stored"] > 0, light_counts["facts_stored"])
+check("the majors still get an abstract, written from their own cells without a call",
+      all(any(a["record"] == "abstract" and a["node_id"] == r["node_id"] for a in light_rows)
+          for r in light_rows if r["record"] == "node" and r["kind"] != "document"))
+check("a one-reading document reports its majors with their abstracts and facts (ruling of 09-07)",
+      light_stats.get("one_reading") is True, light_stats.get("one_reading"))
+lines = ns["one_reading_report"](light_records, light_folded)
+noise = {"stage": "facts", "model": ns["LUNA"], "in": 1, "out": 1, "seconds": 0.1, "cost": 9.99,
+         "doc": "somebody/else.txt", "unit": 0}
+ns["CALLS"].append(noise)
+own_cost, own_calls = ns["document_spend"]({"source_uri": "somebody/else.txt"})
+ns["CALLS"].remove(noise)
+check("a document's cost counts only its own calls, not its neighbours' (fixed 09-07)",
+      own_calls == 1 and abs(own_cost - 9.99) < 1e-9 and light_stats["cost"] < 1.0,
+      (own_calls, own_cost, light_stats["cost"]))
+check("the report names every major and lists facts under them",
+      len([x for x in lines if not x.strip().startswith("-")]) >= len(light_folded["majors"])
+      and any(x.strip().startswith("- ") and "->" in x for x in lines), lines[:3])
+check("a many-unit document is untouched by the short path",
+      not ns["one_reading"](ns["load_document"](OZ, BY_URI, UNITS, PIECES)))
 
 # ---------------------------------------------------------------- the spend stop mid-document, then a resume from the sidecar
 gr = ns["load_document"](uri_of("/graphrag-bench/Novel-40700.txt"), BY_URI, UNITS, PIECES)
@@ -619,6 +702,21 @@ def stops_at_two(x):
 
 
 check("in_parallel keeps the items' order", ns["WORKERS"] >= 2 and ns["in_parallel"](doubled, [3, 1, 2, 5, 4]) == [6, 2, 4, 10, 8])
+
+import threading
+seen, seen_lock = [], threading.Lock()
+
+
+def busy(n):
+    with seen_lock:
+        seen.append(threading.current_thread().name)
+    time.sleep(0.05)
+    return n
+
+
+ns["in_parallel"](busy, list(range(12)), width=6)
+check("in_parallel runs as wide as it is asked, not as wide as WORKERS (ruling of 09-07)",
+      len(set(seen)) > ns["WORKERS"], (len(set(seen)), ns["WORKERS"]))
 try:
     ns["in_parallel"](stops_at_two, [1, 2, 3, 4, 5])
     check("a spend stop inside a worker is raised to the caller", False)
