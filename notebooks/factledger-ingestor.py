@@ -1600,7 +1600,7 @@ def fold_document(records, entities, ctx, light=False):
     abstract, ranked = (text or "").casefold(), []
     for e in entities:
         in_abstract = any(whole_word(s, abstract) for s in e["surfaces"] if len(s) >= 2) if text else None
-        major = bool(in_abstract) or e["unit_major"] or e["named"]
+        major = e["unit_major"]        # salience decides, nothing else promotes, nothing demotes
         ranked.append((major, len(e["units"]), e["n_facts"], in_abstract, e))
     ranked.sort(key=salience_order)
     out["by_abstract_only"] = sum(1 for major, n_units, n_facts, in_abstract, e in ranked if in_abstract)

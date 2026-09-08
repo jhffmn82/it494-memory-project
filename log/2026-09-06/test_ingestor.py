@@ -339,10 +339,9 @@ check("a pair the judge could not settle was judged once more at the end", any(l
 check("two named locals with the same name and kind unite on sight, no judge", any(l["how"] == "same_name" and l["verdict"] == "same" for l in by["ledger"]))
 check("an object points at a node only when that node is in this package (E3, restated for R6)",
       all(f["object"] in {l["node_id"] for l in lines if l["record"] == "node"} for f in facts if f["object_is_node"]))
-check("nothing is demoted for salience: every major keeps a route, and a minor has none unless decision 52 took it (R6, P4)",
-      all(e["rank"]["in_abstract"] or e["rank"]["unit_major"] or e["rank"]["named"] for e in folded["majors"])
-      and not any(e["rank"]["in_abstract"] or e["rank"]["unit_major"] or e["rank"]["named"]
-                  for e in folded["minors"] if not e["rank"].get("no_abstract")))
+check("salience alone decides a major: every major was called major by a unit, and no minor was",
+      all(e["rank"]["unit_major"] for e in folded["majors"])
+      and not any(e["rank"]["unit_major"] for e in folded["minors"] if not e["rank"].get("no_abstract")))
 check("decision 52 is the only demotion left, and it is about having no content, not about salience (P4)",
       all(not e["rank"].get("no_abstract") or e["n_facts"] == 0 for e in folded["minors"]))
 check("an entity a unit called major is still major at roll-up, abstract or no abstract (R6)",
