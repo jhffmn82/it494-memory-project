@@ -127,6 +127,7 @@ def stub_generate(prompt, schema, stage, model=None, effort="low", ctx=None):
                 facts.append({"subject": n0, "predicate": "is_cited_loosely", "object": "with an invented middle", "qualifiers": None, "quote": middle, "valid_from": None, "valid_to": None})
                 facts.append({"subject": n0, "predicate": "is_cited_loosely", "object": "and supported", "qualifiers": None, "quote": loose, "valid_from": None, "valid_to": None})
                 facts.append({"subject": n0, "predicate": "is_cited_loosely", "object": "an unsupported claim", "qualifiers": None, "quote": loose, "valid_from": None, "valid_to": None})
+                facts.append({"subject": n0, "predicate": "cannot_be_fixed", "object": "an unfixable claim", "qualifiers": None, "quote": loose, "valid_from": None, "valid_to": None})   # flagged, and the correction refuses it: dumped
         return {"facts": facts}
     if stage == "cells":
         names = re.search(r"ENTITIES: (.*)", prompt).group(1).split(", ")
@@ -148,11 +149,24 @@ def stub_generate(prompt, schema, stage, model=None, effort="low", ctx=None):
         return {"exclude": [{"kind": k, "reason": "not the work"} for k in kinds if k in ("license", "front_matter", "references")]}
     if stage == "support":                                       # the small support-only call: the same rule as the adjudication's
         listing = prompt.split("FACTS:\n", 1)[1]
-        return {"unsupported": [int(k) for k, line in re.findall(r"^(\d+)\. (.*)$", listing, re.M) if "an unsupported claim" in line]}
+        return {"unsupported": [int(k) for k, line in re.findall(r"^(\d+)\. (.*)$", listing, re.M)
+                                if "an unsupported claim" in line or "an unfixable claim" in line]}
+    if stage == "correct":                                       # the passage is fixed; the claim moves to fit it (R3)
+        listing = prompt.split("STATEMENTS:" + chr(10), 1)[1]
+        out = []
+        for k, line in re.findall(r"^(\d+)\. (.*)$", listing, re.M):
+            if "loosely" in line:                                # correctable: a real claim the passage does carry
+                out.append({"fact": int(k), "subject": line.split(" is_cited_loosely")[0].split(". ", 1)[-1].strip(),
+                            "predicate": "is_cited_loosely", "object": "a corrected claim", "qualifiers": None})
+            elif "restate_me" in line:                           # answered, but the answer says nothing: dumped anyway
+                out.append({"fact": int(k), "subject": "x", "predicate": "restate_me", "object": "restate_me", "qualifiers": None})
+            # anything else is left out of the reply entirely: not correctable, so dumped
+        return {"corrections": out}
     if stage == "adjudicate":
         listing = prompt.split("FACTS:\n", 1)[1].split("\nCELLS:")[0]
         n = len(re.findall(r"^\d+\. ", listing, re.M))
-        unsupported = [int(k) for k, line in re.findall(r"^(\d+)\. (.*)$", listing, re.M) if "an unsupported claim" in line]
+        unsupported = [int(k) for k, line in re.findall(r"^(\d+)\. (.*)$", listing, re.M)
+                       if "an unsupported claim" in line or "an unfixable claim" in line]
         return {"facts": [{"predicate": "is_a", "object": "character", "qualifiers": None, "from": [1]},
                           {"predicate": "lives_in", "object": "Kansas", "qualifiers": None, "from": [1]},
                           {"predicate": "lives_at", "object": "the farm", "qualifiers": None, "from": [1]},   # the pairwise judge folds this into lives_in
@@ -247,7 +261,19 @@ check("every fact's quote is the text's own words whatever path found it", all(t
 unsupported_ids = {f["fact_id"] for f in facts if f["rank"] == "unsupported"}
 check("a loosely cited fact is found by its words and stored, marked words", any(f["provenance"]["matched_by"] == "words" and f["object"] == "and supported" and f["rank"] == "active" for f in facts))
 check("a quote with a word invented inside the run is refused, not matched by its words (decision 47)", not any(f["object"] == "with an invented middle" for f in facts) and any(r.get("object") == "with an invented middle" for r in by.get("rejection", [])))
-check("a fact the adjudication finds unsupported by its passage stays with its quote, ranked unsupported, and is counted", any(f["object"] == "an unsupported claim" and f["rank"] == "unsupported" for f in facts) and lines[-1]["counts"]["facts_unsupported"] > 0 and not any(f["object"] == "and supported" and f["rank"] == "unsupported" for f in facts))
+check("no fact is written with a flag: every stored fact is active (R3)",
+      facts and all(f["rank"] == "active" for f in facts))
+check("a fact its passage does not state is corrected against that passage, keeping its quote (R3)",
+      any(f["object"] == "a corrected claim" and f["provenance"]["corrected_from"]["object"] == "an unsupported claim" for f in facts)
+      and not any(f["object"] == "an unsupported claim" for f in facts))
+check("a fact that could not be corrected is dumped, not stored, and recorded as a rejection (R3)",
+      lines[-1]["counts"]["facts_dumped"] > 0
+      and any(r["record"] == "rejection" and r["stage"] == "verify" and r["category"] == "unsupported" for r in lines))
+check("a correction that says nothing is refused and the fact dumped with it (R3)",
+      not any(f["predicate"] == "restate_me" for f in facts))
+check("the flagged, corrected and dumped counts agree", lines[-1]["counts"]["facts_flagged"] ==
+      lines[-1]["counts"]["facts_corrected"] + lines[-1]["counts"]["facts_dumped"])
+check("a fact its passage does state is left alone", any(f["object"] == "and supported" and not f["provenance"]["corrected_from"] for f in facts))
 check("rejections classified: paraphrase, not_found, unlisted_subject, duplicate", set(stats["rejected_by"]) >= {"paraphrase", "not_found", "unlisted_subject", "duplicate"}, stats["rejected_by"])
 check("predicate normalised to snake_case", any(f["predicate"] == "has_trait" for f in facts))
 check("valid_from kept only when the quote states the year", all(f["valid_from"] is None for f in facts if "1900" not in f["quote"]))
@@ -287,9 +313,13 @@ check("each round's pairs are strongest first, and no entity is in two pairs of 
 check("never minor against minor in the queue", all(any(e["major"] and e["name"] in (c["a"], c["b"]) and r["position"] in (c["a_unit"], c["b_unit"]) for r in records for e in r["entities"]) for c in by["candidate"]))
 check("a pair the judge could not settle was judged once more at the end", any(l["how"] == "judged again" for l in by.get("ledger", [])))
 check("two named locals with the same name and kind unite on sight, no judge", any(l["how"] == "same_name" and l["verdict"] == "same" for l in by["ledger"]))
-check("an object is a node only when the text wrote it as a name, never a lowercase common noun (E3)",
-      not any(f["object_is_node"] and f["object"] and f["object"][:1].islower() for f in facts))
-check("a low-salience major was demoted to minor and has no node", lines[-1]["counts"]["demoted"] > 0 and all(not e["major"] for e in folded["minors"] if e["rank"]["demoted"]) and all(e["rank"]["demoted"] is False for e in folded["majors"]))
+check("an object points at a node only when that node is in this package (E3, restated for R6)",
+      all(f["object"] in {l["node_id"] for l in lines if l["record"] == "node"} for f in facts if f["object_is_node"]))
+check("nothing is demoted for salience: every major keeps a route to major, every minor has none (R6)",
+      all(e["rank"]["in_abstract"] or e["rank"]["unit_major"] or e["rank"]["named"] for e in folded["majors"])
+      and not any(e["rank"]["in_abstract"] or e["rank"]["unit_major"] or e["rank"]["named"] for e in folded["minors"]))
+check("an entity a unit called major is still major at roll-up, abstract or no abstract (R6)",
+      all(e["major"] for e in folded["majors"] + folded["minors"] if e["rank"]["unit_major"]))
 inverse = [f for f in facts if f["direction"] == "inverse"]
 check("a minor's fact about a major lands on the major, marked inverse, with the minor's name as its value", inverse and all(f["subject"] in node_ids and not f["object_is_node"] and f["object"] not in node_ids for f in inverse))
 adjudicated = by.get("adjudicated_fact", [])
@@ -307,16 +337,18 @@ check("a quote cited with an ellipsis is kept, its stored quote spanning the pie
 check("adjudicated predicates are the model's own, unmerged, in snake_case", {"lives_in", "lives_at"} <= {a["predicate"] for a in adjudicated} and not any(r["record"] == "predicate_merge" for r in lines) and "predicate_raw" not in adjudicated[0])
 check("no consolidated fact rests only on facts the same reply set aside; a source set aside is not cited (decision 45)",
       adjudicated and all(not (set(a["from_facts"]) & unsupported_ids) for a in adjudicated), len(unsupported_ids))
-check("every entity with facts of its own had them read before anything rode: a minor's unsupported fact rides ranked unsupported (decision 50)",
-      any(f["direction"] == "about" and f["rank"] == "unsupported" for f in facts)
-      or not any(f["direction"] == "about" for f in facts))
+check("every entity with facts of its own had them read before anything rode, and the verdict reaches the riding copy (decision 50, C5)",
+      any(f["direction"] == "about" for f in facts)
+      and not any(f["direction"] == "about" and f["object"] in ("an unsupported claim", "an unfixable claim") for f in facts))
 raw_by_id = {f["fact_id"]: f for f in facts}
 check("a consolidated fact's sources are the raw facts it was drawn from, not any facts of the node (A17)",
       any(a["predicate"] == "is_a" for a in adjudicated)
       and all(all(raw_by_id[i]["predicate"] == "is_a" for i in a["from_facts"] if i in raw_by_id)
               for a in adjudicated if a["predicate"] == "is_a"))
 check("every adjudicated fact points only at raw facts of its own node", adjudicated and all(set(a["from_facts"]) <= fact_ids_of.get(a["node_id"], set()) for a in adjudicated))
-check("attributes point at raw facts too, and an item pointing at nothing was dropped and counted", by.get("attribute") and all(set(a["from_facts"]) <= fact_ids_of.get(a["node_id"], set()) for a in by["attribute"]) and lines[-1]["counts"]["adjudication_dropped"] == len(folded["majors"]))
+check("attributes point at raw facts too, and an item pointing at nothing was dropped and counted",
+      by.get("attribute") and all(set(a["from_facts"]) <= fact_ids_of.get(a["node_id"], set()) for a in by["attribute"])
+      and lines[-1]["counts"]["adjudication_dropped"] > 0)
 check("an adjudicated attribute may stand without a value", any(a["value"] is None for a in by.get("attribute", [])))
 # a kill mid-write leaves a torn last line in the sidecar: the resume must still accumulate
 side = ns["sidecar_path"](doc)
@@ -382,7 +414,8 @@ check("the fact counters close: stored is what landed plus the riding copies",
 check("an entity the document cannot summarise is not a major, and its facts ride (decision 52)",
       all(any(a["record"] == "abstract" and a["node_id"] == ns["node_id_of"](doc, e) for a in lines) for e in folded["majors"])
       and all(not e["rank"].get("no_abstract") for e in folded["majors"]))
-check("majors are exactly the entities named in the abstract", all(any(s in doc_abs[0]["text"].casefold() for s in e["surfaces"]) for e in folded["majors"]) and folded["majors"])
+check("every entity the abstract names is a major; being named in it is a promotion, not the only one (R6)",
+      folded["majors"] and all(e["major"] for e in folded["majors"] + folded["minors"] if e["rank"]["in_abstract"]))
 check("dossier per major, its text and no vector (decision 54)", len(by.get("dossier", [])) == len(folded["majors"]) and all(d["text"] and "embedding" not in d for d in by["dossier"]))
 check("an alias carries the words it was first read in (decision 62)", by.get("alias") and all(a["evidence_quote"] and ns["norm"](a["alias"]) in ns["norm"](a["evidence_quote"]) for a in by["alias"]))
 check("a profile row carries no constant confidence (decision 62)", all("confidence" not in p for p in by.get("profile", [])))
@@ -471,8 +504,9 @@ rows = list(ns["read_jsonl"](p))
 doc_abstract = [r for r in rows if r["record"] == "abstract" and r["node_id"] == ns["h"](rows[0]["doc_id"], "document")]
 check("a summary naming something the records do not is still stamped, not rejected (decision 65)",
       len(doc_abstract) == 1 and "Rumpelstiltskin" in doc_abstract[0]["text"], doc_abstract[0]["text"][:60] if doc_abstract else None)
-check("salience is read from the abstract, and the majors are the entities it names",
-      rows[-1]["counts"]["majors"] > 0 and all(r["provenance"]["salience"]["in_abstract"] for r in rows if r["record"] == "node" and r["kind"] != "document"))
+check("every node records which promotion made it a major (R6)",
+      rows[-1]["counts"]["majors"] > 0 and all(any(r["provenance"]["salience"][why] for why in ("in_abstract", "unit_major", "named"))
+                                               for r in rows if r["record"] == "node" and r["kind"] != "document"))
 check("an entity with nothing to summarise is not a major (decision 52)",
       all(any(a["record"] == "abstract" and a["node_id"] == r["node_id"] for a in rows) for r in rows if r["record"] == "node" and r["kind"] != "document"))
 script["bad_fold"] = 0
@@ -505,8 +539,10 @@ check("the short path buys no triage, no entity abstract and no adjudication",
       not {"triage", "entity_abstract", "adjudicate"} & set(stages), sorted(set(stages)))
 check("its facts are verified in a single pass over the whole document",
       stages.count("support") == 1, stages)
-check("four calls a document: entities, facts, cells, and the one verification",
-      len(stages) == 4, stages)
+check("four calls a document, and a fifth only when something needed correcting (R3)",
+      len(stages) == 4 + (1 if stages.count("correct") else 0)
+      and stages.count("correct") <= 1
+      and (stages.count("correct") == 1) == (rows[-1]["counts"]["facts_flagged"] > 0), stages)
 check("nothing is consolidated, so the facts stand with their quotes",
       not any(r["record"] in ("adjudicated_fact", "attribute") for r in light_rows)
       and all(r["quote"] for r in light_rows if r["record"] == "fact")

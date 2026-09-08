@@ -278,6 +278,7 @@ if not KEY:
 
 CALLS, REJECTIONS, RETRIES = [], [], []
 LOG_LOCK = threading.Lock()
+REPLIES, REPLIES_LOCK, IN_FLIGHT = {}, threading.Lock(), {}   # per document: what it has already paid for
 
 
 class SpendStop(Exception):
@@ -425,8 +426,15 @@ def call(url, payload, model, stage, ctx, prompt_chars):
 
 
 def generate(prompt, schema, stage, model=LUNA, effort="low", ctx=None):
-    """The reply as a dict that fits `schema`, or None after one retry with the error appended."""
+    """The reply as a dict that fits `schema`, or None after one retry with the error appended.
+    A reply this document has already bought is returned from its sidecar instead of bought
+    again: units were checkpointed one at a time, but everything after the last unit was not
+    checkpointed at all, and a spending stop there threw away the judge and the adjudication
+    (fixed 09-07)."""
     ctx = ctx or {}
+    uri, key = ctx.get("doc"), h(stage, model, effort, prompt)
+    if uri is not None and key in REPLIES.get(uri, {}):
+        return REPLIES[uri][key]
     error = ""
     for attempt in range(2):
         body = call("https://api.openai.com/v1/chat/completions",
@@ -438,6 +446,8 @@ def generate(prompt, schema, stage, model=LUNA, effort="low", ctx=None):
                 raise SchemaError("empty reply" + (f" (refusal: {message.get('refusal')})" if message.get("refusal") else ""))
             reply = json.loads(message["content"])
             check_schema(reply, schema)
+            if uri is not None:
+                remember_reply(uri, key, reply)
             return reply
         except (SchemaError, ValueError, TypeError, KeyError, IndexError) as e:
             error = f"{type(e).__name__}: {e}"
@@ -856,6 +866,11 @@ TRIAGE_SCHEMA = {"type": "object", "required": ["exclude"], "properties": {"excl
     "type": "object", "required": ["kind", "reason"], "properties": {"kind": {"type": "string"}, "reason": {"type": "string"}}}}}}
 
 SUPPORT_SCHEMA = {"type": "object", "required": ["unsupported"], "properties": {"unsupported": {"type": "array"}}}
+CORRECT_SCHEMA = {"type": "object", "required": ["corrections"], "properties": {"corrections": {"type": "array", "items": {
+    "type": "object", "required": ["fact"], "properties": {
+        "fact": {"type": ["integer", "string"]}, "subject": {"type": ["string", "null"]},
+        "predicate": {"type": ["string", "null"]}, "object": {"type": ["string", "null"]},
+        "qualifiers": {"type": ["string", "null"]}}}}}}
 ADJUDICATE_SCHEMA = {"type": "object", "required": ["facts", "attributes", "contradictions"], "properties": {
     "unsupported": {"type": "array"},
     "facts": {"type": "array", "items": {"type": "object", "required": ["predicate", "object", "from"], "properties": {
@@ -863,7 +878,13 @@ ADJUDICATE_SCHEMA = {"type": "object", "required": ["facts", "attributes", "cont
     "attributes": {"type": "array", "items": {"type": "object", "required": ["attribute", "value", "from"], "properties": {
         "attribute": {"type": "string"}, "value": {"type": ["string", "null"]}, "from": {"type": "array"}}}},
     "contradictions": {"type": "array", "items": {"type": "object", "required": ["note", "from"], "properties": {
-        "note": {"type": "string"}, "from": {"type": "array"}}}}}}
+        "note": {"type": "string"}, "from": {"type": "array"},
+        "holds": {"type": ["integer", "string", "null"]}, "because": {"type": ["string", "null"]}}}}}}
+
+QUOTE_RULE = ("a passage states a fact when it carries the claim itself, in whatever words the document uses:"
+              " it need not repeat the fact's wording, the subject may be a pronoun or a shorter form, and a table row,"
+              " a heading or a caption states what it lists")
+
 
 def triage_prompt(doc, kinds):
     """kinds: {kind: [(position, label, words, first line), ...]} for every unit."""
@@ -908,8 +929,8 @@ Return JSON {{"facts": [{{"subject", "predicate", "object", "qualifiers", "quote
 - subject: a name from ENTITIES, exactly as written
 - predicate: a lowercase_snake_case relation in the present tense, named the way the text gives it; use is_a for what kind of thing the subject is
 - object: another entity's name exactly as written when the fact relates two entities, else a short literal value that does not repeat the predicate; never a bare true or false
-- qualifiers: a short phrase for role, manner, or condition, else null
-- quote: one verbatim substring of the text that supports the fact, copied exactly as it appears, punctuation and all; an ellipsis (...) may skip words between two verbatim pieces
+- qualifiers: one short phrase for role, manner or condition, as a string, else null; never an object
+- quote: one verbatim substring of the text that STATES the fact, copied exactly as it appears, punctuation and all; an ellipsis (...) may skip words between two verbatim pieces. {QUOTE_RULE}. Quote enough to carry the claim: for a table value, quote the heading it sits under as well as the value
 - valid_from, valid_to: an ISO date (YYYY, YYYY-MM or YYYY-MM-DD) only when the quote itself states when the fact began or ended; otherwise null. Never infer a date.
 - each fact is atomic: one attribute or one relationship, with a bare value rather than a phrase
 - a relationship between a major entity and a minor one is stated once, under the major entity; only between two major entities may it be stated from both sides
@@ -938,6 +959,19 @@ Return JSON {"verdicts": [{"pair": n, "verdict": "same" | "different" | "unsure"
 """
 
 
+def correct_prompt(facts):
+    return f"""Below are statements one document makes, numbered, each with the passage it rests on. A check found that the passage does not state the statement as it is written. The passage is fixed and is not in question; the statement is what may be wrong.
+
+For each one you can, restate it so that its own passage states it: give "subject", "predicate" (lowercase_snake_case, present tense) and "object" that the passage does carry, with "qualifiers" or null. {QUOTE_RULE}.
+
+Leave a statement out of your answer entirely when its passage carries no durable fact at all. A statement that cannot be corrected is dropped, and that is the right outcome: a vague restatement that merely mentions the subject is worse than dropping it. Never restate a fact as a remark about the passage or about the document.
+
+Return JSON {{"corrections": [{{"fact", "subject", "predicate", "object", "qualifiers"}}]}}
+
+STATEMENTS:
+{chr(10).join(facts)}"""
+
+
 def fold_prompt(what, children, limit):
     return f"""Below are the records of {what}, in reading order. Write one summary of the whole in at most {limit} words: what it is, who and what matter most, and how it unfolds from beginning to end. Ground every statement only in these records; use no outside knowledge and no name that does not appear below.
 
@@ -952,7 +986,7 @@ def support_prompt(facts):
 
 Return JSON {{"unsupported": [numbers]}}: the numbers of the facts whose own passage does not state them (a loose citation that says something else, or only part of it).
 
-A passage states its fact whenever it carries the claim in its own words, and that is enough: it need not repeat the fact's wording, its subject may be named by a pronoun or a shorter form, and a table row, a heading or a figure caption states what it lists. "deletion 0.02 to 0.42" states that deletion has an optimized accuracy of 0.42. Only call a fact unsupported when its passage genuinely does not carry it. Return an empty list when every passage states its fact.
+{QUOTE_RULE}. So "optimized accuracy ... deletion 0.02 to 0.42" states that deletion has an optimized accuracy of 0.42, while "deletion 0.02 to 0.42" alone does not: it carries the numbers but not what they measure. Only call a fact unsupported when its passage genuinely does not carry the claim. Return an empty list when every passage states its fact.
 
 FACTS:
 {chr(10).join(facts)}"""
@@ -983,7 +1017,7 @@ def adjudicate_prompt(name, kinds, facts, cells):
 Write the entity's consolidated record:
 - "facts": each durable relationship or fact stated once, with "predicate" (lowercase_snake_case, present tense, as the listed facts name it), "object" (a string), "qualifiers" (one short phrase for role, manner or condition, as a string, else null; never an object), and "from": the numbers of every listed fact it is drawn from. A fact drawn from nothing listed is not allowed.
 - "attributes": what the entity is, has or is like, as "attribute", "value" (or null when the attribute stands on its own) and "from", folding the lesser things named in the facts into the entity itself: a house that has a cellar has the attribute cellar, not a relationship to one.
-- "contradictions": where listed facts disagree, a one-sentence "note" and the "from" numbers; do not resolve them.
+- "contradictions": where listed facts disagree, a one-sentence "note" and the "from" numbers. This document is a snapshot with an end state, so say which of them holds at the END of it: "holds", the number of that one fact, and "because", one sentence saying how you know. Use null for "holds" when the document genuinely does not settle it. Both facts are kept either way; you are dating them, not deleting one.
 - "unsupported": the numbers of listed facts whose own passage does not state them (a loose citation that says something else, or only part of it); draw on none of these.
 
 Return JSON {{"facts": [...], "attributes": [...], "contradictions": [...], "unsupported": [...]}}
@@ -1497,6 +1531,7 @@ def cluster_entities(locals_, clusters):
             kind_counts[l["kind"]] = kind_counts.get(l["kind"], 0) + 1
         kinds_read = [kind for _, kind in sorted((-n, kind) for kind, n in kind_counts.items())]
         entities.append({"name": best_name(counts), "kinds": kinds_read, "named": any(l["named"] for l in members),
+                         "unit_major": any(l["major"] for l in members),      # major in some unit: never taken back
                          "units": sorted({l["ui"] for l in members}), "unit_ids": unit_ids, "first_unit": unit_ids[0],
                          "names": sorted({l["name"] for l in members}), "surfaces": sorted({s for l in members for s in l["surfaces"]}),
                          "first_unit_of": first_unit_of, "members": [(l["ui"], l["name"]) for l in members],
@@ -1511,7 +1546,9 @@ def cluster_entities(locals_, clusters):
 # named there, as whole words, is major; with no abstract, two units or two facts decide. A
 # major seen in fewer units and with fewer facts than the numbers below is demoted to minor.
 # Majors get a dossier and their own abstract.
-DEMOTE_UNITS, DEMOTE_FACTS = 2, 3
+# Nothing demotes (ruling of 09-07). Promotion is: a unit called it major, the abstract names it,
+# or it carries a proper name. Bare unit and fact counts do NOT promote -- an unnamed thing that
+# recurs is still scenery, and minting nodes for scenery is what R5 refused.
 
 
 def fold(what, children, ctx, stage="fold"):
@@ -1531,7 +1568,7 @@ def salience_order(item):
 
 def fold_document(records, entities, ctx, light=False):
     out = {"abstract": None, "majors": [], "minors": [], "dossiers": [], "entity_abstracts": [],
-           "demoted": [], "cells_of": {}}
+           "demoted": [], "by_abstract_only": 0, "cells_of": {}}
     work = [r for r in records if r["summary"]]
     summaries = [f"[{r['label']}] {r['summary']}" for r in work]
     if len(summaries) == 1:                       # one summarised unit: its summary is the abstract, no call
@@ -1544,20 +1581,22 @@ def fold_document(records, entities, ctx, light=False):
     if text:
         out["abstract"] = {"text": text, "children_hash": h(*summaries), "limit": limit, "tier": tier}
 
-    # salience against the abstract; without one, the tie-breakers decide and the node says so
+    # salience is a union of promotions and nothing is ever demoted (ruling of 09-07): an entity
+    # is a document-major if anything made it one -- a unit called it major, the abstract names
+    # it, it carries a proper name, or it clears the thresholds. Being in the abstract used to be
+    # the only route, which made the abstract's word limit the document's entity budget.
     abstract, ranked = (text or "").casefold(), []
     for e in entities:
         in_abstract = any(whole_word(s, abstract) for s in e["surfaces"] if len(s) >= 2) if text else None
-        major = in_abstract if text else (len(e["units"]) >= 2 or e["n_facts"] >= 2)
+        major = bool(in_abstract) or e["unit_major"] or e["named"]
         ranked.append((major, len(e["units"]), e["n_facts"], in_abstract, e))
     ranked.sort(key=salience_order)
+    out["by_abstract_only"] = sum(1 for major, n_units, n_facts, in_abstract, e in ranked if in_abstract)
     for major, n_units, n_facts, in_abstract, e in ranked:
-        demoted = major and len(records) >= DEMOTE_UNITS and n_units < DEMOTE_UNITS and n_facts < DEMOTE_FACTS
-        e["major"] = major and not demoted
-        e["rank"] = {"in_abstract": in_abstract, "units": n_units, "facts": n_facts, "demoted": demoted, "no_abstract": False}
+        e["major"] = major
+        e["rank"] = {"in_abstract": in_abstract, "unit_major": e["unit_major"], "named": e["named"],
+                     "units": n_units, "facts": n_facts, "no_abstract": False}
         (out["majors"] if e["major"] else out["minors"]).append(e)
-        if demoted:
-            out["demoted"].append(e["name"])
 
     # dossiers and per-entity abstracts for the majors, keyed by index (two clusters may share a name)
     for i, e in enumerate(entities):
@@ -1585,6 +1624,10 @@ def fold_document(records, entities, ctx, light=False):
         e, d = pair
         if light:                     # one reading: the entity's own cell is its abstract, no call
             cells = cells_of.get(e["index"], [])
+            if not cells and len(d["children"]) > 2:
+                # its children are facts, and a run of predicate strings is not a summary of
+                # anything; better no abstract than "is_a language supports type_hints" (09-07)
+                return None, None, LUNA
             said = " ".join(c.split("] ", 1)[-1] for c in (cells or d["children"]))
             return said or None, None, LUNA
         if len(d["children"]) <= 2:
@@ -1635,8 +1678,18 @@ def sidecar_path(doc):
     return package_path(doc).with_suffix(".units.jsonl")
 
 
+def derive_signature():
+    """What a checkpointed unit depends on, as one string: the words the derive path will send,
+    the models it will send them to, and the constant that gates which quotes it keeps. INGESTOR
+    was the whole label, and a hand-typed version string does not move when the code under it
+    does -- it stayed at 0.7 across eight commits that changed this path (A12; fixed 09-07)."""
+    sample = {"label": "L", "text": "T"}
+    return h(INGESTOR, LUNA, TERRA, QUOTE_SPAN_MAX,
+             entity_prompt(sample), fact_prompt(sample, ["A"], ["A"]), cells_prompt(sample, ["A"]))
+
+
 def input_hash(doc):
-    return h(doc["doc_id"], *[u["unit_id"] for u in doc["units"]], INGESTOR)
+    return h(doc["doc_id"], *[u["unit_id"] for u in doc["units"]], derive_signature())
 
 
 def first_mention(records, entity):
@@ -1717,7 +1770,8 @@ def landings(records, folded):
     return landed
 
 
-def write_package(doc, records, entities, folded, adjudicated, ledger, candidates, excluded, stats):
+def write_package(doc, records, entities, folded, adjudicated, ledger, candidates, excluded, stats,
+                  flagged=None, corrections=None):
     path = package_path(doc)
     path.parent.mkdir(parents=True, exist_ok=True)
     scope, written_at, doc_node = doc["doc_id"], datetime.now(timezone.utc).isoformat(timespec="seconds"), h(doc["doc_id"], "document")
@@ -1791,7 +1845,11 @@ def write_package(doc, records, entities, folded, adjudicated, ledger, candidate
         for item in result["attributes"]:
             lines.append({"record": "attribute", "node_id": nid, "attribute": item["attribute"], "value": item["value"], "from_facts": item["from_facts"], "tier": TERRA})
         for item in result["contradictions"]:
-            lines.append({"record": "contradiction", "node_id": nid, "note": item["note"], "from_facts": item["from_facts"]})
+            # the document's own resolution, recorded here and not on the fact: both facts stay
+            # active, and the global layer sees that this document said both things (R4, 09-07)
+            holds = item.get("holds_fact") if item.get("holds_fact") in item["from_facts"] else None
+            lines.append({"record": "contradiction", "node_id": nid, "note": item["note"], "from_facts": item["from_facts"],
+                          "holds": holds, "because": (item.get("because") or None) if holds else None})
 
     # the document level: abstracts, dossiers, the ledger, the candidates
     if folded["abstract"]:
@@ -1805,38 +1863,49 @@ def write_package(doc, records, entities, folded, adjudicated, ledger, candidate
                       "text": d["text"]})
     lines += [{"record": "ledger", **entry} for entry in ledger] + [{"record": "candidate", **entry} for entry in candidates]
 
-    # facts, each under the major it lands on; a fact the adjudication set aside is ranked unsupported
+    # facts, each under the major it lands on. A fact whose passage does not state it is written
+    # only if it was corrected against that passage; otherwise it is dumped and recorded as a
+    # rejection, never written with a flag (R3, ruling of 09-07)
+    when_of = {u["unit_id"]: (u.get("occurred_at"), u.get("occurred_until")) for u in doc["units"]}
     landed, landed_ids, riding = landings(records, folded), set(), 0
-    rides = {}                     # a minor's raw fact id -> the ids its riding copies are stored under
-    for e in folded["majors"]:
-        for f, direction, label, stored_id, tying in landed[e["index"]]:
-            if direction == "about":
-                rides.setdefault(f["fact_id"], []).append(stored_id)
-    # a check_one verdict names the raw fact, but the package holds it only as riding copies, so
-    # the verdict is carried to those. A fact that does not ride is stored under its own id and
-    # is unchanged; a raw id that rides nowhere names no line here at all (fixed 09-07).
-    unsupported = set()
-    for stored_id in {sid for result in adjudicated.values() for sid in result.get("unsupported", [])}:
-        unsupported.update(rides.get(stored_id, [stored_id]))
+    flagged, corrections = flagged or {}, corrections or {}
+    dumped = []
     for e in folded["majors"]:
         nid = node_id_of(doc, e)
         for f, direction, label, stored_id, tying in landed[e["index"]]:
+            fix = corrections.get(stored_id)
+            if stored_id in flagged and fix is None:          # its passage does not state it and it could not be corrected
+                dumped.append({"record": "rejection", "stage": "verify", "unit_id": f["unit_id"], "category": "unsupported",
+                               "subject": f["subject"], "predicate": f["predicate"], "object": f["object"],
+                               "quote": f["quote"], "why": "the passage does not state it and it could not be corrected"})
+                continue
             landed_ids.add(f["fact_id"])
             riding += direction == "about"
             object_node = node_of.get((position_of[f["unit_id"]], f["object"])) if f["object_is_entity"] else None
-            if direction == "forward":
+            if fix is not None:                              # the passage stands; the claim moved to fit it
+                obj, is_node = fix["object"], False
+            elif direction == "forward":
                 obj, is_node = object_node or f["object"], object_node is not None
             else:                                     # inverse: the minor's name is the value; about: the minor's own fact
                 obj, is_node = (f["subject"] if direction == "inverse" else f["object"]), False
-            lines.append({"record": "fact", "fact_id": stored_id, "subject": nid, "predicate": f["predicate"], "object": obj,
-                          "object_is_node": is_node, "direction": direction, "qualifiers": f["qualifiers"],
-                          "rank": "unsupported" if stored_id in unsupported else "active",
+            lines.append({"record": "fact", "fact_id": stored_id, "subject": nid,
+                          "predicate": fix["predicate"] if fix else f["predicate"], "object": obj,
+                          "object_is_node": is_node, "direction": direction,
+                          "qualifiers": fix["qualifiers"] if fix else f["qualifiers"],
+                          "rank": "active",
                           "unit_id": f["unit_id"], "quote": f["quote"], "quote_start": f["quote_start"], "quote_end": f["quote_end"],
-                          "valid_from": f["valid_from"], "valid_to": f["valid_to"], "tier": f["tier"], "author": f["author"],
+                          "valid_from": f["valid_from"], "valid_to": f["valid_to"],
+                          # when it was said, from its unit; valid_from/valid_to are when it is true (R2, 09-07)
+                          "occurred_at": when_of.get(f["unit_id"], (None, None))[0],
+                          "occurred_until": when_of.get(f["unit_id"], (None, None))[1],
+                          "tier": f["tier"], "author": f["author"],
                           "provenance": {"ingestor": INGESTOR, "matched_by": f["matched_by"], "subject_name": f["subject"],
                                          "voice_ambiguous": f["voice_ambiguous"], "rides_on": tying,
-                                         "copy_of": f["fact_id"] if direction == "about" else None}})
+                                         "copy_of": f["fact_id"] if direction == "about" else None,
+                                         "corrected_from": {"predicate": f["predicate"], "object": f["object"],
+                                                            "qualifiers": f["qualifiers"]} if fix else None}})
     lines.append({"record": "predicate_census", "predicates": predicate_census(records)})
+    lines += dumped
     for r in records:
         lines += [{"record": "rejection", "stage": "facts", "unit_id": r["unit_id"], **x} for x in r["rejected_facts"]]
         lines += [{"record": "rejection", "stage": "entities", "unit_id": r["unit_id"], **x} for x in r["dropped_entities"]]
@@ -1847,7 +1916,7 @@ def write_package(doc, records, entities, folded, adjudicated, ledger, candidate
               "facts_landed": sum(1 for l in lines if l["record"] == "fact" and l["direction"] != "about"),
               "facts_minor_subject": sum(len(r["facts"]) for r in records) - len(landed_ids), "facts_riding": riding,
               "facts_riding_sources": len({f["fact_id"] for e in folded["majors"] for f, direction, label, stored_id, tying in landed[e["index"]] if direction == "about"}),
-              "facts_rejected": sum(len(r["rejected_facts"]) for r in records), "cells": sum(1 for l in lines if l["record"] == "cell"),
+              "facts_rejected": sum(len(r["rejected_facts"]) for r in records) + len(dumped), "cells": sum(1 for l in lines if l["record"] == "cell"),
               "cells_unlisted": sum(r.get("cells_unlisted", 0) for r in records),
               "shared_spans": sum(r["shared_spans"] for r in records), "ambiguous_voice": sum(r["ambiguous_voice"] for r in records),
               "facts_split_by_voice": sum(r["split_by_voice"] for r in records),
@@ -1855,11 +1924,12 @@ def write_package(doc, records, entities, folded, adjudicated, ledger, candidate
               "adjudicated_facts": sum(1 for l in lines if l["record"] == "adjudicated_fact"),
               "attributes": sum(1 for l in lines if l["record"] == "attribute"),
               "contradictions": sum(1 for l in lines if l["record"] == "contradiction"),
+              "contradictions_resolved": sum(1 for l in lines if l["record"] == "contradiction" and l["holds"]),
               "adjudication_dropped": sum(a.get("dropped", 0) for a in adjudicated.values()),
               "adjudications_skipped": sum(1 for e in folded["majors"] if adjudicated.get(e["index"], {}).get("skipped")),
               "support_calls": sum(a.get("support_calls", 0) for a in adjudicated.values()),
               "adjudications_rejected": sum(1 for a in adjudicated.values() if a.get("rejected")),
-              "facts_unsupported": sum(1 for l in lines if l["record"] == "fact" and l["rank"] == "unsupported"),
+              "facts_flagged": len(flagged), "facts_corrected": len(corrections), "facts_dumped": len(dumped),
               "has_abstract": folded["abstract"] is not None}
     lines.append({"record": "completion", "doc_id": doc["doc_id"], "input_hash": input_hash(doc), "ingestor": INGESTOR, "counts": counts,
                   "stats": stats, "empty": counts["facts_stored"] == 0 and counts["cells"] == 0, "excluded": excluded,
@@ -1890,6 +1960,34 @@ RESULTS = []                                  # (source_uri, records, counts, st
 ADJUDICATE_MIN_FACTS = 4                      # fewer than this: nothing to consolidate, so a support call instead
 
 
+def remember_reply(uri, key, reply):
+    """One bought reply, held for this run and written beside the document so a resume has it."""
+    doc = IN_FLIGHT.get(uri)
+    with REPLIES_LOCK:
+        REPLIES.setdefault(uri, {})[key] = reply
+        if doc is not None:
+            append_sidecar(doc, {"cached": key, "reply": reply})
+
+
+def sidecar_rows(doc):
+    """The rows of this document's sidecar that belong to this input, torn last line dropped."""
+    side = sidecar_path(doc)
+    if side.exists():
+        data = side.read_bytes()                  # a kill mid-write leaves a torn last line: drop it,
+        if not data.endswith(b"\n"):             # or the resume appends behind it and is never read past
+            side.write_bytes(data[:data.rfind(b"\n") + 1])
+    if not side.exists():
+        return []
+    return [row for row in read_own_jsonl(side)
+            if row.get("ingestor") == INGESTOR and row.get("input_hash") == input_hash(doc)]
+
+
+def load_replies(doc):
+    """What a stopped attempt already paid for, so the resume does not buy it twice."""
+    REPLIES[doc["source_uri"]] = {row["cached"]: row["reply"] for row in sidecar_rows(doc) if "cached" in row}
+    return len(REPLIES[doc["source_uri"]])
+
+
 def append_sidecar(doc, row):
     side = sidecar_path(doc)
     side.parent.mkdir(parents=True, exist_ok=True)
@@ -1900,12 +1998,7 @@ def append_sidecar(doc, row):
 def checkpointed(doc):
     """What a previous attempt left in its sidecar, when it belongs to this input: (the kinds
     triage left out, the unit records in order, their cost, their calls, the triage flags)."""
-    side = sidecar_path(doc)
-    if side.exists():
-        data = side.read_bytes()                  # a kill mid-write leaves a torn last line: drop it,
-        if not data.endswith(b"\n"):              # or the resume appends behind it and is never read past
-            side.write_bytes(data[:data.rfind(b"\n") + 1])
-    rows = [row for row in read_own_jsonl(side) if row.get("ingestor") == INGESTOR and row.get("input_hash") == input_hash(doc)] if side.exists() else []
+    rows = sidecar_rows(doc)
     if not rows or "triage" not in rows[0]:
         return None, [], 0.0, 0, []
     excluded = rows[0]["triage"]
@@ -2016,6 +2109,9 @@ def adjudicate(records, folded, ctx, watch=False, light=False):
         aside = set(result["unsupported"])
         for key in ("facts", "attributes", "contradictions"):
             for item in (reply or {}).get(key, []):
+                if key == "contradictions":                    # which of its own sources holds at the end (R4)
+                    settles = valid_sources([item.get("holds")], len(ids))
+                    item["holds_fact"] = ids[settles[0] - 1] if settles else None
                 # a consolidated item is redundant raw facts merged, so one supported source
                 # carries it; the ones set aside come out of its sources (decision 45)
                 sources = [ids[n - 1] for n in valid_sources(item.get("from"), len(ids))]
@@ -2086,6 +2182,66 @@ def adjudicate(records, folded, ctx, watch=False, light=False):
     return out
 
 
+def flagged_facts(records, folded, adjudicated):
+    """{stored id: the raw fact behind it} for every fact a verification set aside. A minor's
+    verdict names its raw fact, but the package holds that fact only as riding copies, so the
+    verdict is carried to those; a fact that rides nowhere names no line here at all."""
+    landed, by_stored, rides = landings(records, folded), {}, {}
+    for e in folded["majors"]:
+        for f, direction, label, stored_id, tying in landed[e["index"]]:
+            by_stored[stored_id] = f
+            if direction == "about":
+                rides.setdefault(f["fact_id"], []).append(stored_id)
+    out = {}
+    for sid in {x for result in adjudicated.values() for x in result.get("unsupported", [])}:
+        for target in rides.get(sid, [sid]):
+            if target in by_stored:
+                out[target] = by_stored[target]
+    return out
+
+
+def corrected_fact(f, item):
+    """A correction that survives the checks a fact must still pass without the gate: it says
+    something, its object restates neither its subject nor its predicate, and it is not a bare
+    boolean. None when it does not, and the fact is then dumped rather than kept."""
+    subject = str(item.get("subject") or f["subject"]).strip()
+    predicate = snake_case(str(item.get("predicate") or "")) or f["predicate"]
+    obj = str(item.get("object") or "").strip()
+    if not subject or not obj or obj.casefold() in ("true", "false"):
+        return None
+    if norm(obj) == norm(subject) or norm(obj) == norm(predicate):
+        return None
+    return {"subject": subject, "predicate": predicate, "object": obj, "qualifiers": item.get("qualifiers") or None}
+
+
+def corrections_of(flagged, ctx, watch=False):
+    """({stored id: the corrected statement}, calls). The passage is fixed and the claim moves to
+    fit it (R3, 09-07); a fact the reply leaves out, or whose correction fails corrected_fact, is
+    not corrected and will be dumped rather than written with a flag."""
+    items, out, calls = sorted(flagged.items()), {}, 0
+    if watch and items:
+        print(f"correct: {len(items)} facts their passage does not state, on {LUNA}")
+    for at in range(0, len(items), VERIFY_BATCH):
+        batch, listing = items[at:at + VERIFY_BATCH], []
+        for n, (stored_id, f) in enumerate(batch, 1):
+            listing.append(f"{n}. {f['subject']} {f['predicate']} {f['object']}"
+                           + (f" [{f['qualifiers']}]" if f["qualifiers"] else "")
+                           + f"  (\"{' '.join(f['quote'].split())}\")")
+        reply = generate(correct_prompt(listing), CORRECT_SCHEMA, "correct", ctx=ctx)
+        calls += 1
+        if reply is None:
+            continue
+        for item in reply.get("corrections", []):
+            numbered = valid_sources([item.get("fact")], len(batch))
+            if not numbered:
+                continue
+            stored_id, f = batch[numbered[0] - 1]
+            fixed = corrected_fact(f, item)
+            if fixed is not None:
+                out[stored_id] = fixed
+    return out, calls
+
+
 def show_unit(rec, unit, unit_cost, total_cost):
     """One unit as it lands, in the demo's shape."""
     by_category, by_path = {}, {}
@@ -2136,9 +2292,11 @@ def show_fold(folded):
           f" ({sum(1 for e in folded['minors'] if e['rank'].get('no_abstract')) } of them for want of an abstract);"
           f" {len(folded['entity_abstracts'])} entity abstracts")
     if folded["demoted"]:
-        print(f"    demoted to minor (fewer than {DEMOTE_UNITS} units and {DEMOTE_FACTS} facts): {', '.join(folded['demoted'])[:200]}")
+        print(f"    not majors, nothing to summarise (decision 52): {', '.join(folded['demoted'])[:200]}")
     for e in folded["majors"]:
-        why = "in abstract" if e["rank"]["in_abstract"] else ("by tie-break" if e["rank"]["in_abstract"] is None else "?")
+        rank = e["rank"]
+        why = ("in abstract" if rank["in_abstract"] else "major in a unit" if rank["unit_major"]
+               else "named" if rank["named"] else "by unit and fact count")
         others = [n for n in e["names"] if n != e["name"]]
         print(f"    {e['name'][:34]:<34} {'/'.join(e['kinds'])[:16]:<16} units {len(e['units']):>3} facts {e['n_facts']:>3}  {why}  "
               + (f"also: {', '.join(others)[:60]}" if others else ""))
@@ -2158,13 +2316,17 @@ def show_adjudication(folded, adjudicated):
             print(f"    {e['name'][:34]:<34} {a['raw']:>3} raw facts -> {len(a['facts']):>3} facts, {len(a['attributes']):>3} attributes,"
                   f" {len(a['contradictions'])} contradictions" + (f", {a['dropped']} dropped for pointing at nothing" if a["dropped"] else ""))
     print(f"adjudicated: {total['raw']} raw facts ({total['riding']} riding in from minors) -> {total['facts']} facts, {total['attributes']} attributes,"
-          f" {total['contradictions']} contradictions; {total['unsupported']} raw facts set aside as unsupported by their passage;"
+          f" {total['contradictions']} contradictions; {total['unsupported']} raw facts their passage does not state, to be corrected or dumped;"
           f" {total['dropped']} dropped; {sum(1 for a in adjudicated.values() if a['skipped'])} majors left to their raw facts")
 def ingest(doc, ctx=None):
     """One document, start to finish: the units on their own, then everything merged at the end."""
     ctx = {"doc": doc["source_uri"], **(ctx or {})}
     logged_before = len(CALLS)                  # this document's own calls start here
     light = one_reading(doc)          # one unit to read: nothing to merge, so the short path
+    IN_FLIGHT[doc["source_uri"]] = doc           # so every reply this document buys is checkpointed
+    reused = load_replies(doc)                   # and every reply it already bought is not bought again
+    if reused and WATCH:
+        print(f"resuming {doc['source_uri']}: {reused} replies already paid for")
 
     # which kinds of unit to read: the sidecar's answer when resuming, else the judge's
     excluded, records, cost_before, calls_before_stop, flags = checkpointed(doc)   # what a stopped run already paid
@@ -2223,6 +2385,12 @@ def ingest(doc, ctx=None):
     adjudicated = adjudicate(records, folded, ctx, watch=WATCH, light=light)
     if WATCH:
         show_adjudication(folded, adjudicated)
+    # a fact its passage does not state is corrected if it can be and dumped if it cannot; it is
+    # never written with a flag (R3, ruling of 09-07)
+    flagged = flagged_facts(records, folded, adjudicated)
+    corrections, correct_calls = corrections_of(flagged, ctx, watch=WATCH) if flagged else ({}, 0)
+    if WATCH and flagged:
+        print(f"    {len(corrections)} of {len(flagged)} corrected against their passage; {len(flagged) - len(corrections)} dumped")
     own_cost, own_calls = document_spend(doc, logged_before)
     stats.update({"one_reading": light,
                   "calls": own_calls + calls_before_stop, "cost": round(own_cost + cost_before, 4),
@@ -2232,7 +2400,9 @@ def ingest(doc, ctx=None):
             stats["matched_by"][f["matched_by"]] = stats["matched_by"].get(f["matched_by"], 0) + 1
         for x in r["rejected_facts"]:
             stats["rejected_by"][x["category"]] = stats["rejected_by"].get(x["category"], 0) + 1
-    path, counts = write_package(doc, records, entities, folded, adjudicated, ledger, candidates, left_out, stats)
+    stats["correct_calls"] = correct_calls
+    path, counts = write_package(doc, records, entities, folded, adjudicated, ledger, candidates, left_out, stats,
+                                 flagged, corrections)
     if sidecar_path(doc).exists():
         sidecar_path(doc).unlink()
     if WATCH:
@@ -2294,9 +2464,12 @@ def one_document(uri):
         return {"done": True, "text": "\n".join(entry + [f"    -> {path}"])}
     except SpendStop as e:
         return {"stop": True, "text": f"{uri}: {e} after ${document_spend({'source_uri': uri})[0]:.3f} on this document;"
-                                      f" its finished units are checkpointed and the run stops here"}
+                                      f" everything it has already paid for is checkpointed and the run stops here"}
     except Exception as e:
         return {"text": f"{uri}  ERROR {type(e).__name__}: {e}"}
+    finally:
+        IN_FLIGHT.pop(uri, None)                 # the sidecar keeps the replies; memory need not
+        REPLIES.pop(uri, None)
 
 
 def run(uris, at_once=None):
