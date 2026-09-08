@@ -132,8 +132,9 @@ return only if the folder does.
     advisor-meeting-2026-08-19.md  the meeting record that set the direction
     build/                   the delivered research package and proposal
     data/raw/                the three literature corpora and their manifests
-    data/clean/              the extractor's export, published as the next units dataset version
     data/benchmarks/         GraphRAG-Bench, LongMemEval, NarrativeQA subset
+    dataset/step0/           the published Step 0 dataset's docs, kept byte-identical to Kaggle
+    notebooks/               the extractor and ingestor, as script and notebook
     papers/                  the reference library, indexed by MANIFEST.md
     summaries/               one-pagers for the reference library
     reading-list.md          what to read and in what order

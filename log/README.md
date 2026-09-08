@@ -55,9 +55,18 @@ their saved outputs as run.
   0.7, and again at 0.8 before its first run. A LongMemEval re-export was asked for, measured,
   and correctly withdrawn once the arithmetic showed grouping does not pay.
   Rulings: [decisions-ingestor-0.7.md](2026-09-07/decisions-ingestor-0.7.md) and
-  [audit-answers.md](2026-09-07/audit-answers.md). The 0.8 rulings and worklist are on the
-  ingestor branch and land with its next push.
+  [audit-answers.md](2026-09-07/audit-answers.md).
+  The ingestor thread of the same day is [ingestor.md](2026-09-07/ingestor.md) (0.6 to 0.8 and
+  the one-reading path), with [decisions-ingestor-0.8.md](2026-09-07/decisions-ingestor-0.8.md)
+  and [build-0.8-worklist.md](2026-09-07/build-0.8-worklist.md); the notebook as run is
+  `factledger-ingestor-as-run.{py,ipynb}`. Merged to master 2026-09-08.
   Design: the scope question in [entity-resolution.md](../docs/entity-resolution.md) is settled.
   Nothing is ever merged; it is a tree. A parent holds no asserted content, only a derived name,
   profile and abstract, and every sentence on it must be reducible to "N of M children say X".
   Insertion becomes append-only, deletion becomes a delete, and provenance becomes total.
+- [2026-09-08](2026-09-08/review.md): a whole-repository review after the tree decision, and the
+  housekeeping pass that followed. [review.md](2026-09-08/review.md) is the assistant review
+  (every finding PROPOSED until ruled): the merge-scorer-to-tree drift in the measurement slate,
+  schema record-by-record, documents that disagree, the defensibility questions, and ten rulings
+  requested. The housekeeping executed the same day: master fast-forwarded 137 commits, the
+  ingestor branch merged, this index and the schema brought level with the code.

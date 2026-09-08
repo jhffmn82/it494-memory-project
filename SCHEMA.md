@@ -1,6 +1,6 @@
 # Schema
 
-Nine record types plus logs. Anything not listed here gets added when the data
+Eleven record types plus logs. Anything not listed here gets added when the data
 demands it. Storage is SQLite and JSONL in a single folder, no server. Raw
 files are never edited, ids are content hashes, and re-ingesting the same
 input is a no-op rather than a duplicate.
@@ -92,9 +92,35 @@ which told a reader nothing the sentence above does not; the field is gone.
 ## The record side
 
     fact      fact_id, subject, predicate, object, qualifiers, rank, unit_id,
-              quote, quote_start, quote_end, valid_from, valid_to, tier, provenance
-    cell      cell_id, node_id, unit_id, scope_id, text, tier, provenance
-    abstract  node_id, scope_id, text, children_hash, tier, updated_at
+              quote, quote_start, quote_end, valid_from, valid_to,
+              occurred_at, occurred_until, tier, provenance
+    cell      cell_id, node_id, unit_id, text, tier, provenance
+    abstract  node_id, text, tier, updated_at
+    contradiction  node_id, note, from_facts, holds, because
+
+A fact carries its unit's `occurred_at` and `occurred_until`, copied down: when
+it was said. `valid_from` and `valid_to` are when it is true, and only when the
+text states them. The read rule below has always ordered facts by "its unit's
+`occurred_at`"; the record line simply never listed the fields, and the code
+followed the record line (corrected 2026-09-07).
+
+Every stored fact is one its own passage states. A passage states a fact when
+it carries the claim itself, in whatever words the document uses: a table row,
+a heading or a caption states what it lists. A fact whose passage does not is
+restated against that passage if it can be -- the passage is fixed and the
+claim moves to fit it, so the quote and its offsets never change -- and dumped
+if it cannot, recorded as a rejection with category `unsupported`. It is never
+stored with a flag (ruled 2026-09-07): a flag on a shipped fact is a claim the
+reader has to know to distrust.
+
+A document is a fixed point in time. Before anything reaches the global layer,
+a contradiction within a document is resolved by the end state of the entity:
+the `contradiction` record names in `holds` which of its `from_facts` is true
+at the end of the document, and `because` says how. Both facts are kept and
+both stay `active` -- ranking the loser out of reads would hide from the layer
+above that the document ever said it, and that layer can only disambiguate what
+reaches it. Across documents nothing is resolved: a parent counts and never
+adjudicates.
 
 Facts are append-only. When a predicate is functional, a later fact on the
 same subject and predicate supersedes an earlier one at read time; ruler_of
@@ -120,17 +146,26 @@ controlled list with a table of which subject and object kinds each may join,
 which catches the error a quote cannot: a fabricated relationship carrying a
 perfectly real quote.
 
-Cells and abstracts are scoped by `scope_id`, so importance is a property of
-the collection, not the entity: a character can be major in one corpus and a
-footnote in another. Salience is decided twice. Per unit, it decides who gets
-a cell. Per document, it is reassessed once the document's abstract exists:
-an entity named in the abstract is major, with unit count and fact count as
-tie-breakers, and only document-majors carry a dossier into the merge and
-become global nodes. Minor entities never become nodes: a fact from a major
-to a minor is a property of the major with the minor's name as its value, a
-fact between two minors is not stored, and nothing is lost below the line,
-because the per-unit summary, a cell on the document's own node, still
-recorded it and every mention keeps its surface and span. There is no community layer: groupings the user or a loader
+Salience decides a major entity and nothing else does (ruled 2026-09-07).
+It is decided per unit -- major only if the entity would appear in a
+two-sentence summary of that unit -- and a unit's judgement stands for the
+document: if any unit called it major it is a document-major, and nothing
+demotes it. Being named in the document abstract does not promote, and neither
+does carrying a proper name.
+
+Until 2026-09-07 the abstract was the ONLY route -- "an entity named in the
+abstract is major, with unit count and fact count as tie-breakers" -- which made
+the abstract's word limit the document's entity budget: a Greek play with thirty
+speaking characters cannot fit them in four hundred words, and every character
+the fold had no room to name was reduced to a mention with a null node_id. That
+rule was written on 2026-09-04 alongside its reason, "only document-majors carry
+a dossier into the merge". It was a budget on the global merge, and the merge has
+since been deleted; the reason is recorded here so the rule is not re-derived
+from it. Minor entities never become nodes: a fact from a major
+to a minor is a property of the major with the minor's name as its value, and a
+fact between two minors is not stored. Below that line a minor leaves no record
+of its own; what the document says about it survives only in the per-unit
+summary, a cell on the document's own node. Mentions are not written (2026-09-08). There is no community layer: groupings the user or a loader
 declares (a series, a thread) exist for ordering and disambiguation scope, and
 nothing is clustered.
 
