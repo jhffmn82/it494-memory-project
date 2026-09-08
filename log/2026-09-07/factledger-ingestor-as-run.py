@@ -2136,6 +2136,9 @@ def corrections_of(flagged, ctx, watch=False):
                 out[stored_id] = None                 # written as it was: the first check was wrong
                 continue
             fixed = corrected_fact(f, item)
+            if fixed is not None and (fixed["predicate"], norm(fixed["object"])) == (f["predicate"], norm(f["object"])):
+                out[stored_id] = None            # the same fact back again: it stands, it was not corrected
+                continue
             if fixed is None:
                 refused[refusal(f, item)] = refused.get(refusal(f, item), 0) + 1
                 continue
