@@ -1,0 +1,501 @@
+{
+ "confirmed": [
+  {
+   "title": "Declared continuation resolved by name alone joins the wrong same-named cluster with no judge",
+   "severity": "high",
+   "line": 1334,
+   "claim": "continued() returns the latest local whose normalised name equals the `continues` string (line 1334-1336), ignoring kind, ignoring which roster entry the model actually pointed at (the roster_root lookup at 1337-1341 is unreachable, since a roster name is always some member's exact name), and including same-unit siblings (`t[\"id\"] < l[\"id\"]`). unite_on_sight then unites on that target without a settled() check (line 1353). When two rolling clusters carry the same name (different kinds, or judged different), the roster lists both and the new local is welded to whichever bore the name most recently.",
+   "scenario": "Probe run against block 8 with a scripted judge: unit 1 lists Oz (person) and Dorothy; unit 2 lists Oz (place), judge says the two Oz are different (kept_apart); roster now shows two entries named Oz. Unit 3 lists Oz (person, continues \"Oz\"). Result: ledger row `same declared Oz 2 ~ Oz 3`, clusters [[u1:Oz/person], [u2:Oz/place, u3:Oz/person]] -- the Wizard's unit-3 mentions, facts and cells land on the Land of Oz node, and the same_name path at 1359-1365 cannot repair it because the two clusters are settled. In Oz book 1 the Wizard and the land are both called Oz; in a paper a method and its topic often share a name. Ruling 28's on-sight union is meant for the entity the roster showed, not any local bearing the string.",
+   "fix": "Resolve a declared continuation through the roster entry the model copied: build roster_root as name -> [(root, kind)] in roster_of, prefer the entry whose kind matches l[\"kind\"], skip same-unit locals, and when the name maps to more than one cluster or no kind matches, write the candidate row instead of uniting; also refuse the declared union when state.settled(find(target), find(l)) holds.",
+   "lens": "rolling",
+   "verdict": {
+    "real": true,
+    "confidence": "confirmed",
+    "corrected_line": 1334,
+    "reason": "Reproduced by exec-ing blocks 1-8 as the battery does and driving roll_unit with a scripted judge. Unit 1: Oz (person), Dorothy. Unit 2: Oz (place); same_name skips (kind differs), shared_surface nomination judged different -> kept_apart, so roster_of now lists two entries named Oz (roster_text line 890 shows both, with kinds). Unit 3: Oz (person, continues \"Oz\"); line 1013 accepts the string since it is in roster_names; continued() at lines 1334-1336 returns the latest local named Oz = unit 2's Oz/place, ignoring kind and which roster line the model meant; unite_on_sight line 1353 unites with no settled() check. Ledger row: Oz 2 ~ Oz 3 same declared. Final clusters: [[u1 Oz/person], [u1 Dorothy, u2 Dorothy], [u2 Oz/place, u3 Oz/person]] -- the Wizard's unit-3 facts/cells land on the place cluster. The same_name path (1359-1365) then finds u1 Oz/person but settled(root(u1 Oz), root(u3 Oz)) is true, so no repair. The roster_root fallback (1337-1341) is unreachable since a roster name is always some member's exact name. Violates ruling 28's intent (declared continuation of the entity the roster showed) and writes wrong provenance. Scenario is plausible in this corpus (Oz the Wizard vs Oz the land; a method and its topic in a paper)."
+   }
+  },
+  {
+   "title": "The final sweep decides majorness by the local's flag on one side and the cluster's on the other, so a pair is judged or skipped depending on unit order",
+   "severity": "medium",
+   "line": 1389,
+   "claim": "nominate() classifies `a` by a[\"major\"] (the unit-local salience) but `b` by `rb in major_roots` (cluster membership). In the sweep every local is `a` for the pairs with earlier locals, so a minor local that the judge merged into a major cluster is still treated as a minor when it is the later of the pair, and the pair is dropped as minor-vs-minor even though one side is a rolling major.",
+   "scenario": "Probe: unit 1 `cottage (the little cottage)` (minor), unit 2 `house (Dorothy's house)` (major), unit 3 `house (the little house)` (minor, judged same as unit 2's house). Sweep nominates nothing: cottage stays its own cluster. With the units in the order X, M, Y the same pair is nominated (order 2) and judged. The sweep is meant to judge what the rolling lists never met; a minor local merged into a major cluster earlier in the document is exactly that case, and it is missed whenever it is the later local.",
+   "fix": "In nominate, treat `a` as major when its cluster holds a major: `a_major = a[\"major\"] or ra in major_roots`, and use a_major in the order test.",
+   "lens": "rolling",
+   "verdict": {
+    "real": true,
+    "confidence": "confirmed",
+    "corrected_line": 1389,
+    "reason": "Reproduced by exec-ing the notebook blocks as the battery does (notebooks/factledger-ingestor.py, nominate() line 1389: `if a[\"major\"] and b_major` / line 1391 `elif a[\"major\"]`; `b_major` at 1388 is cluster-based, `a` is judged by its unit-local flag). Three units, all kind \"place\": unit 1 `cottage` (unnamed, minor, form \"the little house\"); unit 2 `house` (named, major, form \"Dorothy's house\"); unit 3 `house` (named, minor, form \"the little house\"). unite_on_sight puts house@3 into house@2's cluster (same_name), so major_roots = {that cluster}. The only nominating reason between the clusters is shared_surface between house@3 and cottage@1 (house@2 and cottage share nothing). Result in this order: rolling candidates [] and the sweep (finish(), line 1596: nominate(state, state.locals_, len(state.locals_))) returns [] — the pair is dropped at line 1396 as minor-vs-minor because a=house@3 has a[\"major\"]=False even though its cluster is a rolling major. Reversed order (house-minor@1, house-major@2, cottage@3): the same cluster pair is nominated at unit 3 with order 2, reason shared_surface, and one judge call is made. So whether a major-cluster vs minor-cluster pair is judged depends only on which local came later, and the sweep, whose stated job is to judge what the rolling lists never met, misses exactly this case; a possible union is lost and the package can carry a duplicate entity. Ruling 28 (major vs minor is always set, only minor vs minor never) is violated in this edge. The proposed fix is correct: compute `a_major = a[\"major\"] or ra in major_roots` and use it at 1389/1391. Severity medium stands (order-dependent missed union; occurs in this corpus whenever a later unit's minor mention of an established major is the only surface linking it to an earlier unnamed minor)."
+   }
+  },
+  {
+   "title": "settled() scans every kept_apart and deferred pair with two find() calls per entry on every query; the rolling phase and the sweep grow cubically",
+   "severity": "medium",
+   "line": 1307,
+   "claim": "settled() concatenates the two lists and calls find() twice per entry on each call; it is called from nominate for every candidate local pair (O(fresh x locals) per unit, O(n^2) in the sweep), from judge_pairs per batched pair, and from unite_on_sight. Total cost is (pairs nominated) x (pairs judged so far), and both grow with the document.",
+   "scenario": "Measured with block 8 alone, a stub judge that never says same, 15 locals a unit, ~3% of name pairs sharing a word: rolling 25 units 0.5 s, 50 units 5 s, 75 units 24 s, 100 units (1,500 locals, 14,646 settled pairs) 74 s, then the sweep's nominate 63 s for zero new pairs (23,655 settled() calls). Extrapolated to a 200-unit novel that is on the order of 20 minutes of pure Python per document, on top of the model calls; a 19,206-chat corpus is unaffected (tiny n) but the GraphRAG-Bench novels are not.",
+   "fix": "Index settled pairs by current roots once per query burst: at the top of nominate (and once per batch in judge_pairs) build `apart = {frozenset((find(x), find(y))) for x, y in kept_apart + deferred}` and test `frozenset((ra, rb)) in apart`; or keep kept_apart as a dict root -> set(roots) merged in Clusters.unite.",
+   "lens": "rolling",
+   "verdict": {
+    "real": true,
+    "confidence": "confirmed",
+    "corrected_line": 1307,
+    "reason": "Reproduced by exec-ing blocks 1-8 of notebooks/factledger-ingestor.py the way the battery does, with a stub judge that always answers \"different\", 15 named locals a unit (3 majors), two-word names from a 133-word pool (~3% of name pairs share a word), no facts. Rolling.settled (line 1307-1311) builds `self.kept_apart + self.deferred` and calls find() twice per entry on every query, and it is queried from nominate (line 1385, for every candidate pair that passes candidate_reason, including minor-vs-minor pairs since the order check comes after), from judge_pairs (line 1451, per batched pair) and from unite_on_sight (line 1364). Measured: 25 units 0.41 s rolling + 0.40 s finish (705 settled pairs, 2,715 settled() calls); 50 units 4.13 s + 4.40 s (2,806 pairs, 11,005 calls); 100 units 52.2 s rolling + 60.1 s finish (1,500 locals, 11,249 settled pairs, 44,662 + 33,060 settled() calls), and the 100-unit sweep made zero new judge calls (judge_calls stayed at 1,168) for its 60 s. Growth is ~10x per doubling of units, i.e. cubic. The export (data/export/units.jsonl) has a 615-unit document plus documents of 155, 135, 112 units and 17 documents of 50+ units, so the cost lands on this corpus: at 615 units the extrapolated pure-Python time is hours per document. No wrong data is written, so medium stands (wasted time, not a ruling violation). The proposed fix (index settled pairs by current roots once per nominate/batch, or keep kept_apart as root -> set(roots) merged in Clusters.unite) is sound; note that any cached index must be rebuilt after a union since find() results change."
+   }
+  },
+  {
+   "title": "A resumed document's judged-pair and judge-call counts start at zero, so its completion stats disagree with its ledger",
+   "severity": "medium",
+   "line": 1505,
+   "claim": "replay_rows re-applies the checkpointed verdicts but never increments state.pairs_judged or state.judge_calls, while ingest() carefully carries calls and cost across the resume (calls_before_stop, cost_before). finish() returns state.pairs_judged as n_judged, which goes into stats[\"judged_pairs\"], the completion record, show_reconcile and ingest.log.",
+   "scenario": "Probe D: three units rolled live give pairs_judged 1 with one `judged different` ledger row; the same units replayed from their rolling rows give pairs_judged 0 with the identical ledger. A document that stopped at the spend limit after 20 of 24 chapters and resumed reports only the last four chapters' judged pairs beside a ledger and a calls count that cover all 24.",
+   "fix": "In replay_rows count the replayed judge rows: `state.pairs_judged += sum(1 for row in rows.get(\"ledger\", []) if row[\"how\"] in (\"judged\", \"judged again\"))`, and checkpoint judge_calls with the unit's rows (rows[\"judge_calls\"]) so roll_unit can add it back.",
+   "lens": "rolling",
+   "verdict": {
+    "real": true,
+    "confidence": "confirmed",
+    "corrected_line": 1479,
+    "reason": "Confirmed by code reading and by executing the notebook blocks. replay_rows (notebooks/factledger-ingestor.py lines 1479-1493) re-applies each checkpointed ledger row's verdict (unite / kept_apart / deferred) and appends the row to state.ledger, but never increments state.pairs_judged or state.judge_calls; those are only bumped inside judge_pairs (lines 1458-1459), which replay bypasses by design. finish() (line 1610) returns state.pairs_judged as n_judged; ingest() (line 2421) stores it as stats[\"judged_pairs\"], which write_package writes into the package's document record (line 2009), show() prints and appends to ingest.log (line 2450), and show_reconcile displays. Meanwhile stats[\"calls\"] and stats[\"cost\"] are carried across the resume via calls_before_stop / cost_before (line 2422), so the two figures in the same log line cover different spans. Reproduction (blocks exec'd as the battery does, judge stubbed to answer \"different\"): three units, unit 2 an unnamed local sharing unit 1's surface. Rolled live: pairs_judged 1, judge_calls 1, ledger [('judged','different')]. Same records replayed from the rows roll_unit returned: pairs_judged 0, judge_calls 0, ledger [('judged','different')]. So a document that stops at the spend limit and resumes writes a package whose stats.judged_pairs counts only the post-resume units' judged pairs (plus the sweep/last look) beside a ledger and a calls count covering the whole document. Severity medium is right: wrong diagnostic count in the package and log, no wrong entities, facts, or provenance. The anchoring line is better placed at replay_rows itself (1479) than at 1505, the call site in roll_unit; the fix sketched by the reviewer (count replayed rows whose how is \"judged\" or \"judged again\") is sound, though judge_calls cannot be recovered from ledger rows alone since a batch of up to ten pairs is one call, so it would need checkpointing with the unit's rows as the reviewer suggests, or the watch line's per-unit \"judge calls\" figure will also read 0 on replay."
+   }
+  },
+  {
+   "title": "A declared continuation with an unnamed side between two minors is logged as \"so judged\" but is never set before the judge",
+   "severity": "low",
+   "line": 1355,
+   "claim": "unite_on_sight writes a candidate ledger row saying the pair is judged, but nominate() then drops it as minor-vs-minor (line 1395), the sweep drops it for the same reason, and the model's explicit declaration is discarded with no record that says so.",
+   "scenario": "Probe C: unit 1 `meeting (the user's meeting)` (minor, unnamed, with a fact, so on the roster); unit 2 lists the same name with continues set. Ledger: `candidate declared ... a side is unnamed, so judged`; the judge is never called; two clusters remain. In a novel this is every unnamed minor the model re-lists across chapters with continues set (the house, the cyclone); their facts then ride into a major only from the cluster that happens to be tied to it.",
+   "fix": "Either let a `declared` candidate through the order gate in nominate (a continuation the model declared is stronger evidence than a shared word, and ruling 28 only forbids the on-sight union), or write the row honestly: `not set: minor against minor`.",
+   "lens": "rolling",
+   "verdict": {
+    "real": true,
+    "confidence": "confirmed",
+    "corrected_line": 1355,
+    "reason": "Reproduced by exec-ing Block 8 with a stubbed generate: unit 1 has unnamed minor \"meeting (the user's meeting)\" with one fact; unit 2 lists the same name, unnamed, minor, with continues set. unite_on_sight (notebooks/factledger-ingestor.py:1355-1356) appends a ledger row \"candidate / declared / ... a side is unnamed, so judged\". nominate() computes reason \"declared\" (line 1215) but the order gate at lines 1395-1396 drops the pair because neither side's root is a major, so state.candidates stays empty and no pair is returned; judge() is never called (zero stub calls). finish() reuses nominate with the same gate, so the sweep drops it again and deferred is empty; the result is two clusters for the same declared entity. A control with the unit-1 local as major reached judge(), showing the gate is the only difference. Ruling 28 permits never setting minors against minors, so the dropped union is arguably by design, but the ledger row records \"so judged\" for a pair that is never judged nor scored, and the model's explicit declaration leaves no honest trace. Low severity: wrong diagnostic plus a split cluster for unnamed minors re-declared across units (their about-facts then ride into a major only from the cluster tied to it). Fix: either write the row as not set (minor against minor) or let a declared candidate through the order gate."
+   }
+  },
+  {
+   "title": "The `continues` field is validated by exact string match against the roster, so a name the model writes loosely loses the declared union",
+   "severity": "low",
+   "line": 1013,
+   "claim": "derive_unit keeps e[\"continues\"] only when it is exactly in roster_names; a leading article, different case or collapsed whitespace turns it into None, and the pair falls to nominate's shared_surface path and a Terra judge call, or to nothing when both are minors. Stage A added loose_name precisely because the model writes listed names back loosely (33 facts lost to \"The Scarecrow\"), but the same laxity was not applied where it feeds block 8's declared path.",
+   "scenario": "Roster line `- The Scarecrow (person; ...)`; the model returns continues \"the Scarecrow\" (or \"Scarecrow\"). continues becomes None, the entity is treated as new to the document, and the union that ruling 28 says happens on sight costs a judge call instead; on a chat corpus of 19,206 documents each such miss is a Terra call.",
+   "fix": "Match continues the way facts are matched: build `listed = {loose_name(n): n for n in roster_names}` and set `continues = listed.get(loose_name(e.get(\"continues\") or \"\"))`.",
+   "lens": "rolling",
+   "verdict": {
+    "real": true,
+    "confidence": "confirmed",
+    "corrected_line": 1013,
+    "reason": "Reproduced by reading and by running the gate. notebooks/factledger-ingestor.py:1013 is `continues = e.get(\"continues\") if e.get(\"continues\") in roster_names else None` where roster_names (line 986) is the exact set of roster names. With roster {\"The Scarecrow\"}, the values \"the Scarecrow\", \"Scarecrow\" and \"The  Scarecrow\" all become None (checked with a two-line Python run). The drop is silent: no dropped_entities row, no diagnostic, so the declared continuation vanishes from rec[\"entities\"] and from everything block 8 replays from the checkpoint. Downstream the gate is stricter than its own consumers: continued() (line 1331-1335) and candidate_reason() (line 1215) compare with norm(), so a case or whitespace variant would have matched there had it survived line 1013; only the exact-match gate loses it. Minimal failure: unit 2 establishes \"The Scarecrow\" (person, named); unit 5 returns an entity named \"Scarecrow\" with continues \"the Scarecrow\". continues -> None; unite_on_sight's same_name path needs norm(name) equality, which \"scarecrow\" vs \"the scarecrow\" fails; so instead of the on-sight union ruling 28 prescribes for two named sides, the pair is nominated by shared_surface and spends a Terra judge call, and if both locals are minor it is never nominated at all (minor vs minor is excluded), so the minor's facts stay split across two clusters. The model writing listed names loosely is not hypothetical for this corpus: the file's own loose_name docstring (line 530-533) records that \"The Scarecrow\" and \"Dainty China Country\" came back as \"the Scarecrow\" and \"the Dainty China Country\" in the fact stage, which is why loose_name was added for subject/object resolution; the same laxity was not applied to continues. Severity low as claimed: cost is a wasted judge call or a missed minor union, not wrong data written outright. The proposed fix (map loose_name(roster name) -> roster name and look continues up through loose_name) is consistent with how facts are resolved and with the norm()-based consumers."
+   }
+  },
+  {
+   "title": "A spend stop (or any worker error) in the document-level stage throws away every finished Terra result, and the resume repays the whole stage",
+   "severity": "medium",
+   "line": 2188,
+   "claim": "The sidecar checkpoints unit records only. The sweep and last-look judge calls in finish(), the fold, the embedding, the entity abstracts (in_parallel at line 1752) and the adjudications (in_parallel here) exist only in memory until write_package. When call() raises SpendStop at line 405 inside one worker, or one worker raises RuntimeError after three 429/5xx replies, list(pool.map) propagates the first exception in item order and discards every result already computed; the WORKERS-1 calls in flight still run to completion and are billed past SPEND_STOP (the stop is checked only before a call starts); ingest() unwinds writing nothing. On the next run checkpointed() replays the units and every document-level call is made again. The sidecar docstring at lines 1784-1785 ('a stop mid-document costs only the unit that was running') and the note at line 2490 ('its finished units are checkpointed') describe the cheapest part of the document; adjudication and the entity abstracts are the Terra-priced bulk of a book's spend.",
+   "scenario": "Oz book 1 with SPEND_STOP=5.00 (block 13): the stop is crossed while adjudication 30 of 38 is in flight. Worker A's next call() raises SpendStop; workers B, C, D finish their adjudications (three more Terra calls logged to calls.jsonl after the stop); the 29 finished adjudications, all 38 entity-abstract folds, the abstract fold, the embed and the sweep/last-look judge calls (on the order of $2-4) are logged as spent and dropped. The next session resumes from 26 unit rows, re-judges the sweep (a Terra call per ten pairs), re-folds, re-abstracts and re-adjudicates all 38 majors. The same happens for a single non-stop failure: one adjudication returning 429 three times fails the whole document (run() notes ERROR, continues) and the resume repays the stage.",
+   "fix": "Checkpoint document-level results in the sidecar as they land, keyed so replay can skip the call: the sweep/last-look ledger rows after finish(), the abstract and each entity abstract, and each adjudication result keyed by entity index (write the row under LOG_LOCK from the worker, or iterate as_completed and append per result), then have checkpointed() hand them back and adjudicate()/fold_document() skip majors already held. At minimum, correct the docstring and the run() note so the owner knows a stop after the last unit repays the sweep, fold, abstracts and adjudications.",
+   "lens": "threads",
+   "verdict": {
+    "real": true,
+    "confidence": "confirmed",
+    "corrected_line": 2188,
+    "reason": "Reproduced by exec-ing the notebook blocks with the battery's scripted model (WORKERS=4) on Oz 01_55 and raising SpendStop inside the second adjudicate call. Observed: run returns done=0, no package written, the sidecar holds all 24 unit recs and only the keys ['calls','cost','flags','rec','triage'] (append_sidecar is called only at ingest() lines ~2373 and ~2401; nothing between the unit loop and write_package at line 2431 checkpoints). Document-level calls completed and then discarded in the stopped run: judge (sweep) 1, fold 1, entity_abstract 3, adjudicate 2; two adjudicate calls were logged to CALLS after the stop was raised (the in-flight workers ran to completion because in_parallel's list(pool.map) at line 339 raises the first exception only after the with-block waits on the pool, and the SPEND_STOP check at line 405 runs only before a call starts). The resume then repaid every one of them: judge 1, fold 1, entity_abstract 3, adjudicate 3, predicates 1 (embed is lost too in a real run; the stub bypasses call()). The docstring at lines 1784-1785 ('a stop mid-document costs only the unit that was running') and the note at line 2490 are false for a stop after the last unit, which on a novel is where the Terra-priced bulk is spent. Not a ruling violation (audit line 51 promises only unit-level resume), so medium stands: wasted calls and misleading diagnostics on a real corpus document."
+   }
+  },
+  {
+   "title": "A resumed document's completion under-reports its cost and calls: only the unit rows are summed",
+   "severity": "medium",
+   "line": 2420,
+   "claim": "stats['cost'] and stats['calls'] add cost_before and calls_before_stop from checkpointed(), which sums row.get('cost')/row.get('calls') over the 'rec' rows only (lines 2075-2079). The triage row written at line 2374 carries no cost or calls, so the triage call is never counted on a resumed document, and nothing the stopped attempt spent at document level (sweep and last-look judge calls, fold, embed, entity abstracts, adjudications, predicate judge) is recorded anywhere the resume can read. The completion record, the manifest row (line 2486), show() and receipt()['cost_of_packages'] all inherit the low number, so the receipt's per-package cost no longer reconciles with calls.jsonl.",
+   "scenario": "The stop of the previous finding: the first attempt logs ~$5 for Oz book 1 in calls.jsonl; the resumed attempt spends ~$3.5 on the document-level stage and writes a completion whose stats.cost is 26 unit costs + $3.5 (about $5.5) while calls.jsonl rows with doc == that source_uri sum to about $8.5. receipt.json's cost_of_packages is short by the stopped attempt's document-level spend for every document that was resumed, and every resumed document also loses its triage call from stats.calls.",
+   "fix": "Write cost and calls into the triage row and into a per-stage sidecar row (or one 'document_stage' row) as each document-level stage ends, and sum those in checkpointed(); or derive a document's cost and calls at write time from the calls.jsonl rows whose doc field equals the source_uri, which is already the ground truth.",
+   "lens": "threads",
+   "verdict": {
+    "real": true,
+    "confidence": "confirmed",
+    "corrected_line": 2420,
+    "reason": "Reproduced against the notebook with the battery's stub model (exec of the blocks the way test_ingestor.py does). Scenario: graphrag-bench/Novel-40700.txt (two unit kinds, so triage fires); the first attempt is stopped by a SpendStop inside the adjudication stage after all 8 units were checkpointed. calls.jsonl for that doc then holds 37 calls / $0.037 (triage 1, unit calls, judge 5, fold 1, entity_abstract 3, adjudicate 3), but checkpointed() at lines 2075-2079 sums only the 'rec' rows: 29 calls / $0.029. The triage row written at line 2374 carries no cost or calls, and nothing document-level is checkpointed. The resumed run finishes and writes a completion whose stats (line 2420) say calls 37 / cost $0.037 while calls.jsonl rows with doc == source_uri total 45 / $0.045: the stopped attempt's triage call and its document-level spend (8 calls, $0.008 here) are absent from the completion, the manifest row (line 2486), show(), and receipt()['cost_of_packages'] (line 2530). Medium as claimed: a wrong diagnostic/cost count, no data lost from the package itself."
+   }
+  },
+  {
+   "title": "Calls, retries and rejections from the parallel stages cannot be attributed to a major",
+   "severity": "low",
+   "line": 2170,
+   "claim": "adjudicate_one passes the document ctx ({'doc': uri}) to generate(), and abstract_of at line 1747 does the same, so calls.jsonl, retries.jsonl and rejections.jsonl rows for 'adjudicate' and 'entity_abstract' carry only the document. Before stage D the sequential order let a reader line a row up with the major; with four workers interleaving, the order in the logs is arrival order and says nothing. retries.jsonl was added (audit ruling 26) precisely to explain '38 adjudications took 70 calls', and it now cannot name the major. A reply rejected twice returns None and adjudicate_one records nothing about it: result['dropped'] stays 0, result['skipped'] stays None, so a major with dozens of landed facts and an empty adjudicated record is indistinguishable in the package from one Terra consolidated to nothing.",
+   "scenario": "Oz book 1: two adjudications miss the schema twice (the null-value attribute shape that ruling 26 mentions). rejections.jsonl holds two rows {stage: adjudicate, category: schema, doc: .../oz/01_55.txt}; calls.jsonl shows the four calls scattered among the other workers' rows; the package has no adjudicated_fact/attribute rows for those two majors and counts.adjudication_dropped is 0. Nothing identifies which two majors were lost.",
+   "fix": "Pass ctx={**ctx, 'entity': e['name']} (and first_unit or index) in adjudicate_one and abstract_of so every logged row names the major; when generate() returns None in adjudicate_one set result['rejected'] = True and count it in the completion (e.g. adjudications_rejected) beside adjudications_skipped.",
+   "lens": "threads",
+   "verdict": {
+    "real": true,
+    "confidence": "confirmed",
+    "corrected_line": 2170,
+    "reason": "Reproduced by exec-ing the notebook blocks the way the battery does and driving the real generate() with a call() stub that misses ADJUDICATE_SCHEMA twice. adjudicate() at line 2170 passes the document ctx ({'doc': uri}) unchanged, as does abstract_of -> fold() at line 1747, so the rows written to calls.jsonl, retries.jsonl and rejections.jsonl for stages 'adjudicate' and 'entity_abstract' carry only {stage, category, detail, doc}: the repro's rows are exactly {'stage': 'adjudicate', 'category': 'schema', 'detail': 'SchemaError: $.attributes: missing', 'doc': 'oz/01.txt'} with no entity, and with in_parallel (WORKERS=4) interleaving the calls the log order no longer stands in for the major. The per-unit stages do get a 'unit' key (line 2396: unit_ctx = {**ctx, 'unit': position}), so this is specific to the two parallel document-level stages. Second half also holds: when generate() returns None, the loop over (reply or {}) at line 2172 runs zero times, so adjudicate_one returns {'facts': [], 'attributes': [], 'contradictions': [], 'dropped': 0, 'raw': 4, 'riding': 0, 'skipped': None}, byte-identical to what a valid reply of three empty lists would produce; the completion counts (lines 2002-2003) and show_adjudication (line 2329) have no rejected column, and unlike entity abstracts (which do land in entity_abstract_rejected with the entity name) nothing in the package names the major whose adjudication was lost. Severity low as claimed: no wrong data is written, but the diagnostic ruling 26 was added for (explaining schema misses per adjudication) cannot be answered per major, and a lost adjudication is silent in the package."
+   }
+  },
+  {
+   "title": "Resuming from the sidecar drops the triage flags",
+   "severity": "low",
+   "line": 2072,
+   "claim": "checkpointed() returns rows[0]['triage'] and ignores rows[0]['flags'], which append_sidecar wrote at line 2374; ingest() keeps flags = [] whenever excluded is not None. A resumed document therefore writes stats.triage_flags = [] and show_triage prints no FLAG lines even though the first attempt recorded, for example, 'triage named a kind the document does not have' or 'triage reply rejected twice; every kind was read'.",
+   "scenario": "A paper whose triage reply was rejected twice (every kind read, flag recorded in the sidecar) is stopped by the spend stop after its units; the next session resumes it and its completion record says triage_flags: [], so the receipt and the log no longer show that this document's triage never happened.",
+   "fix": "Return rows[0].get('flags', []) from checkpointed() as a fifth value and assign it to flags in ingest() on the resume path.",
+   "lens": "threads",
+   "verdict": {
+    "real": true,
+    "confidence": "confirmed",
+    "corrected_line": 2072,
+    "reason": "Confirmed by reading notebooks/factledger-ingestor.py. append_sidecar (line 2374) writes {\"triage\": excluded, \"flags\": flags} as the sidecar's first row, but checkpointed() (line 2072) returns only rows[0][\"triage\"] and never reads rows[0][\"flags\"]. ingest() sets flags = [] at line 2368 and reassigns it only inside the fresh-triage branch (line 2373), so on the resume path (excluded is not None) flags stays []. That empty list reaches show_triage at line 2383 (no FLAG lines) and stats[\"triage_flags\"] at line 2422, which write_package embeds in the completion record (line 2007, \"stats\": stats). Scenario: a document whose triage reply was rejected twice (flag appended at line 2096) is stopped after some units; the next session resumes it and the package's stats.triage_flags is [] and no FLAG prints, so the record that triage never happened for this document is lost. Only a diagnostic field is affected, no facts or provenance, so low is the right severity. Fix as proposed: have checkpointed() return rows[0].get(\"flags\", []) and assign it to flags on the resume path."
+   }
+  },
+  {
+   "title": "Chained predicate merges are applied one hop, leaving facts under a predicate the judge retired",
+   "severity": "low",
+   "line": 2230,
+   "claim": "judge_predicates builds out['map'] as raw -> target one merge at a time. The absorbed filter at line 2225 excludes a predicate already used as a key, but a predicate that is a target of one merge may be absorbed by a later one (or a target may be a predicate an earlier merge already absorbed). write_package at line 1928 applies merged['map'].get(raw, raw) once, so facts whose raw predicate maps to an intermediate name keep that name while the intermediate's own facts move on.",
+   "scenario": "Terra replies merges [{predicate: 'rules', absorbs: ['governs']}, {predicate: 'leads', absorbs: ['rules']}]. map becomes {governs: rules, rules: leads}. adjudicated_fact rows with predicate_raw 'governs' are written with predicate 'rules', rows with predicate_raw 'rules' with 'leads'; the package now uses 'rules', a predicate the judge said should not stand, and two predicate_merge records disagree with the facts under them.",
+   "fix": "After collecting merges, resolve the map to fixed points (follow map[x] until the value is not itself a key, with a visited set against cycles), or reject a merge whose target is already absorbed / whose absorbed predicate is already a target and count it in dropped.",
+   "lens": "threads",
+   "verdict": {
+    "real": true,
+    "confidence": "confirmed",
+    "corrected_line": 2230,
+    "reason": "Reproduced by exec-ing judge_predicates and snake_case from notebooks/factledger-ingestor.py with a scripted generate returning merges [{predicate:'rules', absorbs:['governs']}, {predicate:'leads', absorbs:['rules']}]: out['map'] == {'governs': 'rules', 'rules': 'leads'} and both merges are recorded (dropped 0). The filter at line 2225 only rejects an absorbed name that is already a map key; it never checks whether the target is itself absorbed (later or earlier), so line 2230 writes chained entries. write_package line 1928 applies merged['map'].get(raw, raw) once, so an adjudicated_fact with predicate_raw 'governs' is written with predicate 'rules' while 'rules' facts move to 'leads'; the package keeps a predicate the judge retired and the two predicate_merge records (line 1977) disagree with the fact rows. Low severity as claimed: it needs the model to emit a chained merge in one reply, and no data is lost. Fix: resolve map values to fixed points with a visited set, or reject a merge whose target is already a key or whose absorbed names are existing targets and count it in dropped."
+   }
+  },
+  {
+   "title": "provenance.rides_on names the riding fact's own raw id, not the fact it rides on",
+   "severity": "high",
+   "line": 1974,
+   "claim": "In write_package the loop variable f for a direction 'about' tuple is the riding fact g itself, so \"rides_on\": f[\"fact_id\"] writes g's raw fact_id. landings() (line 1850) never carries the tying fact's id in the tuple, so the tying fact is unrecoverable from the package. A minor-subject raw fact is never stored under its own id, so rides_on points at an id that appears nowhere in the file. Ruling 27 says rides_on names the fact the about-fact rides on (the first fact tying the minor to the major).",
+   "scenario": "Chapter II facts: T = 'Dorothy lodges_with Boq' (forward on Dorothy) and G = 'Boq is_a richest Munchkin' (Boq minor, object literal). Package: fact T with fact_id T; then a fact with fact_id h(G,'rides into','Dorothy',u2), direction 'about', provenance.rides_on = G. No record in the package has fact_id G. A reader (the merge) following rides_on finds nothing and cannot tell which fact the about-fact rides under. The battery's check at test_ingestor.py:253 only asserts rides_on is truthy and differs from the stored id, which holds for the wrong value too.",
+   "fix": "Carry the tying fact's id in the landings tuple: landed[node].append((f, direction, r['label'], f['fact_id'], None)) and (g, 'about', label, h(...), f['fact_id']); unpack the fifth element in write_package and adjudicate_one and write it as rides_on. Add a battery check that every rides_on equals the fact_id of a written fact on the same node_id.",
+   "lens": "landings",
+   "verdict": {
+    "real": true,
+    "confidence": "confirmed",
+    "corrected_line": 1974,
+    "reason": "Confirmed by code reading and by running the battery and inspecting the written packages. landings() (notebooks/factledger-ingestor.py:1850) appends the about tuple as (g, \"about\", label, h(g[\"fact_id\"], \"rides into\", major name, first_unit)) and never carries the tying fact f's id. In write_package the loop variable f for that tuple IS the riding fact g, so line 1974 writes \"rides_on\": g[\"fact_id\"], the riding fact's own raw id. Reproduction on the battery's output: in data/packages-test/oz/03_486.jsonl all 73 about-facts satisfy h(rides_on, \"rides into\", node.name, node.created_from_unit) == fact_id (i.e. rides_on is the riding fact's own raw id), and in every package (oz 01/02/03, Novel-40700, dong2005, longmemeval 0018b628) no rides_on value equals any written fact_id, on the same node or anywhere: a minor-subject raw fact is never stored under its raw id, so the pointer dangles. Ruling 27 (audit.md:109) requires provenance.rides_on to name the fact it rides on, the first fact tying the minor to the major; that fact's id is unrecoverable from the package. The battery check at test_ingestor.py:253 only asserts rides_on is truthy and differs from the stored id, which the wrong value also satisfies. Minimal scenario: unit with T = Dorothy lodges_with Boq (forward on Dorothy) and G = Boq is_a richest Munchkin (Boq minor, literal object) -> package has fact T under its own id and an about-fact under h(G, \"rides into\", \"Dorothy\", u) with rides_on = G; nothing in the file has fact_id G. Fix: carry f[\"fact_id\"] as a fifth tuple element in landings() and write that as rides_on (adjudicate_one unpacks the same tuple and must be widened too); tighten the battery to require every rides_on to equal the fact_id of a written fact on the same node_id."
+   }
+  },
+  {
+   "title": "Predicate merges are applied one level deep, so chained merges leave a predicate both absorbed and written",
+   "severity": "medium",
+   "line": 2230,
+   "claim": "judge_predicates filters absorbs against out['map'] but never checks whether the target is itself already absorbed, or whether a later merge absorbs an earlier target; write_package applies merged['map'].get(raw, raw) once (line 1928). Nothing resolves chains, so the written predicate set contradicts the predicate_merge records and the 'after merges' count (distinct - len(map)) is wrong.",
+   "scenario": "Terra returns merges [{predicate:'leads', absorbs:['rules']}, {predicate:'commands', absorbs:['leads']}] (or in one slice, target 'rules' after 'rules' was absorbed into 'leads'). map = {rules: leads, leads: commands}. Facts with predicate_raw 'rules' are written with predicate 'leads' while facts with predicate_raw 'leads' are written with 'commands'; a predicate_merge row says 'commands' absorbed 'leads', yet 'leads' still appears as a standing predicate. show_predicates reports distinct-2 predicates remaining although three names remain.",
+   "fix": "After all slices, resolve the map to a fixed point (follow map[x] while the value is itself a key, with a cycle guard), or reject a merge whose target is already in out['map'] or whose absorbs contain an existing target, counting it in dropped.",
+   "lens": "landings",
+   "verdict": {
+    "real": true,
+    "confidence": "confirmed",
+    "corrected_line": 2225,
+    "reason": "Reproduced by exec-ing snake_case and judge_predicates from notebooks/factledger-ingestor.py with a scripted generate() returning merges [{predicate:'leads', absorbs:['rules']}, {predicate:'commands', absorbs:['leads']}] over facts with predicates rules/leads/commands. The filter at line 2225 only rejects an absorbed name that is already a key of out['map']; it never rejects a target that is itself absorbed, nor an absorbed name that is an earlier target. Result: out['map'] = {'rules': 'leads', 'leads': 'commands'}, two merge records, and show_predicates reports distinct - len(map) = 1 remaining. write_package (line 1928) applies merged['map'].get(raw, raw) once, so facts with predicate_raw 'rules' are written with predicate 'leads' while 'leads' facts are written as 'commands': the package still carries 'leads' as a standing predicate although a predicate_merge row says 'commands' absorbed it, and the printed count (1) disagrees with the two names actually written. The prompt asks the model for disjoint groups but nothing validates that, and one slice or two slices of PREDICATES_PER_CALL can both produce this. Fix: resolve the map to a fixed point after all slices (cycle-guarded), or drop any merge whose target is in out['map'] or whose absorbs include an existing target, counting it in dropped."
+   }
+  },
+  {
+   "title": "The Terra stages after the last unit are not checkpointed; a spend stop mid-adjudication re-buys the sweep, fold, entity abstracts and every adjudication",
+   "severity": "medium",
+   "line": 2413,
+   "claim": "The sidecar holds only the triage row and one row per derived unit (line 2402). The sweep and last-look judge calls in finish(), the abstract fold, the entity abstracts, and the adjudications (now up to WORKERS in flight) are all paid and then discarded when SpendStop propagates out of in_parallel (line 2188) or out of judge_predicates; on resume ingest replays the units free and then pays for all of them again.",
+   "scenario": "Oz book 1 with SPEND_STOP=5: units derive for ~$1.7, the sweep and fold run, then adjudication of 38 majors trips the stop at major 30. The 30 finished adjudications, the 3 others in flight, the fold and the sweep calls are lost. The next session resumes from 26 checkpointed units and pays for the sweep, the fold, the entity abstracts and all 38 adjudications again; a second stop at the same place loses them a second time. Ruling 28 says a unit's verdicts replay without a judge, but nothing after the last unit does.",
+   "fix": "Append post-unit results to the sidecar as they return: a 'finish' row with the sweep's ledger and candidate rows, a 'fold' row with folded, and one 'adjudicated' row per major keyed by index (written from the in_parallel loop as each result lands); on resume, checkpointed() hands them back and ingest skips the corresponding calls, the way unit rows are replayed.",
+   "lens": "landings",
+   "verdict": {
+    "real": true,
+    "confidence": "confirmed",
+    "reason": "Reproduced offline with the battery's scripted model (harness lines 1-158 of log/2026-09-06/test_ingestor.py, SpendStop injected on the second 'adjudicate' call for oz/01_55.txt). First run paid after the last unit: judge (sweep) 1, fold 1, entity_abstract 3, adjudicate 1, then stopped; the sidecar's rows carry only 'triage'/'flags' and 'rec'/'cost'/'calls' keys (append_sidecar at notebooks/factledger-ingestor.py:2374 and :2402; checkpointed() at :2062-2080 reads nothing else; run() at :2488-2491 breaks with the sidecar untouched). The resumed run replayed 24 units free and paid again: judge 1, fold 1, entity_abstract 3, adjudicate 3 (the already-paid one included), predicates 1. So a SpendStop raised anywhere in finish() (:1590), fold_document() (:1664, its in_parallel abstracts at :1752), adjudicate() (:2188) or judge_predicates() (:2416) discards every Terra call made after the last unit and the resume re-buys all of them; a second stop at the same point loses them again. Minor correction to the claim's framing: call() at :405 checks the cap before each call, so once tripped the remaining pool.map items raise without paying; only the up-to-WORKERS-1 calls already in flight are paid and lost. Not a ruling violation (ruling 28 and the block comment at :2046 promise replay for units only), but the wasted calls fall on the costliest stages (audit item 26: 38 adjudications took 70 calls on Oz), so medium stands.",
+    "corrected_line": 2405
+   }
+  },
+  {
+   "title": "Two majors with the same canonical name and first unit share one node_id and one riding-fact id",
+   "severity": "low",
+   "line": 1850,
+   "claim": "node_id_of (line 1795) is h(doc_id, name, first_unit) and the riding id is h(fact_id, 'rides into', name, first_unit). Two clusters the judge kept apart can share both parts: unite_on_sight's same_name rule (line 1358) requires the same kind, so two named clusters of different kinds can both end with best_name 'Oz' and the same first unit. Every node, alias, edge, cell, abstract, dossier, adjudicated and fact record of both then carries one node_id, and a minor tied to both rides in under one stored id twice.",
+   "scenario": "Chapter II lists 'Oz' (person, the Wizard) and 'Land of Oz' (place). Later chapters list 'Oz' (place) continuing 'Land of Oz'; once 'Oz' outnumbers 'Land of Oz' among the place cluster's named locals, best_name is 'Oz' and first_unit is chapter II's unit_id, the same as the person cluster. Both are majors. write_package writes two node records with the same node_id, and the Wizard's facts and the country's facts land under one node; from_facts of both adjudications point into one merged pool.",
+   "fix": "Derive node ids from something unique per cluster and stable across re-derivations: add the first member's local name (or the kind) to the hash, e.g. h(doc_id, name, first_unit, members[0][1]), and use the same key in the riding id, the entity abstract and the dossier records.",
+   "lens": "landings",
+   "verdict": {
+    "real": true,
+    "confidence": "confirmed",
+    "corrected_line": 1795,
+    "reason": "Reproduced by exec-ing the notebook blocks the way the battery does (scratchpad repro_nodeid.py). Three records: unit 2 lists 'Oz' (person) and 'Land of Oz' (place); unit 3 lists 'Oz' (place) continuing 'Land of Oz'; unit 4 lists 'Oz' (place). With the place locals united (which unite_on_sight does on its own: the declared continuation at line 1351 joins u3's 'Oz' to 'Land of Oz', and the same_name rule at line 1358 skips the person 'Oz' because kinds differ, so the pair goes to the judge and stays apart if judged different), cluster_entities (line 1560) yields two entities: {'name': 'Oz', kinds ['person'], first_unit 'u2'} and {'name': 'Oz', kinds ['place'], first_unit 'u2', members [(2,'Land of Oz'),(3,'Oz'),(4,'Oz')]} -- best_name picks 'Oz' (2 of 3 named locals) and first_unit is unit_ids[0], the Land of Oz unit. node_id_of (line 1795, h(doc_id, name, first_unit)) returns the identical hash 5fc1210d... for both; write_package (lines 1878, 1924, 1956) and the abstract/dossier records (1942, 1945) key everything by that hash, so both majors' nodes, edges, cells, abstracts and adjudications are written under one node_id, and the riding-fact id at line 1850 (h(fact_id, 'rides into', name, first_unit)) collides the same way for a minor tied to both. The docstring's own premise ('two clusters the judge kept apart may share a name') is exactly the case where first_unit fails to disambiguate. Severity low as claimed: it needs a name-converging cluster whose first unit is also the other cluster's first unit, but nothing in the code prevents it."
+   }
+  },
+  {
+   "title": "Merge chains, overlaps and cycles leave facts on a predicate the package says was absorbed",
+   "severity": "high",
+   "line": 2213,
+   "claim": "The filter at line 2213 drops an absorbed name only when it is already a key of out[\"map\"]; it does not refuse a target that was itself absorbed earlier, nor an absorbed name that was an earlier merge's target. write_package then resolves each fact with a single-step merged[\"map\"].get(raw, raw) (line 1928), so a chain A<-B, C<-A writes B's facts under A while a predicate_merge record in the same package says A was absorbed into C. The prompt (line 838) asks for disjoint groups but nothing in code enforces it, and the battery's fixed stub reply (is_a <- is_kind_of) can never exercise it.",
+   "scenario": "Reproduced by exec-ing the notebook blocks and scripting the predicates reply. Reply [{predicate: rules, absorbs: [governs]}, {predicate: leads, absorbs: [rules]}]: map = {governs: rules, rules: leads}; a Dorothy fact with raw governs is written as adjudicated_fact.predicate = rules while predicate_merge says leads absorbs rules; show_predicates prints '5 distinct -> 3' when 4 names stand. Overlapping groups [{is_a <- [is_kind_of]}, {is_type <- [is_a, is_kind_of]}]: is_kind_of facts land on is_a, is_a facts on is_type, is_a both standing and absorbed, printed 5 -> 3 with 5 standing. Swap [{rules <- governs}, {governs <- rules}]: every rules fact becomes governs and every governs fact becomes rules, two merge records, nothing merged, count says 3.",
+   "fix": "When applying a merge, refuse a target that is already in out[\"map\"] and refuse absorbing any name that is already a target of an accepted merge (count both under a named reason); or keep the loop but resolve write_package's lookup to the chain's root with a cycle guard. Add a battery case whose predicates stub returns a chained pair and assert no adjudicated_fact.predicate appears in any predicate_merge.absorbs.",
+   "lens": "predicates",
+   "verdict": {
+    "real": true,
+    "confidence": "confirmed",
+    "corrected_line": 2225,
+    "reason": "Reproduced by exec-ing judge_predicates/snake_case/show_predicates from notebooks/factledger-ingestor.py with a scripted predicates reply. The filter at line 2225 (`x in counts and x != target and x not in out[\"map\"]`) only refuses re-absorbing a name that is already a map key; it neither refuses a target that was itself absorbed nor an absorbed name that is an earlier merge's target. Reply [{rules <- governs}, {leads <- rules}] over 8 distinct predicates yields map {governs: rules, rules: leads} and two merge records. write_package at line 1928 applies a single-step merged[\"map\"].get(raw, raw), so a fact with raw predicate governs is written as adjudicated_fact.predicate = \"rules\" while the same package carries a predicate_merge record saying leads absorbs rules -- a fact standing on a predicate the package declares absorbed. show_predicates prints \"8 distinct -> 6 after 2 merges\" when 7 names actually stand (rules still carries the governs facts). Overlaps (a name both a standing target and an absorbed name) and swaps (A<-B, B<-A: every fact of each relabelled to the other, nothing merged) follow from the same missing checks. Nothing in code enforces the prompt's disjoint-groups request, and the battery's fixed stub reply (one merge) cannot exercise it. The claim's cited line 2213 is the skipped-return; the defective filter is line 2225, and the single-step lookup is line 1928."
+   }
+  },
+  {
+   "title": "Slicing by count sends the singleton variants to a tail slice that never meets the head, and records nothing about it",
+   "severity": "medium",
+   "line": 2203,
+   "claim": "ordered is sorted by count descending and cut into slices of PREDICATES_PER_CALL; a predicate in slice two is never shown beside the frequent name it should fold into, and a trailing slice of one is skipped by line 2206 without being judged at all. The misfits ruling 25 was written for (eliminate, lives_with, has_release_date) are by nature the rare names, so they are exactly what lands in the tail. Neither merged, the completion counts (lines 1988-1989) nor the printed line say how many slices were made or how many predicates never met the head; ruling 25 in audit.md still describes one call.",
+   "scenario": "Reproduced: one major with has_part (5), has_a_part (1) and 79 other singletons -> distinct 81, one call over 80 predicates; has_a_part is in no listing and is never judged; merged carries no key naming the slice count or the unjudged predicate. For a book with 38 adjudicated majors and free predicate naming during derive, 81+ distinct consolidated predicates is the expected case, and the package for it looks identical to one where the judge saw everything.",
+   "fix": "Record the slice count and the names left unjudged in merged and in the completion counts (predicate_slices, predicates_unjudged) and print them; do not skip a trailing slice of one but fold it into the previous slice. To let the tail meet the head, carry the top ten predicates of the head into every later slice as anchors (marked as such in the listing), or run one more call over the survivors when there was more than one slice.",
+   "lens": "predicates",
+   "verdict": {
+    "real": true,
+    "confidence": "confirmed",
+    "corrected_line": 2218,
+    "reason": "Reproduced by exec-ing judge_predicates (notebooks/factledger-ingestor.py lines 2215-2232) with a scripted generate: one major with has_part x5, 79 singletons, then has_a_part x1 -> distinct 81, exactly one call whose listing contains 'has_part (5)' but never 'has_a_part'; the trailing slice of one is dropped by 'if len(slice_) < 2: continue' at line 2218 and the returned dict has only map/merges/dropped/distinct/skipped, so nothing at lines 1988-1989 or in show_predicates can say a predicate went unjudged. Any predicate in slice two or later is likewise listed only with other tail names, never beside the frequent head name, and the merge loop (2222-2231) can only absorb names the model saw in that slice, so tail-to-head folds are impossible by construction. Minor correction to the claim: ruling 25 already says 'eighty predicates a call', so slicing per se is not a ruling violation; the defect is the silent skip and the head-never-meets-tail slicing with no diagnostic. Whether a real document exceeds 80 distinct consolidated predicates is plausible (Oz: 38 majors, 869 kept facts, free naming) but not verifiable offline. Severity medium stands."
+   }
+  },
+  {
+   "title": "An empty or punctuation-only merge target silently becomes related_to",
+   "severity": "low",
+   "line": 2211,
+   "claim": "snake_case falls back to \"related_to\" for a string with no alphanumerics (line 447), so target at line 2211 is never falsy and the `if not target` guard at line 2214 is dead; a merge whose predicate is \"\", \"-\" or \"?\" absorbs its group into related_to, a name no fact used and the model never chose.",
+   "scenario": "Reproduced: reply {predicate: \"\", absorbs: [governs], reason: x} passes PREDICATE_SCHEMA (a string), map becomes {governs: related_to}, a predicate_merge record names related_to with the model's reason, and every governs fact is written as adjudicated_fact.predicate = related_to with predicate_raw governs.",
+   "fix": "Test str(merge[\"predicate\"]).strip() before calling snake_case and count an empty one under dropped with its own reason; the same guard for absorbed names.",
+   "lens": "predicates",
+   "verdict": {
+    "real": true,
+    "confidence": "confirmed",
+    "corrected_line": 2223,
+    "reason": "Reproduced by exec-ing snake_case from the file: snake_case(\"\"), snake_case(\"-\"), snake_case(\"?\") all return \"related_to\" (line 551 fallback), so target at line 2223 is never falsy and the `if not target` guard at line 2226 is dead. Simulating the judge_predicates merge loop with counts={\"governs\":3} and reply merge {\"predicate\": \"\", \"absorbs\": [\"governs\"], \"reason\": \"x\"} (which satisfies PREDICATE_SCHEMA, lines 832-834) gives map={\"governs\": \"related_to\"}, a merges entry naming related_to, dropped=0; the writer at line 1928 then emits every governs fact as adjudicated_fact.predicate=\"related_to\" with predicate_raw=\"governs\", a name no fact used and the model never chose. Claim's line numbers (447/2211/2214) are stale; the code is at 551/2223/2226. Severity low is right: it needs the model to return an empty or punctuation-only predicate string, rare but silent when it happens."
+   }
+  },
+  {
+   "title": "The dropped counter and the printed after-merge count say things that are not true",
+   "severity": "low",
+   "line": 2215,
+   "claim": "out[\"dropped\"] at line 2215 is described everywhere (docstring line 2190, print line 2225, counts key predicate_merges_dropped at line 1989) as merges dropped for naming nothing the document uses, but it also increments when a group merely repeats an earlier group (all its absorbs already in map) or names only its own target; and the after-count at line 2224, distinct - len(map), assumes every target is one of the existing names, so it is one too low for every merge whose target is a coined name, which the prompt at line 838 explicitly allows.",
+   "scenario": "Reproduced: two identical groups rules <- [governs] give dropped 1, printed and stored as one merge that named nothing the document uses. A reply {predicate: governs_over, absorbs: [governs, rules]} over five distinct predicates prints '5 distinct -> 3 after 1 merges' while four names stand (governs_over, leads, is_a, is_kind_of).",
+   "fix": "Keep separate counters (unknown_names, duplicate_groups) and compute the after-count from the set of standing names: (counts.keys() - map.keys()) | set(map.values()).",
+   "lens": "predicates",
+   "verdict": {
+    "real": true,
+    "confidence": "confirmed",
+    "corrected_line": 2227,
+    "reason": "Reproduced by exec-ing the notebook blocks (as the battery does) with a stubbed generate(). In judge_predicates, line 2225 filters absorbs by `x in counts and x != target and x not in out[\"map\"]`, and line 2227 increments out[\"dropped\"] whenever the filtered list is empty, so a group that merely repeats an earlier group (two replies `rules <- [governs]`) counts as dropped=1 and is printed (line 2240) and stored (counts key predicate_merges_dropped, line 1989) as \"dropped for naming nothing the document uses\", contrary to the docstring at lines 2197-2200. Separately, show_predicates line 2239 computes the after-count as distinct - len(map); with reply {predicate: governs_over, absorbs: [governs, rules]} over five predicates it prints \"5 distinct -> 3 after 1 merges\" while four names stand (governs_over, leads, is_a, is_kind_of), since a coined target (allowed by predicate_prompt at line 837) is not among the counted names. Diagnostics and counts only; the map, merges and written predicates are correct, so severity low stands. Fix as proposed: separate counters (unknown_names vs duplicate_groups) and after-count from (counts.keys() - map.keys()) | set(map.values())."
+   }
+  },
+  {
+   "title": "A predicate judge reply rejected twice leaves every predicate unjudged with no trace in the package",
+   "severity": "low",
+   "line": 2209,
+   "claim": "When generate returns None (two schema misses or a refusal), line 2210 iterates an empty list; merged reports 0 merges and 0 dropped, and the package's completion counts (predicate_merges 0, predicate_merges_dropped 0) are indistinguishable from a document whose judge found nothing to merge. The only trace is rejections.jsonl, a run log that seed_from_prior_output (line 152) deliberately does not carry into the next Kaggle session, and the adjudicate stage already showed this failure mode in the Oz run (audit item 26: 38 adjudications took 70 calls).",
+   "scenario": "A book with 120 distinct consolidated predicates: the second slice's reply misses the schema twice (absorbs returned as a string). Its 40 predicates are never judged, the package writes predicate_merges from the first slice only, the completion record says nothing, and a rerun skips the document as complete.",
+   "fix": "Count a slice that got no reply (predicate_slices_rejected, with the names it held) in merged and in the completion counts, and print it in show_predicates; consider accepting a string absorbs by wrapping it in a list before the schema check.",
+   "lens": "predicates",
+   "verdict": {
+    "real": true,
+    "confidence": "confirmed",
+    "corrected_line": 2222,
+    "reason": "Reproduced by exec-ing the notebook blocks with generate stubbed: for 120 distinct predicates, a None reply on the second slice makes judge_predicates (notebooks/factledger-ingestor.py line 2222, `for merge in (reply or {}).get(\"merges\", [])`) return merges from the first slice only, with no key marking the 40 unjudged predicates. The completion record (lines 1988-1989, 2003) carries only predicate_merges / predicate_merges_dropped / predicate_judge_skipped, so a rejected slice is indistinguishable from a slice with nothing to merge; the only trace is rejections.jsonl, which seed_from_prior_output (line 179) does not carry into the next session, and completed() (line 2024) then skips the document on rerun. This departs from the owner's own pattern for rejected document-level calls, where abstract_rejected and entity_abstract_rejected are written into the completion record (line 2009). Scenario is in fact broader than claimed: the sole slice of any document with 8 to 80 predicates rejected twice is equally silent. Claimed line 2209 is the qualifiers line; the silent loop is 2222. Severity low as claimed (no wrong data written; a diagnostic gap that hides lost judge work)."
+   }
+  },
+  {
+   "title": "Two listed entities with one loose name collapse; the later one silently takes the earlier one's facts",
+   "severity": "medium",
+   "line": 1033,
+   "claim": "`listed = {loose_name(name): name for name in names}` keys the resolution map by case-folded, article-stripped name, so two distinct entities the entity call kept (its dedup is exact on the whitespace-collapsed name, and surface-span claiming lets both survive when either has a free span) overwrite one another in the dict; every fact whose subject or object is written as either entity then resolves to whichever was listed last, with no rejection row, count, or diagnostic.",
+   "scenario": "Verified through derive_unit with a stubbed model on a chat unit \"I work at the office downtown and I love The Office, the sitcom\": entities \"The Office\" (named, forms [\"The Office\"]) and \"office\" (unnamed, forms [\"the office downtown\", \"your office\"]) both survive the span gate; listed becomes {\"office\": \"office\", \"user\": \"user\"}. The fact {subject \"The Office\", is_a, \"sitcom\"} is stored as `office is_a sitcom` and {user loves \"The Office\"} as `user loves office` (object_is_entity true, pointing at the workplace). The TV show ends with zero facts and, in landings/adjudication, its node record carries nothing while the workplace carries the show's facts. Any unit where a named entity and a common-noun unnamed entity differ only by case/article (The Office/office, Summer/summer, The Party/party) does this.",
+   "fix": "Resolve an exact listed name first (`name in name_set`) and consult the loose map only as a fallback; build the loose map only from loose keys that are unique among the listed names, and when a written name hits a colliding key reject the fact as `ambiguous_subject` (or leave the object literal) and count it, rather than guessing.",
+   "lens": "gate",
+   "verdict": {
+    "real": true,
+    "confidence": "confirmed",
+    "corrected_line": 1033,
+    "reason": "Reproduced by exec-ing the notebook blocks (as the battery does) with a stubbed generate on the chat unit \"I work at the office downtown and I love The Office, the sitcom. The Office was made by NBC.\" Entity call returns \"The Office\" (named, major) and \"office\" (unnamed, minor); both survive derive_unit (line 989 dedup is exact on the collapsed name; spans \"The Office\" and \"the office downtown\" differ, so no span_claimed drop). Line 1033 `listed = {loose_name(name): name for name in names}` yields {'office': 'office', 'user': 'user'} since loose_name(\"The Office\") == loose_name(\"office\") == \"office\". Resulting facts: `office is_a sitcom`, `office made_by NBC`, `user loves office` (object_is_entity True, the workplace), `user works_at office`; rejected_facts is empty. The named major \"The Office\" carries no facts and its landings/adjudication node is empty while the workplace carries the show's facts. Wrong subject/object written silently with no diagnostic. Medium severity as claimed (wrong attribution in an edge case that will occur in chats/novels: The Office/office, Summer/summer, The Party/party)."
+   }
+  },
+  {
+   "title": "The unwrapped retry takes text.find's first hit for the bare quote: mid-word or at an unquoted earlier occurrence",
+   "severity": "medium",
+   "line": 731,
+   "claim": "When the model's wrapping quotation marks are not in the unit, `locate_as_written(text, bare, cache)` places the stripped quote at the first exact/normalised substring hit with no word-boundary check and no preference for a hit adjacent to a quotation mark, so a quote the old gate rejected is now accepted at a span that is not the quoted passage; quote_start/quote_end, the voice lookup (`author_at`) and the fact_id all follow that span.",
+   "scenario": "Verified: text \"Ozma ruled long before Oz came. The Wizard said he was Oz.\" with quote '\"Oz\"' returns (0, 2, 'unwrapped') — the stored quote is the first two letters of \"Ozma\". Verified: text 'Go home, she thought. Then aloud: “Go home!” said Dorothy.' with quote '\"Go home\"' (the model dropped the bang inside its quotes) lands on the narrative \"Go home\" at offset 0, not on Dorothy's speech; in a chat unit where the user's turn holds the same words in another case and the assistant's turn holds the quoted speech, `occurrences` (verbatim, case-sensitive) sees one hit, so `author` is the user's, the wrong voice, with voice_ambiguous false. Before 0.5 both quotes were rejected (not_found/paraphrase); now they are stored with provenance at the wrong offsets.",
+   "fix": "On the unwrapped path, gather every hit of the bare quote (via occurrences on the exact path or repeated ntext.find on the normalised path), keep only hits with a non-word character on both sides, and prefer a hit whose neighbouring original characters are quotation marks (WRAPPING_QUOTES plus « » etc.); if no hit qualifies, return the as-written classification as before.",
+   "lens": "gate",
+   "verdict": {
+    "real": true,
+    "confidence": "confirmed",
+    "corrected_line": 731,
+    "reason": "Reproduced by exec-ing Block 5 (lines 539-541, 643-783) of notebooks/factledger-ingestor.py. locate(\"Ozma ruled long before Oz came. The Wizard said he was Oz.\", '\"Oz\"') returns (0, 2, 'unwrapped'): as-written matching fails (normalised keeps the straightened quote characters, so '\"oz\"' is not in the unit), then line 731 retries the bare 'Oz' through locate_as_written, whose text.find at line 742 takes the first substring hit with no word-boundary check, i.e. the first two letters of \"Ozma\". At line 1053-1064 that span becomes the stored quote \"Oz\", quote_start 0, quote_end 2, matched_by 'unwrapped', the voice from author_at(doc, base+0), and the fact_id hashed over those offsets. Before this commit the same quote was rejected (the unwrapped path and WRAPPING_QUOTES are new in the diff from 7f6aba0). Second scenario also reproduces: 'Go home, she thought. Then aloud: “Go home!” said Dorothy.' with '\"Go home\"' lands at (0, 7) on the narrative words, not the speech (here occurrences finds both hits so voice_ambiguous is at least true; a single-hit variant with a differently cased second occurrence yields the wrong author with voice_ambiguous false). The battery only checks that some fact carries matched_by 'unwrapped' (test_ingestor.py line 258), not where it landed. Severity medium stands: wrong span/provenance stored for short or punctuation-trimmed quotes, which real models do produce."
+   }
+  },
+  {
+   "title": "A literal object that loosely matches a listed entity's name is turned into that entity",
+   "severity": "low",
+   "line": 1039,
+   "claim": "`obj = listed.get(loose_name(obj), obj)` rewrites any object whose case-folded, article-stripped text equals a listed name, so a common-noun or class value becomes an entity reference (`object_is_entity` true), which then feeds `relations`, the `is_a_link` nominations, landings (`object_node`/`object_is_node`) and the dossier as a relationship between two entities.",
+   "scenario": "A LongMemEval session lists the user's friend \"Summer\" (person, named, major) and the model writes {user, plans_trip_in, \"summer\", quote \"I'm planning a trip in summer\"}: the object is rewritten to \"Summer\", object_is_entity becomes true, and in write_package the fact's object becomes Summer's node_id with object_is_node true, so the package states the user plans a trip in the friend. Likewise {Oz, is_a, \"a wizard\"} with \"the Wizard\" listed becomes an entity relation `Oz is_a the Wizard` and an is_a_link candidate. Rare in this corpus, but silent and written into the package.",
+   "fix": "Apply the loose map to the object only when the model's object matches a listed name exactly or differs solely by a leading article and case with the same capitalisation pattern of a proper name (e.g. first letter of some word uppercase), else keep the literal; or record `object_resolved_by: loose` in the fact so the merge can review these.",
+   "lens": "gate",
+   "verdict": {
+    "real": true,
+    "confidence": "confirmed",
+    "corrected_line": 1039,
+    "reason": "Confirmed by code reading and a direct Python check of loose_name against the file's own norm/ARTICLES: with listed names [\"Summer\", \"the Wizard\", \"Dorothy\"], the model objects \"summer\" -> \"Summer\", \"a wizard\" -> \"the Wizard\", \"Wizard\" -> \"the Wizard\". Line 1039 (`obj = listed.get(loose_name(obj), obj)`) overwrites the literal with the listed name before line 1060 sets `object_is_entity: obj in name_set`, which is then true. Downstream, write_package (line 1960-1962) looks up the object's node for any fact with object_is_entity and writes the fact with `object` = that entity's node_id and `object_is_node: true`; the unit's `relations` list at line 1206 and the is_a_link nomination path also treat it as an entity link. The original literal is not preserved anywhere (the rejection record at 1040 also carries the rewritten value), so the package silently states e.g. \"user plans_trip_in <node of friend Summer>\" from the quote \"I'm planning a trip in summer\". This is a regression introduced in the diff: before 7f6aba0 the object was matched exactly (`obj in name_set` on the stripped string), so \"summer\" stayed a literal. It only triggers when an entity's name case-folds (after dropping a leading article) to a common literal value the model writes for some other fact in the same unit, so the claimed severity of low is right; the failure is real and silent."
+   }
+  },
+  {
+   "title": "str.strip over WRAPPING_QUOTES removes apostrophes that belong to the text, shortening the stored quote",
+   "severity": "low",
+   "line": 729,
+   "claim": "`written.strip(WRAPPING_QUOTES)` strips every leading and trailing character in the set, not one matched pair, so after the model's own wrapping mark comes off a genuine leading apostrophe (’Tis, ’em) or a trailing plural possessive (the Winkies’) is stripped as well; the retry then matches the shorter text and the stored quote and offsets exclude a character that is part of the passage.",
+   "scenario": "Verified: text \"’Tis a fine day, said Toto’s master.\" with quote '\"\\'Tis a fine day\"' returns how='unwrapped' and quote 'Tis a fine day' (the apostrophe belonging to the word is outside the span, so the stored quote spells the word wrongly and quote_start is one past the real start). Same for quote '\"the Winkies\\'\"' on \"the Winkies’ land\": stored as \"the Winkies\", the possessive lost; a stated_date/whole-word check on that quote sees a different token.",
+   "fix": "Strip one layer only and only as a matched pair: if written[0] is an opening/straight mark and written[-1] is the corresponding closing/straight mark, take written[1:-1]; otherwise leave the quote as written and let the existing classification stand.",
+   "lens": "gate",
+   "verdict": {
+    "real": true,
+    "confidence": "confirmed",
+    "corrected_line": 729,
+    "reason": "Reproduced by exec-ing the Block 4/5 helpers (is_word_char .. locate_as_written) from notebooks/factledger-ingestor.py and calling locate(). `written.strip(WRAPPING_QUOTES)` at line 729 strips every leading/trailing character in the set, not one matched pair, so an apostrophe that belongs to the passage goes with the model's wrapping mark. Results: text \"’Tis a fine day, said Toto’s master.\" with quote '\"\\'Tis a fine day\"' -> ('unwrapped', (1, 15), 'Tis a fine day'): quote_start is 1 instead of 0 and the stored quote misspells the word. Text \"They crossed the Winkies’ land at noon.\" with quote '\"the Winkies\\'\"' -> ('unwrapped', (13, 24), 'the Winkies'): the possessive is lost. The same happens with a straight-apostrophe text (\"'Tis ...\" -> (1, 15)). The path is only reached when the as-written and normalised lookups both fail (i.e. the model actually wrapped the quote), and the outcome is a span one character short rather than a crash or a lost fact, so severity low is right. Fix as proposed: peel one matched pair only (written[0] an opening/straight mark and written[-1] its closing/straight counterpart -> written[1:-1]), otherwise leave the quote as written."
+   }
+  },
+  {
+   "title": "Declared continuation resolves by name recency, not by the roster's cluster",
+   "severity": "high",
+   "line": 1332,
+   "claim": "`continued()` returns the latest earlier local whose name equals the declared string (line 1332) and only consults `roster_root` (line 1335) when no such local exists, which never happens because every roster name is some member's own name. When two clusters Terra kept apart share a best name (they differ in kind, so `same_name` never fused them), `roster_of` lists both under that one name and `roster_root` (line 1554) keeps only one root, so the model cannot declare either unambiguously and the code unites the fresh local with whichever namesake was seen last, 'declared same', no judge. This is an instant union of the wrong entity under ruling 28's both-named rule.",
+   "scenario": "Verified against the code with a scripted judge: unit 1 lists 'Oz' (place, named); unit 3 lists 'Oz' (person, named); kinds differ so no same_name, shared surface sends them to the judge, verdict different. Roster now shows [('Oz','person'), ('Oz','place')], roster_root {'oz': 0}. Unit 5 lists 'Oz' (place, named, continues 'Oz'): `continued` returns Oz@3 (the person), both named, `unite` fires. Clusters end as [Oz@1 place] and [Oz@3 person, Oz@5 place]; the same_name pass that would have joined Oz@5 to Oz@1 is refused by `settled` (the different verdict). Unit 5's mentions, facts and cells for the land of Oz are written under the Wizard's node; the ledger row reads 'declared same Oz(u3) ~ Oz(u5)'.",
+   "fix": "Resolve a declaration through the roster entry the model saw (root plus kind) instead of by name; when more than one roster entry bears the declared name, write a candidate row and let the judge decide. Key `roster_root` by (name, kind) or disambiguate duplicate names in the roster text so the model can point at one.",
+   "lens": "goals",
+   "verdict": {
+    "real": true,
+    "confidence": "confirmed",
+    "corrected_line": 1332,
+    "reason": "Reproduced by exec-ing the notebook blocks (as the battery does) with a judge stub returning \"different\". Unit 1: Oz (place, named, major). Unit 3: Oz (person, named, major); kinds differ so same_name does not fire, shared surface nominates the pair, judge says different; roster then lists ('Oz','person') and ('Oz','place'), roster_root {'oz': 0}. Unit 5: Oz (place, named, continues 'Oz'). continued() at notebooks/factledger-ingestor.py:1332-1334 walks locals_ in reverse and returns the latest local named 'oz' (Oz@3, the person) without looking at kind or cluster; the roster_root fallback at 1335 is never reached because a roster name is always some local's name (and 1554 keeps only one root per duplicated name anyway). unite_on_sight 1349-1351 unites Oz@3 and Oz@5 'declared same' with no judge and no settled() check; the same_name pass toward Oz@1 is then refused at 1361 because the earlier 'different' verdict now spans the merged cluster. Observed output: ledger [('Oz',1,'Oz',3,'different','judged'), ('Oz',3,'Oz',5,'same','declared')]; final entities Oz ['place'] members [(1,'Oz')] and Oz ['person','place'] members [(3,'Oz'),(5,'Oz')] is_a ['country','wizard']. Unit 5's mentions, facts and cells for the land are written under the Wizard's node, overriding a judge verdict with an instant union of the wrong entity, contrary to ruling 28's intent for the both-named rule. The Land of Oz vs. Oz the Wizard is a live case in this corpus."
+   }
+  },
+  {
+   "title": "Declared union ignores a prior Terra 'different' verdict",
+   "severity": "medium",
+   "line": 1350,
+   "claim": "`unite_on_sight` unites a both-named declared continuation without checking `state.settled` (lines 1350-1351), while the `same_name` rule does check it (line 1361). A Luna `continues` slip therefore overrides a Terra verdict, and the same_name union that would have put the local with its true namesake is then blocked by that very verdict. Before 0.5 declared unions ran before any judging, so this conflict could not arise; rolling reconciliation created it.",
+   "scenario": "Verified against the code: unit 1 'Witch of the North'; unit 2 'Wicked Witch of the West' (shared word 'witch' nominates, judge says different, kept_apart). Unit 3 lists 'Wicked Witch of the West' (named, person) with continues 'Witch of the North' (a per-unit slip). Result: clusters [WWW@2] and [North@1, WWW@3]; ledger shows 'judged different' then 'declared same'. Unit 3's facts and cells about the Wicked Witch are written under the Witch of the North's node, and the Wicked Witch's own cluster loses that unit.",
+   "fix": "In the declared branch, when `state.settled(find(target), find(l))` is true, write a candidate row instead of uniting and let the judge or the last look decide; optionally prefer an exact same-name-and-kind namesake over a declared target with a different name.",
+   "lens": "goals",
+   "verdict": {
+    "real": true,
+    "confidence": "confirmed",
+    "corrected_line": 1350,
+    "reason": "Reproduced by exec-ing the notebook blocks (as the battery does) with a judge stub that answers 'different'. Unit 1: 'Witch of the North' (named, person, major). Unit 2: 'Wicked Witch of the West' -> shared word 'witch' nominates, judge says different, kept_apart=[(0,1)]. Unit 3: 'Wicked Witch of the West' with continues='Witch of the North'. Result: ledger rows 'judged different' (North@1 vs WWW@2) then 'declared same' (North@1 vs WWW@3); clusters [['Witch of the North@1', 'Wicked Witch of the West@3'], ['Wicked Witch of the West@2']]. Mechanism: notebooks/factledger-ingestor.py line 1350-1351 unites a both-named declared continuation without consulting state.settled(), while the same_name branch at line 1361 does consult it; after the declared union, find(WWW@3) == find(North@1), so settled(find(WWW@2), find(WWW@3)) is true and the same_name union that ruling 28 says happens on sight ('a named local bearing an established named entity's name and kind unites on sight') is blocked. So whichever precedence the owner intends, the current outcome violates one rule: a Terra 'different' verdict is silently overridden with no diagnostic, and a same-name-same-kind named pair fails to unite. Downstream (landings/adjudication read clusters), unit 3's facts and cells for the Wicked Witch land under the Witch of the North's node and the Wicked Witch's cluster loses that unit. Severity medium as claimed: it depends on a per-unit continues slip by the model, which the offline battery cannot exercise, but the code path is deterministic once it happens."
+   }
+  },
+  {
+   "title": "Chained predicate merges are applied one hop, leaving an absorbed predicate standing",
+   "severity": "medium",
+   "line": 2230,
+   "claim": "`judge_predicates` sets `map[absorbed] = target` per merge (line 2230) and filters only absorbed names already mapped (line 2225), never a target that a later merge absorbs. `write_package` resolves one hop (`merged['map'].get(raw, raw)`, line 1928), so a fact whose raw predicate was absorbed into a predicate that was itself absorbed keeps the intermediate name, which the package's own `predicate_merge` rows say no longer stands. Ruling 25's 'one predicate fits every fact under it' is not what gets written.",
+   "scenario": "Verified against the code with nine distinct predicates (clearing PREDICATES_MIN): Terra returns merges [rules absorbs governs], [leads absorbs rules, commands]. map becomes {governs: rules, rules: leads, commands: leads}; adjudicated facts are written as governs -> predicate 'rules', rules -> 'leads', commands -> 'leads'. 'rules' survives as `predicate` on the governs facts while a predicate_merge record states leads absorbed rules, so a reader grouping by predicate splits one relation across two names again.",
+   "fix": "Resolve the map transitively at write time (follow the chain to a fixed point, guarding against cycles), or reject a merge whose target is already a key of `map` or whose absorbed list names an existing target, counting it in `dropped`.",
+   "lens": "goals",
+   "verdict": {
+    "real": true,
+    "confidence": "confirmed",
+    "corrected_line": 2230,
+    "reason": "Reproduced by exec-ing the notebook blocks and stubbing generate() with merges [rules absorbs governs], [leads absorbs rules, commands] over nine distinct predicates: judge_predicates (notebooks/factledger-ingestor.py:2222-2231) builds map {governs: rules, rules: leads, commands: leads}, keeps both merges, dropped 0. The line-2225 filter only rejects an absorbed name already in map, never a target absorbed later. write_package line 1928 resolves one hop (merged['map'].get(raw, raw)), so governs facts are written with predicate 'rules' while the package's predicate_merge rows say leads absorbed rules; one relation is split across 'rules' and 'leads', contrary to ruling 25. Also show_predicates (line 2239) reports distinct - len(map) as the count after merges, which is correct here only by accident. Fix: resolve map to a fixed point at build or write time (with a cycle guard), or drop a merge whose target is already a key of map / whose absorbs names an existing target, counting it in dropped."
+   }
+  },
+  {
+   "title": "Replay leaves the judge counters at zero, so resumed documents under-report judged pairs",
+   "severity": "medium",
+   "line": 1477,
+   "claim": "`replay_rows` restores unions, kept-apart and deferred pairs, and the ledger and candidate rows, but never touches `state.judge_calls` or `state.pairs_judged`. On a resumed document `stats['judged_pairs']` (and the 'sent to the judge' figure in the reconcile line and in `show()`) counts only this session's pairs while `candidate_pairs` counts all of them; `calls` and `cost` are corrected from the sidecar but this figure is not.",
+   "scenario": "Oz stopped by SPEND_STOP after 20 units with 150 pairs judged; the next run replays those units without a judge and finishes the document. The completion record says candidate_pairs 400, judged_pairs 30 and the ingest.log line reads 'pairs 400 judged 30', making the rolling judge look as if it skipped most nominations.",
+   "fix": "In `replay_rows`, count replayed rows whose `how` is 'judged' or 'judged again' into `state.pairs_judged` (and distinct batches into `judge_calls`), or carry the per-unit judge counts in `rec['rolling']` and add them back on replay.",
+   "lens": "goals",
+   "verdict": {
+    "real": true,
+    "confidence": "confirmed",
+    "corrected_line": 1477,
+    "reason": "Confirmed by reading and by executing the blocks. `replay_rows` (notebooks/factledger-ingestor.py:1477-1490) re-applies unions/kept_apart/deferred, appends the ledger rows and extends `state.candidates`, but never increments `state.judge_calls` or `state.pairs_judged`; those are only touched inside `judge_pairs` (lines 1456-1457), which the resume path bypasses (`ingest`, line 2390: `roll_unit(state, rec, ctx, replay=rec.get(\"rolling\", {}))`). `finish` returns `len(state.candidates)` and `state.pairs_judged` (line 1608), which become `stats['candidate_pairs']` and `stats['judged_pairs']` (line 2419) and are printed by `show()` (line 2448, 'pairs N judged M') and `show_reconcile` (line 2298, 'sent to the judge'). Unlike `calls`/`cost`, which are corrected from the sidecar (`calls_before_stop`, `cost_before`), the judge figure is not. Reproduced offline: exec'd Blocks 1-11 as the battery does, built a Rolling state with two locals, replayed one ledger row {verdict 'same', how 'judged'} plus one candidate row -> the pair was united, ledger 1, candidates 1, but (judge_calls, pairs_judged) stayed (0, 0). So a document resumed after a SPEND_STOP reports candidate_pairs for the whole document and judged_pairs for only the post-resume units. Medium: a wrong diagnostic count written into the package stats and ingest.log, no data or provenance lost. Fix as proposed: in `replay_rows`, count rows whose `how` is 'judged' or 'judged again' into `state.pairs_judged` (or carry per-unit judge counts in rec['rolling'])."
+   }
+  },
+  {
+   "title": "Ledger row promises a judge that never comes for a minor-minor declared continuation",
+   "severity": "low",
+   "line": 1354,
+   "claim": "For a declared continuation with an unnamed side, the ledger row's evidence says 'a side is unnamed, so judged', but `nominate` nominates only pairs where the fresh local is a unit-major or the target's cluster is a rolling major (lines 1386-1391). When both sides are minors the pair is never nominated or judged, the two locals stay apart, and the package carries a ledger row asserting a judgement that did not happen. The behaviour follows ruling 28 (minors never against minors); the provenance text does not.",
+   "scenario": "Verified against the code: unit 1 'a Munchkin (who greeted Dorothy)' (unnamed, minor); unit 2 'the Munchkin (who greeted Dorothy)' (unnamed, minor, continues it). Ledger: one row 'candidate declared ... a side is unnamed, so judged'; zero judge calls; two clusters at the end.",
+   "fix": "Word the evidence as 'judged when a major is involved; minors are not set against minors', or write the candidate row only when `nominate` will actually carry the pair (fresh major, or target cluster in `major_roots()`).",
+   "lens": "goals",
+   "verdict": {
+    "real": true,
+    "confidence": "confirmed",
+    "corrected_line": 1354,
+    "reason": "Reproduced by exec-ing blocks 1-8 with a stubbed generate(): unit 1 local 'a Munchkin (who greeted Dorothy)' (unnamed, minor), unit 2 local 'the Munchkin (who greeted Dorothy)' (unnamed, minor, continues the first). roll_unit + finish produced exactly one ledger row, verdict 'candidate', how 'declared', evidence \"unit 2 continued ...; a side is unnamed, so judged\", with zero judge calls, zero candidate rows, and two clusters at the end. nominate() (lines 1386-1394) drops any pair where neither the fresh local is a major nor the target's cluster is in major_roots(), and the sweep in finish() uses the same filter, so a minor-minor declared pair is never judged; the same setup with the unit-1 local marked major produced two judge calls. Splitting the two locals is what ruling 28 asks for, so the defect is confined to provenance: the ledger row asserts a judgement that never happens. Severity low, as claimed."
+   }
+  },
+  {
+   "title": "A stop or error during a unit's rolling judge discards that unit's derive",
+   "severity": "low",
+   "line": 2400,
+   "claim": "`rec` reaches the sidecar only after `roll_unit` returns (lines 2400-2402), so a SpendStop or an exhausted-retry RuntimeError raised from the unit's Terra judge batches loses the unit's three Luna calls; the resumed run re-derives the unit and, since a re-derive yields different locals, pays the rolling judge for it again. Before 0.5 the judge ran at the end, so the checkpoint followed derive directly.",
+   "scenario": "SPEND_STOP=5 is crossed inside chapter 14's second judge batch on Oz: chapter 14's entities, facts and cells calls are discarded, the run stops, and the next session derives chapter 14 from scratch before rolling it.",
+   "fix": "Append the derived `rec` to the sidecar before rolling and a second row carrying the rolling rows after; let `checkpointed` treat a rec without rolling rows as one that still needs `roll_unit` with a judge.",
+   "lens": "goals",
+   "verdict": {
+    "real": true,
+    "confidence": "confirmed",
+    "corrected_line": 2400,
+    "reason": "In ingest() (notebooks/factledger-ingestor.py) derive_unit runs at line 2398, roll_unit at 2400, and the unit's sidecar row is appended only at 2402. roll_unit -> judge_pairs -> judge -> generate -> call, and call() raises SpendStop at line 406 (spend() >= SPEND_STOP, checked before every request) or RuntimeError at 427 (third 429/5xx); no handler exists between call() and the driver's except at 2488-2496, which ends the document. Scenario: a unit's rolling needs two judge batches and the first batch's cost carries spend() over SPEND_STOP; the second batch raises SpendStop out of roll_unit, the derived rec (three Luna calls) never reaches append_sidecar, checkpointed() on resume returns only the earlier units, and the unit is derived and judged again. Pre-change (git show 7f6aba0) derive at 2132 was followed directly by append_sidecar at 2134 with reconcile() run once at the end, so this is a regression of the rolling change. No wrong data is written; the loss is the unit's Luna spend plus a repeated judge, so low severity stands."
+   }
+  }
+ ],
+ "refuted": [
+  {
+   "title": "A fact between two document-majors lands forward only; the object major's adjudication never sees it",
+   "severity": "medium",
+   "line": 1841,
+   "claim": "landings() sets minor = None when the object is a major, and the inverse branch (line 1842) is reached only when the subject is not a major, so a major-to-major fact lands on the subject alone. The fact prompt (line 926) tells the model to state a relation between a unit-major and a unit-minor once, under the unit-major, so whenever a document-major was unit-minor in that chapter the only statement of the relation sits on the other entity and the object major's listing in adjudicate_one (line 2149) omits it; a minor saying the same thing would have reached it as inverse.",
+   "scenario": "Chapter VI: Dorothy and the Lion are unit-majors, Toto a unit-minor but a document-major. The unit yields 'Dorothy carries Toto' once. landings: subject Dorothy in major -> forward on Dorothy, minor None; nothing on Toto. Toto's adjudication lists none of Dorothy's facts about him from any chapter where he was unit-minor, so his consolidated record lacks his relationship to Dorothy while a minor's 'Toto belongs_to Dorothy' would have appeared under Dorothy as inverse. The stored fact exists, but the object major's consolidated facts and contradictions are computed without it.",
+   "fix": "Also land a major-to-major fact on the object major marked inverse, under an id of its own (as riding facts do, e.g. h(fact_id, 'inverse into', name, first_unit)) so fact_ids stay unique and from_facts resolve; or, if the owner wants forward-only storage, at least include the line in the object major's listing so the adjudication sees it.",
+   "lens": "landings",
+   "verdict": {
+    "real": false,
+    "confidence": "refuted",
+    "reason": "The code does what the claim says (a major-to-major fact lands forward on the subject only, landings() line 1841), but that is the owner's design, not a defect, and it predates the diff under review (identical logic at 7f6aba0 lines 1654-1656). Ruling 22 defines \"inverse\" narrowly as a minor's fact about a major, stored with the minor's name as the value; ruling 23 defines the adjudication input as the raw facts \"forward and inverse\" in that sense; ruling 27 adds \"about\". No ruling asks that a fact between two document-majors be listed under the object major, and the adjudicate() docstring (line 2131) states the same scope explicitly. The stored data is complete: the fact record is written once with subject = Dorothy's node and object = Toto's node, object_is_node True (write_package lines 1965-1975), so nothing is lost and provenance is right. The proposed fix would also break the battery's own contract for inverse facts (test_ingestor.py line 247 asserts every inverse fact has a non-node object) and ruling 22's \"minor's name as its value\". Whether Toto's consolidated record should additionally see edges where he is the object is a design question for the owner, not a wrong output, crash, lost data, or ruling violation.",
+    "corrected_line": 1841
+   }
+  },
+  {
+   "title": "The adjudication prompt never asks for inverse lines to be restated from the entity's side, and the schema has no direction",
+   "severity": "low",
+   "line": 866,
+   "claim": "An inverse line reads '(inverse) Boq lodges Dorothy' and the prompt only says 'the entity is the object of that statement'; the reply shape is {predicate, object} with the entity as implicit subject and no direction field, and nothing in adjudicate_one checks the result. A consolidated fact drawn from an inverse line can therefore carry the minor's predicate with the roles reversed, and it is written as the major's fact with no marker.",
+   "scenario": "Listing line 3: '(inverse) Toto belongs_to Dorothy'. Terra returns {predicate: 'belongs_to', object: 'Toto', from: [3]}. write_package writes adjudicated_fact node=Dorothy, predicate 'belongs_to', object 'Toto', from_facts pointing at the raw inverse fact, which itself is stored as subject Dorothy / object 'Toto' marked inverse. The adjudicated record now states the opposite of the text and nothing downstream can tell.",
+   "fix": "Say in the prompt that an inverse line must be restated from the entity's side (name the entity as subject and choose the predicate accordingly), and show one example; optionally add a code check that an adjudicated fact drawn only from inverse lines does not reuse the raw predicate unchanged, flagging it in the result for the receipt.",
+   "lens": "landings",
+   "verdict": {
+    "real": false,
+    "confidence": "refuted",
+    "corrected_line": 866,
+    "reason": "Not a demonstrable defect. (1) The prompt at notebooks/factledger-ingestor.py:866 already fixes the subject: it asks for \"the entity's consolidated record\" of {name}, defines the inverse marker (\"the entity is the object of that statement\"), and the reply shape {predicate, object} has the named entity as its only possible subject; restating from the entity's side is the task itself, and a model that instead copies \"belongs_to / Toto\" into Dorothy's record is a model error the code neither causes nor can be shown to produce (the battery scripts the model; no code path yields the reversed record deterministically). (2) \"Nothing downstream can tell\" is false: adjudicated_fact.from_facts (line 1926) points at the stored raw fact ids, and each stored raw fact carries direction: \"inverse\" plus provenance.subject_name (lines 1963-1971), so a consumer can see that an adjudicated item rests on an inverse line. (3) The raw record storing the major as subject with the minor's predicate marked inverse is exactly what ruling 22 prescribes, so no ruling is violated by an adjudicated fact that mirrors it. The only residual is prompt polish: the PREDICATES list built at line 2172 includes predicates from inverse lines, which mildly invites their reuse; a clause saying an inverse line is to be restated with the entity as subject would be cheap, but that is a wording preference, not a failure with a reproducible input->wrong output."
+   }
+  },
+  {
+   "title": "predicate_census and stats.predicates tally raw unit-level predicates without saying so, beside merged adjudicated facts",
+   "severity": "medium",
+   "line": 1978,
+   "claim": "predicate_census(records) counts f[\"predicate\"] from the derive records, and the record written at line 1978 carries no field naming its level; the same package's predicate_merge records say some of those names were absorbed and its adjudicated_fact records no longer use them. The completion record also carries two 'predicates' numbers of different scope with nothing to tell them apart: stats.predicates at line 2402 is len(roster[\"predicates\"]), the distinct raw derive predicates that Rolling.predicate_counts (lines 1497, 1555-1556) still accumulates although no prompt consumes them since fact_prompt lost its parameter (lines 912, 1031); counts.predicates_distinct at line 1988 is the adjudicated distinct. Block 6's header at line 790 and roster_of's docstring at line 1531 still say the predicates are offered to the model.",
+   "scenario": "Oz: derive writes is_kind_of on seven raw facts; adjudication keeps it on two consolidated facts; the predicate judge absorbs it into is_a. The package then holds predicate_census.predicates.is_kind_of = {count: 7, ...} with no mark that it is pre-merge, a predicate_merge saying is_a absorbs is_kind_of, adjudicated_facts carrying is_a with predicate_raw is_kind_of, and a completion record with stats.predicates = 140 and counts.predicates_distinct = 95. The merge, which audit ruling 5 says mints its controlled list from every census, reads is_kind_of as a live predicate with count 7 and has no way to reconcile the three numbers.",
+   "fix": "Write the census with a level field (\"raw\", \"unit-level, before adjudication and merge\") and add a second census over the adjudicated facts after the map is applied (or the map itself under a predicate_map record); rename stats.predicates to raw_predicates_distinct or drop it together with Rolling.predicate_counts and roster[\"predicates\"], and correct the two docstrings.",
+   "lens": "predicates",
+   "verdict": {
+    "real": false,
+    "confidence": "refuted",
+    "corrected_line": 1978,
+    "reason": "The observations are accurate but no wrong data, crash, or ruling violation follows. predicate_census (line 1798, written at 1978) counts the raw unit-level predicates, and the package's `fact` records (line ~1970) carry the same raw predicates, so its counts are exactly right for the records beside it. The reconciliation the claim says is absent is present: predicate_merge records (line 1977) hold the absorb map and every adjudicated_fact carries predicate_raw (line 1928), so a merge reader can derive post-merge counts from the census. Ruling 5 asks for a census per document with the controlled list left to the merge; ruling 25 asks for predicate_raw beside predicate and a predicate_merge record per merge; both are satisfied and neither asks for a level field or a second census. stats.predicates (line 2421, distinct raw) and counts.predicates_distinct (line 1988, distinct adjudicated) are each correct for their scope under distinct keys. The stale Block 6 header (line 790), the roster_of docstring (line 1531), and Rolling.predicate_counts feeding only a stat are documentation/dead-weight points, which the brief excludes as style. At most a naming suggestion, not a defect."
+   }
+  }
+ ]
+}

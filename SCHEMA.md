@@ -71,7 +71,7 @@ ordering rule for time.
     node      node_id, name, kind, created_from_unit, provenance
     alias     alias, node_id, first_seen_unit, evidence_quote
     mention   mention_id, node_id?, unit_id, start, end, surface, resolved_by
-    profile   node_id, attribute, value, confidence, from_unit
+    profile   node_id, attribute, value, from_unit
 
 Mentions are what resolution measurements read: duplicate counting needs the
 node link, cluster purity needs the full set per node, and coreference scoring
@@ -86,7 +86,8 @@ The profile is not a fact. It holds low-confidence attributes the model
 inferred from context (gender, age band, animacy, role), read only by the
 matcher, never rendered and never exported. The text never says "Tip is male,"
 so these rows have no quote, and putting them in the fact table would make the
-quote gate a lie.
+quote gate a lie. They carried a constant confidence of 0.5 until 2026-09-07,
+which told a reader nothing the sentence above does not; the field is gone.
 
 ## The record side
 

@@ -15,11 +15,17 @@ their saved outputs as run.
   voice-lineage collision rule; verdict partially occupied, two measurements survive.
 - [2026-09-04](2026-09-04/README.md): merge walkthrough after ingestion; community grouping
   removed; document-level salience at the end of ingestion; documents as entities; the
-  document holds its text once and units are ranges in one coordinate system; the general
-  extractor plan and the all-sources raw dataset; open items.
-  Inventory: [inventory.md](2026-09-04/inventory.md), every source audited (format, size,
-  license, fixtures), what the Step 0 brief had wrong or missing, twelve decisions to rule.
-  Brief: [step0-brief.md](2026-09-04/step0-brief.md), the opening message for the extractor chat.
+  document holds its text once and units are ranges; the Step 0 inventory and Justin's
+  twelve rulings (the extractor sees raw files and nothing else); the extractor chat's
+  build and its two date findings (units carry a time range, a day cut); an outside design
+  review verified and ruled (voice on the piece, minors stay mentions, two instruments);
+  the living docs corrected; a review of the extractor notebook and the proposed rewrite of
+  its model path.
+  Inventory: [inventory.md](2026-09-04/inventory.md), every source audited, what the brief
+  had wrong or missing, the twelve rulings.
+  Brief: [step0-brief.md](2026-09-04/step0-brief.md), the extractor chat's opening message.
+  Code: [factledger_blocks_3_to_9.py](2026-09-04/factledger_blocks_3_to_9.py), candidate-index
+  selection, gates, one unit rule, piece-table export; proposed, not yet applied.
 - [2026-09-05](2026-09-05/README.md): the extractor's wrong turn found (quote matching,
   chunking) and the rebuild under the day's rulings: the model decides every boundary over
   the whole numbered document, every byte kept, regions as labels, units grouped and split
@@ -30,12 +36,28 @@ their saved outputs as run.
   the SCHEMA.md and BUILD.md sentences drafted for correction. The old run's log and records
   as `old-design-run.*`; the offline checks as `test_review.py`, `test_verify.py` and `test_run1.py`, and
   `py_to_ipynb.py`, which builds the notebook from the script and checks the round trip.
-- [2026-09-06](2026-09-06/README.md): audit day. The saved 0.9 notebook audited against the
-  schema and the rulings, then 1.0 to 1.4: the audit applied (grouped chat units restored,
-  19,206 against 198,961); the debugging accretions cut (164 lines, a synonym table, a Roman
-  numeral parser, a duplicate finder, a union-find); a real regression caught by a run and
-  fixed in the resolver; the run parallelised and one kind per unit enforced; and three cost
-  defects, including a no-credits 429 that walked the whole corpus and a per-document cost
-  that counted every other thread.
-  Audit: [audit.md](2026-09-06/audit.md). Changes: [final-run-changes.md](2026-09-06/final-run-changes.md).
-  Brief: [ingestor-brief.md](2026-09-06/ingestor-brief.md), the opening message for the ingestor chat.
+- [2026-09-06](2026-09-06/README.md): two threads, both kept.
+  [extractor.md](2026-09-06/extractor.md): 1.0 to 1.5 and the clean whole-corpus pass, 19,436
+  documents, 44,262 units, 227,100 pieces, $7.72, verified against the schema and the text.
+  [ingestor.md](2026-09-06/ingestor.md): the document ingestor built in twelve blocks against
+  the schema, the quote gate returning classified rejections, within-document reconciliation, a
+  six-lens review with 32 findings applied, a 70-check battery.
+  Audits: [audit.md](2026-09-06/audit.md) for the ingestor,
+  [audit-extractor.md](2026-09-06/audit-extractor.md) for the extractor.
+  Decisions: [decisions-ingestor-0.5.md](2026-09-06/decisions-ingestor-0.5.md).
+- [2026-09-07](2026-09-07/README.md): the dataset published and then corrected, the ingestor
+  audited twice, and the entity design settled. Step 0 shipped
+  [FactLedger Step 0](https://www.kaggle.com/datasets/jhffmn/it494-factledger-step0) with five
+  documentation files kept in `dataset/step0/` and a packer that reproduces every published
+  file byte for byte; seventeen errors in that documentation were then found and fixed, the
+  worst being that the README credited a model with finding boundaries in 98.8 percent of a
+  corpus it never saw. The ingestor was audited at 0.6 (18 findings surviving a refuter), at
+  0.7, and again at 0.8 before its first run. A LongMemEval re-export was asked for, measured,
+  and correctly withdrawn once the arithmetic showed grouping does not pay.
+  Rulings: [decisions-ingestor-0.7.md](2026-09-07/decisions-ingestor-0.7.md) and
+  [audit-answers.md](2026-09-07/audit-answers.md). The 0.8 rulings and worklist are on the
+  ingestor branch and land with its next push.
+  Design: the scope question in [entity-resolution.md](../docs/entity-resolution.md) is settled.
+  Nothing is ever merged; it is a tree. A parent holds no asserted content, only a derived name,
+  profile and abstract, and every sentence on it must be reducible to "N of M children say X".
+  Insertion becomes append-only, deletion becomes a delete, and provenance becomes total.

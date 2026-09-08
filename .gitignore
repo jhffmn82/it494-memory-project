@@ -24,3 +24,9 @@ data/raw/longmemeval/
 
 # local benchmark scratch (LitBank clone and other rejected or oversized sets)
 data/eval/
+
+# The extractor export rebuilt locally by scripts/rebuild_export.py: about 300 MB
+data/export/
+# The ingestor's local runs
+data/packages/
+data/packages-test/
