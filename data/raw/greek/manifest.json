@@ -340,18 +340,6 @@
       "words_est": 214826
     },
     {
-      "ordinal": 29,
-      "ebook_id": "thebaidstatius00conggoog",
-      "expected_title": "Thebaid",
-      "title_verified": false,
-      "source_url": "cached",
-      "file": "29_thebaidstatius00conggoog.txt",
-      "year": null,
-      "bytes": 1208168,
-      "sha256": "61d04344af12a9025b136d84a09d268261445bc2d0d2947c708b815c31a0be45",
-      "words_est": 176252
-    },
-    {
       "ordinal": 30,
       "ebook_id": "heroidesamores00ovid",
       "expected_title": "Heroides",

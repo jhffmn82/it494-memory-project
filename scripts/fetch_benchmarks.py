@@ -52,6 +52,7 @@ ITEMS = [
     ("graphrag-bench", "novel_questions.json",  f"{GRB}/Datasets/Questions/novel_questions.json", True),
     ("graphrag-bench", "LICENSE",               f"{GRB}/LICENSE",                                 True),
     ("longmemeval",    "longmemeval_oracle.json", f"{LME}/longmemeval_oracle",                    True),
+    ("longmemeval",    "LICENSE",               "https://raw.githubusercontent.com/xiaowu0162/LongMemEval/main/LICENSE", True),
 ]
 
 BIG = [

@@ -15,14 +15,27 @@ their saved outputs as run.
   voice-lineage collision rule; verdict partially occupied, two measurements survive.
 - [2026-09-04](2026-09-04/README.md): merge walkthrough after ingestion; community grouping
   removed; document-level salience at the end of ingestion; documents as entities; the
-  document holds its text once and units are ranges; the Step 0 inventory and Justin's
-  twelve rulings (the extractor sees raw files and nothing else); the extractor chat's
-  build and its two date findings (units carry a time range, a day cut); an outside design
-  review verified and ruled (voice on the piece, minors stay mentions, two instruments);
-  the living docs corrected; a review of the extractor notebook and the proposed rewrite of
-  its model path.
-  Inventory: [inventory.md](2026-09-04/inventory.md), every source audited, what the brief
-  had wrong or missing, the twelve rulings.
-  Brief: [step0-brief.md](2026-09-04/step0-brief.md), the extractor chat's opening message.
-  Code: [factledger_blocks_3_to_9.py](2026-09-04/factledger_blocks_3_to_9.py), candidate-index
-  selection, gates, one unit rule, piece-table export; proposed, not yet applied.
+  document holds its text once and units are ranges in one coordinate system; the general
+  extractor plan and the all-sources raw dataset; open items.
+  Inventory: [inventory.md](2026-09-04/inventory.md), every source audited (format, size,
+  license, fixtures), what the Step 0 brief had wrong or missing, twelve decisions to rule.
+  Brief: [step0-brief.md](2026-09-04/step0-brief.md), the opening message for the extractor chat.
+- [2026-09-05](2026-09-05/README.md): the extractor's wrong turn found (quote matching,
+  chunking) and the rebuild under the day's rulings: the model decides every boundary over
+  the whole numbered document, every byte kept, regions as labels, units grouped and split
+  by the model, no piece dates, no inferred dates; the old design's first full run analysed;
+  a 63-agent review and the fix batch; Kaggle import, CLI, and secret notes; open items.
+  Review: [review.md](2026-09-05/review.md), the confirmed findings consolidated and the
+  measured cost of the run. Docs: [docs-rulings-2026-09-05.patch](2026-09-05/docs-rulings-2026-09-05.patch),
+  the SCHEMA.md and BUILD.md sentences drafted for correction. The old run's log and records
+  as `old-design-run.*`; the offline checks as `test_review.py`, `test_verify.py` and `test_run1.py`, and
+  `py_to_ipynb.py`, which builds the notebook from the script and checks the round trip.
+- [2026-09-06](2026-09-06/README.md): audit day. The saved 0.9 notebook audited against the
+  schema and the rulings, then 1.0 to 1.4: the audit applied (grouped chat units restored,
+  19,206 against 198,961); the debugging accretions cut (164 lines, a synonym table, a Roman
+  numeral parser, a duplicate finder, a union-find); a real regression caught by a run and
+  fixed in the resolver; the run parallelised and one kind per unit enforced; and three cost
+  defects, including a no-credits 429 that walked the whole corpus and a per-document cost
+  that counted every other thread.
+  Audit: [audit.md](2026-09-06/audit.md). Changes: [final-run-changes.md](2026-09-06/final-run-changes.md).
+  Brief: [ingestor-brief.md](2026-09-06/ingestor-brief.md), the opening message for the ingestor chat.

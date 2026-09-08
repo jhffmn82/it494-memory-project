@@ -1,0 +1,11 @@
+{
+  "title": "IT494 Reference Papers",
+  "id": "jhffmn/it494-reference-papers",
+  "subtitle": "142 reference PDFs for the IT 494 memory project; private, per-paper licenses",
+  "description": "The 142 papers read for the IT 494 memory-backend project, as fetched. `manifest.json` gives bytes, sha256, and the source URL per file; `MANIFEST.md` is the fetch log. Licenses are per paper and mostly do not permit redistribution, so this dataset stays private and is used only as raw input to the project's extractor.",
+  "licenses": [
+    {
+      "name": "other"
+    }
+  ]
+}
