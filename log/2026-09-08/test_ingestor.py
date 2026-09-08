@@ -258,5 +258,27 @@ result = ns["one_document"](uri_of("/oz/01_55.txt").replace("01_55", "02_54"))
 check("a spend stop is reported, not raised, and names the document", result.get("stop") and "02_54" in result["text"], result)
 ns["generate"] = make_stub(ns)
 
+# the chat block of 09-08 died on a corrected fact whose qualifiers were a list. CORRECT_SCHEMA
+# asks only for an array of answers, so nothing types that field.
+raw_one = {"subject": "Zep", "predicate": "reduces", "object": "latency", "qualifiers": None, "quote": "q"}
+listed, _ = ns["corrected_fact"](raw_one, {"predicate": "reduces_latency_by", "object": "90 percent",
+                                           "qualifiers": ["on LongMemEval", "against a baseline"]})
+plain, _ = ns["corrected_fact"](raw_one, {"predicate": "reduces_latency_by", "object": "90 percent",
+                                          "qualifiers": "on LongMemEval"})
+empty, _ = ns["corrected_fact"](raw_one, {"predicate": "reduces_latency_by", "object": "90 percent"})
+check("a corrected fact's qualifiers are one string or None, whatever the model answered",
+      isinstance(listed["qualifiers"], str) and isinstance(plain["qualifiers"], str)
+      and empty["qualifiers"] is None, (listed["qualifiers"], plain["qualifiers"], empty["qualifiers"]))
+
+# and a roll-up that falls over reports itself instead of taking the run with it
+broken = SCR / "not-a-package.jsonl"
+broken.write_text('{"record": "nonsense"}\n', encoding="utf-8")
+try:
+    ns["rollup"](broken)
+    rollup_survived = True
+except Exception:
+    rollup_survived = False
+check("a roll-up that cannot be written reports it and the run carries on", rollup_survived)
+
 print(f"\n{sum(results)} of {len(results)} checks pass")
 sys.exit(0 if all(results) else 1)

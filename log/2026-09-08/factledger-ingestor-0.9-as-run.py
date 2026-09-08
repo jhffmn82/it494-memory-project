@@ -1708,6 +1708,18 @@ def flagged_facts(records, folded, adjudicated):
     return {fid: by_id[fid] for fid in flagged if fid in by_id}
 
 
+def one_phrase(value):
+    """A qualifier as one short phrase or None. CORRECT_SCHEMA asks only for an array of answers,
+    so that one bad item cannot void a batch, which means nothing types this field: a model that
+    answers with a list put a list in the package and the roll-up fell over (fixed 09-08)."""
+    if value is None or value == "":
+        return None
+    if isinstance(value, (list, tuple)):
+        parts = [str(x).strip() for x in value if str(x).strip()]
+        return ", ".join(parts) or None
+    return str(value).strip() or None
+
+
 def corrected_fact(f, item):
     """(the corrected statement, None) when the correction passes the checks a fact must still
     pass without the gate, else (None, why). It must say something, its object may restate
@@ -1725,7 +1737,8 @@ def corrected_fact(f, item):
     said = norm(obj).replace("_", " ")            # the predicate written as words is still the predicate
     if said == norm(subject).replace("_", " ") or said == norm(predicate).replace("_", " "):
         return None, "object restates subject or predicate"
-    return {"subject": subject, "predicate": predicate, "object": obj, "qualifiers": item.get("qualifiers") or None}, None
+    return {"subject": subject, "predicate": predicate, "object": obj,
+            "qualifiers": one_phrase(item.get("qualifiers"))}, None
 
 
 def statement_number(item, n):
@@ -2325,9 +2338,16 @@ def rollup(path, top=5):
     """The roll-up written beside its package as roll-up.txt. The per-unit trace on stdout
     already carries every fact and its quote; printing the roll-up too doubled the log."""
     written = Path(path).with_name("roll-up.txt")
-    with written.open("w", encoding="utf-8") as handle:
-        with redirect_stdout(handle):
-            rollup_text(path, top=top)
+    try:
+        with written.open("w", encoding="utf-8") as handle:
+            with redirect_stdout(handle):
+                rollup_text(path, top=top)
+    except Exception as e:
+        # a view of the data may not destroy the run that produced it: every package in a block
+        # is already written when this runs, and a roll-up that falls over took a 28-minute chat
+        # block down with it (fixed 09-08)
+        print(f"roll-up failed for {path}: {type(e).__name__}: {e}")
+        return
     print(f"roll-up ({written.stat().st_size:,} bytes) -> {written}")
 
 
