@@ -469,7 +469,7 @@ check("no unit saw another: no entity prompt carried a roster, no cells prompt a
 # ---------------------------------------------------------------- re-run mints nothing
 before = path.read_bytes()
 done, skipped = ns["run"]([OZ])
-check("re-run over unchanged input is skipped by input_hash", done == 0 and skipped == 1 and path.read_bytes() == before)
+check("a document with a finished package is skipped, not re-ingested", done == 0 and skipped == 1 and path.read_bytes() == before)
 
 
 def stable(p):

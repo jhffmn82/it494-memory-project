@@ -1627,12 +1627,11 @@ def fold_document(records, entities, ctx, light=False):
     return out
 
 # %%
-# Block 10: the package. One JSONL file per document mirroring the raw layout, every line one
-# record with a "record" field, ending in a completion record whose input_hash says which
-# extractor output it came from. Minors have no node. A fact lands on the major that is its
-# subject (forward), or on the major a minor's fact points at (inverse); a minor's own facts
-# ride into the major it is tied to (about), under the first fact that ties them; a fact of a
-# minor tied to no major is not stored.
+# Block 10: the package. One JSONL file per document, every line one record with a "record"
+# field, ending in a completion record. A document whose package ends in one is finished and is
+# skipped on a later run. Minors have no node: a fact lands on the major that is its subject
+# (forward), or on the major it points at, with the lesser thing's name as its value (inverse).
+# A fact between two lesser things is not stored.
 
 
 def package_path(doc):
@@ -1641,11 +1640,6 @@ def package_path(doc):
     parts = doc["source_uri"].split("/")
     stem = Path(parts[-1]).stem
     return OUT / (parts[-2] if len(parts) > 1 else "misc") / stem / (stem + ".jsonl")
-
-
-def input_hash(doc):
-    """What a finished package was built from, so completed() knows it still applies."""
-    return h(doc["doc_id"], *[u["unit_id"] for u in doc["units"]], INGESTOR)
 
 
 def first_mention(records, entity):
@@ -1866,7 +1860,7 @@ def write_package(doc, records, entities, folded, adjudicated, ledger, candidate
               "facts_corrected": sum(1 for v in corrections.values() if v is not None), "facts_dumped": len(dumped),
               "adjudication_stranded": stranded,        # items whose every source was dumped (P2)
               "has_abstract": folded["abstract"] is not None}
-    lines.append({"record": "completion", "doc_id": doc["doc_id"], "input_hash": input_hash(doc), "ingestor": INGESTOR, "counts": counts,
+    lines.append({"record": "completion", "doc_id": doc["doc_id"], "ingestor": INGESTOR, "counts": counts,
                   "stats": stats, "empty": counts["facts_stored"] == 0 and counts["cells"] == 0, "excluded": excluded,
                   "demoted": folded["demoted"]})
     path.write_text("\n".join(json.dumps(l, ensure_ascii=False) for l in lines) + "\n", encoding="utf-8", newline="\n")
@@ -1874,10 +1868,10 @@ def write_package(doc, records, entities, folded, adjudicated, ledger, candidate
 
 
 def completed(doc):
-    """Is there already a finished package for this exact input?"""
+    """Is there already a finished package for this document?"""
     path = package_path(doc)
     rows = read_own_jsonl(path) if path.exists() else []
-    return bool(rows) and rows[-1].get("record") == "completion" and rows[-1].get("input_hash") == input_hash(doc)
+    return bool(rows) and rows[-1].get("record") == "completion"
 
 # %%
 # Block 11: the pipeline as one function, ingest(doc).
