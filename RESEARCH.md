@@ -216,6 +216,43 @@ rest; the prototype has already pushed unrevoked tokens to history. A pairing
 code checked once at provisioning is not authentication on a publicly
 reachable tunnel. Updates snapshot per layer and roll back rather than merge.
 
+### PROPOSED 2026-09-08: the model tiers are the user's own, behind the seam
+
+Principle: the two model interfaces (`generate`, `embed`) exist so the pipeline
+binds to whatever the person already runs, never to one vendor. Assistant note,
+PROPOSED until Justin rules.
+
+The tiers are two slots, cheap and strong, not two named models. In testing they
+are gpt-5.6-luna and gpt-5.6-terra; in a deployment they become the user's own
+provider. A Claude user binds cheap to Haiku 4.5 and strong to Sonnet 5. This is
+what "run it on my personal account" means, and it is a backend swap behind
+`generate()`, which today hardcodes the OpenAI chat-completions endpoint,
+`response_format: json_object`, and `reasoning_effort`.
+
+Two ways to reach a personal Claude account, and the prototype already runs one:
+
+1. A Console API key, pay-per-token (Haiku ~$1/$5, Sonnet ~$2/$10 per 1M in/out).
+   Note the trap: a Claude.ai subscription does not grant API access; the metered
+   API is billed separately.
+2. The subscription / local-account runner, which is exactly the archive's
+   2026-08-26 cutover ("not use API keys, take over with the local account", the
+   metered key demoted to opt-in): model calls drive through the logged-in Claude
+   session rather than a metered endpoint, so cost is the subscription, not
+   per-token. Less conventional (it is agent/session auth, not the Messages API),
+   but proven nightly on the PC.
+
+Three things the swap touches, none a base-url change: structured output is
+`output_config.format` / `strict` tools, not a `json_object` mode (the quote gate
+is the real guard regardless); `effort` is a strong-tier knob only, since Haiku
+4.5 has none; and context is 200K on Haiku against 1M on Sonnet, so the extractor
+cannot one-shot the largest split documents on the cheap tier and the big-document
+path needs the strong tier or chunking.
+
+Embeddings stay local on every path: Anthropic has no embedding endpoint, so
+`bge-small` (the 2026-09-03 choice) is the embedder for a Claude user and everyone
+else. That half is genuinely API-free. The paper's three-tier report is the
+per-provider re-baselining this implies, stated as a finding rather than assumed.
+
 Chat exports are worse than they look. They include no attachments, so
 onboarding scrapes those once through the authenticated browser. Gemini
 exports carry no stable conversation id, so a re-export mints duplicates
