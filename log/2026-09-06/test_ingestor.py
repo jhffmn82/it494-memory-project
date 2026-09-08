@@ -103,8 +103,11 @@ def stub_generate(prompt, schema, stage, model=None, effort="low", ctx=None):
         if len(turns) >= 2 and facts:                                      # a quote whose pieces lie in two turns: one fact per voice (decision 46)
             first, second = turns[0].split(": ", 1)[1].split(), turns[1].split(": ", 1)[1].split()
             if len(first) >= 3 and len(second) >= 3:
+                # contiguous across the turn boundary: found exactly, and still cut per speaker
+                head = text.index(turns[0]) + len(turns[0]) - len(" ".join(first[-3:]))
+                tail = text.index(turns[1]) + len(turns[1].split(": ", 1)[0]) + 2 + len(" ".join(second[:3]))
                 facts.append({"subject": facts[0]["subject"], "predicate": "spans", "object": "two voices", "qualifiers": None,
-                              "quote": " ".join(first[:3]) + " ... " + " ".join(second[:3]), "valid_from": None, "valid_to": None})
+                              "quote": text[head:tail], "valid_from": None, "valid_to": None})
         if facts:
             good = facts[0]["quote"]
             n0 = facts[0]["subject"]
@@ -229,9 +232,8 @@ hy = "the recon-\nciliation of names is\nhard."
 s, e, how = locate(hy, "reconciliation of names")
 check("locate bridges a hyphenated line break and stores the original slice", how == "normalised" and hy[s:e] == "recon-\nciliation of names", repr(hy[s:e] if s is not None else how))
 ell = "Quelala was a boy. He was said to be the best and wisest man in all the land."
-s, e, how = locate(ell, "Quelala ... the best and wisest man")
-check("a quote with an ellipsis is found piece by piece and the stored quote spans the pieces", how == "pieces" and ell[s:e] == "Quelala was a boy. He was said to be the best and wisest man", repr(ell[s:e] if s is not None else how))
-check("an ellipsis whose pieces are out of order is not found", locate(ell, "wisest man ... Quelala")[2] in ("paraphrase", "not_found"))
+check("a quote written with an ellipsis is refused, not stitched across the gap (ruling of 09-08)",
+      locate(ell, "Quelala ... the best and wisest man")[2] in ("paraphrase", "not_found"))
 oz3 = "She bade her friends good-bye, and again started along the road of yellow brick. When she had gone several miles she thought she would stop to rest."
 s, e, how = locate(oz3, "she started along the road of yellow brick.")
 check("a citation reworded at its edge is found by its words and the stored quote is the text's own passage", how == "words" and oz3[s:e] == "started along the road of yellow brick", repr(oz3[s:e] if s is not None else how))
@@ -277,7 +279,9 @@ check("facts stored", len(facts) > 0, len(facts))
 check("every fact's offsets slice to exactly its quote", all(text[f["quote_start"]:f["quote_end"]] == f["quote"] for f in facts))
 unit_range = {u["unit_id"]: (u["start"], u["end"]) for u in doc["units"]}
 check("every quote lies inside its unit", all(unit_range[f["unit_id"]][0] <= f["quote_start"] < f["quote_end"] <= unit_range[f["unit_id"]][1] for f in facts))
-check("the match paths exercised: exact, normalised, unwrapped, pieces", set(stats["matched_by"]) >= {"exact", "normalised", "unwrapped", "pieces"}, stats["matched_by"])
+check("the match paths exercised: exact, normalised, unwrapped, words", set(stats["matched_by"]) >= {"exact", "normalised", "unwrapped", "words"}, stats["matched_by"])
+check("every stored quote is a verbatim slice of the document, whichever path found it (09-08)",
+      facts and all(text[f["quote_start"]:f["quote_end"]] == f["quote"] for f in facts))
 check("every fact's quote is the text's own words whatever path found it", all(text[f["quote_start"]:f["quote_end"]] == f["quote"] for f in facts))
 unsupported_ids = {f["fact_id"] for f in facts if f["rank"] == "unsupported"}
 check("a loosely cited fact is found by its words and stored, marked words", any(f["provenance"]["matched_by"] == "words" and f["object"] == "and supported" and f["rank"] == "active" for f in facts))
@@ -351,7 +355,10 @@ check("a fact between two lesser things is not stored, and the count says so", l
 loosely = [f for f in facts if f["predicate"] == "is_called"]
 check("a subject written with another case or a leading article is the listed entity", loosely and all(not f["provenance"]["subject_name"].startswith("The ") for f in loosely))
 check("a quote wrapped in the model's own quotation marks is found once they come off, and says so", any(f["provenance"]["matched_by"] == "unwrapped" and f["quote"][:1] not in "“\"" for f in facts))
-check("a quote cited with an ellipsis is kept, its stored quote spanning the pieces", any(f["provenance"]["matched_by"] == "pieces" and " " in f["quote"] for f in facts))
+ellipsis_facts = [f for f in facts if f["object"] == "an ellipsis"]
+check("an ellipsis is never stitched across the gap; what survives is found by words, bounded (09-08)",
+      all(f["provenance"]["matched_by"] == "words" for f in ellipsis_facts),
+      {f["provenance"]["matched_by"] for f in ellipsis_facts})
 check("adjudicated predicates are the model's own, unmerged, in snake_case", {"lives_in", "lives_at"} <= {a["predicate"] for a in adjudicated} and not any(r["record"] == "predicate_merge" for r in lines) and "predicate_raw" not in adjudicated[0])
 check("no consolidated fact rests only on facts the same reply set aside; a source set aside is not cited (decision 45)",
       adjudicated and all(not (set(a["from_facts"]) & unsupported_ids) for a in adjudicated), len(unsupported_ids))
@@ -528,16 +535,10 @@ check("an entity with nothing to summarise is not a major (decision 52)",
       all(any(a["record"] == "abstract" and a["node_id"] == r["node_id"] for a in rows) for r in rows if r["record"] == "node" and r["kind"] != "document"))
 script["bad_fold"] = 0
 
-# ---------------------------------------------------------------- the two fixes of 09-07
+# ------------------------------------------- an ellipsis is refused, not stitched (09-08)
 near = "alpha " + ("word " * 20) + "omega"
-far = "alpha " + ("word " * 200) + "omega"
-s1, e1, h1 = ns["locate"](near, "alpha ... omega")
-s2, e2, h2 = ns["locate"](far, "alpha ... omega")
-check("a quote whose two halves are close is still a pieces match", h1 == "pieces" and s1 == 0, (s1, e1, h1))
-check("a quote whose halves are further apart than the cap is refused (ruling of 09-07)",
-      s2 is None and h2 == "span_too_wide", (s2, h2))
-check("no other path can outrun the cap: every one matches a single run of text",
-      ns["locate"](near, "alpha")[2] == "exact" and ns["QUOTE_SPAN_MAX"] >= 300)
+check("an ellipsis is not stitched across a gap, however small", ns["locate"](near, "alpha ... omega")[2] in ("paraphrase", "not_found"))
+check("and either side is found when quoted as written", ns["locate"](near, "alpha word word")[2] == "exact")
 opening = ns["support_prompt"](["1. a b c  (\"q\")"]).split(chr(10))[0]
 check("the support check asks whether a passage states a statement, naming no entity (fixed 09-07)",
       "about" not in opening, opening[:90])

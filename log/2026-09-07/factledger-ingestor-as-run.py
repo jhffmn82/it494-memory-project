@@ -586,8 +586,7 @@ def counts_text(counter):
 # any whitespace, NFKC, straight quotes, one dash, a hyphenated line break closed, case
 # folded), matched on a copy that maps every character back to its original offset;
 # `unwrapped`, once the quotation marks the model wrapped it in come off, as whole words;
-# `pieces`, a quote with an ellipsis, each piece verbatim and in order, the stored quote being
-# the passage from the first piece to the last; `words`, the shortest passage holding at least
+# `words`, the shortest passage holding at least
 # WORDS_NEEDED of the quote's words in order, within three words of the quote's length, so a
 # citation the model reworded at the edges still lands and the stored quote is the text's own
 # words. Anything else is `paraphrase` (most of its words are there, in order, somewhere) or
@@ -755,13 +754,12 @@ def words_hit(text, quote, cache):
     return back[words[best[1]][1]], back[words[best[2]][2] - 1] + 1
 
 
-QUOTE_SPAN_MAX = 400      # no match by any other path reached 300 on the run of 09-07
-
-
 def locate(text, quote, cache=None):
-    """(start, end, how) with offsets into `text`, or (None, None, why). A quote may skip words
-    with an ellipsis, so its two halves can be found far apart; a span wider than QUOTE_SPAN_MAX
-    is refused, because a quote that runs to a chapter does not show the fact it is cited for."""
+    """(start, end, how) with offsets into `text`, or (None, None, why). Every path stores a
+    verbatim slice of the document; `words` only differs in how it FINDS one, and whether that
+    passage states the fact is the support check's question, not the gate's. A quote written with
+    an ellipsis is refused rather than stitched: the span between its pieces holds text the model
+    never cited, and ran to 17,560 characters before it was capped (ruling of 09-08)."""
     written = (quote or "").strip()
     start, end, how = find_after(text, written, cache)
     if start is not None:
@@ -771,18 +769,6 @@ def locate(text, quote, cache=None):
         start, end = whole_word_hit(text, bare, cache)
         if start is not None:
             return start, end, "unwrapped"
-    pieces = [p.strip() for p in bare.replace("…", "...").split("...") if p.strip()]
-    if len(pieces) > 1:
-        at, first, last = 0, None, None
-        for piece in pieces:
-            s, e, _ = find_after(text, piece, cache, at)
-            if s is None:
-                break
-            first, last, at = (s if first is None else first), e, e
-        else:
-            if last - first > QUOTE_SPAN_MAX:
-                return None, None, "span_too_wide"
-            return first, last, "pieces"
     start, end = words_hit(text, bare, cache)
     if start is not None:
         return start, end, "words"
