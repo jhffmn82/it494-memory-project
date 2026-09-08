@@ -128,6 +128,15 @@ def stub_generate(prompt, schema, stage, model=None, effort="low", ctx=None):
                 facts.append({"subject": n0, "predicate": "is_cited_loosely", "object": "and supported", "qualifiers": None, "quote": loose, "valid_from": None, "valid_to": None})
                 facts.append({"subject": n0, "predicate": "is_cited_loosely", "object": "an unsupported claim", "qualifiers": None, "quote": loose, "valid_from": None, "valid_to": None})
                 facts.append({"subject": n0, "predicate": "cannot_be_fixed", "object": "an unfixable claim", "qualifiers": None, "quote": loose, "valid_from": None, "valid_to": None})   # flagged, and the correction refuses it: dumped
+            if len(names) > 4 and len(words) >= 8:
+                # a lesser thing speaking about a major: lands inverse, so its object slot holds
+                # the minor's name and a correction must not be able to overwrite it (P1)
+                facts.append({"subject": names[4], "predicate": "is_cited_loosely_toward", "object": n0, "qualifiers": None,
+                              "quote": loose, "valid_from": None, "valid_to": None})
+                # the minor's OWN fact: it rides into the major, and only the minor's support call
+                # condemns it, so the major's adjudication may still cite it (P2)
+                facts.append({"subject": names[4], "predicate": "cannot_be_fixed", "object": "an unfixable claim", "qualifiers": None,
+                              "quote": loose, "valid_from": None, "valid_to": None})
         return {"facts": facts}
     if stage == "cells":
         names = re.search(r"ENTITIES: (.*)", prompt).group(1).split(", ")
@@ -150,7 +159,8 @@ def stub_generate(prompt, schema, stage, model=None, effort="low", ctx=None):
     if stage == "support":                                       # the small support-only call: the same rule as the adjudication's
         listing = prompt.split("FACTS:\n", 1)[1]
         return {"unsupported": [int(k) for k, line in re.findall(r"^(\d+)\. (.*)$", listing, re.M)
-                                if "an unsupported claim" in line or "an unfixable claim" in line]}
+                                if "an unsupported claim" in line or "an unfixable claim" in line
+                                or "is_cited_loosely_toward" in line]}
     if stage == "correct":                                       # the passage is fixed; the claim moves to fit it (R3)
         listing = prompt.split("STATEMENTS:" + chr(10), 1)[1]
         out = []
@@ -166,15 +176,26 @@ def stub_generate(prompt, schema, stage, model=None, effort="low", ctx=None):
         listing = prompt.split("FACTS:\n", 1)[1].split("\nCELLS:")[0]
         n = len(re.findall(r"^\d+\. ", listing, re.M))
         unsupported = [int(k) for k, line in re.findall(r"^(\d+)\. (.*)$", listing, re.M)
-                       if "an unsupported claim" in line or "an unfixable claim" in line]
+                       if "an unsupported claim" in line
+                       or ("an unfixable claim" in line and "(about " not in line)]
+        # a riding line is NOT flagged here, but the minor's own support call will condemn it, so
+        # the major may cite a fact the correction pass then dumps: the pointer P2 has to clean up
+        doomed = [int(k) for k, line in re.findall(r"^(\d+)\. (.*)$", listing, re.M)
+                  if "an unfixable claim" in line and "(about " in line]
         return {"facts": [{"predicate": "is_a", "object": "character", "qualifiers": None, "from": [1]},
                           {"predicate": "lives_in", "object": "Kansas", "qualifiers": None, "from": [1]},
                           {"predicate": "lives_at", "object": "the farm", "qualifiers": None, "from": [1]},   # the pairwise judge folds this into lives_in
                           *[{"predicate": f"trait_{k}", "object": "some", "qualifiers": None, "from": [1]} for k in range(min(n // 3, 20))],   # a spread that grows with the facts: a book judges predicates, a chat does not
-                          {"predicate": "bogus", "object": "nothing", "qualifiers": None, "from": [999]}],   # points at nothing: dropped
+                          {"predicate": "bogus", "object": "nothing", "qualifiers": None, "from": [999]},   # points at nothing: dropped
+                          *([{"predicate": "rests_on_a_doomed_fact", "object": "x", "qualifiers": None, "from": [1] + doomed[:1]}] if doomed else [])],
                 "attributes": [{"attribute": "kind", "value": "character", "from": list(range(1, min(n, 3) + 1))},
                                {"attribute": "standing alone", "value": None, "from": [1]}],
-                "contradictions": [], "unsupported": unsupported}
+                "contradictions": ([{"note": "two homes", "from": [1, 2], "holds": 2, "because": "the later unit"},
+                                    {"note": "out of range", "from": [1, 2], "holds": 999, "because": "nonsense"}]
+                                   + ([{"note": "holds a fact the correction will dump", "from": [1, doomed[0]],
+                                        "holds": doomed[0], "because": "the one the minor condemned"}] if doomed else [])
+                                   if n >= 2 else []),
+                "unsupported": unsupported}
     if stage in ("fold", "entity_abstract"):
         records = prompt.split("RECORDS:\n", 1)[1]
         names = sorted(set(CAP.findall(records)) - STOP)[:5]
@@ -351,6 +372,22 @@ check("attributes point at raw facts too, and an item pointing at nothing was dr
       and lines[-1]["counts"]["adjudication_dropped"] > 0)
 units_by_id = {u["unit_id"]: u for u in doc["units"]}
 check("an adjudicated attribute may stand without a value", any(a["value"] is None for a in by.get("attribute", [])))
+check("a fact that could not be corrected is ABSENT from the fact rows, not merely recorded (P6)",
+      not any(f["object"] == "an unfixable claim" for f in facts),
+      [f["object"] for f in facts if f["object"] == "an unfixable claim"][:3])
+stored_ids = {f["fact_id"] for f in facts}
+dangling = [(r["record"], i) for r in lines if r["record"] in ("adjudicated_fact", "attribute", "contradiction")
+            for i in r["from_facts"] if i not in stored_ids]
+check("nothing points at a fact the package does not carry (P2)", not dangling, dangling[:3])
+check("a contradiction never holds a fact the package does not carry (P2)",
+      all(c["holds"] in stored_ids for c in by.get("contradiction", []) if c["holds"] is not None))
+check("a contradiction the judge could not number resolves to nothing rather than to a wrong fact (R4, P7)",
+      any(c["holds"] is None for c in by.get("contradiction", []))
+      and any(c["holds"] is not None for c in by.get("contradiction", [])), len(by.get("contradiction", [])))
+check("an inverse fact's object is the other entity's name, and a correction cannot overwrite it (P1)",
+      all(f["object"] == f["provenance"]["subject_name"] for f in facts if f["direction"] == "inverse"))
+check("a corrected fact keeps the offsets its quote was gated on (P1)",
+      all(doc["text"][f["quote_start"]:f["quote_end"]] == f["quote"] for f in facts))
 check("a fact carries when it was said, from its unit, beside when it is true (R2)",
       facts and all("occurred_at" in f and "occurred_until" in f for f in facts)
       and all(f["occurred_at"] == units_by_id[f["unit_id"]].get("occurred_at") for f in facts))
@@ -562,9 +599,11 @@ check("nothing is consolidated, so the facts stand with their quotes",
       not any(r["record"] in ("adjudicated_fact", "attribute") for r in light_rows)
       and all(r["quote"] for r in light_rows if r["record"] == "fact")
       and light_counts["facts_stored"] > 0, light_counts["facts_stored"])
-check("the majors still get an abstract, written from their own cells without a call",
-      all(any(a["record"] == "abstract" and a["node_id"] == r["node_id"] for a in light_rows)
-          for r in light_rows if r["record"] == "node" and r["kind"] != "document"))
+light_celled = {r["node_id"] for r in light_rows if r["record"] == "cell"}
+light_abstracted = {r["node_id"] for r in light_rows if r["record"] == "abstract"}
+check("a major with a cell gets an abstract from it without a call; one with no cell may have none (C9)",
+      all(r["node_id"] in light_abstracted for r in light_rows
+          if r["record"] == "node" and r["kind"] != "document" and r["node_id"] in light_celled))
 check("a one-reading document reports its majors with their abstracts and facts (ruling of 09-07)",
       light_stats.get("one_reading") is True, light_stats.get("one_reading"))
 lines = ns["one_reading_report"](light_records, light_folded)
@@ -875,6 +914,10 @@ check("a correction whose object restates its predicate is refused (R3)",
       ns["corrected_fact"](raw_fact, {"predicate": "reduces_latency", "object": "reduces latency"}) is None)
 check("a bare boolean is refused as a corrected object (R3)",
       ns["corrected_fact"](raw_fact, {"predicate": "is_fast", "object": "true"}) is None)
+check("a correction that moves the subject is refused: it is a different fact, not this one corrected (P1)",
+      ns["corrected_fact"](raw_fact, {"subject": "the house", "predicate": "falls_on", "object": "the Witch"}) is None)
+check("a correction naming the same subject in another case is still accepted (P1)",
+      ns["corrected_fact"](raw_fact, {"subject": "ZEP", "predicate": "reduces_latency_by", "object": "90 percent"}) is not None)
 check("a correction that says something is kept, and keeps the fact's subject when none is given (R3)",
       ns["corrected_fact"](raw_fact, {"predicate": "reduces_latency_by", "object": "90 percent"})
       == {"subject": "Zep", "predicate": "reduces_latency_by", "object": "90 percent", "qualifiers": None})

@@ -1841,19 +1841,36 @@ def write_package(doc, records, entities, folded, adjudicated, ledger, candidate
                           "text": " ".join(c["text"] for c in cells), "tier": LUNA,
                           "provenance": {"ingestor": INGESTOR, "entity_names": [c["entity"] for c in cells]}})
 
+    # what the correction pass will dump, known before anything points at it: an adjudicated
+    # item, an attribute or a contradiction may not cite a fact this package will not carry (P2)
+    flagged, corrections = flagged or {}, corrections or {}
+    dumped_ids, stranded = set(flagged) - set(corrections), 0
+
     # the adjudicated record of each major, its predicates as the model wrote them
     for e in folded["majors"]:
         nid, result = node_id_of(doc, e), adjudicated.get(e["index"], {"facts": [], "attributes": [], "contradictions": []})
         for item in result["facts"]:
+            sources = [i for i in item["from_facts"] if i not in dumped_ids]
+            if not sources:                              # every fact it rested on was dumped (P2)
+                stranded += 1
+                continue
             lines.append({"record": "adjudicated_fact", "node_id": nid, "predicate": snake_case(item["predicate"]) or "related_to",
-                          "object": item["object"], "qualifiers": item.get("qualifiers") or None, "from_facts": item["from_facts"], "tier": TERRA})
+                          "object": item["object"], "qualifiers": item.get("qualifiers") or None, "from_facts": sources, "tier": TERRA})
         for item in result["attributes"]:
-            lines.append({"record": "attribute", "node_id": nid, "attribute": item["attribute"], "value": item["value"], "from_facts": item["from_facts"], "tier": TERRA})
+            sources = [i for i in item["from_facts"] if i not in dumped_ids]
+            if not sources:
+                stranded += 1
+                continue
+            lines.append({"record": "attribute", "node_id": nid, "attribute": item["attribute"], "value": item["value"], "from_facts": sources, "tier": TERRA})
         for item in result["contradictions"]:
             # the document's own resolution, recorded here and not on the fact: both facts stay
             # active, and the global layer sees that this document said both things (R4, 09-07)
-            holds = item.get("holds_fact") if item.get("holds_fact") in item["from_facts"] else None
-            lines.append({"record": "contradiction", "node_id": nid, "note": item["note"], "from_facts": item["from_facts"],
+            sources = [i for i in item["from_facts"] if i not in dumped_ids]
+            if len(sources) < 2:            # with a source dumped there is nothing left to disagree (P2)
+                stranded += 1
+                continue
+            holds = item.get("holds_fact") if item.get("holds_fact") in sources else None
+            lines.append({"record": "contradiction", "node_id": nid, "note": item["note"], "from_facts": sources,
                           "holds": holds, "because": (item.get("because") or None) if holds else None})
 
     # the document level: abstracts, dossiers, the ledger, the candidates
@@ -1873,7 +1890,6 @@ def write_package(doc, records, entities, folded, adjudicated, ledger, candidate
     # rejection, never written with a flag (R3, ruling of 09-07)
     when_of = {u["unit_id"]: (u.get("occurred_at"), u.get("occurred_until")) for u in doc["units"]}
     landed, landed_ids, riding = landings(records, folded), set(), 0
-    flagged, corrections = flagged or {}, corrections or {}
     dumped = []
     for e in folded["majors"]:
         nid = node_id_of(doc, e)
@@ -1887,12 +1903,15 @@ def write_package(doc, records, entities, folded, adjudicated, ledger, candidate
             landed_ids.add(f["fact_id"])
             riding += direction == "about"
             object_node = node_of.get((position_of[f["unit_id"]], f["object"])) if f["object_is_entity"] else None
-            if fix is not None:                              # the passage stands; the claim moved to fit it
-                obj, is_node = fix["object"], False
-            elif direction == "forward":
-                obj, is_node = object_node or f["object"], object_node is not None
-            else:                                     # inverse: the minor's name is the value; about: the minor's own fact
-                obj, is_node = (f["subject"] if direction == "inverse" else f["object"]), False
+            # a correction may move the predicate, the qualifiers and the object; it may not move
+            # the subject (corrected_fact refuses that), and on an inverse landing the object slot
+            # structurally holds the other entity's name, so it is not the correction's to set (P1)
+            if direction == "forward":
+                obj, is_node = (fix["object"], False) if fix else (object_node or f["object"], object_node is not None)
+            elif direction == "inverse":
+                obj, is_node = f["subject"], False
+            else:                                     # about: the minor's own fact, riding into this major
+                obj, is_node = (fix["object"] if fix else f["object"]), False
             lines.append({"record": "fact", "fact_id": stored_id, "subject": nid,
                           "predicate": fix["predicate"] if fix else f["predicate"], "object": obj,
                           "object_is_node": is_node, "direction": direction,
@@ -1935,6 +1954,7 @@ def write_package(doc, records, entities, folded, adjudicated, ledger, candidate
               "support_calls": sum(a.get("support_calls", 0) for a in adjudicated.values()),
               "adjudications_rejected": sum(1 for a in adjudicated.values() if a.get("rejected")),
               "facts_flagged": len(flagged), "facts_corrected": len(corrections), "facts_dumped": len(dumped),
+              "adjudication_stranded": stranded,        # items whose every source was dumped (P2)
               "has_abstract": folded["abstract"] is not None}
     lines.append({"record": "completion", "doc_id": doc["doc_id"], "input_hash": input_hash(doc), "ingestor": INGESTOR, "counts": counts,
                   "stats": stats, "empty": counts["facts_stored"] == 0 and counts["cells"] == 0, "excluded": excluded,
@@ -2213,6 +2233,11 @@ def corrected_fact(f, item):
     predicate = snake_case(str(item.get("predicate") or "")) or f["predicate"]
     obj = str(item.get("object") or "").strip()
     if not subject or not obj or obj.casefold() in ("true", "false"):
+        return None
+    if norm(subject) != norm(f["subject"]):
+        # a correction that moves the subject is a different fact, not this one corrected: the
+        # subject decides which node it lands on and whether it rides, and this pass runs after
+        # landing, so it cannot be re-landed. Dumped rather than stored under the wrong node (P1)
         return None
     said = norm(obj).replace("_", " ")            # the predicate written as words is still the predicate
     if said == norm(subject).replace("_", " ") or said == norm(predicate).replace("_", " "):
