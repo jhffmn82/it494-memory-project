@@ -70,3 +70,7 @@ their saved outputs as run.
   schema record-by-record, documents that disagree, the defensibility questions, and ten rulings
   requested. The housekeeping executed the same day: master fast-forwarded 137 commits, the
   ingestor branch merged, this index and the schema brought level with the code.
+- [2026-09-08](2026-09-08/review.md): whole-repo review, the publishability review, and the forward
+  plan. [review.md](2026-09-08/review.md) (drift and schema), [publishability-review.md](2026-09-08/publishability-review.md)
+  (scope, rigor, feasibility, the reviewer's ten questions), [forward-plan.md](2026-09-08/forward-plan.md)
+  (the execution timeline to the fall paper, build and write tracks on one calendar).
