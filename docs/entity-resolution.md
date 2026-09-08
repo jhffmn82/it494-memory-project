@@ -158,18 +158,187 @@ hole forming, or nothing merging at all) months before any benchmark would.
 
 The Tip fixture belongs here too. It is a regression test first and a demonstration second.
 
-## Open: at what scope does a node exist
+## Settled, 2026-09-07: a node exists at document scope, and nothing is ever merged
 
-Undecided, cheap now, expensive after any corpus is loaded. `scope_id` exists on cells and abstracts
-and is **not** on resolution.
+The question was at what scope a node exists, with two shapes offered: corpus-global with
+per-scope aliases, or scope-local with explicit cross-scope links. Justin's answer takes the
+second and pushes it further than "links". **Nothing is ever merged. It is a tree.**
 
-Within one novel "the boy" has a few dozen candidates. Across many works the same name collides
-constantly: every Elizabeth, every Mary, every doctor. Resolve globally and those merge. Resolve per
-work and cross-work linking disappears, which is the interesting case, since Napoleon in Tolstoy and
-Napoleon in Hugo are the same person.
+Three rules, and everything else is a consequence of them.
 
-Two shapes: a node is corpus-global with per-scope aliases, or scope-local with explicit cross-scope
-links. Decide before the second corpus is ingested, not after.
+1. **A fact, a relationship edge and a child node each belong to exactly one document.**
+2. **A parent node holds no asserted content.** It carries three derived fields and nothing else:
+   a name, a profile of what it is, and an abstract. Every one of them is recomputed from its
+   children and none of them is ever the source of a fact or citable as evidence.
+3. **A parent owns no edges.** Documents point up at it. The up-edge belongs to the child's
+   document, like every other edge.
+
+A fourth rule governs what those derived fields may say. **A child says something about the
+world; a parent says something about the corpus.** "GPT-4 scored 71.2 percent" is a claim about
+the world, needs a quote, and lives on a child. "This entity appears in sixteen documents, as the
+system under test in twelve" is a claim about documents that are in hand and countable, and needs
+no quote because it asserts nothing about GPT.
+
+Stated as a test a reviewer can apply: **every sentence on a parent must be reducible to "N of M
+children say X".** A clause that cannot be written as a count does not belong there. That is
+stricter than the fabrication check, which only asks whether the names below are real; this asks
+whether the claim itself is a count.
+
+### Why the three fields are those three
+
+An entity mentioned in a paper's abstract yields exactly three things: its name, that it is an LLM
+model, and that it was used for benchmarking in that paper. Nothing else is knowable from a
+mention, and nothing else belongs on the parent. They map one to one: the name feeds the parent's
+name, the kind feeds its profile, the role feeds one line of its abstract.
+
+That also says which fields should agree and which should vary. Name and kind should agree across
+every child, so **disagreement between children is the attachment alarm** rather than a tie to
+break: a parent whose children call it `model` and `company` has a wrong up-edge, and the signal
+is free because the field was being computed anyway. Role is the field that legitimately differs,
+which is why the abstract is a collection of roles rather than a summary of a thing.
+
+The shape scales by itself. GPT's parent is thin, because its children are mentions. Dorothy's is
+rich, because her children are protagonists carrying dozens of facts each: "a recurring character
+in Baum's Oz series, frequently depicted as brave, who ventures to Oz numerous times" is three
+counts over her children and asserts nothing they do not. Same rule, no special case for a
+mention-only entity against a lead character. A parent is as informative as its children can
+support and never more.
+
+So the store is a forest of identity trees over a set of per-document graphs. Relationships are
+still graphs; they are confined to a document. The only thing that spans documents is the tree,
+and a cross-document traversal goes up through a parent and back down into another document.
+
+### Say it as class and instance
+
+Justin's own framing, and the one to use with a CS audience: **Dorothy is the class, each Dorothy
+in a book is a living instance.** The up-edge is `instance_of`, which is also Wikidata's P31, so
+the name comes with precedent. Precision worth keeping, because a reviewer will test it: this is
+a class **induced from its instances**, bottom up, and it constrains nothing. A child may
+contradict its siblings and both stand. Plain OOP declares the class first and makes instances
+conform; a class that cannot reject a non-conforming instance is not doing a class's job, so say
+"a class induced from its instances, with no authority over them" and the analogy holds.
+
+Two things follow directly. The kind alarm gets its reason: two things cannot be instances of one
+class if their `is_a` disagrees, so a child whose kind differs from its siblings is a wrong
+attachment rather than a tie to break. And the parent's three derived fields get a definition:
+they are static members computed over the instances, with the counting rule above as the only
+thing keeping them from becoming assertions.
+
+The comparison worth borrowing and not overclaiming is the B+ tree. Its defining property is that
+**all data lives in the leaves and internal nodes are routing keys**, which is this design
+restated in another vocabulary and is the justification for treating the parent as an index. What
+does not carry over is the rest of the B+ tree: identity has no total order, there is no separator
+key, and at two levels deep there is nothing to descend. What this actually resembles is an
+inverted index with cluster representatives, except that the representative keeps every member's
+vector instead of a centroid, **because a centroid is a merge**: averaging the children's vectors
+destroys exactly what the design refuses to destroy, and it fails hardest on the case that
+matters, where one instance of Dorothy is a farm girl in Kansas and another is a ruler in Ozma.
+So in writing take the property and leave the name.
+
+### What this buys
+
+**Merging stops being destructive, because it stops existing.** Attaching a child to a parent is
+adding an edge. Nothing is rewritten and nothing is combined, so there is no un-merge problem:
+re-deciding identity is re-pointing an edge.
+
+**Insertion is append-only, and the incremental-insertion problem is not solved but unposed.**
+RAPTOR, GraphRAG and Talebirad all leave insertion open because inserting means re-merging: a new
+document can change what an existing node *is*. Here a new document mints its own children and
+attaches edges, and no existing node changes.
+
+**Deletion is correct for free.** In a merged graph, "forget this conversation" is close to
+impossible, because the merged node carries contributions from it that cannot be subtracted
+without re-deriving everything downstream. Here, deleting a document removes its children and its
+edges, including its claim on the parent; the parent survives with fewer children or is dropped.
+Nothing else is touched. For a backend meant to hold one person's archive, retention and
+forgetting become a delete rather than a research problem.
+
+**Provenance is total, and the synthesized layer disappears.** Every edge in the store answers
+"which document says so", including the identity claim. This matters because of a measured
+finding, not a hoped-for one: in the archive's own layer-seam audit, 39 node claims traced to raw
+gave 31 confirmed, 4 wrong and 4 unsupported, and *every* defect sat in the synthesized layer
+while all 31 leaf checks were clean. A store with no synthesized layer has nowhere for that class
+of defect to live.
+
+**The quote gate becomes structural rather than procedural.** A fact needs a quote, a quote needs a
+document, so every fact hangs off a child. A parent cannot carry a fact, so it is impossible *by
+shape* for an unsourced claim to exist. That is a stronger guarantee than the gate, which is code
+and could be wrong.
+
+**Disagreement survives and becomes visible.** Two children of one parent may say contradictory
+things and both stand. A merged node cannot represent "these sources disagree about whether this
+is one person"; a spine can, and that is the state a memory over two years of an archive is
+actually in.
+
+**One parent per child, with no ambiguity to bury.** A child belongs to one document and its
+document makes one claim. Two documents disagreeing appears as two children under different
+parents, which is visible and resolvable, rather than as an ambiguity folded inside a node.
+
+### What it costs, and what it changes about the paper
+
+There is no stored answer to "what is true of Dorothy". There are eleven document-Dorothies and a
+parent; any consolidated view is computed on demand and never written. That is a one-hop
+traversal, deterministic and cheap, but it is a traversal.
+
+**Duplicate-minting rate stops being a metric this system can compete on**, because it is not
+minting duplicates, it is declining to decide. The honest replacement is *attachment accuracy*:
+how often the up-edge puts a child under the right parent, scored against LitBank's gold
+coreference. That is a cleaner question than "did the merge lose something" and it is measurable
+without a judge model.
+
+The comparison to GraphRAG therefore changes shape. It is no longer "our merge is better than
+yours"; it is "we do not merge, here is what that costs at query time and here is what it buys in
+insertion, deletion and provenance". A reviewer will ask how a multi-hop cross-document question
+gets answered. The answer is the traversal, and its cost and accuracy have to be measured rather
+than asserted.
+
+### Still to decide, none of it destructive
+
+0. **Granularity, and it may answer itself.** GPT, GPT-3.5, GPT-4 and GPT-4o: one parent or four?
+   If the evidence is name, kind and role, they stay four, because nothing in the corpus says they
+   are the same and a design whose point is to not assert what it does not know cannot quietly
+   assert it. They collapse only when a document says so, in which case that is a fact on a child
+   with a quote behind it. The rule falls out rather than being imposed.
+1. **What draws the up-edge.** Given a new document's children, which existing parents they attach
+   to. This is the only global operation left. It is a matching problem over monikers and
+   dossiers, not a merge, and being an edge it can be redone.
+2. **The parent's name.** It needs one to be findable. Derived from its children and recomputable,
+   a cache rather than an assertion, consistent with the rule that indexes are derived and
+   disposable.
+3. **Whether the up-edge carries its score and its evidence.** It should, or the reason for the
+   link is thrown away and it cannot be re-decided later.
+
+### Consequences already ruled, 2026-09-07
+
+These were taken as ingestor decisions before the shape above was stated, and they are its
+consequences rather than separate rules. Numbering is from
+`log/2026-09-07/decisions-ingestor-0.7.md`.
+
+- **48.** A node id cannot be a hash of a single document at the global level, though it can at the
+  document level. The document-level id is the moniker plus its first mention. The global id is
+  Step 2's business, which under this shape means it is a parent token and nothing more.
+- **49.** The same name and kind unite on sight only when nothing in their `is_a` conflicts. The
+  Iliad's two men named Ajax and Oz's two Wicked Witches are why.
+- **54.** The package ships the dossier text and no vector, so the embedder can change. Under this
+  shape the parent's index is derived anyway, which is the same argument.
+- **It may reopen the minors ruling.** Minor entities are mentions inside documents because
+  disambiguating them costs too much and, being minor, there is not enough information to do it
+  with. A parent asks for nothing more than name, kind and role, which is what a minor already
+  has, and a wrong up-edge is an edge to re-point rather than a merge to unpick. The cost argument
+  survives, since it is thousands more attachment decisions. The information argument may not.
+  Decide deliberately rather than inheriting it.
+
+- **61.** A node records whether its document ever named it, so the both-named rule can be applied
+  across documents rather than guessed from aliases. That rule is now what draws the up-edge.
+
+### Not yet claimed as novel
+
+This resembles published things: Wikidata items whose statements carry references rather than
+being merged, cluster representatives in entity resolution, singleton and canopy models. Whether
+this exact formulation, a parent that holds nothing and edges that are all document-owned, is
+published is unsearched. It is written here as a design position that dissolves three open
+problems named in the reading list, which is worth recording whether or not it turns out to be
+new. Search before it goes near the paper.
 
 ## What to instrument at build time
 
