@@ -1559,13 +1559,9 @@ def fold(what, children, ctx, stage="fold"):
     return " ".join(reply["summary"].split()), limit
 
 
-def salience_order(item):
-    return (not item[0], -item[1], -item[2])
-
-
 def fold_document(records, entities, ctx, light=False):
     out = {"abstract": None, "majors": [], "minors": [], "dossiers": [], "entity_abstracts": [],
-           "demoted": [], "by_abstract_only": 0, "cells_of": {}}
+           "demoted": [], "cells_of": {}}
     work = [r for r in records if r["summary"]]
     summaries = [f"[{r['label']}] {r['summary']}" for r in work]
     if len(summaries) == 1:                       # one summarised unit: its summary is the abstract, no call
@@ -1578,21 +1574,11 @@ def fold_document(records, entities, ctx, light=False):
     if text:
         out["abstract"] = {"text": text, "limit": limit, "tier": tier}
 
-    # salience is a union of promotions and nothing is ever demoted (ruling of 09-07): an entity
-    # is a document-major if anything made it one -- a unit called it major, the abstract names
-    # it, it carries a proper name, or it clears the thresholds. Being in the abstract used to be
-    # the only route, which made the abstract's word limit the document's entity budget.
-    abstract, ranked = (text or "").casefold(), []
+    # salience decides a major and nothing else does (ruling of 09-07): a unit called it major,
+    # so it is a major of the document, and nothing takes that away.
     for e in entities:
-        in_abstract = any(whole_word(s, abstract) for s in e["surfaces"] if len(s) >= 2) if text else None
-        major = e["unit_major"]        # salience decides, nothing else promotes, nothing demotes
-        ranked.append((major, len(e["units"]), e["n_facts"], in_abstract, e))
-    ranked.sort(key=salience_order)
-    out["by_abstract_only"] = sum(1 for major, n_units, n_facts, in_abstract, e in ranked if in_abstract)
-    for major, n_units, n_facts, in_abstract, e in ranked:
-        e["major"] = major
-        e["rank"] = {"in_abstract": in_abstract, "unit_major": e["unit_major"], "named": e["named"],
-                     "units": n_units, "facts": n_facts, "no_abstract": False}
+        e["major"] = e["unit_major"]
+        e["rank"] = {"units": len(e["units"]), "facts": e["n_facts"], "no_abstract": False}
         (out["majors"] if e["major"] else out["minors"]).append(e)
 
     # dossiers and per-entity abstracts for the majors, keyed by index (two clusters may share a name)
@@ -2165,11 +2151,8 @@ def show_fold(folded):
     if folded["demoted"]:
         print(f"    not majors, nothing to summarise (decision 52): {', '.join(folded['demoted'])[:200]}")
     for e in folded["majors"]:
-        rank = e["rank"]
-        why = ("in abstract" if rank["in_abstract"] else "major in a unit" if rank["unit_major"]
-               else "named" if rank["named"] else "by unit and fact count")
         others = [n for n in e["names"] if n != e["name"]]
-        print(f"    {e['name'][:34]:<34} {'/'.join(e['kinds'])[:16]:<16} units {len(e['units']):>3} facts {e['n_facts']:>3}  {why}  "
+        print(f"    {e['name'][:34]:<34} {'/'.join(e['kinds'])[:16]:<16} units {len(e['units']):>3} facts {e['n_facts']:>3}  "
               + (f"also: {', '.join(others)[:60]}" if others else ""))
 
 
@@ -2488,7 +2471,7 @@ def rollup_text(path, top=5):
     print(f"\nMAJOR ENTITIES ({len(ranked)})")
     for n_units, n_facts, n in ranked:
         print(f"    {n['name'][:36]:<36} {n['kind'][:16]:<16} units {n_units:>3}  raw facts {n_facts:>3}  consolidated {len(adjudicated_of.get(n['node_id'], [])):>3}"
-              f"  attributes {len(attributes_of.get(n['node_id'], [])):>3}  {'in abstract' if n['provenance'].get('salience', {}).get('in_abstract') else 'by tie-break'}")
+              f"  attributes {len(attributes_of.get(n['node_id'], [])):>3}")
     for n_units, n_facts, n in ranked[:top]:
         nid = n["node_id"]
         print(f"\n{'=' * 8} {n['name']} ({n['kind']}): {n_units} units, {n_facts} raw facts")

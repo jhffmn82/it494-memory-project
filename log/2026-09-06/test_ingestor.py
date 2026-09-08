@@ -335,13 +335,11 @@ check("a pair the judge could not settle was judged once more at the end", any(l
 check("two named locals with the same name and kind unite on sight, no judge", any(l["how"] == "same_name" and l["verdict"] == "same" for l in by["ledger"]))
 check("an object points at a node only when that node is in this package (E3, restated for R6)",
       all(f["object"] in {l["node_id"] for l in lines if l["record"] == "node"} for f in facts if f["object_is_node"]))
-check("salience alone decides a major: every major was called major by a unit, and no minor was",
-      all(e["rank"]["unit_major"] for e in folded["majors"])
-      and not any(e["rank"]["unit_major"] for e in folded["minors"] if not e["rank"].get("no_abstract")))
+check("salience alone decides a major: every major is one a unit called major",
+      folded["majors"] and all(e["unit_major"] for e in folded["majors"])
+      and not any(e["unit_major"] for e in folded["minors"] if not e["rank"].get("no_abstract")))
 check("decision 52 is the only demotion left, and it is about having no content, not about salience (P4)",
       all(not e["rank"].get("no_abstract") or e["n_facts"] == 0 for e in folded["minors"]))
-check("an entity a unit called major is still major at roll-up, abstract or no abstract (R6)",
-      all(e["major"] for e in folded["majors"] + folded["minors"] if e["rank"]["unit_major"]))
 inverse = [f for f in facts if f["direction"] == "inverse"]
 check("a minor's fact about a major lands on the major, marked inverse, with the minor's name as its value", inverse and all(f["subject"] in node_ids and not f["object_is_node"] and f["object"] not in node_ids for f in inverse))
 adjudicated = by.get("adjudicated_fact", [])
@@ -444,8 +442,6 @@ check("the fact counters close: stored is what landed plus the riding copies",
 check("an entity the document cannot summarise is not a major, and its facts ride (decision 52)",
       all(any(a["record"] == "abstract" and a["node_id"] == ns["node_id_of"](doc, e) for a in lines) for e in folded["majors"])
       and all(not e["rank"].get("no_abstract") for e in folded["majors"]))
-check("every entity the abstract names is a major; being named in it is a promotion, not the only one (R6)",
-      folded["majors"] and all(e["major"] for e in folded["majors"] + folded["minors"] if e["rank"]["in_abstract"]))
 check("a profile row carries no constant confidence (decision 62)", all("confidence" not in p for p in by.get("profile", [])))
 check("ledger rows carry evidence", by.get("ledger") and all(l["evidence"] for l in by["ledger"]))
 check("edges: has_unit per unit and appears_in per major", sum(1 for e in by["edge"] if e["predicate"] == "has_unit") == len(doc["units"]) and sum(1 for e in by["edge"] if e["predicate"] == "appears_in") == len(folded["majors"]))
@@ -530,9 +526,6 @@ rows = list(ns["read_jsonl"](p))
 doc_abstract = [r for r in rows if r["record"] == "abstract" and r["node_id"] == ns["h"](rows[0]["doc_id"], "document")]
 check("a summary naming something the records do not is still stamped, not rejected (decision 65)",
       len(doc_abstract) == 1 and "Rumpelstiltskin" in doc_abstract[0]["text"], doc_abstract[0]["text"][:60] if doc_abstract else None)
-check("every node records which promotion made it a major (R6)",
-      rows[-1]["counts"]["majors"] > 0 and all(any(r["provenance"]["salience"][why] for why in ("in_abstract", "unit_major", "named"))
-                                               for r in rows if r["record"] == "node" and r["kind"] != "document"))
 check("an entity with nothing to summarise is not a major (decision 52)",
       all(any(a["record"] == "abstract" and a["node_id"] == r["node_id"] for a in rows) for r in rows if r["record"] == "node" and r["kind"] != "document"))
 script["bad_fold"] = 0
