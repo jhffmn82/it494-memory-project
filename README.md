@@ -123,6 +123,7 @@ return only if the folder does.
     BUILD.md                 how the pipeline code behaves
     RESEARCH.md              framing, prior art, measurements, open items
     docs/proposal.md         the three-page project explanation
+    docs/extractor.md        Step 0 algorithm and data contract (human-readable)
     docs/evaluation-corpus.md  every dataset and what the build owes it
     docs/entity-resolution.md  the resolution design and its guards
     docs/references.md       sources behind the schema decisions
