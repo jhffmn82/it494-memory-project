@@ -164,6 +164,11 @@ def stub_generate(prompt, schema, stage, model=None, effort="low", ctx=None):
         return {"unsupported": [int(k) for k, line in re.findall(r"^(\d+)\. (.*)$", listing, re.M)
                                 if "an unsupported claim" in line or "an unfixable claim" in line
                                 or "is_cited_loosely_toward" in line or "wrongly flagged" in line]}
+    if stage == "verify":                                        # the reworded facts, checked again (step 3)
+        listing = prompt.split("FACTS:" + chr(10), 1)[1]
+        # a rewording that still says nothing fails; anything else passes, as a real check would
+        return {"unsupported": [int(k) for k, line in re.findall(r"^(\d+)\. (.*)$", listing, re.M)
+                                if "restate_me" in line]}
     if stage == "correct":                                       # the passage is fixed; the claim moves to fit it (R3)
         listing = prompt.split("STATEMENTS:" + chr(10), 1)[1]
         out = []
@@ -565,9 +570,9 @@ check("the short path buys no triage, no entity abstract and no adjudication",
       not {"triage", "entity_abstract", "adjudicate"} & set(stages), sorted(set(stages)))
 check("its facts are verified in a single pass over the whole document",
       stages.count("support") == 1, stages)
-check("four calls a document, and a fifth only when something needed correcting (R3)",
-      len(stages) == 4 + (1 if stages.count("correct") else 0)
-      and stages.count("correct") <= 1
+check("four calls a document; a fifth to reword what was flagged and a sixth to check the rewording (09-08)",
+      len(stages) == 4 + stages.count("correct") + stages.count("verify")
+      and stages.count("correct") <= 1 and stages.count("verify") <= 1
       and (stages.count("correct") == 1) == (rows[-1]["counts"]["facts_flagged"] > 0), stages)
 # two or fewer children still stand as the abstract; what C9 forbids is the long degenerate
 # case, an entity with no cell whose abstract is a run of predicate strings and nothing else
