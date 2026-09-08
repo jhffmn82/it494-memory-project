@@ -1298,11 +1298,17 @@ def ineligible(members, ra, rb, ruled_apart):
     return False
 
 
-def pair_up(locals_, clusters, ruled_apart):
+def pair_up(locals_, clusters, ruled_apart, seen_pairs=None):
     """One round of the clustering, Justin's rule: every entity still in consideration is scored
     against every other, the pairs at or above SIMILAR_ENOUGH are filtered by eligibility, and
     the strongest is taken with both its sides leaving consideration, until no eligible pair
-    remains. (the pairs taken, how many were eligible)."""
+    remains. (the pairs taken, how many were eligible).
+
+    A pair already judged and not merged is not a candidate, so its slot goes to the next-best
+    one; skipping it after the round was chosen let two unsure pairs block their four entities
+    from ever being compared to each other, and the rounds then ended with nothing fresh
+    (fixed 09-07)."""
+    seen_pairs = seen_pairs or set()
     members, scored = cluster_members(locals_, clusters), []
     for a in locals_:
         for b in locals_[:a["id"]]:
@@ -1314,6 +1320,8 @@ def pair_up(locals_, clusters, ruled_apart):
                 continue
             scores = score_pair(a, b, reason)
             if scores[3] < SIMILAR_ENOUGH or ineligible(members, ra, rb, ruled_apart):
+                continue
+            if frozenset((ra, rb)) in seen_pairs:      # judged in an earlier round and not merged
                 continue
             scored.append((TIER[reason], scores[3], b["id"], a["id"], reason, scores))
     scored.sort(key=by_priority)
@@ -1344,20 +1352,23 @@ def dossier(members):
 
 def judge(batch, locals_, clusters, ctx):
     """One Terra call over up to PAIRS_PER_CALL pairs of cluster roots, every dossier sent once;
-    {pair number: (verdict, reason)} in batch order."""
+    ({pair number: (verdict, reason)} in batch order, how many numbers were out of range). The
+    prompt numbers dossiers and pairs separately, so a model answering by the dossier writes to
+    a key nothing reads and the pair it judged falls through to the default (fixed 09-07)."""
     roots = sorted({r for pair in batch for r in pair})
     number = {r: n for n, r in enumerate(roots, 1)}
     members = {r: [l for l in locals_ if clusters.find(l["id"]) == r] for r in roots}
     dossiers = "\n\n".join(f"[{number[r]}]\n{dossier(members[r])}" for r in roots)
     pairs = "\n".join(f"PAIR {n}: [{number[a]}] and [{number[b]}]" for n, (a, b) in enumerate(batch, 1))
     reply = generate(JUDGE_PROMPT + "\nDOSSIERS\n" + dossiers + "\n\nPAIRS\n" + pairs, JUDGE_SCHEMA, "judge", model=TERRA, effort="medium", ctx=ctx)
-    verdicts = {}
+    verdicts, misnumbered = {}, 0
     for v in (reply or {}).get("verdicts", []):
-        try:
-            verdicts[int(v["pair"]) - 1] = (v["verdict"], v.get("reason", ""))
-        except (TypeError, ValueError):
-            pass
-    return verdicts
+        numbered = valid_sources([v.get("pair")], len(batch))
+        if not numbered:
+            misnumbered += 1
+            continue
+        verdicts[numbered[0] - 1] = (v["verdict"], v.get("reason", ""))
+    return verdicts, misnumbered
 
 
 def reconcile(records, ctx, watch=False):
@@ -1384,16 +1395,24 @@ def reconcile(records, ctx, watch=False):
 
     # 2. the judge over the queue: same unites, different stays apart, unsure waits for the last
     #    look. A union that would join a pair already ruled different is refused.
-    apart, deferred, judged, calls, rounds, queued = [], [], 0, 0, 0, 0
+    apart, deferred, judged, calls, rounds, queued, misnumbered = [], [], 0, 0, 0, 0, 0
 
     def decide(batch, final):
-        nonlocal judged, calls
-        verdicts = judge(batch, locals_, clusters, ctx)
+        nonlocal judged, calls, misnumbered
+        verdicts, bad = judge(batch, locals_, clusters, ctx)
         members = cluster_members(locals_, clusters)
         calls += 1
         judged += len(batch)
+        misnumbered += bad
+        # a "different" is a constraint and a "same" is a merge, so the constraints are applied
+        # first: on the last look a batch can hold pairs that share a cluster, and in batch order
+        # two earlier "same"s united the two sides a later "different" ruled apart (fixed 09-07)
+        order, rank = [], {"different": 0, "same": 1, "unsure": 2}
         for n, (ra, rb) in enumerate(batch):
             verdict, reason = verdicts.get(n, ("unsure", "no verdict returned"))
+            order.append((rank.get(verdict, 2), n, ra, rb, verdict, reason))
+        order.sort()
+        for _, n, ra, rb, verdict, reason in order:
             how = "judged again" if final else "judged"
             if verdict == "same" and ineligible(members, clusters.find(ra), clusters.find(rb), ruled_apart):
                 # a guard the pairing rules should make unreachable: one pair to an entity a round
@@ -1432,13 +1451,10 @@ def reconcile(records, ctx, watch=False):
     #    queues nothing, which is when nothing eligible is left above the threshold.
     seen_pairs = set()
     while True:
-        queue, eligible = pair_up(locals_, clusters, ruled_apart)
+        queue, eligible = pair_up(locals_, clusters, ruled_apart, seen_pairs)
         fresh = []
         for tier, combined, i, j, reason, (name, cooc, profile, _) in queue:
-            key = frozenset((clusters.find(i), clusters.find(j)))
-            if key in seen_pairs:                 # judged in an earlier round and not merged
-                continue
-            seen_pairs.add(key)
+            seen_pairs.add(frozenset((clusters.find(i), clusters.find(j))))
             fresh.append((i, j))
             candidates.append({"a": locals_[i]["name"], "a_unit": locals_[i]["ui"], "b": locals_[j]["name"], "b_unit": locals_[j]["ui"],
                                "round": rounds + 1, "tier": tier, "reason": reason, "name_score": round(name, 3),
@@ -1453,7 +1469,8 @@ def reconcile(records, ctx, watch=False):
     # 4. the deferred pairs' last look against the finished clusters
     last_look, deferred = list(deferred), []
     batches(last_look, final=True)
-    stats = {"locals": len(locals_), "candidate_pairs": queued, "judged_pairs": judged, "judge_calls": calls, "judge_rounds": rounds}
+    stats = {"locals": len(locals_), "candidate_pairs": queued, "judged_pairs": judged, "judge_calls": calls,
+             "judge_rounds": rounds, "judge_misnumbered": misnumbered}
     return cluster_entities(locals_, clusters), ledger, candidates, stats
 
 
@@ -1790,7 +1807,17 @@ def write_package(doc, records, entities, folded, adjudicated, ledger, candidate
 
     # facts, each under the major it lands on; a fact the adjudication set aside is ranked unsupported
     landed, landed_ids, riding = landings(records, folded), set(), 0
-    unsupported = {stored_id for result in adjudicated.values() for stored_id in result.get("unsupported", [])}
+    rides = {}                     # a minor's raw fact id -> the ids its riding copies are stored under
+    for e in folded["majors"]:
+        for f, direction, label, stored_id, tying in landed[e["index"]]:
+            if direction == "about":
+                rides.setdefault(f["fact_id"], []).append(stored_id)
+    # a check_one verdict names the raw fact, but the package holds it only as riding copies, so
+    # the verdict is carried to those. A fact that does not ride is stored under its own id and
+    # is unchanged; a raw id that rides nowhere names no line here at all (fixed 09-07).
+    unsupported = set()
+    for stored_id in {sid for result in adjudicated.values() for sid in result.get("unsupported", [])}:
+        unsupported.update(rides.get(stored_id, [stored_id]))
     for e in folded["majors"]:
         nid = node_id_of(doc, e)
         for f, direction, label, stored_id, tying in landed[e["index"]]:
@@ -1830,7 +1857,7 @@ def write_package(doc, records, entities, folded, adjudicated, ledger, candidate
               "contradictions": sum(1 for l in lines if l["record"] == "contradiction"),
               "adjudication_dropped": sum(a.get("dropped", 0) for a in adjudicated.values()),
               "adjudications_skipped": sum(1 for e in folded["majors"] if adjudicated.get(e["index"], {}).get("skipped")),
-              "support_calls": sum(1 for e in folded["minors"] if adjudicated.get(e["index"], {}).get("skipped")),
+              "support_calls": sum(a.get("support_calls", 0) for a in adjudicated.values()),
               "adjudications_rejected": sum(1 for a in adjudicated.values() if a.get("rejected")),
               "facts_unsupported": sum(1 for l in lines if l["record"] == "fact" and l["rank"] == "unsupported"),
               "has_abstract": folded["abstract"] is not None}
@@ -1919,18 +1946,30 @@ def triage(doc, ctx):
     return excluded, flags
 
 
+VERIFY_BATCH = 60           # facts to a verification call; the listing had no bound before 09-07
+
+
 def unsupported_of(facts, ctx, entity=None):
-    """The stored ids of the facts whose own passage does not state them; one small call. The
-    statements are judged one at a time and on their own terms: a fact stated from the side of a
-    lesser thing is filed under the entity it points at, so naming that entity in the question
-    asked about the wrong half of the statement (fixed 09-07)."""
-    listing = []
-    for n, (f, stored_id) in enumerate(facts, 1):
-        listing.append(f"{n}. {f['subject']} {f['predicate']} {f['object']}"
-                       + (f" [{f['qualifiers']}]" if f["qualifiers"] else "")
-                       + f"  (\"{' '.join(f['quote'].split())}\")")
-    reply = generate(support_prompt(listing), SUPPORT_SCHEMA, "support", ctx={**ctx, "entity": entity})
-    return [facts[n - 1][1] for n in valid_sources((reply or {}).get("unsupported"), len(facts))]
+    """(the stored ids of the facts whose own passage does not state them, whether any batch was
+    refused, how many calls it took). The statements are judged one at a time and on their own terms: a fact stated from
+    the side of a lesser thing is filed under the entity it points at, so naming that entity in
+    the question asked about the wrong half of the statement (fixed 09-07). A refusal is reported
+    rather than read as a clean pass, because on the short path this is the document's only
+    check; and the listing is batched, because it had no bound (fixed 09-07)."""
+    flagged, refused, calls = [], False, 0
+    for at in range(0, len(facts), VERIFY_BATCH):
+        batch, listing = facts[at:at + VERIFY_BATCH], []
+        for n, (f, stored_id) in enumerate(batch, 1):
+            listing.append(f"{n}. {f['subject']} {f['predicate']} {f['object']}"
+                           + (f" [{f['qualifiers']}]" if f["qualifiers"] else "")
+                           + f"  (\"{' '.join(f['quote'].split())}\")")
+        reply = generate(support_prompt(listing), SUPPORT_SCHEMA, "support", ctx={**ctx, "entity": entity})
+        calls += 1
+        if reply is None:
+            refused = True             # not a clean pass: the document says so and receipt() filters on it
+            continue
+        flagged += [batch[n - 1][1] for n in valid_sources(reply.get("unsupported"), len(batch))]
+    return flagged, refused, calls
 
 
 def valid_sources(numbers, n):
@@ -1957,7 +1996,8 @@ def adjudicate(records, folded, ctx, watch=False, light=False):
             return result
         if len(raws) < ADJUDICATE_MIN_FACTS:         # nothing to consolidate, but the passages are still read
             result["skipped"] = f"fewer than {ADJUDICATE_MIN_FACTS} facts: the raw facts stand, their support checked"
-            result["unsupported"] = unsupported_of([(f, stored_id) for f, direction, label, stored_id, tying in raws], ctx, entity=e["name"])
+            result["unsupported"], result["rejected"], result["support_calls"] = unsupported_of(
+                [(f, stored_id) for f, direction, label, stored_id, tying in raws], ctx, entity=e["name"])
             return result
         listing = []
         for n, (f, direction, label, stored_id, tying) in enumerate(raws, 1):
@@ -1999,40 +2039,46 @@ def adjudicate(records, folded, ctx, watch=False, light=False):
     if light:
         # one reading: nothing to consolidate, so every fact stands and the document's whole
         # fact list is read against its passages in a single call (ruling of 09-07)
+        # every landed list already carries each minor's facts as riding copies, under the ids
+        # the package will use; listing the minors' own facts again duplicated every rider and
+        # named ids no record carries (fixed 09-07)
         every, out = [], {}
         for e in folded["majors"]:
             every += [(f, stored_id) for f, direction, label, stored_id, tying in landed[e["index"]]]
-        for e in folded["minors"]:
-            every += own_of.get(e["index"], [])
         if watch:
             print(f"verify: {len(every)} facts of the whole document, one pass on {LUNA}")
-        aside = set(unsupported_of(every, ctx)) if every else set()
+        flagged, refused, support_calls = unsupported_of(every, ctx) if every else ([], False, 0)
+        aside = set(flagged)
         stands = "one reading: the facts stand, verified in one pass"
         for e in folded["majors"]:
             raws = landed[e["index"]]
             out[e["index"]] = {"facts": [], "attributes": [], "contradictions": [], "dropped": 0, "raw": len(raws),
-                               "riding": sum(1 for x in raws if x[1] == "about"), "skipped": stands, "rejected": False,
+                               "riding": sum(1 for x in raws if x[1] == "about"), "skipped": stands, "rejected": refused,
+                               "support_calls": support_calls,
                                "unsupported": [sid for f, direction, label, sid, tying in raws if sid in aside]}
-        for e in folded["minors"]:
-            own = own_of.get(e["index"])
-            if own:
-                out[e["index"]] = {"facts": [], "attributes": [], "contradictions": [], "dropped": 0, "raw": len(own),
-                                   "riding": 0, "skipped": stands, "rejected": False,
-                                   "unsupported": [sid for f, sid in own if sid in aside]}
+            support_calls = 0                    # the one pass covers the document: counted once
         return out
 
     def check_one(pair):
         e, own = pair
+        flagged, refused, calls = unsupported_of(own, ctx, entity=e["name"])
         return {"facts": [], "attributes": [], "contradictions": [], "raw": len(own), "riding": 0, "dropped": 0,
-                "skipped": "not a major: its facts stand, their support checked", "rejected": False,
-                "unsupported": unsupported_of(own, ctx, entity=e["name"])}
+                "skipped": "not a major: its facts stand, their support checked", "rejected": refused,
+                "unsupported": flagged, "support_calls": calls}
 
     if watch:
         print(f"adjudicate: {len(folded['majors'])} majors, {WORKERS} at a time; fewer than {ADJUDICATE_MIN_FACTS} facts is a support call on {LUNA}")
     out = {e["index"]: result for e, result in zip(folded["majors"], in_parallel(adjudicate_one, folded["majors"]))}
 
     # every other entity's facts are read where they stand, before any of them rides (decision 50)
-    pairs = [(e, own_of[e["index"]]) for e in folded["minors"] if own_of.get(e["index"])]
+    # only the facts that ride are ever written, so only those are worth a call (fixed 09-07)
+    rides_somewhere = {f["fact_id"] for e in folded["majors"]
+                       for f, direction, label, stored_id, tying in landed[e["index"]] if direction == "about"}
+    pairs = []
+    for e in folded["minors"]:
+        own = [(f, fid) for f, fid in own_of.get(e["index"], []) if fid in rides_somewhere]
+        if own:
+            pairs.append((e, own))
     if watch and pairs:
         print(f"support: {len(pairs)} minors with facts of their own, checked on {LUNA}")
     for (e, own), result in zip(pairs, in_parallel(check_one, pairs)):

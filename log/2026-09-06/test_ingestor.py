@@ -616,7 +616,7 @@ def scripted_judge(answers):
         for n, (ra, rb) in enumerate(batch):
             pair = frozenset((locals_[ra]["name"], locals_[rb]["name"]))
             out[n] = answers.get(pair, ("unsure", "no rule"))
-        return out
+        return out, 0            # (verdicts, numbers out of range)
     return judge
 
 
