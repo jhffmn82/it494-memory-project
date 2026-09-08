@@ -349,7 +349,16 @@ check("every adjudicated fact points only at raw facts of its own node", adjudic
 check("attributes point at raw facts too, and an item pointing at nothing was dropped and counted",
       by.get("attribute") and all(set(a["from_facts"]) <= fact_ids_of.get(a["node_id"], set()) for a in by["attribute"])
       and lines[-1]["counts"]["adjudication_dropped"] > 0)
+units_by_id = {u["unit_id"]: u for u in doc["units"]}
 check("an adjudicated attribute may stand without a value", any(a["value"] is None for a in by.get("attribute", [])))
+check("a fact carries when it was said, from its unit, beside when it is true (R2)",
+      facts and all("occurred_at" in f and "occurred_until" in f for f in facts)
+      and all(f["occurred_at"] == units_by_id[f["unit_id"]].get("occurred_at") for f in facts))
+check("a contradiction carries the document's own resolution, and the facts it names stay active (R4)",
+      all(c["holds"] in (None, *c["from_facts"]) for c in by.get("contradiction", []))
+      and all(f["rank"] == "active" for f in facts))
+check("support_calls counts calls, not entities (C3)",
+      lines[-1]["counts"]["support_calls"] == len([c for c in ns["CALLS"] if c["stage"] == "support" and c.get("doc") == doc["source_uri"]]))
 # a kill mid-write leaves a torn last line in the sidecar: the resume must still accumulate
 side = ns["sidecar_path"](doc)
 torn_resume_ok = None
@@ -543,6 +552,12 @@ check("four calls a document, and a fifth only when something needed correcting 
       len(stages) == 4 + (1 if stages.count("correct") else 0)
       and stages.count("correct") <= 1
       and (stages.count("correct") == 1) == (rows[-1]["counts"]["facts_flagged"] > 0), stages)
+# two or fewer children still stand as the abstract; what C9 forbids is the long degenerate
+# case, an entity with no cell whose abstract is a run of predicate strings and nothing else
+bad_abstracts = [r["text"][:70] for r in rows if r["record"] == "abstract"
+                 and "." not in r["text"] and r["text"].count("_") >= 3]
+check("no entity abstract is a run of three or more predicate strings (C9)",
+      not bad_abstracts, bad_abstracts[:3])
 check("nothing is consolidated, so the facts stand with their quotes",
       not any(r["record"] in ("adjudicated_fact", "attribute") for r in light_rows)
       and all(r["quote"] for r in light_rows if r["record"] == "fact")
@@ -758,6 +773,111 @@ try:
     check("a spend stop inside a worker is raised to the caller", False)
 except ns["SpendStop"]:
     check("a spend stop inside a worker is raised to the caller", True)
+
+# ------------------------------------------------------- the fixes of 09-07, one check each
+
+# C7 -- a quote is cut where the speaker changes, not at every piece boundary
+one_voice = {"pieces": [{"start": 0, "author": None}, {"start": 45, "author": None}]}
+two_voices = {"pieces": [{"start": 0, "author": "Ann"}, {"start": 45, "author": "Bo"}]}
+sentence = "We evaluate Zep on the LongMemEval benchmark. Zep reduces latency by 90 percent"
+check("a quote crossing two pieces of one author is kept whole (C7)",
+      ns["voice_spans"](one_voice, 0, sentence, 0, len(sentence)) == [(0, len(sentence))],
+      ns["voice_spans"](one_voice, 0, sentence, 0, len(sentence)))
+check("a quote crossing a change of speaker is still cut in two (decision 46 stands)",
+      len(ns["voice_spans"](two_voices, 0, sentence, 0, len(sentence))) == 2)
+
+# C1 -- a pair already judged is out of the scoring, so its slot goes to the next candidate
+locs = ns["locals_of"](records)
+fresh_clusters = ns["Clusters"](len(locs))
+first_queue, _ = ns["pair_up"](locs, fresh_clusters, set())
+first_key = frozenset((first_queue[0][2], first_queue[0][3])) if first_queue else None
+second_queue, _ = ns["pair_up"](locs, fresh_clusters, set(), {first_key}) if first_key else ([], 0)
+check("a pair judged in an earlier round is not offered again (C1)",
+      bool(first_queue) and all(frozenset((q[2], q[3])) != first_key for q in second_queue))
+check("and the round is not left empty because of it: another pair takes the slot (C1)",
+      bool(first_queue) and bool(second_queue), (len(first_queue), len(second_queue)))
+
+# B2 -- a "different" is applied before any "same" in the same batch
+batch_abc = [(1, 2), (2, 3), (1, 3)]
+verdicts_abc = {0: ("same", "a"), 1: ("same", "b"), 2: ("different", "c")}
+check("constraints are applied before merges within one batch (B2)",
+      [v for n, ra, rb, v, why in ns["constraints_first"](batch_abc, verdicts_abc)] == ["different", "same", "same"])
+check("a pair with no verdict at all still comes back, deferred (B2)",
+      ns["constraints_first"]([(1, 2)], {})[0][3] == "unsure")
+
+# C8 -- a pair number outside the batch is refused rather than read as another pair
+check("a judge verdict numbered outside its batch is refused (C8)",
+      ns["valid_sources"]([14], 10) == [] and ns["valid_sources"](["3"], 10) == [3] and ns["valid_sources"]([0], 10) == [])
+
+# C2 and C4 -- a refusal is reported, and the listing is batched
+made = []
+kept_generate = ns["generate"]
+
+
+def one_reply(reply):
+    def fake(prompt, schema, stage, model=None, effort="low", ctx=None):
+        made.append(stage)
+        return reply
+    return fake
+
+
+many = [({"subject": "S", "predicate": "p", "object": "o", "qualifiers": None, "quote": "q"}, f"id{i}")
+        for i in range(ns["VERIFY_BATCH"] * 2 + 1)]
+ns["generate"] = one_reply({"unsupported": []})
+flagged_ids, refused, n_calls = ns["unsupported_of"](many, {})
+check("the verification listing is batched, not sent as one unbounded prompt (C4)",
+      n_calls == 3 and len(made) == 3, (n_calls, ns["VERIFY_BATCH"], len(many)))
+ns["generate"] = one_reply(None)
+flagged_ids, refused, n_calls = ns["unsupported_of"](many[:2], {})
+check("a refused verification is reported, not read as a clean pass (C2)", refused and flagged_ids == [])
+ns["generate"] = kept_generate
+
+# B4 -- a reply the document bought is written beside it and read back on resume
+uri = doc["source_uri"]
+ns["IN_FLIGHT"][uri] = doc
+ns["REPLIES"].pop(uri, None)
+ns["remember_reply"](uri, "a-prompt-key", {"unsupported": [1]})
+ns["REPLIES"].pop(uri)                                   # forget it in memory: only the sidecar has it now
+read_back = ns["load_replies"](doc)
+check("a reply a document bought is checkpointed beside it and read back on resume (B4)",
+      read_back == 1 and ns["REPLIES"][uri].get("a-prompt-key") == {"unsupported": [1]})
+ns["REPLIES"].pop(uri, None)
+ns["IN_FLIGHT"].pop(uri, None)
+if ns["sidecar_path"](doc).exists():
+    ns["sidecar_path"](doc).unlink()
+check("and a sidecar written under a different derive path is not read back (B3, B4)",
+      ns["load_replies"](doc) == 0)
+
+# B1 and R1 -- one sentence about qualifiers, one about what a passage states, in both prompts
+fact_text = ns["fact_prompt"]({"label": "L", "text": "T"}, ["A"], ["A"])
+support_text = ns["support_prompt"](["1. a b c"])
+check("the fact prompt types qualifiers and forbids an object, as the adjudication prompt does (B1)",
+      "as a string, else null; never an object" in fact_text)
+check("the fact prompt and the support prompt carry the same standard for a quote (R1)",
+      ns["QUOTE_RULE"] in fact_text and ns["QUOTE_RULE"] in support_text)
+check("the worked example no longer licenses a bare table cell (R1)",
+      "carries the numbers but not what they measure" in support_text)
+
+# B3 -- the sidecar label moves when the derive path does
+before_sig = ns["derive_signature"]()
+kept_span = ns["QUOTE_SPAN_MAX"]
+ns["QUOTE_SPAN_MAX"] = kept_span + 1
+check("the sidecar label moves when the derive path does, so a stale sidecar is refused (B3)",
+      ns["derive_signature"]() != before_sig)
+ns["QUOTE_SPAN_MAX"] = kept_span
+check("and does not move when nothing changed", ns["derive_signature"]() == before_sig)
+
+# R3 -- a correction is not taken on trust
+raw_fact = {"subject": "Zep", "predicate": "reduces", "object": "latency", "qualifiers": None}
+check("a correction whose object restates its subject is refused (R3)",
+      ns["corrected_fact"](raw_fact, {"subject": "Zep", "predicate": "is_a", "object": "Zep"}) is None)
+check("a correction whose object restates its predicate is refused (R3)",
+      ns["corrected_fact"](raw_fact, {"predicate": "reduces_latency", "object": "reduces latency"}) is None)
+check("a bare boolean is refused as a corrected object (R3)",
+      ns["corrected_fact"](raw_fact, {"predicate": "is_fast", "object": "true"}) is None)
+check("a correction that says something is kept, and keeps the fact's subject when none is given (R3)",
+      ns["corrected_fact"](raw_fact, {"predicate": "reduces_latency_by", "object": "90 percent"})
+      == {"subject": "Zep", "predicate": "reduces_latency_by", "object": "90 percent", "qualifiers": None})
 
 print(f"\n{sum(results)} of {len(results)} checks pass")
 sys.exit(0 if all(results) else 1)

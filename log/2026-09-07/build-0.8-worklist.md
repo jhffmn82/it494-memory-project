@@ -55,7 +55,9 @@ change.
 **R6 — salience is a union of promotions and nothing is ever demoted.** An entity is a
 document-major if *anything* made it one: a unit called it major (the per-unit flag at the
 entity prompt, "major only if it would appear in a two-sentence summary of this text"), the
-document abstract names it, it carries a proper name, or it clears the unit/fact thresholds.
+document abstract names it, or it carries a proper name. Bare unit and fact counts do NOT
+promote: I had written them in as a fourth route, carried over from the old no-abstract fallback
+and not part of what was ruled, and they re-minted exactly the scenery R5 excluded. They are out.
 
 The `in_abstract` test stops being the *only* route to major. Its provenance:
 `log/2026-09-04/README.md:19` ruled it, and the sentence that follows gives its reason — *"Only
@@ -76,28 +78,47 @@ all, so the 19,206 chat sessions are unaffected. Riding shrinks as a side effect
 
 | # | what | where | verified by |
 |---|---|---|---|
-| B6 | the 146-check battery committed | `log/2026-09-06/test_ingestor.py` | committed at `fbfc5a0` |
-| C7 | a quote is cut where the speaker changes, not at every piece boundary | `voice_spans` | a two-piece one-author unit keeps a crossing quote whole |
-| C1 | reconciliation converges on unnamed entities: `seen_pairs` passed into `pair_up` and skipped while scoring, so the slot goes to the next-best candidate | `reconcile`, `pair_up` | four locals named "the girl" judge all six pairs, not two |
-| C2 | a refused verification is reported, not swallowed: `unsupported_of` returns the refusal and `rejected` is set from it at all three call sites | `unsupported_of`, `adjudicate` | a stubbed refusal marks the document rejected, not clean |
-| C3 | `support_calls` counts calls | `write_package` counts | a short-path package reports 1, not 3 |
-| C4 | the verification listing is batched | `unsupported_of` | a document with more facts than the batch makes more than one call |
-| C5 | a riding fact's verdict reaches the record that exists: raw ids translated through `landings` | `adjudicate`, `write_package` | a minor's flagged fact ranks its riding copy |
-| C6 | on the short path a fact is listed once, under the id the package will carry | `adjudicate` light branch | no duplicate numbers in the listing |
-| C8 | the judge keeps a verdict only when its number is in range, and counts the failures | `judge` | an out-of-range pair number is dropped and counted |
-| C9 | an abstract does not degrade to concatenated predicates: children only when two or fewer, else the call, else None so `no_abstract` demotes | `abstract_of` | a fold-major with facts and no cell gets no fact-text abstract |
-| B1 | qualifiers typed in the fact prompt as they are in the adjudication prompt | fact prompt | the prompt names the type |
-| B2 | `different` verdicts applied before `same` ones within a batch | `decide` | (A,B) same, (B,C) same, (A,C) different leaves A and C apart |
-| B3 | the sidecar label is derived from the derive path, not typed by hand | `input_hash` | a changed derive path rejects an old sidecar |
-| B4 | checkpoints after reconcile and after fold | `ingest` | a spend stop after the last unit does not lose the judge calls |
-| R1 | one standard, both prompts, example fixed | fact + support prompts | both prompts carry the same sentence |
-| R2 | `occurred_at`/`occurred_until` on the fact record | `write_package` | a fact carries its unit's times |
-| R3 | correction pass; `rank: "unsupported"` retired; `unsupported` becomes a rejection category | `adjudicate`, `write_package` | an uncorrectable fact is a rejection, not a ranked fact |
-| R4 | the contradiction carries the document's resolution | adjudication prompt, `write_package` | a contradiction record names which fact holds |
-| R6 | salience as a union, nothing demoted | `fold_document` | a unit-major absent from the abstract stays major |
+| ✅ B6 | the battery committed, and grown 146 -> 176 | `log/2026-09-06/test_ingestor.py` | committed at `fbfc5a0` |
+| ✅ C7 | a quote is cut where the speaker changes, not at every piece boundary | `voice_spans` | a two-piece one-author unit keeps a crossing quote whole |
+| ✅ C1 | reconciliation converges on unnamed entities: `seen_pairs` passed into `pair_up` and skipped while scoring, so the slot goes to the next-best candidate | `reconcile`, `pair_up` | four locals named "the girl" judge all six pairs, not two |
+| ✅ C2 | a refused verification is reported, not swallowed: `unsupported_of` returns the refusal and `rejected` is set from it at all three call sites | `unsupported_of`, `adjudicate` | a stubbed refusal marks the document rejected, not clean |
+| ✅ C3 | `support_calls` counts calls | `write_package` counts | a short-path package reports 1, not 3 |
+| ✅ C4 | the verification listing is batched | `unsupported_of` | a document with more facts than the batch makes more than one call |
+| ✅ C5 | a riding fact's verdict reaches the record that exists: raw ids translated through `landings` | `adjudicate`, `write_package` | a minor's flagged fact ranks its riding copy |
+| ✅ C6 | on the short path a fact is listed once, under the id the package will carry | `adjudicate` light branch | no duplicate numbers in the listing |
+| ✅ C8 | the judge keeps a verdict only when its number is in range, and counts the failures | `judge` | an out-of-range pair number is dropped and counted |
+| ✅ C9 | an abstract does not degrade to concatenated predicates: children only when two or fewer, else no abstract at all (nothing demotes under R6, so the major simply carries none) | `abstract_of` | no abstract is a run of three or more predicate strings |
+| ✅ B1 | qualifiers typed in the fact prompt as they are in the adjudication prompt | fact prompt | the prompt names the type |
+| ✅ B2 | `different` verdicts applied before `same` ones within a batch | `decide` | (A,B) same, (B,C) same, (A,C) different leaves A and C apart |
+| ✅ B3 | the sidecar label is derived from the derive path, not typed by hand | `input_hash` | a changed derive path rejects an old sidecar |
+| ✅ B4 | every reply a document buys is checkpointed, not four intermediate object graphs: `generate` reads its document's sidecar first | `generate`, `remember_reply`, `load_replies` | a remembered reply is read back from the sidecar after being forgotten in memory |
+| ✅ R1 | one standard, both prompts, example fixed | fact + support prompts | both prompts carry the same sentence |
+| ✅ R2 | `occurred_at`/`occurred_until` on the fact record | `write_package` | a fact carries its unit's times |
+| ✅ R3 | correction pass; `rank: "unsupported"` retired; `unsupported` becomes a rejection category | `adjudicate`, `write_package` | an uncorrectable fact is a rejection, not a ranked fact |
+| ✅ R4 | the contradiction carries the document's resolution | adjudication prompt, `write_package` | a contradiction record names which fact holds |
+| ✅ R6 | salience as a union, nothing demoted | `fold_document` | a unit-major absent from the abstract stays major |
 
-Also, not a defect: the first Oz block prints the major count under the old rule and the new one,
-as diagnostics for the log.
+Also, not a defect: `fold_document` records `by_abstract_only`, the number of entities the old
+abstract-only rule would have made major, so every run reports the size of R6's change beside the
+new count.
+
+## 2a. What changed from this list while building it
+
+- **R6 narrowed** as above: no promotion on bare unit or fact counts.
+- **B2 was refactored to be testable.** The batch ordering came out of `decide()` as
+  `constraints_first`, because inside a closure it could only be tested through a scripted judge
+  and a fixture that happened to produce three pairs sharing a cluster in one batch.
+- **`corrected_fact` was wrong on first writing** and the battery caught it: it compared the
+  corrected object to the predicate without flattening the snake_case, so "reduces latency" did
+  not read as a restatement of "reduces_latency".
+- **Three checks I wrote first were tautologies** (`... if False else True`, `VERIFY_BATCH > 0`,
+  a `pair_up` call on an empty list) and were replaced with behavioural tests. A check that
+  cannot fail is worse than no check.
+- **The E3 battery check was retired as written.** "An object is a node only when the text wrote
+  it as a name" was never a rule in the code; it held because an unnamed entity could never be
+  major. It now tests what is guaranteed: an object points at a node only when that node is in
+  the package.
+- **BUILD.md needed no change** — it does not mention Step 1.
 
 ## 3. Not in this build
 

@@ -92,9 +92,42 @@ which told a reader nothing the sentence above does not; the field is gone.
 ## The record side
 
     fact      fact_id, subject, predicate, object, qualifiers, rank, unit_id,
-              quote, quote_start, quote_end, valid_from, valid_to, tier, provenance
+              quote, quote_start, quote_end, valid_from, valid_to,
+              occurred_at, occurred_until, tier, provenance
     cell      cell_id, node_id, unit_id, scope_id, text, tier, provenance
     abstract  node_id, scope_id, text, children_hash, tier, updated_at
+    contradiction  node_id, note, from_facts, holds, because
+
+A fact carries its unit's `occurred_at` and `occurred_until`, copied down: when
+it was said. `valid_from` and `valid_to` are when it is true, and only when the
+text states them. The read rule below has always ordered facts by "its unit's
+`occurred_at`"; the record line simply never listed the fields, and the code
+followed the record line (corrected 2026-09-07).
+
+Every stored fact is one its own passage states. A passage states a fact when
+it carries the claim itself, in whatever words the document uses: a table row,
+a heading or a caption states what it lists. A fact whose passage does not is
+restated against that passage if it can be -- the passage is fixed and the
+claim moves to fit it, so the quote and its offsets never change -- and dumped
+if it cannot, recorded as a rejection with category `unsupported`. It is never
+stored with a flag (ruled 2026-09-07): a flag on a shipped fact is a claim the
+reader has to know to distrust.
+
+Within one document the judge resolves a contradiction; across documents
+nothing does. A document is a snapshot with an end state and is entitled to say
+what that state is, and refusing to let it throws away a judgement made with
+the whole document in view. The resolution is recorded on the `contradiction`,
+never on the fact: `holds` names which of its `from_facts` is true at the end
+of the document, `because` says how, and both facts stay `active`. Ranking the
+loser out of reads would hide from the layer above that the document ever said
+it, and that layer can only disambiguate what reaches it. A parent counts and
+never adjudicates.
+
+PROPOSED (behaviour ruled 2026-09-07, wording not yet): a read that returns the
+facts for an entity and predicate must return all of them or say it truncated,
+and must join the contradiction records for those facts or say it did not. A
+fact served without its contradictions may be one the document itself
+superseded.
 
 Facts are append-only. When a predicate is functional, a later fact on the
 same subject and predicate supersedes an earlier one at read time; ruler_of
@@ -123,10 +156,20 @@ perfectly real quote.
 Cells and abstracts are scoped by `scope_id`, so importance is a property of
 the collection, not the entity: a character can be major in one corpus and a
 footnote in another. Salience is decided twice. Per unit, it decides who gets
-a cell. Per document, it is reassessed once the document's abstract exists:
-an entity named in the abstract is major, with unit count and fact count as
-tie-breakers, and only document-majors carry a dossier into the merge and
-become global nodes. Minor entities never become nodes: a fact from a major
+a cell. Per document, it is a union of promotions and nothing is ever demoted
+(ruled 2026-09-07): an entity is a document-major if a unit called it major, or
+the document abstract names it, or it carries a proper name. Bare unit and fact
+counts do not promote, because an unnamed thing that merely recurs is scenery.
+
+Until 2026-09-07 the abstract was the ONLY route -- "an entity named in the
+abstract is major, with unit count and fact count as tie-breakers" -- which made
+the abstract's word limit the document's entity budget: a Greek play with thirty
+speaking characters cannot fit them in four hundred words, and every character
+the fold had no room to name was reduced to a mention with a null node_id. That
+rule was written on 2026-09-04 alongside its reason, "only document-majors carry
+a dossier into the merge". It was a budget on the global merge, and the merge has
+since been deleted; the reason is recorded here so the rule is not re-derived
+from it. Minor entities never become nodes: a fact from a major
 to a minor is a property of the major with the minor's name as its value, a
 fact between two minors is not stored, and nothing is lost below the line,
 because the per-unit summary, a cell on the document's own node, still

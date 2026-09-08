@@ -44,7 +44,7 @@ from datetime import datetime, timezone
 from contextlib import redirect_stdout
 from pathlib import Path
 
-INGESTOR = "factledger-ingestor 0.7"
+INGESTOR = "factledger-ingestor 0.8"
 KAGGLE_EXPORTS = (Path("/kaggle/input/datasets/jhffmn/it494-factledger-step0"), Path("/kaggle/input/it494-factledger-step0"))
 KAGGLE_PAPERS = (Path("/kaggle/input/datasets/jhffmn/it494-reference-papers"), Path("/kaggle/input/it494-reference-papers"))
 LOCAL_EXPORT, LOCAL_PAPERS = Path("data/export"), Path("papers")
@@ -1332,6 +1332,19 @@ def ineligible(members, ra, rb, ruled_apart):
     return False
 
 
+def constraints_first(batch, verdicts):
+    """One batch as (n, ra, rb, verdict, reason), the "different" verdicts first. A "different"
+    is a constraint and a "same" is a merge, so applying the constraints first makes the batch
+    order-independent: in batch order, on the last look, two earlier "same" verdicts could unite
+    the two sides that a later "different" ruled apart (fixed 09-07)."""
+    rank, order = {"different": 0, "same": 1, "unsure": 2}, []
+    for n, (ra, rb) in enumerate(batch):
+        verdict, reason = verdicts.get(n, ("unsure", "no verdict returned"))
+        order.append((rank.get(verdict, 2), n, ra, rb, verdict, reason))
+    order.sort()
+    return [(n, ra, rb, verdict, reason) for _, n, ra, rb, verdict, reason in order]
+
+
 def pair_up(locals_, clusters, ruled_apart, seen_pairs=None):
     """One round of the clustering, Justin's rule: every entity still in consideration is scored
     against every other, the pairs at or above SIMILAR_ENOUGH are filtered by eligibility, and
@@ -1438,15 +1451,7 @@ def reconcile(records, ctx, watch=False):
         calls += 1
         judged += len(batch)
         misnumbered += bad
-        # a "different" is a constraint and a "same" is a merge, so the constraints are applied
-        # first: on the last look a batch can hold pairs that share a cluster, and in batch order
-        # two earlier "same"s united the two sides a later "different" ruled apart (fixed 09-07)
-        order, rank = [], {"different": 0, "same": 1, "unsure": 2}
-        for n, (ra, rb) in enumerate(batch):
-            verdict, reason = verdicts.get(n, ("unsure", "no verdict returned"))
-            order.append((rank.get(verdict, 2), n, ra, rb, verdict, reason))
-        order.sort()
-        for _, n, ra, rb, verdict, reason in order:
+        for n, ra, rb, verdict, reason in constraints_first(batch, verdicts):
             how = "judged again" if final else "judged"
             if verdict == "same" and ineligible(members, clusters.find(ra), clusters.find(rb), ruled_apart):
                 # a guard the pairing rules should make unreachable: one pair to an entity a round
@@ -2209,7 +2214,8 @@ def corrected_fact(f, item):
     obj = str(item.get("object") or "").strip()
     if not subject or not obj or obj.casefold() in ("true", "false"):
         return None
-    if norm(obj) == norm(subject) or norm(obj) == norm(predicate):
+    said = norm(obj).replace("_", " ")            # the predicate written as words is still the predicate
+    if said == norm(subject).replace("_", " ") or said == norm(predicate).replace("_", " "):
         return None
     return {"subject": subject, "predicate": predicate, "object": obj, "qualifiers": item.get("qualifiers") or None}
 
