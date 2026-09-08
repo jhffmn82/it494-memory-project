@@ -32,6 +32,9 @@ MUTATIONS = {
                 obj, is_node = object_node or f["object"], object_node is not None
             elif direction == "inverse":
                 obj, is_node = f["subject"], False''')],
+    "P3  the triage row must be first (B4's regression)": [(
+        '''    head = next((row for row in rows if "triage" in row), None)''',
+        '''    head = rows[0] if rows and "triage" in rows[0] else None''')],
     "P2  an adjudicated item may cite a dumped fact": [(
         '''            sources = [i for i in item["from_facts"] if i not in dumped_ids]
             if not sources:                              # every fact it rested on was dumped (P2)''',

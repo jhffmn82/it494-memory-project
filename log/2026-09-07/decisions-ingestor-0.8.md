@@ -110,10 +110,16 @@ furniture, and if it ever breaks an eval answer the fix is a salience change, no
 change — which is the direction that does not require re-ingesting a corpus. R6 is that fix,
 arrived at within the hour.
 
-## R6 — salience is a union of promotions and nothing is ever demoted
+## R6 — salience is a union of promotions and nothing is demoted for salience
 
 An entity is a document-major if **anything** made it one: a unit called it major, the document
-abstract names it, or it carries a proper name. Nothing demotes.
+abstract names it, or it carries a proper name.
+
+Nothing is demoted **for salience** — that is the ruling. One demotion remains and it is not a
+salience judgement: decision 52 takes nodehood from an entity with no facts and no cells, because
+there is nothing for it to be. My first wording here said "nothing demotes", which was wrong, and
+the R6 battery check encoded the wrong version and would have gone red the first time decision 52
+fired on real data.
 
 Being named in the abstract had been the *only* route, which made a 400-word abstract the
 document's entity budget. Oz survives on 46 majors in 354 words; a Greek play with thirty
@@ -145,6 +151,18 @@ chapter where the raft is built — is now a document node. That is R5's line na
 overturned, and it is exactly what *"a major entity at roll up was a major entity in one chapter"*
 asks for. The Oz run reports the major count under both rules so the size of it is visible.
 
-**Cost accepted:** adjudication scales with majors and is 62% of a full-path run, but only the 230
-full-path documents are affected. The short path makes no per-major call at all, so the 19,206
-chat sessions are unchanged, and less riding makes their one verification call shorter.
+**Measured after the ruling, and re-ruled against the numbers (2026-09-07).** R6 takes Oz book 1
+from 46 document-majors to about 169, and the 230 full-path documents from roughly 10,571 to
+**43,565**. Growth is close to linear in units (`majors ≈ 10.55 × units^0.904`), and the heaviest
+single document lands near 3,503. The residual I described as "the raft" — an unnamed entity a
+unit judged central — is **106 clusters on one Oz book**, not a handful. Justin kept the rule
+against those numbers: *"the cost will grow during the global merge, but it is what it is. keep
+it."*
+
+**My cost claim was wrong and is withdrawn.** I said twice that adjudication is 62% of a run and
+scales with majors. It scales with **facts**: one call per major over that major's own facts, so
+splitting the same facts across four times as many majors buys per-call overhead, not four times
+the cost — and less riding makes each listing shorter. Measured: **$0.028 per major** for
+adjudication, **$0.0014** for an entity abstract. The real growth lands in Step 2's merge, over
+43,565 children instead of 10,571, which is the cost Justin accepted. The short path makes no
+per-major call at all, so the 19,206 chat sessions are unchanged.

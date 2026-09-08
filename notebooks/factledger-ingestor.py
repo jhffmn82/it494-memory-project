@@ -2024,17 +2024,21 @@ def checkpointed(doc):
     """What a previous attempt left in its sidecar, when it belongs to this input: (the kinds
     triage left out, the unit records in order, their cost, their calls, the triage flags)."""
     rows = sidecar_rows(doc)
-    if not rows or "triage" not in rows[0]:
+    # the triage row is no longer first: triage() buys a reply, and that reply is checkpointed
+    # before the triage row is written. Requiring it at index 0 rejected every full-path sidecar
+    # and the resume then deleted it, re-buying what it had already paid for (P3, fixed 09-07)
+    head = next((row for row in rows if "triage" in row), None)
+    if head is None:
         return None, [], 0.0, 0, []
-    excluded = rows[0]["triage"]
+    excluded = head["triage"]
     kept_ids = [u["unit_id"] for u in doc["units"] if unit_kind(doc, u) not in excluded]
-    kept, cost, calls = [], rows[0].get("cost", 0.0), rows[0].get("calls", 0)
-    for row in rows[1:]:
+    kept, cost, calls = [], head.get("cost", 0.0), head.get("calls", 0)
+    for row in rows:
         if "rec" in row and len(kept) < len(kept_ids) and row["rec"]["unit_id"] == kept_ids[len(kept)]:
             kept.append(row["rec"])
             cost += row.get("cost", 0.0)
             calls += row.get("calls", 0)
-    return excluded, kept, cost, calls, rows[0].get("flags", [])
+    return excluded, kept, cost, calls, head.get("flags", [])
 
 
 def triage(doc, ctx):
@@ -2362,7 +2366,9 @@ def ingest(doc, ctx=None):
     # which kinds of unit to read: the sidecar's answer when resuming, else the judge's
     excluded, records, cost_before, calls_before_stop, flags = checkpointed(doc)   # what a stopped run already paid
     if excluded is None:
-        if sidecar_path(doc).exists():
+        # a sidecar still holding replies for THIS input is not thrown away: sidecar_rows already
+        # filtered it by input hash, so what is there was paid for and still applies (P3)
+        if sidecar_path(doc).exists() and not REPLIES.get(doc["source_uri"]):
             sidecar_path(doc).unlink()
         spend_at, calls_at = spend(), len(CALLS)
         excluded, flags = boilerplate_of(doc) if light else triage(doc, ctx)

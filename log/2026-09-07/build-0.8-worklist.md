@@ -52,7 +52,7 @@ category error. The cost is real and accepted: a named minor character never acc
 documents. If that ever breaks an eval answer the fix is a salience change, not a storage
 change.
 
-**R6 — salience is a union of promotions and nothing is ever demoted.** An entity is a
+**R6 — salience is a union of promotions and nothing is demoted for salience.** An entity is a
 document-major if *anything* made it one: a unit called it major (the per-unit flag at the
 entity prompt, "major only if it would appear in a two-sentence summary of this text"), the
 document abstract names it, or it carries a proper name. Bare unit and fact counts do NOT
@@ -70,9 +70,13 @@ mention with a null node_id.
 
 The tie-break demotion goes with it — it fires on exactly the entities the new rule promotes.
 Decision 52 survives untouched: an entity with no facts and no cells was never a unit-major, so
-the two rules cannot fight over the same entity. Cost is accepted: adjudication scales with
-majors, but only on the 230 full-path documents, and the short path makes no per-major call at
-all, so the 19,206 chat sessions are unaffected. Riding shrinks as a side effect.
+the two rules cannot fight over the same entity. Cost, measured after the fact: adjudication is bounded by
+FACTS, not by majors — one call per major over that major's own facts, at $0.028 a major — so the
+3.7x growth in majors is not 3.7x the cost. My "62% and scales with majors" was a misreading of
+the 09-07 table and is withdrawn. R6 takes the 230 full-path documents from ~10,571 majors to
+~43,565; Justin kept the rule against that number, accepting that the growth lands in Step 2's
+merge. The short path makes no per-major call at all, so the 19,206 chat sessions are unaffected,
+and riding shrinks as a side effect.
 
 ## 2. The changes
 

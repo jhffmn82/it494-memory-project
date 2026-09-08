@@ -78,7 +78,8 @@ def stub_generate(prompt, schema, stage, model=None, effort="low", ctx=None):
                 counts[w] = counts.get(w, 0) + 1
         names = sorted(counts, key=lambda w: -counts[w])[:6]
         unnamed = len(text) % 3 == 0                               # every third unit's entities are unnamed: nothing unites on sight, the judge is exercised
-        ents = [{"name": n, "named": not unnamed, "kind": "person", "salience": "major" if i < 3 else "minor", "surface_forms": [n],
+        ents = [{"name": n, "named": (not unnamed) and i < len(names) - 1,      # the last is never named: it stays a minor, so it can state an inverse fact (P1b)
+                 "kind": "person", "salience": "major" if i < 3 else "minor", "surface_forms": [n],
                  "profile": {"gender": "female" if n == "Dorothy" else None, "animacy": "animate", "role": None}} for i, n in enumerate(names)]
         ents.append({"name": "Phantom", "named": True, "kind": "person", "surface_forms": ["Zzyzx Qwerty"], "profile": None})
         if names:                                                   # every span of this one is already the first entity's
@@ -129,13 +130,14 @@ def stub_generate(prompt, schema, stage, model=None, effort="low", ctx=None):
                 facts.append({"subject": n0, "predicate": "is_cited_loosely", "object": "an unsupported claim", "qualifiers": None, "quote": loose, "valid_from": None, "valid_to": None})
                 facts.append({"subject": n0, "predicate": "cannot_be_fixed", "object": "an unfixable claim", "qualifiers": None, "quote": loose, "valid_from": None, "valid_to": None})   # flagged, and the correction refuses it: dumped
             if len(names) > 4 and len(words) >= 8:
+                inverse_subject = names[-1]
                 # a lesser thing speaking about a major: lands inverse, so its object slot holds
                 # the minor's name and a correction must not be able to overwrite it (P1)
-                facts.append({"subject": names[4], "predicate": "is_cited_loosely_toward", "object": n0, "qualifiers": None,
+                facts.append({"subject": inverse_subject, "predicate": "is_cited_loosely_toward", "object": n0, "qualifiers": None,
                               "quote": loose, "valid_from": None, "valid_to": None})
                 # the minor's OWN fact: it rides into the major, and only the minor's support call
                 # condemns it, so the major's adjudication may still cite it (P2)
-                facts.append({"subject": names[4], "predicate": "cannot_be_fixed", "object": "an unfixable claim", "qualifiers": None,
+                facts.append({"subject": inverse_subject, "predicate": "cannot_be_fixed", "object": "an unfixable claim", "qualifiers": None,
                               "quote": loose, "valid_from": None, "valid_to": None})
         return {"facts": facts}
     if stage == "cells":
@@ -177,6 +179,7 @@ def stub_generate(prompt, schema, stage, model=None, effort="low", ctx=None):
         n = len(re.findall(r"^\d+\. ", listing, re.M))
         unsupported = [int(k) for k, line in re.findall(r"^(\d+)\. (.*)$", listing, re.M)
                        if "an unsupported claim" in line
+                       or "is_cited_loosely_toward" in line          # an inverse landing: only this call sees it
                        or ("an unfixable claim" in line and "(about " not in line)]
         # a riding line is NOT flagged here, but the minor's own support call will condemn it, so
         # the major may cite a fact the correction pass then dumps: the pointer P2 has to clean up
@@ -336,9 +339,12 @@ check("a pair the judge could not settle was judged once more at the end", any(l
 check("two named locals with the same name and kind unite on sight, no judge", any(l["how"] == "same_name" and l["verdict"] == "same" for l in by["ledger"]))
 check("an object points at a node only when that node is in this package (E3, restated for R6)",
       all(f["object"] in {l["node_id"] for l in lines if l["record"] == "node"} for f in facts if f["object_is_node"]))
-check("nothing is demoted for salience: every major keeps a route to major, every minor has none (R6)",
+check("nothing is demoted for salience: every major keeps a route, and a minor has none unless decision 52 took it (R6, P4)",
       all(e["rank"]["in_abstract"] or e["rank"]["unit_major"] or e["rank"]["named"] for e in folded["majors"])
-      and not any(e["rank"]["in_abstract"] or e["rank"]["unit_major"] or e["rank"]["named"] for e in folded["minors"]))
+      and not any(e["rank"]["in_abstract"] or e["rank"]["unit_major"] or e["rank"]["named"]
+                  for e in folded["minors"] if not e["rank"].get("no_abstract")))
+check("decision 52 is the only demotion left, and it is about having no content, not about salience (P4)",
+      all(not e["rank"].get("no_abstract") or e["n_facts"] == 0 for e in folded["minors"]))
 check("an entity a unit called major is still major at roll-up, abstract or no abstract (R6)",
       all(e["major"] for e in folded["majors"] + folded["minors"] if e["rank"]["unit_major"]))
 inverse = [f for f in facts if f["direction"] == "inverse"]
@@ -384,8 +390,10 @@ check("a contradiction never holds a fact the package does not carry (P2)",
 check("a contradiction the judge could not number resolves to nothing rather than to a wrong fact (R4, P7)",
       any(c["holds"] is None for c in by.get("contradiction", []))
       and any(c["holds"] is not None for c in by.get("contradiction", [])), len(by.get("contradiction", [])))
+inverse_corrected = [f for f in facts if f["direction"] == "inverse" and f["provenance"]["corrected_from"]]
 check("an inverse fact's object is the other entity's name, and a correction cannot overwrite it (P1)",
-      all(f["object"] == f["provenance"]["subject_name"] for f in facts if f["direction"] == "inverse"))
+      inverse_corrected and all(f["object"] == f["provenance"]["subject_name"] for f in facts if f["direction"] == "inverse"),
+      len(inverse_corrected))
 check("a corrected fact keeps the offsets its quote was gated on (P1)",
       all(doc["text"][f["quote_start"]:f["quote_end"]] == f["quote"] for f in facts))
 check("a fact carries when it was said, from its unit, beside when it is true (R2)",
@@ -886,6 +894,25 @@ if ns["sidecar_path"](doc).exists():
     ns["sidecar_path"](doc).unlink()
 check("and a sidecar written under a different derive path is not read back (B3, B4)",
       ns["load_replies"](doc) == 0)
+
+# P3 -- triage buys a reply before it writes its own row, so the triage row is not row 0
+side = ns["sidecar_path"](doc)
+if side.exists():
+    side.unlink()
+ns["IN_FLIGHT"][uri] = doc
+ns["REPLIES"].pop(uri, None)
+ns["remember_reply"](uri, "the-triage-reply", {"exclude": []})       # as triage() does, before its row
+ns["append_sidecar"](doc, {"triage": {"license": "not the work"}, "flags": ["a flag"], "cost": 0.25, "calls": 1})
+ns["append_sidecar"](doc, {"rec": {"unit_id": [u["unit_id"] for u in doc["units"]
+                                               if ns["unit_kind"](doc, u) != "license"][0]}, "cost": 0.5, "calls": 2})
+back_excluded, back_kept, back_cost, back_calls, back_flags = ns["checkpointed"](doc)
+check("a sidecar whose first row is a cached reply is still read back on resume (P3)",
+      back_excluded == {"license": "not the work"} and len(back_kept) == 1
+      and back_calls == 3 and back_flags == ["a flag"],
+      (back_excluded, len(back_kept), back_calls))
+side.unlink()
+ns["IN_FLIGHT"].pop(uri, None)
+ns["REPLIES"].pop(uri, None)
 
 # B1 and R1 -- one sentence about qualifiers, one about what a passage states, in both prompts
 fact_text = ns["fact_prompt"]({"label": "L", "text": "T"}, ["A"], ["A"])
