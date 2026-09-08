@@ -952,13 +952,13 @@ Return JSON {"verdicts": [{"pair": n, "verdict": "same" | "different" | "unsure"
 
 
 def correct_prompt(facts):
-    return f"""Below are statements one document makes, numbered, each with the passage it rests on. A check found that the passage does not state the statement as it is written. The passage is fixed and is not in question; the statement is what may be wrong.
+    return f"""Below are statements one document makes, numbered, each with the passage it rests on. The passage is right; the statement is what is wrong. Your task is to rewrite each statement so that its own passage states it.
 
-For each one you can, restate it so that its own passage states it: give "subject", "predicate" (lowercase_snake_case, present tense) and "object" that the passage does carry, with "qualifiers" or null. {QUOTE_RULE}.
+Keep the same subject. Rewrite the predicate and the object to say what the passage actually says about that subject: give "predicate" (lowercase_snake_case, present tense) and "object", with "qualifiers" or null. {QUOTE_RULE}. Most of these are a true claim carrying a passage that says something narrower or something adjacent, and those are all correctable.
 
-Leave a statement out of your answer entirely when its passage carries no durable fact at all. A statement that cannot be corrected is dropped, and that is the right outcome: a vague restatement that merely mentions the subject is worse than dropping it. Never restate a fact as a remark about the passage or about the document.
+Answer for every statement you can. Omit one only when its passage says nothing durable about that subject at all.
 
-Return JSON {{"corrections": [{{"fact", "subject", "predicate", "object", "qualifiers"}}]}}
+Return JSON {{"corrections": [{{"fact", "predicate", "object", "qualifiers"}}]}}
 
 STATEMENTS:
 {chr(10).join(facts)}"""
@@ -2070,11 +2070,24 @@ def corrected_fact(f, item):
     return {"subject": subject, "predicate": predicate, "object": obj, "qualifiers": item.get("qualifiers") or None}
 
 
+def refusal(f, item):
+    """Why corrected_fact refused a correction, so a run that corrects nothing says why."""
+    subject = str(item.get("subject") or f["subject"]).strip()
+    obj = str(item.get("object") or "").strip()
+    if not obj:
+        return "no object"
+    if obj.casefold() in ("true", "false"):
+        return "bare boolean"
+    if norm(subject) != norm(f["subject"]):
+        return "subject moved"
+    return "object restates subject or predicate"
+
+
 def corrections_of(flagged, ctx, watch=False):
     """({stored id: the corrected statement}, calls). The passage is fixed and the claim moves to
     fit it (R3, 09-07); a fact the reply leaves out, or whose correction fails corrected_fact, is
     not corrected and will be dumped rather than written with a flag."""
-    items, out, calls = sorted(flagged.items()), {}, 0
+    items, out, calls, offered, refused = sorted(flagged.items()), {}, 0, 0, {}
     if watch and items:
         print(f"correct: {len(items)} facts their passage does not state, on {LUNA}")
     for at in range(0, len(items), VERIFY_BATCH):
@@ -2087,14 +2100,22 @@ def corrections_of(flagged, ctx, watch=False):
         calls += 1
         if reply is None:
             continue
+        offered += len(reply.get("corrections", []))
         for item in reply.get("corrections", []):
             numbered = valid_sources([item.get("fact")], len(batch))
             if not numbered:
+                refused["misnumbered"] = refused.get("misnumbered", 0) + 1
                 continue
             stored_id, f = batch[numbered[0] - 1]
             fixed = corrected_fact(f, item)
-            if fixed is not None:
-                out[stored_id] = fixed
+            if fixed is None:
+                why = refusal(f, item)
+                refused[why] = refused.get(why, 0) + 1
+                continue
+            out[stored_id] = fixed
+    if watch:
+        print(f"    {len(items)} flagged, {offered} corrections offered, {len(out)} kept"
+              + (f"; refused {refused}" if refused else ""))
     return out, calls
 
 

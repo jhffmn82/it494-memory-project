@@ -113,21 +113,14 @@ if it cannot, recorded as a rejection with category `unsupported`. It is never
 stored with a flag (ruled 2026-09-07): a flag on a shipped fact is a claim the
 reader has to know to distrust.
 
-Within one document the judge resolves a contradiction; across documents
-nothing does. A document is a snapshot with an end state and is entitled to say
-what that state is, and refusing to let it throws away a judgement made with
-the whole document in view. The resolution is recorded on the `contradiction`,
-never on the fact: `holds` names which of its `from_facts` is true at the end
-of the document, `because` says how, and both facts stay `active`. Ranking the
-loser out of reads would hide from the layer above that the document ever said
-it, and that layer can only disambiguate what reaches it. A parent counts and
-never adjudicates.
-
-PROPOSED (behaviour ruled 2026-09-07, wording not yet): a read that returns the
-facts for an entity and predicate must return all of them or say it truncated,
-and must join the contradiction records for those facts or say it did not. A
-fact served without its contradictions may be one the document itself
-superseded.
+A document is a fixed point in time. Before anything reaches the global layer,
+a contradiction within a document is resolved by the end state of the entity:
+the `contradiction` record names in `holds` which of its `from_facts` is true
+at the end of the document, and `because` says how. Both facts are kept and
+both stay `active` -- ranking the loser out of reads would hide from the layer
+above that the document ever said it, and that layer can only disambiguate what
+reaches it. Across documents nothing is resolved: a parent counts and never
+adjudicates.
 
 Facts are append-only. When a predicate is functional, a later fact on the
 same subject and predicate supersedes an earlier one at read time; ruler_of
@@ -169,10 +162,10 @@ rule was written on 2026-09-04 alongside its reason, "only document-majors carry
 a dossier into the merge". It was a budget on the global merge, and the merge has
 since been deleted; the reason is recorded here so the rule is not re-derived
 from it. Minor entities never become nodes: a fact from a major
-to a minor is a property of the major with the minor's name as its value, a
-fact between two minors is not stored, and nothing is lost below the line,
-because the per-unit summary, a cell on the document's own node, still
-recorded it and every mention keeps its surface and span. There is no community layer: groupings the user or a loader
+to a minor is a property of the major with the minor's name as its value, and a
+fact between two minors is not stored. Below that line a minor leaves no record
+of its own; what the document says about it survives only in the per-unit
+summary, a cell on the document's own node. Mentions are not written (2026-09-08). There is no community layer: groupings the user or a loader
 declares (a series, a thread) exist for ordering and disambiguation scope, and
 nothing is clustered.
 
