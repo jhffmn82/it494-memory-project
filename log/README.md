@@ -70,4 +70,5 @@ their saved outputs as run.
   and docs/ingestor.md written. [review.md](2026-09-08/review.md) (drift and schema, ten rulings),
   [publishability-review.md](2026-09-08/publishability-review.md) (scope, rigor, feasibility, the
   reviewer's ten questions), [forward-plan.md](2026-09-08/forward-plan.md) (the execution timeline,
-  build and write tracks on one calendar).
+  build and write tracks on one calendar). [wiki-projection.md](2026-09-08/wiki-projection.md)
+  (Justin's design note: the wiki as a projection of the retrieval structure, the related-work score).
