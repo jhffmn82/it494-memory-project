@@ -1,6 +1,6 @@
 # Provenance
 
-Six corpora, four licenses. Nothing here was scraped: every file came from a named source, was
+Six corpora, three licenses. Nothing here was scraped: every file came from a named source, was
 checked against a hash, and is recorded in the raw dataset's manifests.
 
 ## Public domain by expiry of term
@@ -34,33 +34,35 @@ Di Wu. https://github.com/xiaowu0162/LongMemEval
 Both keep their upstream license files in the raw dataset. The question sets are not used here.
 Step 0 reads sessions as documents.
 
-## Withheld
+## Creative Commons Attribution
 
-**Reference papers, 141 documents.** The papers read for the project, fetched from arXiv, the
-ACL Anthology and publisher sites. Licenses are per paper and mostly do not permit
-redistribution, so the text is not in this dataset. What is here: the document row with a null
-text, its units and pieces, and a row in `papers.jsonl` with the source URL and the PDF's
-sha256.
+**Papers on knowledge graphs and RAG, 100 documents.** Full-text research papers gathered from
+OpenAlex by `scripts/fetch_kg_rag_cc.py` in the project repository, filtered to works whose best
+open-access location reports a Creative Commons license and offers a PDF. Every one of the 100
+is `cc-by`. The license was read per paper from OpenAlex and recorded, never assumed.
 
-Rebuilding one is three steps. Fetch the source URL, confirm the bytes hash to the recorded
-sha256, and run the text extraction in block 2 of the notebook, which is
-`pymupdf.open(stream=data, filetype="pdf")` with each page's `get_text()` joined by a single
-newline. The offsets in `units.jsonl` and `pieces.jsonl` resolve against exactly that string, so
-a different library or a different page separator will not line up.
+**Their text is in this dataset in full**, because CC-BY permits redistribution. What it requires
+in exchange is attribution, and `attribution.jsonl` carries it: one row per paper with the
+authors, the title, the year, the venue, the DOI, the OpenAlex id, the exact license and the URL
+the PDF came from. If you show, quote or redistribute any of this text, render the authors, the
+title and the license from that row.
 
-One paper appears twice in the fetch under two names and is exported once, as the receipt's
-`duplicate_files` records.
+These replaced an earlier set of 141 papers whose publishers' licenses did not permit
+redistribution. That set was withheld from the 1.5 release, its text null and rebuildable only
+from the source PDFs. It is gone from the corpus entirely, and with it the whole withheld-text
+mechanism: no document in this release has a null text.
 
 ## This dataset
 
 Packaging, schema, the split plan and every derived field are MIT, copyright 2026 Justin
 Hoffman. The underlying text keeps the license of its corpus. Do not treat the whole dataset as
-MIT: the benchmark texts are MIT, the literature is public domain, and the papers are absent for
-a reason.
+MIT: the benchmark texts are MIT, the literature is public domain, and the papers are CC-BY and
+carry an attribution condition.
 
 ## Raw inputs
 
 [IT494 Raw Corpora](https://www.kaggle.com/datasets/jhffmn/it494-narrative-corpora-raw), where
 every file is byte-identical to what its source served, with a manifest giving bytes and sha256
 per file, a sources file recording where each came from, and a usage file recording what it is
-for.
+for. The papers' manifest there is the same record `attribution.jsonl` is built from, joined on
+the sha256 of the PDF, which is also the document's `doc_id`.

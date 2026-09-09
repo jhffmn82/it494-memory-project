@@ -194,6 +194,7 @@ before citing.
 | `ong2024-routellm.pdf` | 2406.18665 | ICLR 2025 | RouteLLM: Learning to Route LLMs with Preference Data | Isaac Ong, Amjad Almahairi, et al. |
 | `pang2021-quality.pdf` | 2112.08608 | arXiv; NAACL 2022 (**UNCONFIRMED** — not stated in PDF) | QuALITY: Question Answering with Long Input Texts, Yes! | Richard Yuanzhe Pang, Alicia Parrish, Nitish Joshi, et al. |
 | `panickssery2024-self-preference.pdf` | 2404.13076 | arXiv; NeurIPS 2024 (**UNCONFIRMED** — not stated in PDF) | LLM Evaluators Recognize and Favor Their Own Generations | Arjun Panickssery, Samuel R. Bowman, Shi Feng |
+| `ran2026-asks.pdf` | 2608.29612 | arXiv (cs.AI), 30 Aug 2026 | LLMs Interpret, Embeddings Organize, Graphs Emerge: Agent-Driven Compilation of Scientific Knowledge | Shi-Ju Ran, Kun Zhang, Xi Wu, Liu-Si Yang, Wen-Jun Li |
 | `rost2021-bitemporal-property-graphs.pdf` | 2111.13499 | arXiv (Oracle–Leipzig project report) | Bitemporal Property Graphs to Organize Evolving Systems | Christopher Rost, Philip Fritzsche, et al. |
 | `tam2024-format-restrictions.pdf` | 2408.02442 | arXiv; EMNLP 2024 (**UNCONFIRMED** — not stated in PDF) | Let Me Speak Freely? A Study on the Impact of Format Restrictions on Performance of Large Language Models | Zhi Rui Tam, Cheng-Kuang Wu, et al. |
 | `vrandecic2014-wikidata.pdf` | — | CACM 57(10), Oct 2014 (DOI:10.1145/2629489) | Wikidata: A Free Collaborative Knowledgebase | Denny Vrandečić, Markus Krötzsch |

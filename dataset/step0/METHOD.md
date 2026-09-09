@@ -2,9 +2,9 @@
 
 The extractor is one Kaggle notebook of nine blocks:
 [ThreadAtlas Extractor](https://www.kaggle.com/code/jhffmn/threadatlas-extractor). This release
-is `threadatlas-extractor 1.5`, one pass over the whole corpus, `gpt-5.6-luna` at low reasoning
+is `threadatlas-extractor 1.6`, one pass over the whole corpus, `gpt-5.6-luna` at low reasoning
 effort, JSON mode. A document that defeats Luna twice is asked once more on `gpt-5.6-terra`,
-which is ten times the price, when it fits in 80,000 tokens. Two of the 230 read documents
+which is ten times the price, when it fits in 80,000 tokens. Six of the 189 read documents
 escalated.
 
 The design rule behind all of it: **the extractor sees a raw file and nothing else.** No
@@ -36,7 +36,7 @@ One call per document, with the whole document in it, asking for:
 
 Dates are never inferred. A date is kept only when its year appears on the line the model read
 it from, and a month or day only when the line names the month. The transcriber's date and the
-ebook release date are excluded by the prompt, which is why 52 documents carry no date at all.
+ebook release date are excluded by the prompt, which is why 43 documents carry no date at all.
 
 ## Units
 
@@ -85,22 +85,23 @@ fails, the row carries a flag saying so rather than a guess.
 
 ## Cost and scale
 
-The run reads 19,437 files and writes 19,436 documents for **$7.72**, a median of $0.013 a read
-document and $0.421 at the most expensive, a volume of Diodorus Siculus. Six documents at a time
+The run reads 19,395 files and writes 19,395 documents for **$6.60**, a median of $0.0148 a read
+document and $0.393 at the most expensive, a volume of Diodorus Siculus. The 19,206 chat sessions
+cost nothing, because no model is asked about them. Six documents at a time
 run in parallel, and a document's own over-cap pieces sub-split eight at a time inside that.
 Each call is billed to the document that made it, so per-document cost in the run log is real.
 
 The run is resumable: finished documents are appended as they complete and skipped on a restart.
 A record written by an older loader version is kept and re-exported unless `REDO_ALL` is set,
-which is the switch that makes a code change propagate; this release was produced with it on, so
-every row was written by 1.5. Running out of API credit is fatal by design rather than a retry, so a dead key
+which is the switch that makes a code change propagate; every row in this release was written by
+1.6. Running out of API credit is fatal by design rather than a retry, so a dead key
 cannot walk the corpus writing empty flagged records.
 
 ## Reproducing it
 
 Fork the notebook, attach
 [IT494 Raw Corpora](https://www.kaggle.com/datasets/jhffmn/it494-narrative-corpora-raw), add an
-OpenAI key, and run all. The papers are a private dataset for license reasons, and block 1
-mounts it unconditionally, so without it the run stops before reading anything: make that mount
-optional and the run covers 19,295 of the 19,436 documents. A model is not deterministic, so a rerun will differ
-in the split of hard documents; the receipt is how two runs are compared.
+OpenAI key, and run all. That one dataset carries every corpus, papers included, so there is
+nothing else to attach and no mount to make optional: the run covers all 19,395 documents as it
+stands. A model is not deterministic, so a rerun will differ in the split of hard documents; the
+receipt is how two runs are compared.
