@@ -1,8 +1,8 @@
 # Method
 
 The extractor is one Kaggle notebook of nine blocks:
-[FactLedger Extractor](https://www.kaggle.com/code/jhffmn/factledger-extractor). This release
-is `factledger-extractor 1.5`, one pass over the whole corpus, `gpt-5.6-luna` at low reasoning
+[ThreadAtlas Extractor](https://www.kaggle.com/code/jhffmn/threadatlas-extractor). This release
+is `threadatlas-extractor 1.5`, one pass over the whole corpus, `gpt-5.6-luna` at low reasoning
 effort, JSON mode. A document that defeats Luna twice is asked once more on `gpt-5.6-terra`,
 which is ten times the price, when it fits in 80,000 tokens. Two of the 230 read documents
 escalated.

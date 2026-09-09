@@ -29,7 +29,7 @@ The extractor's run: [run15-receipt.json](run15-receipt.json) and
 [run15-read-documents.jsonl](run15-read-documents.jsonl), the record for each of the 231 text and
 PDF documents; the 340 MB export stays on Kaggle. The run as it happened is
 `extractor-final-receipt.json`, `extractor-final-splits.log`, `extractor-run-347794765.txt` and
-`factledger-extractor-as-run-347794765.py`.
+`threadatlas-extractor-as-run-347794765.py`.
 
 The ingestor's: [decisions-ingestor-0.5.md](decisions-ingestor-0.5.md), every decision of the
 0.4-to-0.5 session with who took it; [devlog-ingestor-0.5.md](devlog-ingestor-0.5.md), the

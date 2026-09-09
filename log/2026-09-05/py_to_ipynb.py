@@ -1,4 +1,4 @@
-"""notebooks/factledger-extractor.py -> notebooks/factledger-extractor.ipynb, and back again to
+"""notebooks/threadatlas-extractor.py -> notebooks/threadatlas-extractor.ipynb, and back again to
 prove the two are the same file in two containers. Run from the repository root.
 
 The script is the thing to edit; the notebook is generated from it. Cells are "# %%" markers,
@@ -8,8 +8,8 @@ import json
 import re
 from pathlib import Path
 
-PY = Path("notebooks/factledger-extractor.py")
-NB = Path("notebooks/factledger-extractor.ipynb")
+PY = Path("notebooks/threadatlas-extractor.py")
+NB = Path("notebooks/threadatlas-extractor.ipynb")
 
 old = json.loads(NB.read_text(encoding="utf-8"))
 meta, nbformat, minor = old["metadata"], old["nbformat"], old["nbformat_minor"]

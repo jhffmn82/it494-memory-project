@@ -23,7 +23,7 @@ os.environ["OUT"] = str(SCR)
 os.environ.setdefault("EXPORT", str(ROOT / "data" / "export"))
 os.environ["OPENAI_API_KEY"] = "test-key-never-sent"        # nothing is sent: the calls are stubbed
 
-src = Path("notebooks/factledger-ingestor.py").read_text(encoding="utf-8")
+src = Path("notebooks/threadatlas-ingestor.py").read_text(encoding="utf-8")
 cells = src.split("\n# %%\n")
 block = {int(m.group(1)): c for c in cells for m in [re.search(r"^# Block (\d+):", c, re.M)] if m}
 ns = {"__name__": "ingestor_under_test"}

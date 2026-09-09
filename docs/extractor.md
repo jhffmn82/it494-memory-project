@@ -1,6 +1,6 @@
 # The extractor: algorithm and data contract
 
-`factledger-extractor 1.5`. One Kaggle notebook that turns a folder of raw files into a split
+`threadatlas-extractor 1.6`. One Kaggle notebook that turns a folder of raw files into a split
 plan: which document each file is, where it divides, and what kind of text each part is. No
 entities, no facts, no summaries — those are the ingestor's job (Step 1). This is Step 0.
 

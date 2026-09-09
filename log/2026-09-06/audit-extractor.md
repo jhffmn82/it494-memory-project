@@ -1,8 +1,8 @@
 # Audit of the extractor, 2026-09-06
 
-The artefact audited is the notebook as **saved on Kaggle** (`jhffmn/factledger-extractor`,
-loader `factledger-extractor 0.9`), pulled with the Kaggle CLI and committed here as
-`notebooks/factledger-extractor.{py,ipynb}`. It was ahead of the branch, whose last commit
+The artefact audited is the notebook as **saved on Kaggle** (`jhffmn/threadatlas-extractor`,
+loader `threadatlas-extractor 0.9`), pulled with the Kaggle CLI and committed here as
+`notebooks/threadatlas-extractor.{py,ipynb}`. It was ahead of the branch, whose last commit
 (`91df457`) is 0.7. Every finding below was produced by running code against the real corpus
 mirrored in `data/raw`, not by reading alone; the harnesses are named per finding.
 
@@ -56,7 +56,7 @@ together, which a single turn ("yes, the second one") loses.
 
 **Fix:** restore the 0.7 `chat_runs(pieces, text)`: runs of at least two turns, under the cap,
 never across a day change, short tail merged back. It is thirteen lines and is in
-`git show 91df457:notebooks/factledger-extractor.py`.
+`git show 91df457:notebooks/threadatlas-extractor.py`.
 
 ### 2. MAJOR: two of the three offline test batteries no longer run
 

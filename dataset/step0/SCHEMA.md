@@ -22,7 +22,7 @@ receipt's `duplicate_files` names the file that was dropped and the one it match
 | `text` | string or null | the document as text. **Null for the 141 reference papers**, whose license withholds it. |
 | `ingested_at` | string | when this run read the file, ISO 8601 UTC. |
 | `occurred_at` | string or null | when the document is from, as a year, a year and month, or a full date. Null when the page does not say. |
-| `loader` | string | the extractor version that wrote the row. `factledger-extractor 1.5` throughout. |
+| `loader` | string | the extractor version that wrote the row. `threadatlas-extractor 1.5` throughout. |
 | `flags` | array of string | what the run could not settle. Empty when nothing. See `LIMITS.md`. |
 
 `source_class` is fixed by kind for two of the three: a chat log is a `record` and a PDF is

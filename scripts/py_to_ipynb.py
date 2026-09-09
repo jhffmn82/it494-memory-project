@@ -1,7 +1,7 @@
 """A '# %%' script -> its notebook, and back again to prove the two are the same file in two
 containers. Generalised from log/2026-09-05/py_to_ipynb.py, which was fixed to the extractor.
 
-    python scripts/py_to_ipynb.py notebooks/factledger-ingestor.py
+    python scripts/py_to_ipynb.py notebooks/threadatlas-ingestor.py
 
 The script is the thing to edit; the notebook is generated from it. Cells are "# %%" markers,
 "# %% [markdown]" for a markdown cell whose lines carry a "# " prefix. Kaggle's importer needs

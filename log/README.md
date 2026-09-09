@@ -24,7 +24,7 @@ their saved outputs as run.
   Inventory: [inventory.md](2026-09-04/inventory.md), every source audited, what the brief
   had wrong or missing, the twelve rulings.
   Brief: [step0-brief.md](2026-09-04/step0-brief.md), the extractor chat's opening message.
-  Code: [factledger_blocks_3_to_9.py](2026-09-04/factledger_blocks_3_to_9.py), candidate-index
+  Code: [threadatlas_blocks_3_to_9.py](2026-09-04/threadatlas_blocks_3_to_9.py), candidate-index
   selection, gates, one unit rule, piece-table export; proposed, not yet applied.
 - [2026-09-05](2026-09-05/README.md): the extractor's wrong turn found (quote matching,
   chunking) and the rebuild under the day's rulings: the model decides every boundary over
@@ -47,7 +47,7 @@ their saved outputs as run.
   Decisions: [decisions-ingestor-0.5.md](2026-09-06/decisions-ingestor-0.5.md).
 - [2026-09-07](2026-09-07/README.md): the dataset published and then corrected, the ingestor
   audited twice, and the entity design settled. Step 0 shipped
-  [FactLedger Step 0](https://www.kaggle.com/datasets/jhffmn/it494-factledger-step0) with five
+  [ThreadAtlas Step 0](https://www.kaggle.com/datasets/jhffmn/it494-threadatlas-step0) with five
   documentation files kept in `dataset/step0/` and a packer that reproduces every published
   file byte for byte; seventeen errors in that documentation were then found and fixed, the
   worst being that the README credited a model with finding boundaries in 98.8 percent of a
@@ -59,7 +59,7 @@ their saved outputs as run.
   The ingestor thread of the same day is [ingestor.md](2026-09-07/ingestor.md) (0.6 to 0.8 and
   the one-reading path), with [decisions-ingestor-0.8.md](2026-09-07/decisions-ingestor-0.8.md)
   and [build-0.8-worklist.md](2026-09-07/build-0.8-worklist.md); the notebook as run is
-  `factledger-ingestor-as-run.{py,ipynb}`. Merged to master 2026-09-08.
+  `threadatlas-ingestor-as-run.{py,ipynb}`. Merged to master 2026-09-08.
   Design: the scope question in [entity-resolution.md](../docs/entity-resolution.md) is settled.
   Nothing is ever merged; it is a tree. A parent holds no asserted content, only a derived name,
   profile and abstract, and every sentence on it must be reducible to "N of M children say X".

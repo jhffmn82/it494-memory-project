@@ -1,140 +1,5 @@
-# %% [markdown]
-# # FactLedger extractor
-#
-# One raw file at a time, to a **split plan**: which document the file is, where it divides, and
-# what kind of text each part is. No entities, no facts, no summaries; those are the ingestor's
-# job. This is Step 0.
-#
-# **The one rule: the extractor sees a raw file and nothing else.** The format is sniffed from
-# the bytes. There is no filename convention, no per-corpus branch, and no hand-written rule
-# about where a publisher's boilerplate ends. Every boundary in the output is a decision the
-# model made and code verified; code never decides where a break may go, and the model never
-# returns a character offset. The manifests are packaging and an answer key, read in block 1 to
-# prove the mounted bytes are the uploaded bytes, and never again.
-#
-# ## What comes in
-#
-# One mount (`RAW`, the public raw dataset), one folder per corpus, each with a `manifest.json`
-# recording every file's source URL, byte count and sha256:
-#
-# | corpus | files | shape |
-# |---|---|---|
-# | `longmemeval` | 19,206 | one JSON per assistant chat session |
-# | `kg-rag-cc` | 100 | CC-BY papers on knowledge graphs and RAG, PDFs under `pdf/` |
-# | `greek` | 31 | Greek and Roman literature, including OCR'd institutional scans |
-# | `oz` | 29 | the Oz books |
-# | `graphrag-bench` | 20 | GraphRAG-Bench novel contexts |
-# | `holmes` | 9 | the Sherlock Holmes volumes |
-#
-# Three shapes are sniffed from the first bytes, and nothing else about a file is consulted:
-#
-# | sniffed as | how it is read |
-# |---|---|
-# | PDF | the text layer, pages joined by one newline (PyMuPDF, the one dependency) |
-# | chat JSON | rendered `role: content` per turn under a session header, turn spans kept |
-# | plain text | the bytes decoded as UTF-8, unchanged |
-#
-# ## What goes out
-#
-# `/kaggle/working/splits.jsonl` holds one record per document as it finishes, so a stopped run
-# resumes; `export/` holds the dataset. All offsets everywhere are **document offsets**,
-# character indices into `documents.text` for the same `doc_id`, one coordinate system, so any
-# piece, unit or later fact quote resolves with a single slice.
-#
-# `documents.jsonl`, one row per document:
-#
-# | field | meaning |
-# |---|---|
-# | `doc_id` | the sha256 of the file bytes; every other row joins on it |
-# | `source_uri` | mount, corpus and file, for example `it494-narrative-corpora-raw/oz/01_55.txt` |
-# | `title`, `author`, `occurred_at` | what the model read off the page and a pointer proved |
-# | `source_class` | `record` for a chat, `published` for a PDF, the model's answer for plain text |
-# | `text` | the decoded string, whole, for every document |
-# | `sha256`, `ingested_at`, `loader`, `flags` | provenance, and what the gates could not verify |
-#
-# `units.jsonl`, one row per unit, the size-bounded runs the pieces were grouped into:
-#
-# | field | meaning |
-# |---|---|
-# | `unit_id`, `doc_id`, `position` | its id, its document, its place in reading order |
-# | `label` | a human label: a chapter title, or a range of turns |
-# | `start`, `end` | character offsets into the document text |
-# | `occurred_at`, `occurred_until` | when it was said, when the file carries times |
-#
-# `pieces.jsonl`, one row per natural piece (a chapter, a section, a turn) inside a unit:
-#
-# | field | meaning |
-# |---|---|
-# | `doc_id`, `unit_id`, `position`, `start`, `end` | where it is |
-# | `kind` | six regions of a written document (`front_matter`, `body`, `notes`, `references`, `appendix`, `license`) or two turns of a conversation (`user`, `assistant`) |
-# | `author` | the speaker of a chat turn, else `null` |
-# | `occurred_at` | the time of a turn, else `null` |
-#
-# `receipt.json`: the run's own counts and cost, written by the run.
-#
-# Checked at export on every document, not asserted: pieces and units each **tile** their
-# document with no gaps and no overlaps, a unit **never mixes kinds**, `unit_id` is unique, and
-# every unit's slice is a real, non-empty slice of the text.
-#
-# ## The algorithm for a document that must be read
-#
-# ```
-# extract(file):
-#     read        sniff the container from the bytes and decode it to one string
-#     address     number the document's own non-blank lines; a file with no usable lines
-#                 (a PDF text layer that puts one word on a line) is numbered by sentence
-#     ask once    one call over the whole document, for
-#                     source_class, title, author, source, date  each a pointer plus its value
-#                     toc_count                                  what the contents list promises
-#                     regions                                    where front matter ends, body
-#                                                                begins, and notes, references,
-#                                                                appendix and license sit
-#                     pieces                                     the chapters, sections, scenes
-#                 a document that defeats Luna twice is asked once more on Terra, if it fits
-#     gate        the model points at a line BY NUMBER AND COPIES ITS TEXT, so a pointer
-#                 resolves only when the copy names the line: the line itself, its first eight
-#                 words, a run of five or more of its words, or a two-line heading copied whole
-#                     wrong number, text found nearby -> recovered and counted
-#                     text nowhere                    -> dropped and counted
-#                 nothing the model asserted without a verified pointer reaches the output
-#     sub-split   a piece over CAP_WORDS goes back as numbered lines and is cut at the breaks
-#                 the model points at, up to three rounds; one it cannot break stays whole
-#     merge short a piece under SHORT_WORDS is offered with its text: it joins the piece
-#                 before, the piece after, or stands alone
-#     group       the outline goes back and the model groups consecutive pieces into units, a
-#                 section with its subsections, never two peers merely because they fit;
-#                 code then checks the groups cover the outline in order, dissolves a group
-#                 over the cap, and cuts any group where the kind changes
-#     write       one record to splits.jsonl; the export tiles and checks it
-# ```
-#
-# ## The algorithm for a chat session
-#
-# ```
-# extract(chat):
-#     no call. The session already states its own boundaries.
-#     pieces      the turns; the role is the author
-#     units       runs of turns under CAP_WORDS, never a lone turn, never spanning a change of
-#                 day, a tail under TAIL_FLOOR merged back into the unit before it
-#     header      the session header is front matter and a unit of its own
-# ```
-#
-# 19,206 of the 19,395 documents cost nothing to split.
-#
-# ## On Kaggle
-#
-# Attach the raw dataset (`jhffmn/it494-narrative-corpora-raw`), which carries every corpus
-# including the papers. Attach `OPENAI_API_KEY` under Add-ons > Secrets and turn Internet on.
-# Run block 3 to see the connection work, then the blocks in order. Finished documents are
-# appended to `splits.jsonl` and skipped on a restart, so to continue a stopped run, make a
-# dataset from that output and attach it. `REDO_ALL` re-asks clean records an older loader
-# wrote; a hard spending stop halts the run, and running out of API credit is fatal by design,
-# so a dead key cannot walk the corpus writing empty flagged records.
-
-
-# %%
 # Block 1: inputs and integrity.
-# Mount the raw dataset, count files per folder, and check every file's sha256 against the
+# Mount both datasets, count files per folder, and check every file's sha256 against the
 # folder manifest. The manifests are used here only to prove the Kaggle copies are the bytes
 # that were uploaded; the extractor itself never reads them.
 import hashlib
@@ -152,7 +17,7 @@ def mount(slug):
 
 
 RAW = mount("it494-narrative-corpora-raw")
-SIDECARS = ("manifest.json", "LICENSE", "README.md")   # packaging, never a document
+PAPERS = mount("it494-reference-papers")
 
 
 def sha256(path):
@@ -161,11 +26,8 @@ def sha256(path):
 
 def check(folder):
     manifest = json.loads((folder / "manifest.json").read_text(encoding="utf-8"))
-    # each manifest names its rows for its own corpus: works, papers, or files
-    rows = manifest.get("works") or manifest.get("papers") or manifest["files"]
-    # relative posix paths, so a corpus that keeps its files in a subfolder (kg-rag-cc/pdf) checks too
-    on_disk = {p.relative_to(folder).as_posix() for p in folder.rglob("*")
-               if p.is_file() and p.name not in SIDECARS}
+    rows = manifest.get("works") or manifest["files"]      # the literature manifests say "works"
+    on_disk = {p.name for p in folder.iterdir() if p.name not in ("manifest.json", "LICENSE")}
     listed = {r["file"] for r in rows}
     # Kaggle inputs are a network filesystem: one file at a time, 19,206 files take tens of
     # minutes; 32 concurrent reads take about a minute.
@@ -177,9 +39,9 @@ def check(folder):
     return bad
 
 
-for name in ("oz", "holmes", "greek", "graphrag-bench", "longmemeval", "kg-rag-cc"):
+for name in ("oz", "holmes", "greek", "graphrag-bench", "longmemeval"):
     check(RAW / name)
-
+check(PAPERS)
 
 # %%
 # Block 2: file type, then raw text.
@@ -269,17 +131,15 @@ def to_text(path):
 # One of each, to see the shape.
 for path in [RAW / "oz" / "01_55.txt", RAW / "graphrag-bench" / "Novel-30752.txt",
              RAW / "longmemeval" / "sharegpt_yywfIrx_0.json", RAW / "longmemeval" / "001cefa7_2.json",
-             RAW / "kg-rag-cc" / "pdf" / "001_2024.eacl-demo.16.pdf"]:
+             PAPERS / "edge2024-graphrag.pdf"]:
     d = to_text(path)
     turns = len(d["turns"]) if d["turns"] else "-"
     print(f"{path.name:<26} {d['kind']:<5} {len(d['text']):>8,} chars  turns {turns:>3}  dates {d['dates']}")
     print("    " + repr(d["text"][:70]))
 
-
 # %%
 # Block 3: the model call.
 import json
-import threading
 import time
 
 import requests
@@ -303,24 +163,11 @@ class TooLong(Exception):
 
 
 class SpendStop(Exception):
-    """The run must stop: the session has spent SPEND_STOP, or the account is out of credits.
-    Block 8 writes the documents in flight and leaves the rest for the next session."""
+    """The session has spent SPEND_STOP; block 8 ends the run on this."""
 
 
 def spend():
     return sum(c["cost"] for c in calls)
-
-
-BILL = {}                                        # thread -> the document its calls belong to
-
-
-def bill_to(name):
-    """Every call this thread makes from here counts against `name`."""
-    BILL[threading.get_ident()] = name
-
-
-def spent_on(name):
-    return sum(c["cost"] for c in calls if c.get("bill") == name)
 
 
 def generate(prompt, model=MODEL, effort="low"):
@@ -343,15 +190,12 @@ def generate(prompt, model=MODEL, effort="low"):
         except (requests.Timeout, requests.ConnectionError):
             # the server may have finished and billed the request: count the input as spent
             calls.append({"model": model, "in": len(prompt) // 4, "out": 0, "seconds": round(time.time() - t0, 1),
-                          "bill": BILL.get(threading.get_ident()), "timeout": True,
-                          "cost": len(prompt) // 4 * p_in / 1e6})
+                          "cost": len(prompt) // 4 * p_in / 1e6, "timeout": True})
             if attempt == 2:
                 raise
             time.sleep(15 * (attempt + 1))
             continue
-        if r.status_code in (401, 403) or (r.status_code == 429 and "quota" in r.text.lower()):
-            raise SpendStop(f"OpenAI {r.status_code}: {r.text[:120]}")   # no credits or no key: stop
-        if r.status_code == 429 or r.status_code >= 500:                 # busy: wait and try again
+        if r.status_code == 429 or r.status_code >= 500:
             if attempt == 2:
                 raise RuntimeError(f"OpenAI {r.status_code}: {r.text}")
             time.sleep(15 * (attempt + 1))
@@ -364,13 +208,12 @@ def generate(prompt, model=MODEL, effort="low"):
     body = r.json()
     u = body["usage"]
     calls.append({"model": body["model"], "in": u["prompt_tokens"], "out": u["completion_tokens"],
-                  "seconds": round(time.time() - t0, 1), "bill": BILL.get(threading.get_ident()),
+                  "seconds": round(time.time() - t0, 1),
                   "cost": (u["prompt_tokens"] * p_in + u["completion_tokens"] * p_out) / 1e6})
     return json.loads(body["choices"][0]["message"]["content"])
 
 
 print(f"model {MODEL}, retry {MODEL} then {RETRY} under {RETRY_MAX_TOKENS:,} tokens, spend stop ${SPEND_STOP:.2f}, key {'present' if KEY else 'MISSING'}")
-
 
 # %%
 # Block 4: the address list. Every non-blank line of the document, numbered. The model points
@@ -402,12 +245,11 @@ def listing(text, addrs):
 
 
 for path in [RAW / "oz" / "01_55.txt", RAW / "greek" / "03_348.txt", RAW / "graphrag-bench" / "Novel-30752.txt",
-             RAW / "kg-rag-cc" / "pdf" / "001_2024.eacl-demo.16.pdf"]:
+             PAPERS / "edge2024-graphrag.pdf"]:
     d = to_text(path)
     a = addresses(d["text"])
     n = len(listing(d["text"], a))
     print(f"{path.name:<26} {len(d['text']):>9,} chars  {len(a):>6,} addresses  {n:>9,} chars to the model  (~{n // 4:,} tokens)")
-
 
 # %%
 # Block 5: the question. One call per document, the whole document in it. Every pointer is a
@@ -438,7 +280,6 @@ Pieces are the document's own divisions: chapters, acts and scenes, sections, da
 
 def ask(text, addrs, model=MODEL):
     return generate(PROMPT % listing(text, addrs), model)
-
 
 # %%
 # Block 6: pieces from the answer, and the gates.
@@ -747,7 +588,6 @@ def split(doc):
                 [f"too long: about {tokens:,} tokens for one call"], {**fresh_stats(addrs, None), "too_long": True})
     return best[1:]
 
-
 # %%
 # Block 7: units. The model decides these too, in three calls.
 #   subsplit  a piece over CAP_WORDS is shown to the model as numbered lines and it points at
@@ -771,18 +611,16 @@ def split(doc):
 # ends: every turn is its own piece and carries its own author. A session the benchmark reused
 # carries several dates and takes the one it started on, on the document, its units and its
 # turns alike.
-from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 
 DEPTH = 3            # rounds of splitting a piece that stays over the cap
-FANOUT = 8           # sub-splits of one document in flight at once
 
 SPLIT_PROMPT = """Below is one piece of a document as numbered lines: "%s", about %d words, over the limit of %d words for one unit. Point at the lines where it naturally breaks (a scene change, a section, a new episode, a new topic) so that no part is over the limit, using as few breaks as that allows. A break is the first line of the paragraph where the new part begins. Answer with JSON only: {"breaks": [{"index": n, "text": "..."}, ...]}. Point at a line by its number and copy that line's text exactly as listed (a long line may be cut after its first eight words). Never invent a line.
 
 %s
 """
 
-GROUP_PROMPT = """Below is the outline of one document: its pieces in order, each with its kind, its length in words, and its heading. Group consecutive pieces into units. A unit is one piece together with the pieces that belong under it: a section with its subsections, a chapter with its scenes. Never join two peers (two chapters, two top-level sections) merely because they fit, and never join pieces of different kinds: a unit is all body, or all notes, or all appendix. Pieces marked (part) are the parts of one piece already split for length: they stay separate and never rejoin. A unit must stay under %d words; a single piece over that stands alone. Every piece belongs to exactly one unit, in order, with no gaps. Answer with JSON only: {"units": [{"first": n, "last": n}, ...]}, where first and last are piece numbers from the list.
+GROUP_PROMPT = """Below is the outline of one document: its pieces in order, each with its kind, its length in words, and its heading. Group consecutive pieces into units. A unit is one piece together with the pieces that belong under it: a section with its subsections, a chapter with its scenes, a play with the notes that follow it. Never join two peers (two chapters, two top-level sections) merely because they fit. Pieces marked (part) are the parts of one piece already split for length: they stay separate and never rejoin. A unit must stay under %d words; a single piece over that stands alone. Every piece belongs to exactly one unit, in order, with no gaps. Answer with JSON only: {"units": [{"first": n, "last": n}, ...]}, where first and last are piece numbers from the list.
 
 %s
 """
@@ -822,38 +660,6 @@ def subsplit(text, p, stats, depth=0):
               "part": p.get("part") or p["label"][:40]}                  # parts of one piece stay apart in grouping
              for s, e in zip(starts, starts[1:] + [p["end"]])]
     return [q for part in parts for q in subsplit(text, part, stats, depth + 1)]
-
-
-def merge_stats(into, other):
-    """One thread's counts folded into the document's."""
-    for key, value in other.items():
-        if isinstance(value, int) and key != "addresses":
-            into[key] = into.get(key, 0) + value
-        elif isinstance(value, list):
-            into.setdefault(key, []).extend(value)
-    into["unresolved_samples"] = into.get("unresolved_samples", [])[:6]
-    return into
-
-
-def subsplit_all(text, pieces, stats):
-    """Every over-cap piece split at once. The pieces are independent, so the calls go out
-    together; each thread counts into its own stats and they are folded in afterwards, in
-    piece order, so a rerun of the same answers gives the same numbers."""
-    over = [i for i, p in enumerate(pieces) if words(text, p) > CAP_WORDS]
-    if not over:
-        return pieces
-    mine = {i: fresh_stats([], stats.get("model")) for i in over}
-    name = BILL.get(threading.get_ident())       # the parts bill to the document they came from
-
-    def one(i):
-        bill_to(name)
-        return subsplit(text, pieces[i], mine[i])
-
-    with ThreadPoolExecutor(max_workers=min(FANOUT, len(over))) as pool:
-        parts = dict(zip(over, pool.map(one, over)))
-    for i in over:
-        merge_stats(stats, {k: v for k, v in mine[i].items() if k != "addresses"})
-    return [q for i, p in enumerate(pieces) for q in (parts[i] if i in parts else [p])]
 
 
 def outline(text, pieces, show_short=False):
@@ -936,22 +742,8 @@ def merge_short(text, pieces, stats, flags):
     return out
 
 
-def split_by_kind(pieces, run):
-    """The run cut wherever the kind changes, so a unit never holds two kinds. Returns the run
-    itself when it is already of one kind, which is how the caller counts the cuts."""
-    parts, part = [], [run[0]]
-    for i in run[1:]:
-        if pieces[i]["kind"] == pieces[part[-1]]["kind"]:
-            part.append(i)
-        else:
-            parts.append(part)
-            part = [i]
-    parts.append(part)
-    return [run] if len(parts) == 1 else parts
-
-
 def group(text, pieces, stats, flags):
-    """Runs of piece indices as the model grouped them, cut where the kind changes."""
+    """Runs of piece indices as the model grouped them."""
     if len(pieces) == 1:
         return [[0]]
     try:
@@ -969,18 +761,13 @@ def group(text, pieces, stats, flags):
     if expect != len(pieces):
         flags.append(f"grouping answer: covered {expect} of {len(pieces)} pieces; one unit per piece")
         return [[i] for i in range(len(pieces))]
-    out, mixed = [], 0
+    out = []
     for run in runs:
-        parts = split_by_kind(pieces, run)        # a unit is all of one kind
-        mixed += len(parts) > 1 or parts[0] is not run
-        for part in parts:
-            if len(part) > 1 and sum(words(text, pieces[i]) for i in part) > CAP_WORDS:
-                flags.append(f"grouping: dissolved a group over the cap: {pieces[part[0]]['label'][:40]} .. {pieces[part[-1]]['label'][:40]}")
-                out.extend([[i] for i in part])
-            else:
-                out.append(part)
-    if mixed:
-        flags.append(f"grouping: {mixed} group(s) cut where the kind changed")
+        if len(run) > 1 and sum(words(text, pieces[i]) for i in run) > CAP_WORDS:
+            flags.append(f"grouping: dissolved a group over the cap: {pieces[run[0]]['label'][:40]} .. {pieces[run[-1]]['label'][:40]}")
+            out.extend([[i] for i in run])
+        else:
+            out.append(run)
     stats["groups"] = len(out)
     return out
 
@@ -1022,11 +809,11 @@ def day(t):
 def chat_runs(pieces, text):
     """Runs of piece indices: at least two turns each unless a day changes, under the cap where
     two turns allow it, the short tail merged into the unit before it. Index 0 is the header,
-    which is front matter, and so is a unit of its own: a unit is all of one kind."""
+    which has no turn of its own and so opens the first turn's unit."""
     runs, run, size = [], [], 0
-    for i, q in enumerate(pieces[1:], start=1):
+    for i, q in enumerate(pieces):
         w = words(text, q)
-        turns = len(run)
+        turns = sum(1 for j in run if j > 0)
         new_day = bool(run) and day(q["occurred_at"]) != day(pieces[run[-1]]["occurred_at"])
         if run and (new_day or (size + w > CAP_WORDS and turns >= 2)):
             runs.append(run)
@@ -1035,11 +822,12 @@ def chat_runs(pieces, text):
         size += w
     if run:
         same_day = runs and day(pieces[run[0]]["occurred_at"]) == day(pieces[runs[-1][-1]]["occurred_at"])
-        if runs and same_day and (size < TAIL_FLOOR or len(run) < 2):   # a short tail, or a lone turn
+        lone = sum(1 for j in run if j > 0) < 2
+        if runs and same_day and (size < TAIL_FLOOR or lone):   # a short tail, or a lone turn, joins the unit before it
             runs[-1].extend(run)
         else:
             runs.append(run)
-    return [[0]] + runs
+    return runs
 
 
 def units_from_runs(pieces, runs, text):
@@ -1055,9 +843,8 @@ def units_from_runs(pieces, runs, text):
             q["unit"] = i
     return units
 
-
 # %%
-# Block 8: every document in the raw dataset, resumable. Each finished document is appended to
+# Block 8: every document in both datasets, resumable. Each finished document is appended to
 # splits.jsonl as one record: file (dataset-relative), path, sha256, kind, reply, pieces, units,
 # flags, stats, cost. On a rerun a document is skipped by file name before it is read when its
 # last record was written by this loader AND is clean or carries only advisory flags (metadata,
@@ -1066,28 +853,21 @@ def units_from_runs(pieces, runs, text):
 # loader wrote is always redone, because a code change is exactly what a resume must not keep. Chats need
 # no model call. Texts and PDFs print a full entry; chats print one line per hundred. The spend
 # stop writes the document in flight as a flagged record, so its cost is kept, and ends the loop.
-import threading
-
 SPLITS = Path("/kaggle/working/splits.jsonl")
 LOG = Path("/kaggle/working/splits.log")
-# Every record says which loader wrote it, so a resume can tell one build from another. Keep
-# this in step with the code: 1.1 and 1.2 both shipped under the 1.0 label, so running the
-# older notebook after a newer one could not tell the work had been done and asked the whole
-# corpus again.
-LOADER = "factledger-extractor 1.5"
-REDO_ALL = False                        # True also re-asks clean records an older loader wrote
+LOADER = "threadatlas-extractor 1.0"     # a record says which loader wrote it; a rerun redoes older ones
 
 
 def rel_of(path):
-    """'raw/oz/01_55.txt' or 'raw/kg-rag-cc/pdf/001_x.pdf': the same name on any Kaggle mount."""
-    return f"raw/{path.relative_to(RAW).as_posix()}"
+    """'raw/oz/01_55.txt' or 'papers/x.pdf': the same name on any Kaggle mount."""
+    return f"raw/{path.relative_to(RAW).as_posix()}" if RAW in path.parents else f"papers/{path.name}"
 
 
 def path_of(record):
     rel = record.get("file")
     if rel is None:
         return Path(record["path"])                          # a record written before files were named
-    return RAW / rel[4:]
+    return RAW / rel[4:] if rel.startswith("raw/") else PAPERS / rel[7:]
 
 
 def iso_of(reply):
@@ -1141,35 +921,17 @@ def show(doc, record):
 
 
 paths = sorted(RAW.glob("oz/*.txt")) + sorted(RAW.glob("holmes/*.txt")) + sorted(RAW.glob("greek/*.txt")) \
-      + sorted(RAW.glob("graphrag-bench/*.txt")) + sorted(RAW.glob("kg-rag-cc/pdf/*.pdf")) \
+      + sorted(RAW.glob("graphrag-bench/*.txt")) + sorted(PAPERS.glob("*.pdf")) \
       + sorted(p for p in RAW.glob("longmemeval/*.json") if p.name != "manifest.json")
 latest = read_splits()
-def settled(rec):
-    """A record needs no further call: it is clean or only advisory, or it is a chat (whose
-    flags cannot change), or it has been asked in two sessions already."""
-    return all(advisory(f) for f in rec["flags"]) or rec.get("kind") == "chat" or rec["tries"] >= 2
-
-
-done = {key for key, rec in latest.items() if settled(rec) and (rec.get("loader") == LOADER or not REDO_ALL)}
-older = sum(1 for key, rec in latest.items() if settled(rec) and rec.get("loader") != LOADER)
-print(f"{LOADER}: {len(done)} documents already settled"
-      + (f", {older} of them written by an older loader and kept (REDO_ALL is False)" if older and not REDO_ALL
-         else f"; REDO_ALL is True, so {older} written by an older loader are asked again" if older else ""))
-DOCUMENTS = 6        # documents in flight at once; each may fan out FANOUT sub-splits
-lock = threading.Lock()
-stop = threading.Event()                         # set once the spend stop trips
-counted = {"chats": 0}
-
-
-def run_one(path):
-    """One document, start to record. Returns the record, or None when there is nothing to do.
-    Every task is queued at once, so the stop is a flag every task checks: once it is set,
-    the rest return untouched and are picked up by the next session's resume."""
+done = {key for key, rec in latest.items() if rec.get("loader") == LOADER
+        and (all(advisory(f) for f in rec["flags"]) or rec.get("kind") == "chat" or rec["tries"] >= 2)}
+chats = 0
+for path in paths:
     rel = rel_of(path)
-    if rel in done or stop.is_set():
-        return None
-    bill_to(rel)
-    doc, stopped = None, False
+    if rel in done:
+        continue
+    doc, before, stopped = None, spend(), False
     try:
         doc = to_text(path)
         if doc["kind"] == "chat":
@@ -1180,7 +942,7 @@ def run_one(path):
             pieces, reply, flags, stats = split(doc)
             unresolved = stats["unresolved"]
             if not stats.get("too_long"):
-                pieces = subsplit_all(doc["text"], pieces, stats)
+                pieces = [q for p in pieces for q in subsplit(doc["text"], p, stats)]
             if stats["unresolved"] > unresolved:
                 flags.append(f"pointers: {stats['unresolved'] - unresolved} break(s) matched no line")
             pieces = merge_short(doc["text"], pieces, stats, flags)
@@ -1195,7 +957,6 @@ def run_one(path):
             stats["short_units"] = sum(1 for u in units if u["words"] < SHORT_WORDS)
     except SpendStop as e:                       # keep what it cost, flagged; it is redone next session
         stopped = True
-        stop.set()
         pieces = [piece(0, len(doc["text"]), "whole document", kind="whole")]
         units, reply, stats = units_from_runs(pieces, [[0]], doc["text"]), {}, {}
         flags = [f"spend stop: {e}; not finished"]
@@ -1207,28 +968,20 @@ def run_one(path):
         flags = [f"run error: {type(e).__name__}: {str(e)[:200]}"]
     record = {"file": rel, "path": str(path), "sha256": doc["sha256"], "kind": doc["kind"], "loader": LOADER,
               "reply": reply, "pieces": pieces, "units": units, "flags": flags, "stats": stats,
-              "cost": round(spent_on(rel), 4)}
-    with lock:                                   # one writer, and one document's log at a time
-        with SPLITS.open("a", encoding="utf-8") as f:
-            f.write(json.dumps(record, ensure_ascii=False) + "\n")
-        done.add(rel)
-        if doc["kind"] == "chat":
-            counted["chats"] += 1
-            if flags or counted["chats"] % 100 == 0:
-                print(f"{path.name}  {'FLAGGED ' + '; '.join(flags) if flags else 'ok'}  turns {len(pieces)}  units {len(units)}  ({counted['chats']} chats so far)")
-        else:
-            show(doc, record)
+              "cost": round(spend() - before, 4)}
+    with SPLITS.open("a", encoding="utf-8") as f:
+        f.write(json.dumps(record, ensure_ascii=False) + "\n")
+    done.add(rel)
     if stopped:
         print(f"{flags[0]}: stopping; {path.name} is written flagged and will be redone next session")
-    return record
-
-
-with ThreadPoolExecutor(max_workers=DOCUMENTS) as pool:
-    for _ in pool.map(run_one, paths):
-        pass
-print(f"{len(done)} documents in {SPLITS.name}, ${spend():.2f} spent this session"
-      + ("; the spend stop trips, the rest wait for the next session" if stop.is_set() else ""))
-
+        break
+    if doc["kind"] == "chat":
+        chats += 1
+        if flags or chats % 100 == 0:
+            print(f"{path.name}  {'FLAGGED ' + '; '.join(flags) if flags else 'ok'}  turns {len(pieces)}  units {len(units)}  ({chats} chats so far)")
+    else:
+        show(doc, record)
+print(f"{len(done)} documents in {SPLITS.name}, ${spend():.2f} spent this session")
 
 # %%
 # Block 9: export in the schema, plus the receipt. Last record per document wins.
@@ -1295,7 +1048,7 @@ with ThreadPoolExecutor(max_workers=32) as pool:
             continue
         exported[doc_id] = record["file"]
         rel = record.get("file") or rel_of(Path(record["path"]))
-        src = f"{RAW.name}/{rel[4:]}"
+        src = f"{RAW.name}/{rel[4:]}" if rel.startswith("raw/") else f"{PAPERS.name}/{rel[7:]}"
         title = rendered(r, "title", "title")
         author = rendered(r, "author", "name")
         occurred = iso_of(r) or None

@@ -30,7 +30,7 @@ RAW = Path(sys.argv[1]) if len(sys.argv) > 1 else Path("C:/Users/jhffm/it494-mem
 PAPERS = Path(sys.argv[2]) if len(sys.argv) > 2 else Path("C:/Users/jhffm/it494-memory-project/papers")
 LOG = Path(sys.argv[3]) if len(sys.argv) > 3 else HERE / "log/2026-09-06/extractor-run-347794765.txt"
 OUT = Path(sys.argv[4]) if len(sys.argv) > 4 else HERE / "data/export"
-AS_RUN = HERE / "log/2026-09-06/factledger-extractor-as-run-347794765.py"
+AS_RUN = HERE / "log/2026-09-06/threadatlas-extractor-as-run-347794765.py"
 RUN = "347794765"
 RAW_NAME, PAPERS_NAME = "it494-narrative-corpora-raw", "it494-reference-papers"   # the Kaggle mount names the real export uses
 

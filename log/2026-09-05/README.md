@@ -13,7 +13,7 @@ adversarial passes, and applied the fixes. Decisions are Justin's; open items ar
   matching fallback (whitespace, word-by-word, first line then last, opening words, loose
   word overlap between located neighbours). A second bad call sat on top: chunking meant no
   call could see the whole outline, which forced a separate review call to repair it.
-- The chat's own fix existed and was never adopted: `factledger_blocks_3_to_9.py` (00:28 in
+- The chat's own fix existed and was never adopted: `threadatlas_blocks_3_to_9.py` (00:28 in
   Downloads) numbered candidate lines and had the model answer by number. Eight more commits
   patched the old design after it was written.
 - The first full run of the old design was saved as Kaggle version 347497951 (230 documents,
@@ -74,7 +74,7 @@ adversarial passes, and applied the fixes. Decisions are Justin's; open items ar
 
 ## What was built
 
-`notebooks/factledger-extractor.py` (script form, `# %%` cells) and `.ipynb` regenerated from
+`notebooks/threadatlas-extractor.py` (script form, `# %%` cells) and `.ipynb` regenerated from
 it; the two round-trip to identical bytes. Blocks 1 and 2 are the committed code unchanged,
 except that block 2 imports `fitz as pymupdf` when the image's PyMuPDF predates the new name
 (Kaggle's does). Blocks 3 to 9:
@@ -142,7 +142,7 @@ until the run; a document too long for one call lands as one `whole` piece with 
   flagged, redone next session); a title page giving the year in Roman numerals (MCMXXI,
   three Greek files) failed the date check (accepted); a verified year let an unverified
   month and day through (kept only when the line shows the month). Applied as
-  `factledger-extractor 0.5`; the checks for it are `test_verify.py` in this folder, 25 of
+  `threadatlas-extractor 0.5`; the checks for it are `test_verify.py` in this folder, 25 of
   25, with the first battery still 39 of 39.
 
 ## Kaggle
@@ -166,7 +166,7 @@ read from the results page and the working files (`splits.jsonl`, the export) st
 session. It reached 87 of the 231 text and PDF documents (Oz, Holmes, Greek, and most of
 GraphRAG-Bench) at $7.71 of the $8 stop; the papers and the chats never ran.
 
-What it showed, with the patch that followed (`factledger-extractor 0.6`):
+What it showed, with the patch that followed (`threadatlas-extractor 0.6`):
 
 - **Sub-splitting ran (16 to 36 calls on the big books) and its pointers failed**: 191 break
   pointers matched no line, and 32 pieces stayed over the cap (Holmes' *Return* at 9,213
@@ -275,7 +275,7 @@ the reused-date counter reads the flag key rather than a prefix; short and over-
 counted by side; a publication becomes the author only when no person was named.
 
 The Kaggle notebook was saved at 0.9 and is now committed here as
-`notebooks/factledger-extractor.{py,ipynb}`; the two round-trip to identical code.
+`notebooks/threadatlas-extractor.{py,ipynb}`; the two round-trip to identical code.
 
 ## The audit, and everything after
 

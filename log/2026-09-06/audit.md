@@ -1,6 +1,6 @@
 # Audit: the ingestor against the project, and the project against itself
 
-2026-09-06. Two audits in one file. The first reads `notebooks/factledger-ingestor.py` against
+2026-09-06. Two audits in one file. The first reads `notebooks/threadatlas-ingestor.py` against
 SCHEMA.md, BUILD.md, the brief (`log/2026-09-05/ingestor-brief.md`) and
 `docs/entity-resolution.md`, record by record and rule by rule. The second reads the project's
 living documents against each other and against the code that now exists. Everything marked
@@ -69,7 +69,7 @@ a package carries for each document-major, since the brief requires it and the m
 
 ### 1.4 What is not built
 
-- **The real run.** No key in this environment. `python notebooks/factledger-ingestor.py --sample`
+- **The real run.** No key in this environment. `python notebooks/threadatlas-ingestor.py --sample`
   runs the test variety once `OPENAI_API_KEY` is set, or the notebook runs on Kaggle with the
   export attached as a dataset.
 - Guards 4 and 5 of `docs/entity-resolution.md` (cluster cap, merge rate per unit).
@@ -123,7 +123,7 @@ a package carries for each document-major, since the brief requires it and the m
 1. **SCHEMA.md opens "Nine record types plus logs" and lists ten.** `piece` was added on 09-04. One word.
 2. **The 09-05 docs patch is still unapplied**, so SCHEMA.md's unit paragraph and rule 4, and BUILD.md's loader paragraph, describe the extractor before the rebuild: "a compressed view of the text", "proposes verbatim marker lines", "body start, body end". The 1.0 extractor numbers every line, the model points by number, regions are piece kinds, and units are the model's groups. The patch in `log/2026-09-05/docs-rulings-2026-09-05.patch` says all of that and its chat sentence ("a run of at least two turns under the cap") now matches the code. Recommend applying it.
 3. **`flags` on the document record** is read by the ingestor now (a flagged split lands in the package's document record), so the 09-05 recommendation to declare it in SCHEMA.md has a second reason.
-4. **The extractor's export is on Kaggle as the kernel's output** (loader `factledger-extractor 1.5`), after a first run whose Quick Save kept no files; the ingestor was first tested on a reconstruction of that first run (`scripts/rebuild_export.py`, from the run's log and the raw files, verified snippet by snippet to the run's exact counts) and then on the real export, which differs from it: every chat session is two units (header, turns), 44,262 units in all, and the read documents were re-split. The reconstruction script stays as the record of how a lost export can be recovered from the log.
+4. **The extractor's export is on Kaggle as the kernel's output** (loader `threadatlas-extractor 1.5`), after a first run whose Quick Save kept no files; the ingestor was first tested on a reconstruction of that first run (`scripts/rebuild_export.py`, from the run's log and the raw files, verified snippet by snippet to the run's exact counts) and then on the real export, which differs from it: every chat session is two units (header, turns), 44,262 units in all, and the read documents were re-split. The reconstruction script stays as the record of how a lost export can be recovered from the log.
 5. **The 09-05 open question about Luna's context window is answered by the run**: no `too long` flag in the receipt; the largest document (Snodgrass 1999, 666k listing tokens) came out as 80 pieces in 80 units, flagged on pointers and cap, not on length.
 6. **Units equal pieces on 78 read documents** in the final run, most of them Oz and Holmes. That is ruling 5 of 09-05 working as written, not a fallthrough: grouping joins a piece with the pieces under it and chapters have nothing under them. Consequence for the ingestor: Oz book 1 has 26 units (front matter, introduction, 24 chapters, license), not the 12 my cost model assumed; the read corpus is 5,850 units, the chats 38,412, and the sample 1,177.
 7. **The abstract is not reliably the first unit of a paper.** Measured over the 142 papers from the final run's log: 31 have an abstract piece as `front_matter` in unit 0 and 7 as `body` in unit 0; 52 as `body` in unit 1 and 32 as `front_matter` in unit 1; 20 have no piece labelled abstract (folded into a long front matter or, for 3, into a short one). The ingestor does not care, because it derives every unit and branches on nothing; anything that evaluates "the abstract path" by unit position does. PROPOSED F: either the extractor's paper prompt asks for the abstract as its own piece, or the evaluation finds the abstract by label rather than position.

@@ -1,4 +1,4 @@
-# FactLedger Step 0: Documents, Units and Pieces
+# ThreadAtlas Step 0: Documents, Units and Pieces
 
 Every document in the IT 494 memory-backend corpus, split into units, with a piece table that
 says what each stretch of a file is and who is speaking there. 19,436 documents, 44,262 units,
@@ -52,13 +52,13 @@ where each document came from and under what license. `LIMITS.md` says what is k
 import json, collections
 
 docs = {}
-for line in open("/kaggle/input/it494-factledger-step0/documents.jsonl", encoding="utf-8"):
+for line in open("/kaggle/input/it494-threadatlas-step0/documents.jsonl", encoding="utf-8"):
     d = json.loads(line)
     docs[d["doc_id"]] = d
 
 # the text of every unit of one book, in order
 book = next(d for d in docs.values() if d["title"] == "The Marvelous Land of Oz")
-units = [json.loads(l) for l in open("/kaggle/input/it494-factledger-step0/units.jsonl", encoding="utf-8")]
+units = [json.loads(l) for l in open("/kaggle/input/it494-threadatlas-step0/units.jsonl", encoding="utf-8")]
 mine = sorted((u for u in units if u["doc_id"] == book["doc_id"]), key=lambda u: u["position"])
 for u in mine[:5]:
     print(u["position"], u["label"], "|", book["text"][u["start"]:u["end"]][:60].replace("\n", " "))
@@ -106,8 +106,8 @@ this per corpus. Raw inputs, byte-identical to what each source served, are in
 
 ## How this was made
 
-[FactLedger Extractor](https://www.kaggle.com/code/jhffmn/factledger-extractor), one pass,
-`factledger-extractor 1.5`, `gpt-5.6-luna` at low reasoning effort, escalating to
+[ThreadAtlas Extractor](https://www.kaggle.com/code/jhffmn/threadatlas-extractor), one pass,
+`threadatlas-extractor 1.5`, `gpt-5.6-luna` at low reasoning effort, escalating to
 `gpt-5.6-terra` when a document defeats it twice, which happened to 2 of the 230. $7.72 for the
 corpus, median $0.013 a read document. A rerun reproduces the shape but not the split of every
 hard document, since the model is not deterministic. `METHOD.md` has the details.

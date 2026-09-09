@@ -10,7 +10,7 @@ The rule this enforces is the one that actually matters: a cell's top-level stat
 reach names defined in that cell or an earlier one, following calls transitively. A function that
 merely mentions a later name is fine, as long as nothing calls it before that name exists.
 
-    python scripts/check_cell_order.py notebooks/factledger-ingestor.py
+    python scripts/check_cell_order.py notebooks/threadatlas-ingestor.py
 """
 import ast
 import builtins
@@ -119,4 +119,4 @@ def main(path):
 
 
 if __name__ == "__main__":
-    sys.exit(main(sys.argv[1] if len(sys.argv) > 1 else "notebooks/factledger-ingestor.py"))
+    sys.exit(main(sys.argv[1] if len(sys.argv) > 1 else "notebooks/threadatlas-ingestor.py"))

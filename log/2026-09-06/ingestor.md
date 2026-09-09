@@ -19,7 +19,7 @@ rebuilt its export locally from that log and the raw files, every piece checked 
 log's snippet, to exactly the run's counts. The ingestor was built and first tested on that
 reconstruction.
 
-The **final run** (loader `factledger-extractor 1.5`, Justin's, with a further change to the
+The **final run** (loader `threadatlas-extractor 1.5`, Justin's, with a further change to the
 chat units) then landed as the kernel's output on Kaggle and replaces the reconstruction. Its
 receipt and per-document log are here as `extractor-final-receipt.json` and
 `extractor-final-splits.log`:
@@ -65,7 +65,7 @@ Holmes 03 is 44, the Hesiod anthology (greek 03) is 90.
 
 ## What was built
 
-`notebooks/factledger-ingestor.py` (script form, `# %%` cells, version 0.2) and `.ipynb`
+`notebooks/threadatlas-ingestor.py` (script form, `# %%` cells, version 0.2) and `.ipynb`
 generated from it by `scripts/py_to_ipynb.py` (the 09-05 generator generalised to take a
 path); the two round-trip to identical text. Twelve blocks:
 
@@ -177,8 +177,8 @@ adjudicated. The real numbers are the run's.
 
 ## Kaggle
 
-The notebook is `notebooks/factledger-ingestor.ipynb` (13 cells, nbformat 4.5 with ids).
-Import it, then: Add Input > Your Work > `factledger-extractor` (its output holds
+The notebook is `notebooks/threadatlas-ingestor.ipynb` (13 cells, nbformat 4.5 with ids).
+Import it, then: Add Input > Your Work > `threadatlas-extractor` (its output holds
 `export/units.jsonl`, which block 1 finds); Add-ons > Secrets > attach `OPENAI_API_KEY`;
 Settings > Internet on; check `RUN` and `SPEND_STOP` in block 12; Save & Run All. The
 packages land under `/kaggle/working/packages` with `ingest.log`, `manifest.jsonl`,

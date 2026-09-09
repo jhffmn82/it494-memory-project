@@ -10,7 +10,7 @@ SCR = Path(sys.argv[1]) if len(sys.argv) > 1 else Path("C:/Users/jhffm/AppData/L
 shutil.rmtree(SCR, ignore_errors=True)
 SCR.mkdir(parents=True)
 
-src = Path("notebooks/factledger-extractor.py").read_text(encoding="utf-8")
+src = Path("notebooks/threadatlas-extractor.py").read_text(encoding="utf-8")
 cells = src.split("\n# %%\n")
 block = {int(m.group(1)): c for c in cells for m in [re.search(r"^# Block (\d+):", c, re.M)] if m}
 ns = {}
@@ -117,7 +117,7 @@ check("a merge that would itself carry a piece past the cap is still refused", l
 
 print("\n== 1. a record carries its loader, and a rerun redoes what an older loader left ==")
 check("the loader is defined in block 8, before the record is written",
-      "LOADER" in ns and ns["LOADER"].startswith("factledger-extractor "), ns.get("LOADER"))
+      "LOADER" in ns and ns["LOADER"].startswith("threadatlas-extractor "), ns.get("LOADER"))
 old = {"file": "raw/oz/01_55.txt", "path": "x", "sha256": "s1", "kind": "chat", "flags": [], "units": [], "pieces": [], "stats": {}, "cost": 0}
 cur = {**old, "file": "raw/oz/02_54.txt", "sha256": "s2", "loader": ns["LOADER"]}
 (SCR / "splits.jsonl").write_text("\n".join(json.dumps(x) for x in (old, cur)) + "\n", encoding="utf-8")

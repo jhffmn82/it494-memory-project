@@ -7,7 +7,7 @@ on what it found, absorbed an outside design review, corrected the living docs, 
 reviewed the extractor notebook the chat had built. Decisions are Justin's; open items are
 marked. Files in this folder: [inventory.md](inventory.md) (the audit and the twelve
 rulings), [step0-brief.md](step0-brief.md) (the extractor chat's opening message),
-[factledger_blocks_3_to_9.py](factledger_blocks_3_to_9.py) (the proposed rewrite of the
+[threadatlas_blocks_3_to_9.py](threadatlas_blocks_3_to_9.py) (the proposed rewrite of the
 extractor's model path, delivered at the end of the day, not yet applied).
 
 ## Morning: decisions from the 09-03 notes
@@ -103,7 +103,7 @@ to master as of this log). What it built:
   unpacked folders; `scripts/papers_manifest.py` writes the manifest for the 142 PDFs.
 - Kaggle: `it494-narrative-corpora-raw` republished from `data/raw/` and a private
   `it494-reference-papers` holding the PDFs; both are the notebook's inputs.
-- `notebooks/factledger-extractor.ipynb`, the Kaggle notebook `jhffmn/factledger-extractor`,
+- `notebooks/threadatlas-extractor.ipynb`, the Kaggle notebook `jhffmn/threadatlas-extractor`,
   nine blocks built one at a time across some thirty-five commits: inputs and sha256 check,
   file kind and raw text (PyMuPDF for PDF, `role: content` rendering for chats with turn
   spans kept), the model call, the split call over overlapping 14,000-character chunks, the
@@ -146,7 +146,7 @@ one-pagers were left as historical record.
 
 ## Past midnight: review of the extractor notebook
 
-Justin asked for a review of `factledger-extractor` ("this is getting all kinds of ugly").
+Justin asked for a review of `threadatlas-extractor` ("this is getting all kinds of ugly").
 The run output was not reachable from outside his editor session, so the review is of the
 code on the branch (667 lines, nine cells) and its commit history. Findings, ranked:
 
@@ -170,7 +170,7 @@ code on the branch (667 lines, nine cells) and its commit history. Findings, ran
 Kept as good: the integrity check, the byte sniffing and chat rendering with turn spans, the
 resumable per-document log, the ambiguous-date handling, the receipt fields.
 
-**The proposed fix, delivered as blocks 3 to 9** ([factledger_blocks_3_to_9.py](factledger_blocks_3_to_9.py),
+**The proposed fix, delivered as blocks 3 to 9** ([threadatlas_blocks_3_to_9.py](threadatlas_blocks_3_to_9.py),
 390 lines for the range that was 560; blocks 1 and 2 unchanged): code builds the candidate
 list and the model only chooses. The text is read as blocks between blank lines; a block of
 at most three short lines is a candidate (a chapter heading, a two-line heading, a scene

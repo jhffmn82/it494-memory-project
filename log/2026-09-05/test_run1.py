@@ -3,7 +3,7 @@ import re
 import sys
 from pathlib import Path
 
-src = Path("notebooks/factledger-extractor.py").read_text(encoding="utf-8")
+src = Path("notebooks/threadatlas-extractor.py").read_text(encoding="utf-8")
 cells = src.split("\n# %%\n")
 block = {int(m.group(1)): c for c in cells for m in [re.search(r"^# Block (\d+):", c, re.M)] if m}
 ns = {}

@@ -32,7 +32,7 @@ frameworks. I must be able to read and defend every line to my advisor. Never re
 
 ## What exists already, and what it is worth
 
-- **The extractor** (`notebooks/factledger-extractor.py`, Kaggle `jhffmn/factledger-extractor`)
+- **The extractor** (`notebooks/threadatlas-extractor.py`, Kaggle `jhffmn/threadatlas-extractor`)
   is done. It writes `documents.jsonl` (doc_id, source_uri, sha256, title, author,
   source_class, text, ingested_at, occurred_at, loader, flags), `units.jsonl` (unit_id,
   doc_id, position, label, start, end, occurred_at, occurred_until), `pieces.jsonl` (doc_id,

@@ -428,7 +428,7 @@ from datetime import timezone
 
 OUT = Path("/kaggle/working/export")
 OUT.mkdir(parents=True, exist_ok=True)
-LOADER = "factledger-extractor 0.2"
+LOADER = "threadatlas-extractor 0.2"
 NOW = datetime.now(timezone.utc).isoformat(timespec="seconds")
 SOURCE_CLASS = {"chat": "record", "pdf": "published"}    # text documents take the model's answer
 

@@ -1,6 +1,6 @@
 # The ingestor: algorithm and data contract
 
-`factledger-ingestor 0.9`. One document at a time, from the extractor's export to a **document
+`threadatlas-ingestor 0.9`. One document at a time, from the extractor's export to a **document
 package**: the entities the document is about, facts with a verbatim quote at document offsets,
 a cell per entity per unit, the document's abstract, and an abstract per major. It never looks at
 a second document. Store fields are in [`SCHEMA.md`](../SCHEMA.md).

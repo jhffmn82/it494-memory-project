@@ -910,7 +910,7 @@ def units_from_runs(pieces, runs, text):
 # stop writes the document in flight as a flagged record, so its cost is kept, and ends the loop.
 SPLITS = Path("/kaggle/working/splits.jsonl")
 LOG = Path("/kaggle/working/splits.log")
-LOADER = "factledger-extractor 1.0"     # a record says which loader wrote it; a rerun redoes older ones
+LOADER = "threadatlas-extractor 1.0"     # a record says which loader wrote it; a rerun redoes older ones
 
 
 def rel_of(path):

@@ -5,7 +5,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-NB = Path("notebooks/factledger-ingestor.py")
+NB = Path("notebooks/threadatlas-ingestor.py")
 BACKUP = Path("C:/Users/jhffm/AppData/Local/Temp/claude/nb_backup.py")
 shutil.copy(NB, BACKUP)
 first = subprocess.run([sys.executable, "log/2026-09-06/test_ingestor.py"], capture_output=True,

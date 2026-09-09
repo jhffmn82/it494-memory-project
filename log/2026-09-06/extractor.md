@@ -202,7 +202,7 @@ down with it. Kept here: [run15-receipt.json](run15-receipt.json) and
 [run15-read-documents.jsonl](run15-read-documents.jsonl), the record for each of the 231 text
 and PDF documents. The export itself is 340 MB and stays on Kaggle.
 
-**It is clean.** 19,437 files, no run errors, every record written by `factledger-extractor 1.5`.
+**It is clean.** 19,437 files, no run errors, every record written by `threadatlas-extractor 1.5`.
 19,436 documents exported: the two byte-identical papers collapse to one, which the receipt
 names. **$7.72**, median $0.013 a document, most expensive Diodorus at $0.421, and no negative
 costs, so the per-document billing holds.
@@ -248,7 +248,7 @@ whose preamble gives only a release date.
 ## Published, with its documentation
 
 The clean pass is a public Kaggle dataset:
-[FactLedger Step 0: Documents, Units, Pieces](https://www.kaggle.com/datasets/jhffmn/it494-factledger-step0),
+[ThreadAtlas Step 0: Documents, Units, Pieces](https://www.kaggle.com/datasets/jhffmn/it494-threadatlas-step0),
 MIT, 312 MB, ten files. It is what the ingestor reads and what a reader of the paper can check.
 
 **The reference papers are the one thing held back.** Their publishers' licenses mostly forbid

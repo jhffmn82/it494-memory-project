@@ -1,6 +1,6 @@
 # Changes made before the final run
 
-**APPLIED 2026-09-06 as `factledger-extractor 1.0`**, from [audit.md](audit.md), and the
+**APPLIED 2026-09-06 as `threadatlas-extractor 1.0`**, from [audit.md](audit.md), and the
 notebook regenerated with `py_to_ipynb.py` (round trip exact). All five offline batteries pass
 together for the first time since 0.7: 154 checks (`test_review` 40, `test_verify` 25,
 `test_run1` 26, `test_run2` 41, `test_diag` 22). What follows is what changed and why; only

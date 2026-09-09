@@ -8,8 +8,8 @@ of the chat path after the corpus turned out to cost far more than the design as
 battery went from 106 checks to 146. Every ruling is Justin's; the corrections to my own claims
 are collected at the end, because several of the numbers I gave during the day were wrong.
 
-The notebook as it ended the day is here as `factledger-ingestor-as-run.py` and
-`factledger-ingestor-as-run.ipynb` (18 cells, round trip identical under
+The notebook as it ended the day is here as `threadatlas-ingestor-as-run.py` and
+`threadatlas-ingestor-as-run.ipynb` (18 cells, round trip identical under
 `scripts/py_to_ipynb.py`). The offline battery it must pass is not duplicated here; it stays at
 [test_ingestor.py](../2026-09-06/test_ingestor.py), where it is maintained, and runs 146 of 146.
 

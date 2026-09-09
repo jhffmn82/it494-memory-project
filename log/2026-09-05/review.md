@@ -1,6 +1,6 @@
 # Review of the rebuilt extractor notebook, 2026-09-05
 
-Sixty-three agents over `notebooks/factledger-extractor.py` as it stood after the morning's
+Sixty-three agents over `notebooks/threadatlas-extractor.py` as it stood after the morning's
 rulings and before the fix batch: seven finding lenses (Kaggle runtime, block 6 logic under
 adversarial replies, block 7 logic, export and resume, rule-by-rule fit, how a model reads the
 three prompts, cost and size of the real run), then two independent refuters per finding, one

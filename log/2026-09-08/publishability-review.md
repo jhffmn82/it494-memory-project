@@ -6,7 +6,7 @@ reviewer breaks first and what survives. Assistant review; recommendations are P
 ## Bottom line
 
 **There is a publishable paper, and there is a floor that de-risks "no paper at all."** The floor
-is the FactLedger Step 0 dataset — MIT, public, reproducible, 19,436 documents with a verified
+is the ThreadAtlas Step 0 dataset — MIT, public, reproducible, 19,436 documents with a verified
 tiling contract — which is a resource contribution already in hand. The ceiling is a systems /
 experience paper: *a provenance-total, merge-free memory backend, and a measurement of what each
 mechanism buys.* The risk is not that the work is unpublishable. The risk is **scope overrun**: the
