@@ -1087,6 +1087,10 @@ def path_of(record):
     rel = record.get("file")
     if rel is None:
         return Path(record["path"])                          # a record written before files were named
+    if not rel.startswith("raw/"):
+        # a record from before the papers moved into the raw dataset; stripping four characters
+        # off it would name a file that does not exist and read as a mystery, so say what it is
+        raise ValueError(f"{rel!r} is not in the raw dataset; re-extract this file or drop the record")
     return RAW / rel[4:]
 
 
