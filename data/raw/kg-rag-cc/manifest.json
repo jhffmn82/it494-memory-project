@@ -1,0 +1,1982 @@
+{
+  "corpus": "kg-rag-cc",
+  "description": "CC-licensed full-text papers on knowledge graphs and RAG",
+  "source": "OpenAlex",
+  "queries": [
+    "retrieval augmented generation",
+    "knowledge graph",
+    "graph retrieval augmented generation",
+    "knowledge graph question answering",
+    "knowledge graph language model"
+  ],
+  "count": 100,
+  "license_note": "Each paper's license is recorded per row; all are Creative Commons. CC-BY requires attribution: render authors, title, and license from this manifest.",
+  "papers": [
+    {
+      "openalex_id": "https://openalex.org/W7127628418",
+      "doi": "https://doi.org/10.3389/frai.2026.1737532",
+      "title": "An auditable and source-verified framework for clinical AI decision support: integrating retrieval-augmented generation with data provenance",
+      "year": 2026,
+      "venue": "Frontiers in Artificial Intelligence",
+      "authors": [
+        "Fidelis Fidelis Alu",
+        "Sunkanmi Oluwadare"
+      ],
+      "license": "cc-by",
+      "pdf_url": "https://public-pages-files-2025.frontiersin.org/journals/artificial-intelligence/articles/10.3389/frai.2026.1737532/pdf",
+      "file": "pdf/001_frai.2026.1737532.pdf",
+      "sha256": "0cde22fc95492aefc8d98e7ddc8b038c312b2a6d19fb2f1ede9ddb44a2c313e8",
+      "bytes": 607763
+    },
+    {
+      "openalex_id": "https://openalex.org/W4414957389",
+      "doi": "https://doi.org/10.18653/v1/2026.findings-eacl.35",
+      "title": "Multilingual Retrieval-Augmented Generation for Knowledge-Intensive Question Answering Task",
+      "year": 2026,
+      "venue": null,
+      "authors": [
+        "Leonardo Ranaldi"
+      ],
+      "license": "cc-by",
+      "pdf_url": "https://aclanthology.org/2026.findings-eacl.35.pdf",
+      "file": "pdf/002_2026.findings-eacl.35.pdf",
+      "sha256": "8a4b30d01026856addfc4e8c1cd1b819fd8355216390b343c793a36c5465cdce",
+      "bytes": 3408236
+    },
+    {
+      "openalex_id": "https://openalex.org/W7131354032",
+      "doi": "https://doi.org/10.3389/fcomp.2026.1777749",
+      "title": "Research on an intelligent tutoring system based on automatic construction of multimodal knowledge graphs and retrieval-augmented generation",
+      "year": 2026,
+      "venue": "Frontiers in Computer Science",
+      "authors": [
+        "Chao Deng",
+        "Bo Yuan"
+      ],
+      "license": "cc-by",
+      "pdf_url": "https://public-pages-files-2025.frontiersin.org/journals/computer-science/articles/10.3389/fcomp.2026.1777749/pdf",
+      "file": "pdf/003_fcomp.2026.1777749.pdf",
+      "sha256": "398ab6d267997bb972d0cab6fcb6465f976a3b65121b969ec9fa28e3f243b171",
+      "bytes": 4088134
+    },
+    {
+      "openalex_id": "https://openalex.org/W7130609696",
+      "doi": "https://doi.org/10.21203/rs.3.rs-8912660/v1",
+      "title": "AionRAG: Time-Correct Retrieval-Augmented Generation under Knowledge Drift",
+      "year": 2026,
+      "venue": "Research Square",
+      "authors": [
+        "Rui Li",
+        "Shuang Cao",
+        "Ruihua Liu",
+        "Alexandre Duprey",
+        "Angel Dong"
+      ],
+      "license": "cc-by",
+      "pdf_url": "https://www.researchsquare.com/article/rs-8912660/latest.pdf",
+      "file": "pdf/004_v1.pdf",
+      "sha256": "ba92c10f945e0d961f887f5924b664ff1252f6cc66a2a83a5f649bbab87d4438",
+      "bytes": 380351
+    },
+    {
+      "openalex_id": "https://openalex.org/W7128065115",
+      "doi": "https://doi.org/10.3389/fdmed.2025.1760990",
+      "title": "Retrieval augmented generation in dentistry: potentials, applications, and future directions",
+      "year": 2026,
+      "venue": "Frontiers in Dental Medicine",
+      "authors": [
+        "Tahereh Firoozi",
+        "Rojin Adabdokht",
+        "Hollis Lai"
+      ],
+      "license": "cc-by",
+      "pdf_url": "https://public-pages-files-2025.frontiersin.org/journals/dental-medicine/articles/10.3389/fdmed.2025.1760990/pdf",
+      "file": "pdf/005_fdmed.2025.1760990.pdf",
+      "sha256": "bbe37050f143025d851360086caaa6005e8232ceba05721373b084064b9e11f3",
+      "bytes": 491904
+    },
+    {
+      "openalex_id": "https://openalex.org/W7127049495",
+      "doi": "https://doi.org/10.28991/esj-2026-010-01-09",
+      "title": "Structure-Aware Chunking for Complex Tables in Retrieval-Augmented Generation Systems",
+      "year": 2026,
+      "venue": "Emerging Science Journal",
+      "authors": [
+        "Xin-Kuang Koay",
+        "Lee-Yeng Ong",
+        "Pey-Yun Goh"
+      ],
+      "license": "cc-by",
+      "pdf_url": "https://www.ijournalse.org/index.php/ESJ/article/download/3380/976",
+      "file": "pdf/006_esj-2026-010-01-09.pdf",
+      "sha256": "85da766693abffe66e0446675b8b6b9059d6727474786c66d07e9b32f1acbe16",
+      "bytes": 2461935
+    },
+    {
+      "openalex_id": "https://openalex.org/W7139972356",
+      "doi": "https://doi.org/10.5121/csit.2026.160507",
+      "title": "EVALUATING CHUNKING STRATEGIES FOR RETRIEVAL-AUGMENTED GENERATION IN OIL AND GAS ENTERPRISE DOCUMENTS",
+      "year": 2026,
+      "venue": null,
+      "authors": [
+        "Samuel Taiwo",
+        "Mohd Amaluddin Yusoff"
+      ],
+      "license": "cc-by",
+      "pdf_url": "https://doi.org/10.5121/csit.2026.160507",
+      "file": "pdf/007_csit.2026.160507.pdf",
+      "sha256": "571069644c682f32a8c965de9574c1411780d17036228ec2b28fa277ae6bf024",
+      "bytes": 339327
+    },
+    {
+      "openalex_id": "https://openalex.org/W7140073440",
+      "doi": "https://doi.org/10.18653/v1/2026.eacl-long.147",
+      "title": "Classifying and Addressing the Diversity of Errors in Retrieval-Augmented Generation Systems",
+      "year": 2026,
+      "venue": null,
+      "authors": [
+        "K. Leung",
+        "Mouloud Belbahri",
+        "Yi Sui",
+        "Alex Labach",
+        "Xueying Zhang",
+        "Stephen Anthony Rose",
+        "Jesse C. Cresswell"
+      ],
+      "license": "cc-by",
+      "pdf_url": "https://aclanthology.org/2026.eacl-long.147.pdf",
+      "file": "pdf/008_2026.eacl-long.147.pdf",
+      "sha256": "6c414a3403ef302f82fa32838f80233f2edd12dc14fe2300a03a55da5b4a7acc",
+      "bytes": 1043383
+    },
+    {
+      "openalex_id": "https://openalex.org/W7166864397",
+      "doi": "https://doi.org/10.18653/v1/2026.findings-acl.899",
+      "title": "Exposing Privacy Risks in Graph Retrieval-Augmented Generation",
+      "year": 2026,
+      "venue": null,
+      "authors": [
+        "Jiale Liu",
+        "Jiahao Zhang",
+        "Suhang Wang"
+      ],
+      "license": "cc-by",
+      "pdf_url": "https://aclanthology.org/2026.findings-acl.899.pdf",
+      "file": "pdf/009_2026.findings-acl.899.pdf",
+      "sha256": "47fd8a321b07fee5547956a5e052950312cd2c1e2f57851e6993e3c6e4e558bd",
+      "bytes": 858224
+    },
+    {
+      "openalex_id": "https://openalex.org/W4414490788",
+      "doi": "https://doi.org/10.18653/v1/2026.findings-acl.176",
+      "title": "HeteroRAG: A Heterogeneous Retrieval-Augmented Generation Framework for Medical Vision Language Tasks",
+      "year": 2026,
+      "venue": null,
+      "authors": [
+        "Zhe Chen",
+        "Yusheng Liao",
+        "Zhiyuan Zhu",
+        "Haolin Li",
+        "H. Li",
+        "Yanfeng Wang",
+        "Yu Wang"
+      ],
+      "license": "cc-by",
+      "pdf_url": "https://aclanthology.org/2026.findings-acl.176.pdf",
+      "file": "pdf/010_2026.findings-acl.176.pdf",
+      "sha256": "ad342b010b4019766f4d750f4ac048f4d3abc4c9df6c0e7b9f23b7d35be940e8",
+      "bytes": 4514896
+    },
+    {
+      "openalex_id": "https://openalex.org/W4416390973",
+      "doi": "https://doi.org/10.18653/v1/2026.acl-long.1372",
+      "title": "HiChunk: Evaluating and Enhancing Retrieval Augmented Generation with Hierarchical Chunking",
+      "year": 2026,
+      "venue": null,
+      "authors": [
+        "Wensheng Lu",
+        "Keyu Chen",
+        "Zhifeng Shen",
+        "Ruizhi Qiao",
+        "Xing Sun"
+      ],
+      "license": "cc-by",
+      "pdf_url": "https://aclanthology.org/2026.acl-long.1372.pdf",
+      "file": "pdf/011_2026.acl-long.1372.pdf",
+      "sha256": "7deb3aeb5d1d822cc9fa40edbf1a8d9f509ad6231e810574de547990d8efd710",
+      "bytes": 1148318
+    },
+    {
+      "openalex_id": "https://openalex.org/W7140101146",
+      "doi": "https://doi.org/10.18653/v1/2026.eacl-industry.27",
+      "title": "ReflectiveRAG: Rethinking Adaptivity in Retrieval-Augmented Generation",
+      "year": 2026,
+      "venue": null,
+      "authors": [
+        "Akshay Verma",
+        "Swapnil Gupta",
+        "Siddharth Pillai",
+        "Prateek Sircar",
+        "Deepak Gupta"
+      ],
+      "license": "cc-by",
+      "pdf_url": "https://aclanthology.org/2026.eacl-industry.27.pdf",
+      "file": "pdf/012_2026.eacl-industry.27.pdf",
+      "sha256": "5174327623a541582de6b7c7b138f178c6f1851047f90fe44f150f983a4f2e99",
+      "bytes": 410879
+    },
+    {
+      "openalex_id": "https://openalex.org/W7166847319",
+      "doi": "https://doi.org/10.18653/v1/2026.findings-acl.321",
+      "title": "TagRAG: Tag-guided Hierarchical Knowledge Graph Retrieval-Augmented Generation",
+      "year": 2026,
+      "venue": null,
+      "authors": [
+        "Wenbiao Tao",
+        "Xinyuan Li",
+        "Yunshi Lan",
+        "Weining Qian"
+      ],
+      "license": "cc-by",
+      "pdf_url": "https://aclanthology.org/2026.findings-acl.321.pdf",
+      "file": "pdf/013_2026.findings-acl.321.pdf",
+      "sha256": "b271a200caf7d469d86b5bff861ec694bc1b39a73e38aa3fbfef01f7bc882543",
+      "bytes": 5890196
+    },
+    {
+      "openalex_id": "https://openalex.org/W7166875702",
+      "doi": "https://doi.org/10.18653/v1/2026.acl-long.1188",
+      "title": "Stable-RAG: Mitigating Retrieval-Permutation-Induced Hallucinations in Retrieval-Augmented Generation",
+      "year": 2026,
+      "venue": null,
+      "authors": [
+        "Qianchi Zhang",
+        "Hainan Zhang",
+        "Liang Pang",
+        "Hong-Wei Zheng",
+        "Zhiming Zheng"
+      ],
+      "license": "cc-by",
+      "pdf_url": "https://aclanthology.org/2026.acl-long.1188.pdf",
+      "file": "pdf/014_2026.acl-long.1188.pdf",
+      "sha256": "9eeab0bb31c461bb3be09b2cd2535080747d6d9b36be14e3dfb26c65f8b732a2",
+      "bytes": 2755719
+    },
+    {
+      "openalex_id": "https://openalex.org/W4417291509",
+      "doi": "https://doi.org/10.18653/v1/2026.findings-acl.1502",
+      "title": "RouteRAG: Efficient Retrieval-Augmented Generation from Text and Graph via Reinforcement Learning",
+      "year": 2026,
+      "venue": null,
+      "authors": [
+        "Yucan Guo",
+        "Miao Su",
+        "Saiping Guan",
+        "Zihao Sun",
+        "Xiaolong Jin",
+        "Jiafeng Guo",
+        "Xueqi Cheng"
+      ],
+      "license": "cc-by",
+      "pdf_url": "https://aclanthology.org/2026.findings-acl.1502.pdf",
+      "file": "pdf/015_2026.findings-acl.1502.pdf",
+      "sha256": "8eab45787721e00151679ba577fe0896bf55d8e8b7670bd28841eae8748fde08",
+      "bytes": 2584064
+    },
+    {
+      "openalex_id": "https://openalex.org/W4407186804",
+      "doi": "https://doi.org/10.18653/v1/2026.acl-demo.21",
+      "title": "Rankify: A Comprehensive Python Toolkit for Retrieval, Re-Ranking, and Retrieval-Augmented Generation",
+      "year": 2026,
+      "venue": null,
+      "authors": [
+        "Abdelrahman Abdallah",
+        "Bhawna Piryani",
+        "Jamshid Mozafari",
+        "Andreas Herzinger",
+        "Jamie Holdcroft",
+        "Adam Jatowt"
+      ],
+      "license": "cc-by",
+      "pdf_url": "https://aclanthology.org/2026.acl-demo.21.pdf",
+      "file": "pdf/016_2026.acl-demo.21.pdf",
+      "sha256": "6f6085634745e8729ac6e57cd824d70d79953d7f48f868f33651f496ce8b9256",
+      "bytes": 253117
+    },
+    {
+      "openalex_id": "https://openalex.org/W7166815917",
+      "doi": "https://doi.org/10.18653/v1/2026.findings-acl.856",
+      "title": "Context-attended Adversarial Reinforcement Learning for Robust Multi-step Retrieval Augmented Generation",
+      "year": 2026,
+      "venue": null,
+      "authors": [
+        "Yingtao Ren",
+        "Xiao Luo",
+        "Yu-Cheng Chang",
+        "Chin-teng Lin"
+      ],
+      "license": "cc-by",
+      "pdf_url": "https://aclanthology.org/2026.findings-acl.856.pdf",
+      "file": "pdf/017_2026.findings-acl.856.pdf",
+      "sha256": "a36cb16575e7d98baaf6eebac4d62d40622ab99a527c4aef1bf8616398388c39",
+      "bytes": 5446943
+    },
+    {
+      "openalex_id": "https://openalex.org/W7140141945",
+      "doi": "https://doi.org/10.18653/v1/2026.eacl-long.141",
+      "title": "Decoding the Market’s Pulse: Context-Enriched Agentic Retrieval Augmented Generation for Predicting Post-Earnings Price Shocks",
+      "year": 2026,
+      "venue": null,
+      "authors": [
+        "Chenhui Li",
+        "Weihai Lu"
+      ],
+      "license": "cc-by",
+      "pdf_url": "https://aclanthology.org/2026.eacl-long.141.pdf",
+      "file": "pdf/018_2026.eacl-long.141.pdf",
+      "sha256": "84f48227670806c3569d94e50953a8a425b5d55cd83ff3c4efccca94750799f7",
+      "bytes": 2355129
+    },
+    {
+      "openalex_id": "https://openalex.org/W7140114724",
+      "doi": "https://doi.org/10.18653/v1/2026.eacl-long.90",
+      "title": "Respecting Temporal-Causal Consistency: Entity-Event Knowledge Graph for Retrieval-Augmented Generation",
+      "year": 2026,
+      "venue": null,
+      "authors": [
+        "Z. Zhang",
+        "Zitao Li",
+        "Yaliang Li",
+        "Bolin Ding",
+        "Bryan Kian Hsiang Low"
+      ],
+      "license": "cc-by",
+      "pdf_url": "https://aclanthology.org/2026.eacl-long.90.pdf",
+      "file": "pdf/019_2026.eacl-long.90.pdf",
+      "sha256": "db841e185b67e97aa5060bf09cbe573b9356a8e5788b8fca9a2a8bafff39ffa6",
+      "bytes": 1250920
+    },
+    {
+      "openalex_id": "https://openalex.org/W4411203672",
+      "doi": "https://doi.org/10.1371/journal.pdig.0000877",
+      "title": "Retrieval augmented generation for large language models in healthcare: A systematic review",
+      "year": 2025,
+      "venue": "PLOS Digital Health",
+      "authors": [
+        "Lameck Mbangula Amugongo",
+        "Pietro Mascheroni",
+        "Steven E. Brooks",
+        "Stefan Doering",
+        "Jan Seidel"
+      ],
+      "license": "cc-by",
+      "pdf_url": "https://storage.googleapis.com/deepmind-media/gemini/gemini_v1_5_report.pdf",
+      "file": "pdf/020_journal.pdig.0000877.pdf",
+      "sha256": "e9cabd1672ad0d32c2aa9c4e42d04dd55b519ea1945fbc2237bcbcb24b16add0",
+      "bytes": 5940002
+    },
+    {
+      "openalex_id": "https://openalex.org/W4416034797",
+      "doi": "https://doi.org/10.18653/v1/2025.findings-emnlp.568",
+      "title": "LightRAG: Simple and Fast Retrieval-Augmented Generation",
+      "year": 2025,
+      "venue": null,
+      "authors": [
+        "Zirui Guo",
+        "Lianghao Xia",
+        "Yanhua Yu",
+        "Tu Ao",
+        "Chao Huang"
+      ],
+      "license": "cc-by",
+      "pdf_url": "https://aclanthology.org/2025.findings-emnlp.568.pdf",
+      "file": "pdf/021_2025.findings-emnlp.568.pdf",
+      "sha256": "cdd04718353c5b59c94c0ff810af25c16e7b6c2af390532d8172cb2901f584a7",
+      "bytes": 1117455
+    },
+    {
+      "openalex_id": "https://openalex.org/W4411120544",
+      "doi": "https://doi.org/10.18653/v1/2025.findings-naacl.232",
+      "title": "GRAG: Graph Retrieval-Augmented Generation",
+      "year": 2025,
+      "venue": null,
+      "authors": [
+        "Yuntong Hu",
+        "Zhihan Lei",
+        "Zheng Zhang",
+        "Bo Pan",
+        "Chen Ling",
+        "Liang Zhao"
+      ],
+      "license": "cc-by",
+      "pdf_url": "https://aclanthology.org/2025.findings-naacl.232.pdf",
+      "file": "pdf/022_2025.findings-naacl.232.pdf",
+      "sha256": "47b56c7fe5bb2a80987163dd8ebf2d2b0f18ddba4acd40ee7f45e9cfd9cf7348",
+      "bytes": 870259
+    },
+    {
+      "openalex_id": "https://openalex.org/W4411119292",
+      "doi": "https://doi.org/10.18653/v1/2025.naacl-long.449",
+      "title": "Knowledge Graph-Guided Retrieval Augmented Generation",
+      "year": 2025,
+      "venue": null,
+      "authors": [
+        "Xiangrong Zhu",
+        "Yuexiang Xie",
+        "Yi Liu",
+        "Yuanman Li",
+        "Wei Hu"
+      ],
+      "license": "cc-by",
+      "pdf_url": "https://aclanthology.org/2025.naacl-long.449.pdf",
+      "file": "pdf/023_2025.naacl-long.449.pdf",
+      "sha256": "b0456bdb5080d60db357a5f5aedbd7fe2518dd9ae861fce31babe089c0d9ddc2",
+      "bytes": 786831
+    },
+    {
+      "openalex_id": "https://openalex.org/W4412889887",
+      "doi": "https://doi.org/10.18653/v1/2025.acl-long.1317",
+      "title": "Knowledge Graph Retrieval-Augmented Generation for LLM-based Recommendation",
+      "year": 2025,
+      "venue": null,
+      "authors": [
+        "Shijie Wang",
+        "Wenqi Fan",
+        "Yue Feng",
+        "Lin Shanru",
+        "Xinyu Ma",
+        "Shuaiqiang Wang",
+        "Dawei Yin"
+      ],
+      "license": "cc-by",
+      "pdf_url": "https://aclanthology.org/2025.acl-long.1317.pdf",
+      "file": "pdf/024_2025.acl-long.1317.pdf",
+      "sha256": "da25546af60259f1b6950f55b54971cabf394a67732f04960054a656948be101",
+      "bytes": 1553945
+    },
+    {
+      "openalex_id": "https://openalex.org/W4412886806",
+      "doi": "https://doi.org/10.18653/v1/2025.acl-long.131",
+      "title": "MAIN-RAG: Multi-Agent Filtering Retrieval-Augmented Generation",
+      "year": 2025,
+      "venue": null,
+      "authors": [
+        "Chia-Yuan Chang",
+        "Zhimeng Jiang",
+        "Vineeth Rakesh",
+        "Menghai Pan",
+        "Chin‐Chia Michael Yeh",
+        "Guanchu Wang",
+        "Mingzhi Hu",
+        "Zhichao Xu",
+        "Yan Zheng",
+        "Mahashweta Das",
+        "Na Zou"
+      ],
+      "license": "cc-by",
+      "pdf_url": "https://aclanthology.org/2025.acl-long.131.pdf",
+      "file": "pdf/025_2025.acl-long.131.pdf",
+      "sha256": "c1a987e84a5ed60b5cf244480e3c68a728da636ab90cab315b58bbf203bebde3",
+      "bytes": 1115617
+    },
+    {
+      "openalex_id": "https://openalex.org/W4402853403",
+      "doi": "https://doi.org/10.1148/ryai.240476",
+      "title": "RadioRAG: Online Retrieval–Augmented Generation for Radiology Question Answering",
+      "year": 2025,
+      "venue": "arXiv (Cornell University)",
+      "authors": [
+        "Soroosh Tayebi Arasteh",
+        "Mahshad Lotfinia",
+        "Keno K. Bressem",
+        "Robert Siepmann",
+        "Lisa Adams",
+        "Dyke Ferber",
+        "Christiane Kühl",
+        "Jakob Nikolas Kather",
+        "Sven Nebelung",
+        "Daniel Truhn"
+      ],
+      "license": "cc-by",
+      "pdf_url": "https://arxiv.org/pdf/2407.15621",
+      "file": "pdf/026_ryai.240476.pdf",
+      "sha256": "131faf4e0770f295b274b1b6d7fc8e7089b176f6de5aab70c17614aff0a51cc7",
+      "bytes": 1517703
+    },
+    {
+      "openalex_id": "https://openalex.org/W4412887933",
+      "doi": "https://doi.org/10.18653/v1/2025.findings-acl.861",
+      "title": "Ask in Any Modality: A Comprehensive Survey on Multimodal Retrieval-Augmented Generation",
+      "year": 2025,
+      "venue": null,
+      "authors": [
+        "Mohammad Mahdi Abootorabi",
+        "Amirhosein Zobeiri",
+        "Mahdi Dehghani",
+        "Mohammadali Mohammadkhani",
+        "Bardia Mohammadi",
+        "Omid Ghahroodi",
+        "Mahdieh Soleymani Baghshah",
+        "Ehsaneddin Asgari"
+      ],
+      "license": "cc-by",
+      "pdf_url": "https://aclanthology.org/2025.findings-acl.861.pdf",
+      "file": "pdf/027_2025.findings-acl.861.pdf",
+      "sha256": "47e5eb3b44dc87ef224498235b5448ec2f6455bdc2023dd8ea61712631f835f4",
+      "bytes": 2344624
+    },
+    {
+      "openalex_id": "https://openalex.org/W4411120331",
+      "doi": "https://doi.org/10.18653/v1/2025.naacl-long.635",
+      "title": "Rationale-Guided Retrieval Augmented Generation for Medical Question Answering",
+      "year": 2025,
+      "venue": null,
+      "authors": [
+        "Jiwoong Sohn",
+        "Yein Park",
+        "Chanwoong Yoon",
+        "Sihyeon Park",
+        "Hyeon Seok Hwang",
+        "Mujeen Sung",
+        "Hyunjae Kim",
+        "Jaewoo Kang"
+      ],
+      "license": "cc-by",
+      "pdf_url": "https://aclanthology.org/2025.naacl-long.635.pdf",
+      "file": "pdf/028_2025.naacl-long.635.pdf",
+      "sha256": "846839d7b9b95b7280f39bcfd19deb403cd7af2296e23c84826b29cd8219dc71",
+      "bytes": 6393882
+    },
+    {
+      "openalex_id": "https://openalex.org/W4414925442",
+      "doi": "https://doi.org/10.3389/fpubh.2025.1635381",
+      "title": "MEGA-RAG: a retrieval-augmented generation framework with multi-evidence guided answer refinement for mitigating hallucinations of LLMs in public health",
+      "year": 2025,
+      "venue": "Frontiers in Public Health",
+      "authors": [
+        "Shan Xu",
+        "Zhaokun Yan",
+        "Cheng Dai",
+        "Fan Wu"
+      ],
+      "license": "cc-by",
+      "pdf_url": "https://www.frontiersin.org/journals/public-health/articles/10.3389/fpubh.2025.1635381/pdf",
+      "file": "pdf/029_fpubh.2025.1635381.pdf",
+      "sha256": "06062b5fbb4a21b513020e64e0f9d501e3abfbe3861e3a7e20649ee3acd52741",
+      "bytes": 3307974
+    },
+    {
+      "openalex_id": "https://openalex.org/W4412888702",
+      "doi": "https://doi.org/10.18653/v1/2025.findings-acl.97",
+      "title": "HopRAG: Multi-Hop Reasoning for Logic-Aware Retrieval-Augmented Generation",
+      "year": 2025,
+      "venue": null,
+      "authors": [
+        "Hao Liu",
+        "Zhengren Wang",
+        "Xijing Chen",
+        "Zhiyu Li",
+        "Feiyu Xiong",
+        "Qinhan Yu",
+        "Wentao Zhang"
+      ],
+      "license": "cc-by",
+      "pdf_url": "https://aclanthology.org/2025.findings-acl.97.pdf",
+      "file": "pdf/030_2025.findings-acl.97.pdf",
+      "sha256": "6ab8e76c45f157a1b63a2c711cc8b64d1ad8344ec87954c1a01c8d6b4759e428",
+      "bytes": 6126238
+    },
+    {
+      "openalex_id": "https://openalex.org/W4412889884",
+      "doi": "https://doi.org/10.18653/v1/2025.acl-long.1312",
+      "title": "SeaKR: Self-aware Knowledge Retrieval for Adaptive Retrieval Augmented Generation",
+      "year": 2025,
+      "venue": null,
+      "authors": [
+        "Zijun Yao",
+        "Weijian Qi",
+        "Liangming Pan",
+        "Shulin Cao",
+        "Linmei Hu",
+        "Weichuan Liu",
+        "Lei Hou",
+        "Juanzi Li"
+      ],
+      "license": "cc-by",
+      "pdf_url": "https://aclanthology.org/2025.acl-long.1312.pdf",
+      "file": "pdf/031_2025.acl-long.1312.pdf",
+      "sha256": "446def7f1b5e35683c656a4710d5bd62d1463dc52662de706014072ea01a7af2",
+      "bytes": 1224722
+    },
+    {
+      "openalex_id": "https://openalex.org/W4412887777",
+      "doi": "https://doi.org/10.18653/v1/2025.findings-acl.1096",
+      "title": "VideoRAG: Retrieval-Augmented Generation over Video Corpus",
+      "year": 2025,
+      "venue": null,
+      "authors": [
+        "Soyeong Jeong",
+        "Kangsan Kim",
+        "Jinheon Baek",
+        "Sung Ju Hwang"
+      ],
+      "license": "cc-by",
+      "pdf_url": "https://aclanthology.org/2025.findings-acl.1096.pdf",
+      "file": "pdf/032_2025.findings-acl.1096.pdf",
+      "sha256": "4cc33e154cea08ab0a941a3244976aa4675ec1dc7977d3f26c04a87eca9bd234",
+      "bytes": 5877908
+    },
+    {
+      "openalex_id": "https://openalex.org/W4411119426",
+      "doi": "https://doi.org/10.18653/v1/2025.naacl-long.243",
+      "title": "Fact, Fetch, and Reason: A Unified Evaluation of Retrieval-Augmented Generation",
+      "year": 2025,
+      "venue": null,
+      "authors": [
+        "Satyapriya Krishna",
+        "Kalpesh Krishna",
+        "Anhad Mohananey",
+        "Steven Schwarcz",
+        "Adam Stambler",
+        "Shyam Upadhyay",
+        "Manaal Faruqui"
+      ],
+      "license": "cc-by",
+      "pdf_url": "https://aclanthology.org/2025.naacl-long.243.pdf",
+      "file": "pdf/033_2025.naacl-long.243.pdf",
+      "sha256": "8f65d2306fb71e57a8970a36888bdad25bd6391b8d5aa486b97caf3418830ecc",
+      "bytes": 1149651
+    },
+    {
+      "openalex_id": "https://openalex.org/W4412887679",
+      "doi": "https://doi.org/10.18653/v1/2025.findings-acl.1165",
+      "title": "CausalRAG: Integrating Causal Graphs into Retrieval-Augmented Generation",
+      "year": 2025,
+      "venue": null,
+      "authors": [
+        "Nengbo Wang",
+        "Xiaotian Han",
+        "Jagdip Singh",
+        "Jing Ma",
+        "Vipin Chaudhary"
+      ],
+      "license": "cc-by",
+      "pdf_url": "https://aclanthology.org/2025.findings-acl.1165.pdf",
+      "file": "pdf/034_2025.findings-acl.1165.pdf",
+      "sha256": "214d61c72e1e3010b66401489d7deb585e1c3b39f4e927a47d37eaac722ceab6",
+      "bytes": 778289
+    },
+    {
+      "openalex_id": "https://openalex.org/W4412889429",
+      "doi": "https://doi.org/10.18653/v1/2025.acl-srw.32",
+      "title": "Question Decomposition for Retrieval-Augmented Generation",
+      "year": 2025,
+      "venue": null,
+      "authors": [
+        "Paul Ammann",
+        "Jonas Golde",
+        "Alan Akbik"
+      ],
+      "license": "cc-by",
+      "pdf_url": "https://aclanthology.org/2025.acl-srw.32.pdf",
+      "file": "pdf/035_2025.acl-srw.32.pdf",
+      "sha256": "99b308856b76b34353f0f7a80f5d3d665d1ab09741299327be670371b0007118",
+      "bytes": 284501
+    },
+    {
+      "openalex_id": "https://openalex.org/W4416035209",
+      "doi": "https://doi.org/10.18653/v1/2025.emnlp-main.1738",
+      "title": "Retrieval-Augmented Generation with Estimation of Source Reliability",
+      "year": 2025,
+      "venue": null,
+      "authors": [
+        "Jeongyeon Hwang",
+        "Junyoung Park",
+        "Hyejin Park",
+        "Dong‐Woo Kim",
+        "Sangdon Park",
+        "Jungseul Ok"
+      ],
+      "license": "cc-by",
+      "pdf_url": "https://aclanthology.org/2025.emnlp-main.1738.pdf",
+      "file": "pdf/036_2025.emnlp-main.1738.pdf",
+      "sha256": "7c7728ba3353bcd653e97acd10380e4114d5d4fbb0c5fb8a63197564ab6d012d",
+      "bytes": 897306
+    },
+    {
+      "openalex_id": "https://openalex.org/W4416035296",
+      "doi": "https://doi.org/10.18653/v1/2025.emnlp-main.1674",
+      "title": "OG-RAG: Ontology-grounded retrieval-augmented generation for large language models",
+      "year": 2025,
+      "venue": null,
+      "authors": [
+        "Kartik Sharma",
+        "Peeyush Kumar",
+        "Yunqing Li"
+      ],
+      "license": "cc-by",
+      "pdf_url": "https://aclanthology.org/2025.emnlp-main.1674.pdf",
+      "file": "pdf/037_2025.emnlp-main.1674.pdf",
+      "sha256": "ab954064c2e88e6edcfcc789a730ea2104ffa5a7e93aa40d068f22526465f43a",
+      "bytes": 759694
+    },
+    {
+      "openalex_id": "https://openalex.org/W4412888476",
+      "doi": "https://doi.org/10.18653/v1/2025.findings-acl.422",
+      "title": "Document Segmentation Matters for Retrieval-Augmented Generation",
+      "year": 2025,
+      "venue": null,
+      "authors": [
+        "Zhitong Wang",
+        "Cheng Gao",
+        "Chaojun Xiao",
+        "Yufei Huang",
+        "Shuzheng Si",
+        "Kangyang Luo",
+        "Yuzhuo Bai",
+        "Wenhao Li",
+        "Tangjian Duan",
+        "Chuancheng Lv",
+        "Guoshan Lu",
+        "Gang Chen"
+      ],
+      "license": "cc-by",
+      "pdf_url": "https://aclanthology.org/2025.findings-acl.422.pdf",
+      "file": "pdf/038_2025.findings-acl.422.pdf",
+      "sha256": "6b159bd9266e22ef915f020d131cda2efb26949dd70cbbd94d586d63b3f3b6d7",
+      "bytes": 337471
+    },
+    {
+      "openalex_id": "https://openalex.org/W4416034331",
+      "doi": "https://doi.org/10.18653/v1/2025.findings-emnlp.849",
+      "title": "XRAG: Cross-lingual Retrieval-Augmented Generation",
+      "year": 2025,
+      "venue": null,
+      "authors": [
+        "Wei Liu",
+        "Sony Trenous",
+        "Leonardo F. R. Ribeiro",
+        "Bill Byrne",
+        "Felix Hieber"
+      ],
+      "license": "cc-by",
+      "pdf_url": "https://aclanthology.org/2025.findings-emnlp.849.pdf",
+      "file": "pdf/039_2025.findings-emnlp.849.pdf",
+      "sha256": "e7416223e55c16e00bb3304f025711f907e05a248e863796cc95f2d258b10869",
+      "bytes": 1610925
+    },
+    {
+      "openalex_id": "https://openalex.org/W4412886844",
+      "doi": "https://doi.org/10.18653/v1/2025.acl-long.43",
+      "title": "HybGRAG: Hybrid Retrieval-Augmented Generation on Textual and Relational Knowledge Bases",
+      "year": 2025,
+      "venue": null,
+      "authors": [
+        "Meng-Chieh Lee",
+        "Qi Zhu",
+        "Costas Mavromatis",
+        "Zhen Han",
+        "Soji Adeshina",
+        "Vassilis N. Ioannidis",
+        "Huzefa Rangwala",
+        "Christos Faloutsos"
+      ],
+      "license": "cc-by",
+      "pdf_url": "https://aclanthology.org/2025.acl-long.43.pdf",
+      "file": "pdf/040_2025.acl-long.43.pdf",
+      "sha256": "051dcfd4eafd604460ba3b18a172c07a08726fd26e1eca4c4eeebbfc31a19995",
+      "bytes": 928282
+    },
+    {
+      "openalex_id": "https://openalex.org/W4412889737",
+      "doi": "https://doi.org/10.18653/v1/2025.acl-long.1456",
+      "title": "VISA: Retrieval Augmented Generation with Visual Source Attribution",
+      "year": 2025,
+      "venue": null,
+      "authors": [
+        "Xueguang Ma",
+        "Shengyao Zhuang",
+        "Bevan Koopman",
+        "Guido Zuccon",
+        "Wenhu Chen",
+        "Jimmy Lin"
+      ],
+      "license": "cc-by",
+      "pdf_url": "https://aclanthology.org/2025.acl-long.1456.pdf",
+      "file": "pdf/041_2025.acl-long.1456.pdf",
+      "sha256": "c58b6757322622ce9c110ca5ef6144ba78ab90a06566fb5e1d635b59478b297e",
+      "bytes": 5998677
+    },
+    {
+      "openalex_id": "https://openalex.org/W4416035746",
+      "doi": "https://doi.org/10.18653/v1/2025.emnlp-main.1247",
+      "title": "Mitigating the Privacy Issues in Retrieval-Augmented Generation (RAG) via Pure Synthetic Data",
+      "year": 2025,
+      "venue": null,
+      "authors": [
+        "Shenglai Zeng",
+        "Jiankun Zhang",
+        "Pengfei He",
+        "Jie Ren",
+        "Tianqi Zheng",
+        "Hanqing Lu",
+        "Han Xu",
+        "Hui Liu",
+        "Yue Xing",
+        "Jiliang Tang"
+      ],
+      "license": "cc-by",
+      "pdf_url": "https://aclanthology.org/2025.emnlp-main.1247.pdf",
+      "file": "pdf/042_2025.emnlp-main.1247.pdf",
+      "sha256": "3064f65a91aa68874fe7f62cd9115a79d4e490de9e8af57a59cde9558643a85b",
+      "bytes": 536674
+    },
+    {
+      "openalex_id": "https://openalex.org/W4416036377",
+      "doi": "https://doi.org/10.18653/v1/2025.emnlp-main.710",
+      "title": "TableRAG: A Retrieval Augmented Generation Framework for Heterogeneous Document Reasoning",
+      "year": 2025,
+      "venue": null,
+      "authors": [
+        "Xiaohan Yu",
+        "Jian Pu",
+        "Chong Chen"
+      ],
+      "license": "cc-by",
+      "pdf_url": "https://aclanthology.org/2025.emnlp-main.710.pdf",
+      "file": "pdf/043_2025.emnlp-main.710.pdf",
+      "sha256": "f388e3af1397055b2c5fda06831f373c23826cda4b4a395a38070bcf3edee4b1",
+      "bytes": 822297
+    },
+    {
+      "openalex_id": "https://openalex.org/W4412888323",
+      "doi": "https://doi.org/10.18653/v1/2025.findings-acl.624",
+      "title": "GeAR: Graph-enhanced Agent for Retrieval-augmented Generation",
+      "year": 2025,
+      "venue": null,
+      "authors": [
+        "Zhili Shen",
+        "Chenxin Diao",
+        "Pavlos Vougiouklis",
+        "Pascual Merita",
+        "Shriram Piramanayagam",
+        "Enting Chen",
+        "Damien Graux",
+        "André Melo",
+        "Ruofei Lai",
+        "Zeren Jiang",
+        "Zhongyang Li",
+        "Qi Ye"
+      ],
+      "license": "cc-by",
+      "pdf_url": "https://aclanthology.org/2025.findings-acl.624.pdf",
+      "file": "pdf/044_2025.findings-acl.624.pdf",
+      "sha256": "06e5ddd7d50063ec998a2c6fa8df94290beb7ac7327d1a171ad8dcab527bafb4",
+      "bytes": 6200689
+    },
+    {
+      "openalex_id": "https://openalex.org/W4412886655",
+      "doi": "https://doi.org/10.18653/v1/2025.acl-long.230",
+      "title": "SafeRAG: Benchmarking Security in Retrieval-Augmented Generation of Large Language Model",
+      "year": 2025,
+      "venue": null,
+      "authors": [
+        "Xun Liang",
+        "Simin Niu",
+        "Zhiyu Li",
+        "Sensen Zhang",
+        "Hanyu Wang",
+        "Feiyu Xiong",
+        "Zhaoxin Fan",
+        "Bo Tang",
+        "J. Zhao",
+        "Jiawei Yang",
+        "Shichao Song",
+        "Mengwei Wang"
+      ],
+      "license": "cc-by",
+      "pdf_url": "https://aclanthology.org/2025.acl-long.230.pdf",
+      "file": "pdf/045_2025.acl-long.230.pdf",
+      "sha256": "5bebdbe4b52f213eed8a3ef45775598d85f799f1b2f0028861591dd514703062",
+      "bytes": 2634697
+    },
+    {
+      "openalex_id": "https://openalex.org/W4411113072",
+      "doi": "https://doi.org/10.18653/v1/2025.findings-naacl.157",
+      "title": "MIRAGE: A Metric-Intensive Benchmark for Retrieval-Augmented Generation Evaluation",
+      "year": 2025,
+      "venue": null,
+      "authors": [
+        "Chanhee Park",
+        "Hyeonseok Moon",
+        "Chanjun Park",
+        "Heuiseok Lim"
+      ],
+      "license": "cc-by",
+      "pdf_url": "https://aclanthology.org/2025.findings-naacl.157.pdf",
+      "file": "pdf/046_2025.findings-naacl.157.pdf",
+      "sha256": "0503caa2e39f6f343a602afbb23e2c1f77fd53a1932a750ecd2cd658c298542c",
+      "bytes": 1421558
+    },
+    {
+      "openalex_id": "https://openalex.org/W4416037017",
+      "doi": "https://doi.org/10.18653/v1/2025.emnlp-main.334",
+      "title": "TurboRAG: Accelerating Retrieval-Augmented Generation with Precomputed KV Caches for Chunked Text",
+      "year": 2025,
+      "venue": null,
+      "authors": [
+        "Shenglian Lu",
+        "Hua Wang",
+        "Yutian Rong",
+        "Zhi Chen",
+        "Yaohua Tang"
+      ],
+      "license": "cc-by",
+      "pdf_url": "https://aclanthology.org/2025.emnlp-main.334.pdf",
+      "file": "pdf/047_2025.emnlp-main.334.pdf",
+      "sha256": "a83048870ac66e9af197cb3bcf355cda47611248c06e133899b3a7d65bd45337",
+      "bytes": 1923680
+    },
+    {
+      "openalex_id": "https://openalex.org/W4412886740",
+      "doi": "https://doi.org/10.18653/v1/2025.acl-long.148",
+      "title": "DioR: Adaptive Cognitive Detection and Contextual Retrieval Optimization for Dynamic Retrieval-Augmented Generation",
+      "year": 2025,
+      "venue": null,
+      "authors": [
+        "Hanghui Guo",
+        "Jia Xiong Zhu",
+        "Shimin Di",
+        "Weijie Shi",
+        "Zhangze Chen",
+        "Jiajie Xu"
+      ],
+      "license": "cc-by",
+      "pdf_url": "https://aclanthology.org/2025.acl-long.148.pdf",
+      "file": "pdf/048_2025.acl-long.148.pdf",
+      "sha256": "7d5563608e635d7a7251f14277e0f167775694ec0f651c682f06ae4db70938cd",
+      "bytes": 3162139
+    },
+    {
+      "openalex_id": "https://openalex.org/W4412888818",
+      "doi": "https://doi.org/10.18653/v1/2025.findings-acl.163",
+      "title": "SimGRAG: Leveraging Similar Subgraphs for Knowledge Graphs Driven Retrieval-Augmented Generation",
+      "year": 2025,
+      "venue": null,
+      "authors": [
+        "Yuzheng Cai",
+        "Zhenyue Guo",
+        "YiWen Pei",
+        "Weijia Bian",
+        "Weiguo Zheng"
+      ],
+      "license": "cc-by",
+      "pdf_url": "https://aclanthology.org/2025.findings-acl.163.pdf",
+      "file": "pdf/049_2025.findings-acl.163.pdf",
+      "sha256": "ae683285c4e6c2739ec912fef04a5be5393063e179c222522159f9e289dd4bea",
+      "bytes": 995573
+    },
+    {
+      "openalex_id": "https://openalex.org/W4406936259",
+      "doi": "https://doi.org/10.3389/fpubh.2025.1501408",
+      "title": "Integrating retrieval-augmented generation for enhanced personalized physician recommendations in web-based medical services: model development study",
+      "year": 2025,
+      "venue": "Frontiers in Public Health",
+      "authors": [
+        "Yingbin Zheng",
+        "Yiwei Yan",
+        "Sai Chen",
+        "Yunping Cai",
+        "Kun Ren",
+        "Yishan Liu",
+        "Jiaying Zhuang",
+        "Min Zhao"
+      ],
+      "license": "cc-by",
+      "pdf_url": "https://www.frontiersin.org/journals/public-health/articles/10.3389/fpubh.2025.1501408/pdf",
+      "file": "pdf/050_fpubh.2025.1501408.pdf",
+      "sha256": "3a9f09a643fd163dbf38b4cbb17341a9d79ca1eeb0c30acceeeeb8fb46d26498",
+      "bytes": 1899747
+    },
+    {
+      "openalex_id": "https://openalex.org/W4411119769",
+      "doi": "https://doi.org/10.18653/v1/2025.naacl-long.310",
+      "title": "VisDoM: Multi-Document QA with Visually Rich Elements Using Multimodal Retrieval-Augmented Generation",
+      "year": 2025,
+      "venue": null,
+      "authors": [
+        "Manan Suri",
+        "Puneet Mathur",
+        "Franck Dernoncourt",
+        "Kanika Goswami",
+        "Ryan A. Rossi",
+        "Dinesh Manocha"
+      ],
+      "license": "cc-by",
+      "pdf_url": "https://aclanthology.org/2025.naacl-long.310.pdf",
+      "file": "pdf/051_2025.naacl-long.310.pdf",
+      "sha256": "ae5435c5cca4dd566034f0605b529ee97102c8a6bddb8dc7c002b31223c4eb41",
+      "bytes": 6469480
+    },
+    {
+      "openalex_id": "https://openalex.org/W4416034993",
+      "doi": "https://doi.org/10.18653/v1/2025.findings-emnlp.388",
+      "title": "Federated Retrieval-Augmented Generation: A Systematic Mapping Study",
+      "year": 2025,
+      "venue": null,
+      "authors": [
+        "Abhijit Chakraborty",
+        "Chahana Dahal",
+        "Vivek Gupta"
+      ],
+      "license": "cc-by",
+      "pdf_url": "https://aclanthology.org/2025.findings-emnlp.388.pdf",
+      "file": "pdf/052_2025.findings-emnlp.388.pdf",
+      "sha256": "4b04fc07c9780d60ec4ae842dadcb631836a2db783a1b9c04fb0fc9bf290f2bc",
+      "bytes": 1221037
+    },
+    {
+      "openalex_id": "https://openalex.org/W4406840883",
+      "doi": "https://doi.org/10.52202/085713-2003",
+      "title": "Chain-of-Retrieval Augmented Generation",
+      "year": 2025,
+      "venue": "arXiv (Cornell University)",
+      "authors": [
+        "Liang Wang",
+        "Haonan Chen",
+        "Nan Yang",
+        "Xiaolong Huang",
+        "Zhicheng Dou",
+        "Furu Wei"
+      ],
+      "license": "cc-by",
+      "pdf_url": "https://arxiv.org/pdf/2501.14342",
+      "file": "pdf/053_085713-2003.pdf",
+      "sha256": "a6f9ebef01c23fdba462f1b71adaca27d0c75a26244ee00b7ab8ce8dff6aab25",
+      "bytes": 655987
+    },
+    {
+      "openalex_id": "https://openalex.org/W4408069325",
+      "doi": "https://doi.org/10.14569/ijacsa.2025.01602134",
+      "title": "Investigating Retrieval-Augmented Generation in Quranic Studies: A Study of 13 Open-Source Large Language Models",
+      "year": 2025,
+      "venue": "International Journal of Advanced Computer Science and Applications",
+      "authors": [
+        "Zahra Khalila",
+        "Arbi Haza Nasution",
+        "Winda Monika",
+        "Aytuğ Onan",
+        "Yohei Murakami",
+        "Yasir Bin Ismail Radi",
+        "Noor Mohammad Osmani"
+      ],
+      "license": "cc-by",
+      "pdf_url": "https://thesai.org/Downloads/Volume16No2/Paper_134-Investigating_Retrieval_Augmented_Generation_in_Quranic_Studies.pdf",
+      "file": "pdf/054_ijacsa.2025.01602134.pdf",
+      "sha256": "66441372b85b6c475d2b5e079ec5980f89300da0541461459c609d3c383de19c",
+      "bytes": 493202
+    },
+    {
+      "openalex_id": "https://openalex.org/W4416075695",
+      "doi": "https://doi.org/10.31224/5781",
+      "title": "Retrieval-Augmented Generation",
+      "year": 2025,
+      "venue": null,
+      "authors": [
+        "C.-H Liu"
+      ],
+      "license": "cc-by",
+      "pdf_url": "https://engrxiv.org/preprint/download/5781/9636/8058",
+      "file": "pdf/055_5781.pdf",
+      "sha256": "7445dde2964640a1df7b5726129ee2a0eb57ff92de0904327ee57de68e491b20",
+      "bytes": 1773742
+    },
+    {
+      "openalex_id": "https://openalex.org/W4406292872",
+      "doi": "https://doi.org/10.32996/jcsts.2025.7.1.2",
+      "title": "Securing Retrieval-Augmented Generation Pipelines: A Comprehensive Framework",
+      "year": 2025,
+      "venue": "Journal of Computer Science and Technology Studies",
+      "authors": [
+        "Siddharth Nandagopal"
+      ],
+      "license": "cc-by",
+      "pdf_url": "https://www.al-kindipublisher.com/index.php/jcsts/article/download/8586/7287",
+      "file": "pdf/056_jcsts.2025.7.1.2.pdf",
+      "sha256": "da871ceeaa27214a90eeec4d5f87f1505f57251ed22548dcd9bbd777755b9593",
+      "bytes": 438606
+    },
+    {
+      "openalex_id": "https://openalex.org/W4412944881",
+      "doi": "https://doi.org/10.18653/v1/2025.acl-long.929",
+      "title": "KiRAG: Knowledge-Driven Iterative Retriever for Enhancing Retrieval-Augmented Generation",
+      "year": 2025,
+      "venue": null,
+      "authors": [
+        "Jinyuan Fang",
+        "Zaiqiao Meng",
+        "Craig M. MacDonald"
+      ],
+      "license": "cc-by",
+      "pdf_url": "https://aclanthology.org/2025.acl-long.929.pdf",
+      "file": "pdf/057_2025.acl-long.929.pdf",
+      "sha256": "934f61123fbb83653c557e5d0501e645cd4051a9704e05807baf0761552510b7",
+      "bytes": 4301659
+    },
+    {
+      "openalex_id": "https://openalex.org/W4416036851",
+      "doi": "https://doi.org/10.18653/v1/2025.emnlp-main.464",
+      "title": "ViDoRAG: Visual Document Retrieval-Augmented Generation via Dynamic Iterative Reasoning Agents",
+      "year": 2025,
+      "venue": null,
+      "authors": [
+        "Qiuchen Wang",
+        "Ruixue Ding",
+        "Zehui Chen",
+        "WU Wei-qi",
+        "Shihang Wang",
+        "Pengjun Xie",
+        "Feng Zhao"
+      ],
+      "license": "cc-by",
+      "pdf_url": "https://aclanthology.org/2025.emnlp-main.464.pdf",
+      "file": "pdf/058_2025.emnlp-main.464.pdf",
+      "sha256": "fbe3096451a19f0f93f95ea2f491b6377f6ae265b124d1dc9101ad72b64d28f0",
+      "bytes": 4211579
+    },
+    {
+      "openalex_id": "https://openalex.org/W4412945271",
+      "doi": "https://doi.org/10.18653/v1/2025.acl-long.629",
+      "title": "RankCoT: Refining Knowledge for Retrieval-Augmented Generation through Ranking Chain-of-Thoughts",
+      "year": 2025,
+      "venue": null,
+      "authors": [
+        "Mingyan Wu",
+        "Zhenghao Liu",
+        "Yukun Yan",
+        "Xinze Li",
+        "Shiqiang Yu",
+        "Zheni Zeng",
+        "Yu‐Cheng Gu",
+        "Yu Ge"
+      ],
+      "license": "cc-by",
+      "pdf_url": "https://aclanthology.org/2025.acl-long.629.pdf",
+      "file": "pdf/059_2025.acl-long.629.pdf",
+      "sha256": "d0e89b5f7185c38391c7146d1e7ce7d48a67fcbac859c7ea1e2babc5015ae648",
+      "bytes": 2690214
+    },
+    {
+      "openalex_id": "https://openalex.org/W4412888600",
+      "doi": "https://doi.org/10.18653/v1/2025.findings-acl.321",
+      "title": "FRAG: A Flexible Modular Framework for Retrieval-Augmented Generation based on Knowledge Graphs",
+      "year": 2025,
+      "venue": null,
+      "authors": [
+        "Zengyi Gao",
+        "Yukun Cao",
+        "Hairu Wang",
+        "Ao Ke",
+        "Yuan Feng",
+        "S. Kevin Zhou",
+        "Xike Xie"
+      ],
+      "license": "cc-by",
+      "pdf_url": "https://aclanthology.org/2025.findings-acl.321.pdf",
+      "file": "pdf/060_2025.findings-acl.321.pdf",
+      "sha256": "ee8b6804932fad2f0d8102a4f8aa6ff795e39acb020d2381f021412481495ca0",
+      "bytes": 823660
+    },
+    {
+      "openalex_id": "https://openalex.org/W4411119264",
+      "doi": "https://doi.org/10.18653/v1/2025.naacl-long.575",
+      "title": "SimRAG: Self-Improving Retrieval-Augmented Generation for Adapting Large Language Models to Specialized Domains",
+      "year": 2025,
+      "venue": null,
+      "authors": [
+        "Ran Xu",
+        "Hui Liu",
+        "Sreyashi Nag",
+        "Zhenwei Dai",
+        "Yaochen Xie",
+        "Xianfeng Tang",
+        "Chen Luo",
+        "Yang Li",
+        "Joyce C. Ho",
+        "Carl Yang",
+        "Qi He"
+      ],
+      "license": "cc-by",
+      "pdf_url": "https://aclanthology.org/2025.naacl-long.575.pdf",
+      "file": "pdf/061_2025.naacl-long.575.pdf",
+      "sha256": "8e0e4c9e14387c43c3761757248fe0bc2474e497661d2523cc249ad935427205",
+      "bytes": 454471
+    },
+    {
+      "openalex_id": "https://openalex.org/W4412886724",
+      "doi": "https://doi.org/10.18653/v1/2025.acl-long.176",
+      "title": "Hierarchical Document Refinement for Long-context Retrieval-augmented Generation",
+      "year": 2025,
+      "venue": null,
+      "authors": [
+        "Jiajie Jin",
+        "Xiaoxi Li",
+        "Guanting Dong",
+        "Yuyao Zhang",
+        "Yutao Zhu",
+        "Yongkang Wu",
+        "Zhonghua Li",
+        "Qi Ye",
+        "Zhicheng Dou"
+      ],
+      "license": "cc-by",
+      "pdf_url": "https://aclanthology.org/2025.acl-long.176.pdf",
+      "file": "pdf/062_2025.acl-long.176.pdf",
+      "sha256": "f7f483ac8f59d014ee0858b527fc0d5d8eca95f462fc9e8b19d05f6ba42b3217",
+      "bytes": 522890
+    },
+    {
+      "openalex_id": "https://openalex.org/W4416037077",
+      "doi": "https://doi.org/10.18653/v1/2025.emnlp-main.88",
+      "title": "Utility-Focused LLM Annotation for Retrieval and Retrieval-Augmented Generation",
+      "year": 2025,
+      "venue": null,
+      "authors": [
+        "Hengran Zhang",
+        "Minghao Tang",
+        "Keping Bi",
+        "Jiafeng Guo",
+        "S Liu",
+        "Daiting Shi",
+        "Dawei Yin",
+        "Xueqi Cheng"
+      ],
+      "license": "cc-by",
+      "pdf_url": "https://aclanthology.org/2025.emnlp-main.88.pdf",
+      "file": "pdf/063_2025.emnlp-main.88.pdf",
+      "sha256": "350db19a0a370a97d95900b815d26d5d9bdd6146359bdce7f93a6a0284e09997",
+      "bytes": 564387
+    },
+    {
+      "openalex_id": "https://openalex.org/W4413426951",
+      "doi": "https://doi.org/10.21203/rs.3.rs-6959723/v1",
+      "title": "Retrieval-Augmented Generation for Natural Language Processing: A Survey",
+      "year": 2025,
+      "venue": "Research Square",
+      "authors": [
+        "Shangyu Wu",
+        "Ying Xiong",
+        "Yufei Cui",
+        "Haolun Wu",
+        "Can Chen",
+        "Ye Yuan",
+        "Lianming Huang",
+        "Xue Liu",
+        "Tei‐Wei Kuo",
+        "Nan Guan",
+        "Chun Jason Xue"
+      ],
+      "license": "cc-by",
+      "pdf_url": "https://www.researchsquare.com/article/rs-6959723/latest.pdf",
+      "file": "pdf/064_v1.pdf",
+      "sha256": "3059de264a9bdad6f98bd0ca6bebab59c0430a41d7d397878e45ba19b3460bfb",
+      "bytes": 767404
+    },
+    {
+      "openalex_id": "https://openalex.org/W4407912006",
+      "doi": "https://doi.org/10.12720/jait.16.2.243-250",
+      "title": "SafetyRAG: Towards Safe Large Language Model-Based Application through Retrieval-Augmented Generation",
+      "year": 2025,
+      "venue": "Journal of Advances in Information Technology",
+      "authors": [
+        "Sihem Omri",
+        "Manel Abdelkader",
+        "Mohamed Hamdi"
+      ],
+      "license": "cc-by",
+      "pdf_url": "https://www.jait.us/articles/2025/JAIT-V16N2-243.pdf",
+      "file": "pdf/065_jait.16.2.243-250.pdf",
+      "sha256": "ec20b48bf81381f72cc40f6199c7f294cb8df7f041ed1a254a745c4c69428696",
+      "bytes": 2337287
+    },
+    {
+      "openalex_id": "https://openalex.org/W4416034722",
+      "doi": "https://doi.org/10.18653/v1/2025.findings-emnlp.698",
+      "title": "RevPRAG: Revealing Poisoning Attacks in Retrieval-Augmented Generation through LLM Activation Analysis",
+      "year": 2025,
+      "venue": null,
+      "authors": [
+        "X. Gary Tan",
+        "Hao Luan",
+        "Mingyu Luo",
+        "Xiaoyan Sun",
+        "Ping Chen",
+        "Jun Dai"
+      ],
+      "license": "cc-by",
+      "pdf_url": "https://aclanthology.org/2025.findings-emnlp.698.pdf",
+      "file": "pdf/066_2025.findings-emnlp.698.pdf",
+      "sha256": "a1af7be75308a1d9b14ee64885ecd3c9d9b0d7c4f0ebc7bca4ed6d7de274f370",
+      "bytes": 2595193
+    },
+    {
+      "openalex_id": "https://openalex.org/W4407423017",
+      "doi": "https://doi.org/10.48550/arxiv.2502.06864",
+      "title": "Knowledge Graph-Guided Retrieval Augmented Generation",
+      "year": 2025,
+      "venue": "arXiv (Cornell University)",
+      "authors": [
+        "Xiangrong Zhu",
+        "Yuexiang Xie",
+        "Yi Liu",
+        "Yuanman Li",
+        "Wei Hu"
+      ],
+      "license": "cc-by",
+      "pdf_url": "https://arxiv.org/pdf/2502.06864",
+      "file": "pdf/067_arxiv.2502.06864.pdf",
+      "sha256": "ae44b1df2a415e3f62c6fdd5cd87d9b3b8dfb87e21fa0bace95493bd1f43a40c",
+      "bytes": 864092
+    },
+    {
+      "openalex_id": "https://openalex.org/W4407440785",
+      "doi": "https://doi.org/10.54097/h21fky45",
+      "title": "Knowledge Graph Combined with Retrieval-Augmented Generation for Enhancing LMs Reasoning: A Survey",
+      "year": 2025,
+      "venue": "Academic Journal of Science and Technology",
+      "authors": [
+        "Haitao Wang",
+        "Yangkun Shi"
+      ],
+      "license": "cc-by",
+      "pdf_url": "https://drpress.org/ojs/index.php/ajst/article/download/29613/29054",
+      "file": "pdf/068_h21fky45.pdf",
+      "sha256": "9f76a9e6352e2d3caa8d872b63b3656c3f0bf629c8fe72f2606bae7ff9b3efc6",
+      "bytes": 462200
+    },
+    {
+      "openalex_id": "https://openalex.org/W4412945327",
+      "doi": "https://doi.org/10.18653/v1/2025.acl-long.613",
+      "title": "WavRAG: Audio-Integrated Retrieval Augmented Generation for Spoken Dialogue Models",
+      "year": 2025,
+      "venue": null,
+      "authors": [
+        "Y.W. Chen",
+        "Shengpeng Ji",
+        "Haoxiao Wang",
+        "Ziqing Wang",
+        "Siyu Chen",
+        "Jinzheng He",
+        "Jin Xu",
+        "Zhou Zhao"
+      ],
+      "license": "cc-by",
+      "pdf_url": "https://aclanthology.org/2025.acl-long.613.pdf",
+      "file": "pdf/069_2025.acl-long.613.pdf",
+      "sha256": "4697232aa84d998fc4def0992050807074b78df891e58c23ed22c206b9f59afe",
+      "bytes": 1437933
+    },
+    {
+      "openalex_id": "https://openalex.org/W4411119824",
+      "doi": "https://doi.org/10.18653/v1/2025.naacl-long.281",
+      "title": "RAG LLMs are Not Safer: A Safety Analysis of Retrieval-Augmented Generation for Large Language Models",
+      "year": 2025,
+      "venue": null,
+      "authors": [
+        "Bang An",
+        "Shiyue Zhang",
+        "Mark Dredze"
+      ],
+      "license": "cc-by",
+      "pdf_url": "https://aclanthology.org/2025.naacl-long.281.pdf",
+      "file": "pdf/070_2025.naacl-long.281.pdf",
+      "sha256": "2da0356fba80f79871d2dcecde8a0ceb2ccea0b91bf00c012ff105d4b43adf92",
+      "bytes": 8282837
+    },
+    {
+      "openalex_id": "https://openalex.org/W4412888563",
+      "doi": "https://doi.org/10.18653/v1/2025.findings-acl.517",
+      "title": "Explainable Depression Detection in Clinical Interviews with Personalized Retrieval-Augmented Generation",
+      "year": 2025,
+      "venue": null,
+      "authors": [
+        "Linhai Zhang",
+        "Ziyang Gao",
+        "Deyu Zhou",
+        "Yulan He"
+      ],
+      "license": "cc-by",
+      "pdf_url": "https://aclanthology.org/2025.findings-acl.517.pdf",
+      "file": "pdf/071_2025.findings-acl.517.pdf",
+      "sha256": "37b943b1425b4ab72c09c948f66168d3a9129f78605917540e2823a596ae4762",
+      "bytes": 2444518
+    },
+    {
+      "openalex_id": "https://openalex.org/W4411120199",
+      "doi": "https://doi.org/10.18653/v1/2025.findings-naacl.375",
+      "title": "On the Influence of Context Size and Model Choice in Retrieval-Augmented Generation Systems",
+      "year": 2025,
+      "venue": null,
+      "authors": [
+        "Juraj Vladika",
+        "Florian Matthes"
+      ],
+      "license": "cc-by",
+      "pdf_url": "https://aclanthology.org/2025.findings-naacl.375.pdf",
+      "file": "pdf/072_2025.findings-naacl.375.pdf",
+      "sha256": "722f51a12117f2e8835a6964f6dab8f07b31d8ba2758134649f273978ac6e1a9",
+      "bytes": 255198
+    },
+    {
+      "openalex_id": "https://openalex.org/W4411113434",
+      "doi": "https://doi.org/10.18653/v1/2025.findings-naacl.30",
+      "title": "Adaptive Retrieval-Augmented Generation for Conversational Systems",
+      "year": 2025,
+      "venue": null,
+      "authors": [
+        "Xi Wang",
+        "Procheta Sen",
+        "Ruizhe Li",
+        "Emine Yılmaz"
+      ],
+      "license": "cc-by",
+      "pdf_url": "https://aclanthology.org/2025.findings-naacl.30.pdf",
+      "file": "pdf/073_2025.findings-naacl.30.pdf",
+      "sha256": "bea43f19f1246a1d0d9187bd840e4c2f760e16099630f0b4b00b1c7bd1351688",
+      "bytes": 521908
+    },
+    {
+      "openalex_id": "https://openalex.org/W4412945069",
+      "doi": "https://doi.org/10.18653/v1/2025.acl-long.861",
+      "title": "Shifting from Ranking to Set Selection for Retrieval Augmented Generation",
+      "year": 2025,
+      "venue": null,
+      "authors": [
+        "Dahyun Lee",
+        "Yongrae Jo",
+        "Haeju Park",
+        "Moontae Lee"
+      ],
+      "license": "cc-by",
+      "pdf_url": "https://aclanthology.org/2025.acl-long.861.pdf",
+      "file": "pdf/074_2025.acl-long.861.pdf",
+      "sha256": "6ccf5e74f1acb8fad50353a7bcf62334dd4b7db7f18346bce398724f2ff91a3d",
+      "bytes": 1757270
+    },
+    {
+      "openalex_id": "https://openalex.org/W4413078261",
+      "doi": "https://doi.org/10.7759/cureus.88167",
+      "title": "Context-Aware Retrieval-Augmented Generation for Artificial Intelligence in Urology",
+      "year": 2025,
+      "venue": "Cureus",
+      "authors": [
+        "Aadhitya Sriram",
+        "N Maheswaran",
+        "Bose Sundan",
+        "Sriram Krishnamoorthy"
+      ],
+      "license": "cc-by",
+      "pdf_url": "https://www.cureus.com/articles/383916-context-aware-retrieval-augmented-generation-for-artificial-intelligence-in-urology.pdf",
+      "file": "pdf/075_cureus.88167.pdf",
+      "sha256": "2711758798754d2f428d65312ba0cf07419966bf8a0ce1969a41a136e486ef34",
+      "bytes": 3025924
+    },
+    {
+      "openalex_id": "https://openalex.org/W4412945529",
+      "doi": "https://doi.org/10.18653/v1/2025.acl-long.415",
+      "title": "Unanswerability Evaluation for Retrieval Augmented Generation",
+      "year": 2025,
+      "venue": null,
+      "authors": [
+        "Xiangyu Peng",
+        "Prafulla Kumar Choubey",
+        "Caiming Xiong",
+        "Chien-Sheng Wu"
+      ],
+      "license": "cc-by",
+      "pdf_url": "https://aclanthology.org/2025.acl-long.415.pdf",
+      "file": "pdf/076_2025.acl-long.415.pdf",
+      "sha256": "3d9895b3616ce46ed107678a0a14ccd705702740d2343c29d6175f6180c14aa4",
+      "bytes": 1352205
+    },
+    {
+      "openalex_id": "https://openalex.org/W4411113095",
+      "doi": "https://doi.org/10.18653/v1/2025.findings-naacl.176",
+      "title": "CodeRAG-Bench: Can Retrieval Augment Code Generation?",
+      "year": 2025,
+      "venue": null,
+      "authors": [
+        "Zora Zhiruo Wang",
+        "Akari Asai",
+        "Xinyan Velocity Yu",
+        "Frank F. Xu",
+        "Yiqing Xie",
+        "Graham Neubig",
+        "Daniel Fried"
+      ],
+      "license": "cc-by",
+      "pdf_url": "https://aclanthology.org/2025.findings-naacl.176.pdf",
+      "file": "pdf/077_2025.findings-naacl.176.pdf",
+      "sha256": "edc8bb5feee4b2ca802ae8a95bce8ba072f3a7b6b43ce0472730a8a97b9c266d",
+      "bytes": 1184477
+    },
+    {
+      "openalex_id": "https://openalex.org/W4410379873",
+      "doi": "https://doi.org/10.3389/fmed.2025.1599241",
+      "title": "Enhancing treatment decision-making for low back pain: a novel framework integrating large language models with retrieval-augmented generation technology",
+      "year": 2025,
+      "venue": "Frontiers in Medicine",
+      "authors": [
+        "Rong Chen",
+        "Siyun Zhang",
+        "Yiyi Zheng",
+        "Qiuhua Yu",
+        "Chuhuai Wang"
+      ],
+      "license": "cc-by",
+      "pdf_url": "https://www.frontiersin.org/journals/medicine/articles/10.3389/fmed.2025.1599241/pdf",
+      "file": "pdf/078_fmed.2025.1599241.pdf",
+      "sha256": "20671b216c1fcb7106e7c7f6b375062c70b723d4d7b8ded5c7e4fde4e64a052b",
+      "bytes": 3683753
+    },
+    {
+      "openalex_id": "https://openalex.org/W4417313874",
+      "doi": "https://doi.org/10.21203/rs.3.rs-8330917/v1",
+      "title": "Retrieval-Augmented Generation in Biomedicine: A Survey of Technologies, Datasets, and Clinical Applications",
+      "year": 2025,
+      "venue": "Research Square",
+      "authors": [
+        "Jiawei He",
+        "Boya Zhang",
+        "Hossein Rouhizadeh",
+        "Yingjian Chen",
+        "Rui Yang",
+        "Lu Jin",
+        "Xudong Chen",
+        "Nan Liu",
+        "Douglas Teodoro"
+      ],
+      "license": "cc-by",
+      "pdf_url": "https://www.researchsquare.com/article/rs-8330917/latest.pdf",
+      "file": "pdf/079_v1.pdf",
+      "sha256": "0fa3e8f0d05d42ea957f621ee071e5102e6caf8420422d1769182530517c8ba0",
+      "bytes": 1021920
+    },
+    {
+      "openalex_id": "https://openalex.org/W4416402923",
+      "doi": "https://doi.org/10.3389/frai.2025.1697169",
+      "title": "Advancing engineering research through context-aware and knowledge graph–based retrieval-augmented generation",
+      "year": 2025,
+      "venue": "Frontiers in Artificial Intelligence",
+      "authors": [
+        "Soham Ghosh",
+        "Gaurav Mittal"
+      ],
+      "license": "cc-by",
+      "pdf_url": "https://public-pages-files-2025.frontiersin.org/journals/artificial-intelligence/articles/10.3389/frai.2025.1697169/pdf",
+      "file": "pdf/080_frai.2025.1697169.pdf",
+      "sha256": "bdcda25dfbc76b198cfa3467e9b2e094a42550138e39b9b6a064c795ffc6d2eb",
+      "bytes": 2870664
+    },
+    {
+      "openalex_id": "https://openalex.org/W4412886707",
+      "doi": "https://doi.org/10.18653/v1/2025.acl-long.179",
+      "title": "RAG-Critic: Leveraging Automated Critic-Guided Agentic Workflow for Retrieval Augmented Generation",
+      "year": 2025,
+      "venue": null,
+      "authors": [
+        "Guanting Dong",
+        "Jiajie Jin",
+        "Xiaoxi Li",
+        "Yutao Zhu",
+        "Zhicheng Dou",
+        "Ji–Rong Wen"
+      ],
+      "license": "cc-by",
+      "pdf_url": "https://aclanthology.org/2025.acl-long.179.pdf",
+      "file": "pdf/081_2025.acl-long.179.pdf",
+      "sha256": "69abbc49f9d27c17dc2a860ee1fe298f6c8e01441e78e5ef8c8f00b220d35d96",
+      "bytes": 2614868
+    },
+    {
+      "openalex_id": "https://openalex.org/W4411113294",
+      "doi": "https://doi.org/10.18653/v1/2025.findings-naacl.72",
+      "title": "CORAL: Benchmarking Multi-turn Conversational Retrieval-Augmented Generation",
+      "year": 2025,
+      "venue": null,
+      "authors": [
+        "Yiruo Cheng",
+        "Kelong Mao",
+        "Ziliang Zhao",
+        "Guanting Dong",
+        "Hongjin Qian",
+        "Yongkang Wu",
+        "Tetsuya Sakai",
+        "Ji–Rong Wen",
+        "Zhicheng Dou"
+      ],
+      "license": "cc-by",
+      "pdf_url": "https://aclanthology.org/2025.findings-naacl.72.pdf",
+      "file": "pdf/082_2025.findings-naacl.72.pdf",
+      "sha256": "6813fed145cebe6ce3a95be11ed74f25183697adf383af58fd3f52ae97642fcc",
+      "bytes": 1791898
+    },
+    {
+      "openalex_id": "https://openalex.org/W4409778133",
+      "doi": "https://doi.org/10.54254/2755-2721/2025.kl22312",
+      "title": "Retrieval-Augmented Generation: Methods, Applications and Challenges",
+      "year": 2025,
+      "venue": "Applied and Computational Engineering",
+      "authors": [
+        "Yicheng Liu"
+      ],
+      "license": "cc-by",
+      "pdf_url": "https://www.ewadirect.com/proceedings/ace/article/view/22312/pdf",
+      "file": "pdf/083_2025.kl22312.pdf",
+      "sha256": "8e6732409ff23bfceda4783e20f9f836f5adb78b061b4eac87963de85d16e2eb",
+      "bytes": 1122792
+    },
+    {
+      "openalex_id": "https://openalex.org/W4416034875",
+      "doi": "https://doi.org/10.18653/v1/2025.findings-emnlp.430",
+      "title": "cAST: Enhancing Code Retrieval-Augmented Generation with Structural Chunking via Abstract Syntax Tree",
+      "year": 2025,
+      "venue": null,
+      "authors": [
+        "Yilin Zhang",
+        "Xinran Zhao",
+        "Zora Zhiruo Wang",
+        "Chenyang Yang",
+        "Jiayi Wei",
+        "Tongshuang Wu"
+      ],
+      "license": "cc-by",
+      "pdf_url": "https://aclanthology.org/2025.findings-emnlp.430.pdf",
+      "file": "pdf/084_2025.findings-emnlp.430.pdf",
+      "sha256": "5e6f7f6150ae75b84d454be8b2c3bf3428c87c790b942414bdb69f4337062e5b",
+      "bytes": 302125
+    },
+    {
+      "openalex_id": "https://openalex.org/W4412945465",
+      "doi": "https://doi.org/10.18653/v1/2025.acl-long.527",
+      "title": "GainRAG: Preference Alignment in Retrieval-Augmented Generation through Gain Signal Synthesis",
+      "year": 2025,
+      "venue": null,
+      "authors": [
+        "Yi Jiang",
+        "Sendong Zhao",
+        "Jianbo Li",
+        "Haochun Wang",
+        "Bing Qin"
+      ],
+      "license": "cc-by",
+      "pdf_url": "https://aclanthology.org/2025.acl-long.527.pdf",
+      "file": "pdf/085_2025.acl-long.527.pdf",
+      "sha256": "58560b3962cc279ea77a4912a9a8224afb0cce66c4eefd7590c2502eeca42b35",
+      "bytes": 1644759
+    },
+    {
+      "openalex_id": "https://openalex.org/W4416035911",
+      "doi": "https://doi.org/10.18653/v1/2025.findings-emnlp.168",
+      "title": "CoT-RAG: Integrating Chain of Thought and Retrieval-Augmented Generation to Enhance Reasoning in Large Language Models",
+      "year": 2025,
+      "venue": null,
+      "authors": [
+        "Feiyang Li",
+        "Peng Fang",
+        "Zhan Shi",
+        "Arijit Khan",
+        "Fang Wang",
+        "Weihao Wang",
+        "Zhangxin-hw",
+        "Cui Yongjian"
+      ],
+      "license": "cc-by",
+      "pdf_url": "https://aclanthology.org/2025.findings-emnlp.168.pdf",
+      "file": "pdf/086_2025.findings-emnlp.168.pdf",
+      "sha256": "d0dec95779d16418943c1065a608aa4681a5c9d170f520ac0114b0d61d5e7294",
+      "bytes": 2263871
+    },
+    {
+      "openalex_id": "https://openalex.org/W4406437904",
+      "doi": "https://doi.org/10.32388/phs6yn",
+      "title": "MTRAG: A Multi-Turn Conversational Benchmark for Evaluating Retrieval-Augmented Generation Systems",
+      "year": 2025,
+      "venue": "Qeios",
+      "authors": [
+        "Yannis Katsis",
+        "Sara Rosenthal",
+        "Kshitij Fadnis",
+        "Chulaka Gunasekara",
+        "Young‐Suk Lee",
+        "Lucian Popa",
+        "Vraj Shah",
+        "Huaiyu Zhu",
+        "Danish Contractor",
+        "Marina Danilevsky"
+      ],
+      "license": "cc-by",
+      "pdf_url": "https://www.qeios.com/read/PHS6YN/pdf",
+      "file": "pdf/087_phs6yn.pdf",
+      "sha256": "be6034fa34a236a2827801c582b64fb5f89bf3d30674ec618e97fffa987072a1",
+      "bytes": 2359000
+    },
+    {
+      "openalex_id": "https://openalex.org/W4416035411",
+      "doi": "https://doi.org/10.18653/v1/2025.emnlp-main.1630",
+      "title": "RAG+: Enhancing Retrieval-Augmented Generation with Application-Aware Reasoning",
+      "year": 2025,
+      "venue": null,
+      "authors": [
+        "Yu Wang",
+        "Shiwan Zhao",
+        "Zhihu Wang",
+        "Ming Fan",
+        "Xicheng Zhang",
+        "Yubo Zhang",
+        "Zhengfan Wang",
+        "Heyuan Huang",
+        "Ting Liu"
+      ],
+      "license": "cc-by",
+      "pdf_url": "https://aclanthology.org/2025.emnlp-main.1630.pdf",
+      "file": "pdf/088_2025.emnlp-main.1630.pdf",
+      "sha256": "09a4f4f4b9e230a665cf14bafda3af900b523948af5e944627f62f301bb53e1c",
+      "bytes": 1094736
+    },
+    {
+      "openalex_id": "https://openalex.org/W4416838082",
+      "doi": "https://doi.org/10.54254/2755-2721/2026.tj30058",
+      "title": "The Development Status of Retrieval-Augmented Generation (RAG) Technology",
+      "year": 2025,
+      "venue": "Applied and Computational Engineering",
+      "authors": [
+        "Chenhui Zhu"
+      ],
+      "license": "cc-by",
+      "pdf_url": "https://www.ewadirect.com/proceedings/ace/article/view/30058/pdf",
+      "file": "pdf/089_2026.tj30058.pdf",
+      "sha256": "999ed9f25ef6f9eda5a720f4dcc09211a093caa36b2d9268db171bcd03c4683a",
+      "bytes": 589141
+    },
+    {
+      "openalex_id": "https://openalex.org/W4416035742",
+      "doi": "https://doi.org/10.18653/v1/2025.emnlp-main.1371",
+      "title": "Conflict-Aware Soft Prompting for Retrieval-Augmented Generation",
+      "year": 2025,
+      "venue": null,
+      "authors": [
+        "Eunseong Choi",
+        "June Young Park",
+        "Hyeri Lee",
+        "Jongwuk Lee"
+      ],
+      "license": "cc-by",
+      "pdf_url": "https://aclanthology.org/2025.emnlp-main.1371.pdf",
+      "file": "pdf/090_2025.emnlp-main.1371.pdf",
+      "sha256": "966e4329745c0b3670793e3c65219748ec97fd958fef91468a9489424498b68f",
+      "bytes": 1810223
+    },
+    {
+      "openalex_id": "https://openalex.org/W4408069345",
+      "doi": "https://doi.org/10.14569/ijacsa.2025.01602113",
+      "title": "Accurate AI Assistance in Contract Law Using Retrieval-Augmented Generation to Advance Legal Technology",
+      "year": 2025,
+      "venue": "International Journal of Advanced Computer Science and Applications",
+      "authors": [
+        "Youssra Amazou",
+        "Faouzi Tayalati",
+        "Houssam Mensouri",
+        "Abdellah Azmani",
+        "Monir Azmani"
+      ],
+      "license": "cc-by",
+      "pdf_url": "https://thesai.org/Downloads/Volume16No2/Paper_113-Accurate_AI_Assistance_in_Contract_Law.pdf",
+      "file": "pdf/091_ijacsa.2025.01602113.pdf",
+      "sha256": "13147ef57f79be6129d956e976051b38bdbb6d516265fbaa73a4ecbdb1a570ed",
+      "bytes": 837080
+    },
+    {
+      "openalex_id": "https://openalex.org/W4412887902",
+      "doi": "https://doi.org/10.18653/v1/2025.findings-acl.1076",
+      "title": "TechniqueRAG: Retrieval Augmented Generation for Adversarial Technique Annotation in Cyber Threat Intelligence Text",
+      "year": 2025,
+      "venue": null,
+      "authors": [
+        "Ahmed Lekssays",
+        "Utsav Shukla",
+        "Hüsrev Taha Sencar",
+        "Md Rizwan Parvez"
+      ],
+      "license": "cc-by",
+      "pdf_url": "https://aclanthology.org/2025.findings-acl.1076.pdf",
+      "file": "pdf/092_2025.findings-acl.1076.pdf",
+      "sha256": "390bfcb63258d9b42cf8a08c627f4ac0dc772e30eea280488c674b71ff40f95b",
+      "bytes": 786273
+    },
+    {
+      "openalex_id": "https://openalex.org/W4412887989",
+      "doi": "https://doi.org/10.18653/v1/2025.findings-acl.800",
+      "title": "PISCO: Pretty Simple Compression for Retrieval-Augmented Generation",
+      "year": 2025,
+      "venue": null,
+      "authors": [
+        "Maxime Louis",
+        "Hervé Déjean",
+        "Stéphane Clinchant"
+      ],
+      "license": "cc-by",
+      "pdf_url": "https://aclanthology.org/2025.findings-acl.800.pdf",
+      "file": "pdf/093_2025.findings-acl.800.pdf",
+      "sha256": "0eba541372bcc65f6660369c53ebb366693cbf51c6db358667ec2dc7919604ae",
+      "bytes": 570173
+    },
+    {
+      "openalex_id": "https://openalex.org/W4412888272",
+      "doi": "https://doi.org/10.18653/v1/2025.findings-acl.522",
+      "title": "Fine-grained Knowledge Enhancement for Retrieval-Augmented Generation",
+      "year": 2025,
+      "venue": null,
+      "authors": [
+        "Jingxuan Han",
+        "Zhendong Mao",
+        "Yi Liu",
+        "Yexuan Che",
+        "Zheren Fu",
+        "Quan Wang"
+      ],
+      "license": "cc-by",
+      "pdf_url": "https://aclanthology.org/2025.findings-acl.522.pdf",
+      "file": "pdf/094_2025.findings-acl.522.pdf",
+      "sha256": "c575a19e048657d9eff221dfbcf20f64b8139ccab3c1de62e409419110f35d63",
+      "bytes": 782680
+    },
+    {
+      "openalex_id": "https://openalex.org/W4409622110",
+      "doi": "https://doi.org/10.37745/ijmt.2013/vol12n32646",
+      "title": "The Role of Retrieval-Augmented Generation (RAG) in Financial Document Processing: Automating Compliance and Reporting",
+      "year": 2025,
+      "venue": "International Journal of Management Technology",
+      "authors": [
+        "Nihar Malali"
+      ],
+      "license": "cc-by",
+      "pdf_url": "https://eajournals.org/ijmt/wp-content/uploads/sites/69/2025/04/The-Role-of-Retrieval-Augmented-Generation.pdf",
+      "file": "pdf/095_vol12n32646.pdf",
+      "sha256": "574d085d18166a659d06032038a48a97e5cad5e32c368fd5a21f815bf435916c",
+      "bytes": 439535
+    },
+    {
+      "openalex_id": "https://openalex.org/W4412888692",
+      "doi": "https://doi.org/10.18653/v1/2025.findings-acl.253",
+      "title": "EXIT: Context-Aware Extractive Compression for Enhancing Retrieval-Augmented Generation",
+      "year": 2025,
+      "venue": null,
+      "authors": [
+        "Taeho Hwang",
+        "Sukmin Cho",
+        "Soyeong Jeong",
+        "Hoyun Song",
+        "SeungYoon Han",
+        "Jong Cheol Park"
+      ],
+      "license": "cc-by",
+      "pdf_url": "https://aclanthology.org/2025.findings-acl.253.pdf",
+      "file": "pdf/096_2025.findings-acl.253.pdf",
+      "sha256": "720ec13cc28262775224a89b7068de77d3a884f030467d9c5b3eba229831753c",
+      "bytes": 1011300
+    },
+    {
+      "openalex_id": "https://openalex.org/W4412888870",
+      "doi": "https://doi.org/10.18653/v1/2025.findings-acl.220",
+      "title": "Bridging Relevance and Reasoning: Rationale Distillation in Retrieval-Augmented Generation",
+      "year": 2025,
+      "venue": null,
+      "authors": [
+        "Pengyue Jia",
+        "Derong Xu",
+        "Xiaopeng Li",
+        "Zhaocheng Du",
+        "Xiangyang Li",
+        "Yichao Wang",
+        "Yuhao Wang",
+        "Qidong Liu",
+        "Maolin Wang",
+        "Huifeng Guo",
+        "Ruiming Tang",
+        "Xiangyu Zhao"
+      ],
+      "license": "cc-by",
+      "pdf_url": "https://aclanthology.org/2025.findings-acl.220.pdf",
+      "file": "pdf/097_2025.findings-acl.220.pdf",
+      "sha256": "96a02134f76b80706ceea84194f3fc2a1389842d3f7fc278be8e3b7230b6d51e",
+      "bytes": 403022
+    },
+    {
+      "openalex_id": "https://openalex.org/W4411119855",
+      "doi": "https://doi.org/10.18653/v1/2025.naacl-long.151",
+      "title": "Towards Knowledge Checking in Retrieval-augmented Generation: A Representation Perspective",
+      "year": 2025,
+      "venue": null,
+      "authors": [
+        "Shenglai Zeng",
+        "Jiankun Zhang",
+        "Bingheng Li",
+        "Yuping Lin",
+        "Tianqi Zheng",
+        "Dante Everaert",
+        "Hanqing Lu",
+        "Hui Liu",
+        "Hui Liu",
+        "Yue Xing",
+        "Monica Xiao Cheng",
+        "Jiliang Tang"
+      ],
+      "license": "cc-by",
+      "pdf_url": "https://aclanthology.org/2025.naacl-long.151.pdf",
+      "file": "pdf/098_2025.naacl-long.151.pdf",
+      "sha256": "792cf3417749c1c699782b528c3363b6886cdd3a51faaa6137fe4f000d399e39",
+      "bytes": 1289310
+    },
+    {
+      "openalex_id": "https://openalex.org/W4411119601",
+      "doi": "https://doi.org/10.18653/v1/2025.naacl-long.14",
+      "title": "MIRAGE-Bench: Automatic Multilingual Benchmark Arena for Retrieval-Augmented Generation Systems",
+      "year": 2025,
+      "venue": null,
+      "authors": [
+        "Nandan Thakur",
+        "Suleman Kazi",
+        "Ge Luo",
+        "Jimmy Lin",
+        "Amin Al‐Ahmad"
+      ],
+      "license": "cc-by",
+      "pdf_url": "https://aclanthology.org/2025.naacl-long.14.pdf",
+      "file": "pdf/099_2025.naacl-long.14.pdf",
+      "sha256": "ca651ff71a83356c8a4932b5597979213d1d0172ccccaa392062f85cc7269a3b",
+      "bytes": 2750195
+    },
+    {
+      "openalex_id": "https://openalex.org/W4412945682",
+      "doi": "https://doi.org/10.18653/v1/2025.acl-long.301",
+      "title": "HoH: A Dynamic Benchmark for Evaluating the Impact of Outdated Information on Retrieval-Augmented Generation",
+      "year": 2025,
+      "venue": null,
+      "authors": [
+        "Jie Ouyang",
+        "Tingyue Pan",
+        "Mingyue Cheng",
+        "Rui Yan",
+        "Yucong Luo",
+        "Jiaying Lin",
+        "Qi Liu"
+      ],
+      "license": "cc-by",
+      "pdf_url": "https://aclanthology.org/2025.acl-long.301.pdf",
+      "file": "pdf/100_2025.acl-long.301.pdf",
+      "sha256": "db051586b2bcdd5c175eea524324fa11fb450b38d097569363de95f724bb5e7f",
+      "bytes": 7659440
+    }
+  ]
+}
