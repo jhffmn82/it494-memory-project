@@ -31,6 +31,3 @@ data/export/
 data/packages/
 data/packages-test/
 
-# CC-BY KG/RAG corpus: PDFs are large and reproducible from the manifest + fetch script;
-# publish them as a Kaggle dataset, do not commit them here.
-data/raw/kg-rag-cc/pdf/

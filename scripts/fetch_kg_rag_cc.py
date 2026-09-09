@@ -23,15 +23,24 @@ MAILTO = "jhffmn.myalt1@gmail.com"
 CC = {"cc-by", "cc-by-sa", "cc0", "cc-by-nd", "cc-by-nc", "cc-by-nc-sa"}   # redistributable-with-attribution
 PREFER = {"cc-by", "cc-by-sa", "cc0"}                                      # the clean ones for a public corpus
 QUERIES = ["retrieval augmented generation", "knowledge graph", "graph retrieval augmented generation",
-           "knowledge graph question answering", "knowledge graph language model"]
-SELECT = "id,doi,title,publication_year,authorships,primary_location,best_oa_location,open_access"
+           "knowledge graph question answering", "knowledge graph embedding", "knowledge graph completion"]
+SELECT = "id,doi,title,publication_year,cited_by_count,authorships,primary_location,best_oa_location,open_access"
 UA = {"User-Agent": "Mozilla/5.0 (compatible; it494-corpus/1.0; +%s)" % MAILTO}
 
 
 def get_json(url):
-    req = urllib.request.Request(url, headers=UA)
-    with urllib.request.urlopen(req, timeout=40) as r:
-        return json.load(r)
+    for attempt in range(6):
+        try:
+            req = urllib.request.Request(url, headers=UA)
+            with urllib.request.urlopen(req, timeout=40) as r:
+                return json.load(r)
+        except urllib.error.HTTPError as e:
+            if e.code in (429, 500, 502, 503) and attempt < 5:
+                wait = int(e.headers.get("Retry-After") or 0) or 10 * (attempt + 1)
+                print(f"  {e.code}; waiting {wait}s")
+                time.sleep(wait)
+                continue
+            raise
 
 
 def candidates(target):
@@ -41,8 +50,8 @@ def candidates(target):
         cursor = "*"
         for _ in range(6):                       # up to 6 pages (1200 works) per query
             params = urllib.parse.urlencode({
-                "search": q, "filter": "open_access.is_oa:true,best_oa_location.license:cc-by",
-                "select": SELECT, "per-page": 200, "cursor": cursor, "mailto": MAILTO})
+                "filter": f"title.search:{q},open_access.is_oa:true,best_oa_location.license:cc-by",
+                "sort": "cited_by_count:desc", "select": SELECT, "per-page": 200, "cursor": cursor, "mailto": MAILTO})
             data = get_json(f"https://api.openalex.org/works?{params}")
             for w in data.get("results", []):
                 loc = w.get("best_oa_location") or w.get("primary_location") or {}
@@ -53,16 +62,16 @@ def candidates(target):
                            "venue": ((loc.get("source") or {}) or {}).get("display_name")
                                     or ((w.get("primary_location") or {}).get("source") or {}).get("display_name"),
                            "authors": [a["author"]["display_name"] for a in w.get("authorships", [])][:12],
-                           "license": lic, "pdf_url": pdf}
+                           "cited_by_count": w.get("cited_by_count", 0), "license": lic, "pdf_url": pdf}
                     seen[w["id"]] = rec
                     out.append(rec)
             cursor = (data.get("meta") or {}).get("next_cursor")
             if not cursor:
                 break
-            time.sleep(0.3)
-        if len(seen) >= target * 2:              # plenty of candidates to survive download failures
+            time.sleep(1.0)
+        if len(seen) >= target * 3:              # plenty of candidates to survive download failures
             break
-    out.sort(key=lambda r: (r["license"] not in PREFER, -(r["year"] or 0)))
+    out.sort(key=lambda r: -(r.get("cited_by_count") or 0))   # most influential first
     return out
 
 
