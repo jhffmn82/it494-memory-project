@@ -1,15 +1,140 @@
 # %% [markdown]
 # # FactLedger extractor
-# #
-# `load(path) -> documents, units` over raw files and nothing else. The extractor sniffs the
-# format from the bytes and writes document and unit JSON in the shapes of SCHEMA.md; the
-# rules it follows are in BUILD.md. Built one block at a time. Inputs: the public raw dataset
-# and the private papers dataset, both attached to this notebook.
+#
+# One raw file at a time, to a **split plan**: which document the file is, where it divides, and
+# what kind of text each part is. No entities, no facts, no summaries; those are the ingestor's
+# job. This is Step 0.
+#
+# **The one rule: the extractor sees a raw file and nothing else.** The format is sniffed from
+# the bytes. There is no filename convention, no per-corpus branch, and no hand-written rule
+# about where a publisher's boilerplate ends. Every boundary in the output is a decision the
+# model made and code verified; code never decides where a break may go, and the model never
+# returns a character offset. The manifests are packaging and an answer key, read in block 1 to
+# prove the mounted bytes are the uploaded bytes, and never again.
+#
+# ## What comes in
+#
+# One mount (`RAW`, the public raw dataset), one folder per corpus, each with a `manifest.json`
+# recording every file's source URL, byte count and sha256:
+#
+# | corpus | files | shape |
+# |---|---|---|
+# | `longmemeval` | 19,206 | one JSON per assistant chat session |
+# | `kg-rag-cc` | 100 | CC-BY papers on knowledge graphs and RAG, PDFs under `pdf/` |
+# | `greek` | 31 | Greek and Roman literature, including OCR'd institutional scans |
+# | `oz` | 29 | the Oz books |
+# | `graphrag-bench` | 20 | GraphRAG-Bench novel contexts |
+# | `holmes` | 9 | the Sherlock Holmes volumes |
+#
+# Three shapes are sniffed from the first bytes, and nothing else about a file is consulted:
+#
+# | sniffed as | how it is read |
+# |---|---|
+# | PDF | the text layer, pages joined by one newline (PyMuPDF, the one dependency) |
+# | chat JSON | rendered `role: content` per turn under a session header, turn spans kept |
+# | plain text | the bytes decoded as UTF-8, unchanged |
+#
+# ## What goes out
+#
+# `/kaggle/working/splits.jsonl` holds one record per document as it finishes, so a stopped run
+# resumes; `export/` holds the dataset. All offsets everywhere are **document offsets**,
+# character indices into `documents.text` for the same `doc_id`, one coordinate system, so any
+# piece, unit or later fact quote resolves with a single slice.
+#
+# `documents.jsonl`, one row per document:
+#
+# | field | meaning |
+# |---|---|
+# | `doc_id` | the sha256 of the file bytes; every other row joins on it |
+# | `source_uri` | mount, corpus and file, for example `it494-narrative-corpora-raw/oz/01_55.txt` |
+# | `title`, `author`, `occurred_at` | what the model read off the page and a pointer proved |
+# | `source_class` | `record` for a chat, `published` for a PDF, the model's answer for plain text |
+# | `text` | the decoded string, whole, for every document |
+# | `sha256`, `ingested_at`, `loader`, `flags` | provenance, and what the gates could not verify |
+#
+# `units.jsonl`, one row per unit, the size-bounded runs the pieces were grouped into:
+#
+# | field | meaning |
+# |---|---|
+# | `unit_id`, `doc_id`, `position` | its id, its document, its place in reading order |
+# | `label` | a human label: a chapter title, or a range of turns |
+# | `start`, `end` | character offsets into the document text |
+# | `occurred_at`, `occurred_until` | when it was said, when the file carries times |
+#
+# `pieces.jsonl`, one row per natural piece (a chapter, a section, a turn) inside a unit:
+#
+# | field | meaning |
+# |---|---|
+# | `doc_id`, `unit_id`, `position`, `start`, `end` | where it is |
+# | `kind` | six regions of a written document (`front_matter`, `body`, `notes`, `references`, `appendix`, `license`) or two turns of a conversation (`user`, `assistant`) |
+# | `author` | the speaker of a chat turn, else `null` |
+# | `occurred_at` | the time of a turn, else `null` |
+#
+# `receipt.json`: the run's own counts and cost, written by the run.
+#
+# Checked at export on every document, not asserted: pieces and units each **tile** their
+# document with no gaps and no overlaps, a unit **never mixes kinds**, `unit_id` is unique, and
+# every unit's slice is a real, non-empty slice of the text.
+#
+# ## The algorithm for a document that must be read
+#
+# ```
+# extract(file):
+#     read        sniff the container from the bytes and decode it to one string
+#     address     number the document's own non-blank lines; a file with no usable lines
+#                 (a PDF text layer that puts one word on a line) is numbered by sentence
+#     ask once    one call over the whole document, for
+#                     source_class, title, author, source, date  each a pointer plus its value
+#                     toc_count                                  what the contents list promises
+#                     regions                                    where front matter ends, body
+#                                                                begins, and notes, references,
+#                                                                appendix and license sit
+#                     pieces                                     the chapters, sections, scenes
+#                 a document that defeats Luna twice is asked once more on Terra, if it fits
+#     gate        the model points at a line BY NUMBER AND COPIES ITS TEXT, so a pointer
+#                 resolves only when the copy names the line: the line itself, its first eight
+#                 words, a run of five or more of its words, or a two-line heading copied whole
+#                     wrong number, text found nearby -> recovered and counted
+#                     text nowhere                    -> dropped and counted
+#                 nothing the model asserted without a verified pointer reaches the output
+#     sub-split   a piece over CAP_WORDS goes back as numbered lines and is cut at the breaks
+#                 the model points at, up to three rounds; one it cannot break stays whole
+#     merge short a piece under SHORT_WORDS is offered with its text: it joins the piece
+#                 before, the piece after, or stands alone
+#     group       the outline goes back and the model groups consecutive pieces into units, a
+#                 section with its subsections, never two peers merely because they fit;
+#                 code then checks the groups cover the outline in order, dissolves a group
+#                 over the cap, and cuts any group where the kind changes
+#     write       one record to splits.jsonl; the export tiles and checks it
+# ```
+#
+# ## The algorithm for a chat session
+#
+# ```
+# extract(chat):
+#     no call. The session already states its own boundaries.
+#     pieces      the turns; the role is the author
+#     units       runs of turns under CAP_WORDS, never a lone turn, never spanning a change of
+#                 day, a tail under TAIL_FLOOR merged back into the unit before it
+#     header      the session header is front matter and a unit of its own
+# ```
+#
+# 19,206 of the 19,395 documents cost nothing to split.
+#
+# ## On Kaggle
+#
+# Attach the raw dataset (`jhffmn/it494-narrative-corpora-raw`), which carries every corpus
+# including the papers. Attach `OPENAI_API_KEY` under Add-ons > Secrets and turn Internet on.
+# Run block 3 to see the connection work, then the blocks in order. Finished documents are
+# appended to `splits.jsonl` and skipped on a restart, so to continue a stopped run, make a
+# dataset from that output and attach it. `REDO_ALL` re-asks clean records an older loader
+# wrote; a hard spending stop halts the run, and running out of API credit is fatal by design,
+# so a dead key cannot walk the corpus writing empty flagged records.
 
 
 # %%
 # Block 1: inputs and integrity.
-# Mount both datasets, count files per folder, and check every file's sha256 against the
+# Mount the raw dataset, count files per folder, and check every file's sha256 against the
 # folder manifest. The manifests are used here only to prove the Kaggle copies are the bytes
 # that were uploaded; the extractor itself never reads them.
 import hashlib
@@ -27,7 +152,7 @@ def mount(slug):
 
 
 RAW = mount("it494-narrative-corpora-raw")
-PAPERS = mount("it494-reference-papers")
+SIDECARS = ("manifest.json", "LICENSE", "README.md")   # packaging, never a document
 
 
 def sha256(path):
@@ -36,8 +161,11 @@ def sha256(path):
 
 def check(folder):
     manifest = json.loads((folder / "manifest.json").read_text(encoding="utf-8"))
-    rows = manifest.get("works") or manifest["files"]      # the literature manifests say "works"
-    on_disk = {p.name for p in folder.iterdir() if p.name not in ("manifest.json", "LICENSE")}
+    # each manifest names its rows for its own corpus: works, papers, or files
+    rows = manifest.get("works") or manifest.get("papers") or manifest["files"]
+    # relative posix paths, so a corpus that keeps its files in a subfolder (kg-rag-cc/pdf) checks too
+    on_disk = {p.relative_to(folder).as_posix() for p in folder.rglob("*")
+               if p.is_file() and p.name not in SIDECARS}
     listed = {r["file"] for r in rows}
     # Kaggle inputs are a network filesystem: one file at a time, 19,206 files take tens of
     # minutes; 32 concurrent reads take about a minute.
@@ -49,9 +177,8 @@ def check(folder):
     return bad
 
 
-for name in ("oz", "holmes", "greek", "graphrag-bench", "longmemeval"):
+for name in ("oz", "holmes", "greek", "graphrag-bench", "longmemeval", "kg-rag-cc"):
     check(RAW / name)
-check(PAPERS)
 
 
 # %%
@@ -142,7 +269,7 @@ def to_text(path):
 # One of each, to see the shape.
 for path in [RAW / "oz" / "01_55.txt", RAW / "graphrag-bench" / "Novel-30752.txt",
              RAW / "longmemeval" / "sharegpt_yywfIrx_0.json", RAW / "longmemeval" / "001cefa7_2.json",
-             PAPERS / "edge2024-graphrag.pdf"]:
+             RAW / "kg-rag-cc" / "pdf" / "001_2024.eacl-demo.16.pdf"]:
     d = to_text(path)
     turns = len(d["turns"]) if d["turns"] else "-"
     print(f"{path.name:<26} {d['kind']:<5} {len(d['text']):>8,} chars  turns {turns:>3}  dates {d['dates']}")
@@ -275,7 +402,7 @@ def listing(text, addrs):
 
 
 for path in [RAW / "oz" / "01_55.txt", RAW / "greek" / "03_348.txt", RAW / "graphrag-bench" / "Novel-30752.txt",
-             PAPERS / "edge2024-graphrag.pdf"]:
+             RAW / "kg-rag-cc" / "pdf" / "001_2024.eacl-demo.16.pdf"]:
     d = to_text(path)
     a = addresses(d["text"])
     n = len(listing(d["text"], a))
@@ -930,7 +1057,7 @@ def units_from_runs(pieces, runs, text):
 
 
 # %%
-# Block 8: every document in both datasets, resumable. Each finished document is appended to
+# Block 8: every document in the raw dataset, resumable. Each finished document is appended to
 # splits.jsonl as one record: file (dataset-relative), path, sha256, kind, reply, pieces, units,
 # flags, stats, cost. On a rerun a document is skipped by file name before it is read when its
 # last record was written by this loader AND is clean or carries only advisory flags (metadata,
@@ -952,15 +1079,15 @@ REDO_ALL = False                        # True also re-asks clean records an old
 
 
 def rel_of(path):
-    """'raw/oz/01_55.txt' or 'papers/x.pdf': the same name on any Kaggle mount."""
-    return f"raw/{path.relative_to(RAW).as_posix()}" if RAW in path.parents else f"papers/{path.name}"
+    """'raw/oz/01_55.txt' or 'raw/kg-rag-cc/pdf/001_x.pdf': the same name on any Kaggle mount."""
+    return f"raw/{path.relative_to(RAW).as_posix()}"
 
 
 def path_of(record):
     rel = record.get("file")
     if rel is None:
         return Path(record["path"])                          # a record written before files were named
-    return RAW / rel[4:] if rel.startswith("raw/") else PAPERS / rel[7:]
+    return RAW / rel[4:]
 
 
 def iso_of(reply):
@@ -1014,7 +1141,7 @@ def show(doc, record):
 
 
 paths = sorted(RAW.glob("oz/*.txt")) + sorted(RAW.glob("holmes/*.txt")) + sorted(RAW.glob("greek/*.txt")) \
-      + sorted(RAW.glob("graphrag-bench/*.txt")) + sorted(PAPERS.glob("*.pdf")) \
+      + sorted(RAW.glob("graphrag-bench/*.txt")) + sorted(RAW.glob("kg-rag-cc/pdf/*.pdf")) \
       + sorted(p for p in RAW.glob("longmemeval/*.json") if p.name != "manifest.json")
 latest = read_splits()
 def settled(rec):
@@ -1168,7 +1295,7 @@ with ThreadPoolExecutor(max_workers=32) as pool:
             continue
         exported[doc_id] = record["file"]
         rel = record.get("file") or rel_of(Path(record["path"]))
-        src = f"{RAW.name}/{rel[4:]}" if rel.startswith("raw/") else f"{PAPERS.name}/{rel[7:]}"
+        src = f"{RAW.name}/{rel[4:]}"
         title = rendered(r, "title", "title")
         author = rendered(r, "author", "name")
         occurred = iso_of(r) or None
