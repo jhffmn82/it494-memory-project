@@ -218,7 +218,17 @@ check("every major has one kind, lower case", all(n["kind"] == n["kind"].lower()
 check("the ledger records same-name unions and judge verdicts with evidence",
       {"same_name", "judged"} <= {l["how"] for l in by["ledger"]} and all(l["evidence"] for l in by["ledger"]))
 check("Toto, whom the judge cannot settle, is judged again on the last look", any(l["how"] == "judged again" and "Toto" in (l["a"], l["b"]) for l in by["ledger"]))
-check("every candidate carries its four scores", all(all(k in c for k in ("name_score", "cooc_score", "profile_score", "combined")) for c in by["candidate"]))
+check("every candidate carries its three scores", all(all(k in c for k in ("name_score", "cooc_score", "combined")) for c in by["candidate"]))
+check("no package line is a profile record: nothing asserts about the world without a quote (09-09)",
+      "profile" not in by and not any(r.get("record") == "profile" for r in rows))
+one = {"name": "Dorothy", "cooc": {"Toto", "Scarecrow"}}
+two = {"name": "Dorothy", "cooc": {"Toto", "Lion"}}
+scored = ns["score_pair"](one, two, "same_name")
+check("the pair score is 0.7 name and 0.3 co-occurrence, and its weights sum to one (09-09)",
+      len(scored) == 3
+      and abs(scored[-1] - (0.7 * scored[0] + 0.3 * scored[1])) < 1e-9
+      and abs(ns["score_pair"]({"name": "x", "cooc": {"a"}}, {"name": "x", "cooc": {"a"}}, "shared_surface")[-1] - 1.0) < 1e-9,
+      scored)
 check("a unit never pairs its own two entities", all(l["a_unit"] != l["b_unit"] or l["verdict"] != "same" for l in by["ledger"]))
 check("the possession 'hat (X's hat)' is never a candidate against its anchor", not any("hat (" in c["a"] + c["b"] for c in by["candidate"]))
 check("one unit summary cell per unit read, on the document node", sum(1 for c in by["cell"] if c["provenance"].get("kind") == "unit_summary") == counts["units"])

@@ -71,7 +71,6 @@ ordering rule for time.
     node      node_id, name, kind, created_from_unit, provenance
     alias     alias, node_id, first_seen_unit, evidence_quote
     mention   mention_id, node_id?, unit_id, start, end, surface, resolved_by
-    profile   node_id, attribute, value, from_unit
 
 Mentions are what resolution measurements read: duplicate counting needs the
 node link, cluster purity needs the full set per node, and coreference scoring
@@ -82,12 +81,17 @@ and span inside its document and never enters the merge. A minor is minor
 because the text gave too little to disambiguate it, so tracking it across
 documents would mean merging hundreds of names per work on no evidence.
 
-The profile is not a fact. It holds low-confidence attributes the model
-inferred from context (gender, age band, animacy, role), read only by the
-matcher, never rendered and never exported. The text never says "Tip is male,"
-so these rows have no quote, and putting them in the fact table would make the
-quote gate a lie. They carried a constant confidence of 0.5 until 2026-09-07,
-which told a reader nothing the sentence above does not; the field is gone.
+There is no profile record (dropped 2026-09-09). It had held attributes the
+model inferred rather than read -- gender, age band, animacy, role -- and it was
+the last record in the package that asserted something about the world with no
+quote behind it. Measured over every package then on disk, 486 rows across 132
+nodes, it produced animacy 438 times and gender 48, age band and role never
+once, every animacy value "animate" and every gender value "female", and only
+on people. So it was not making category errors on non-person entities, which
+had been the worry; it was asserting 438 times that a person is animate. Kind
+already says what a thing is and the cells say what it does, so nothing a
+parent derives is lost. With it gone, a fact needs a quote and a quote needs a
+document, so nothing unsourced can exist in the store.
 
 ## The record side
 

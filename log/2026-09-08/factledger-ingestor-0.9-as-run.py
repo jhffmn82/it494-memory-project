@@ -43,7 +43,7 @@
 # ## What goes out
 #
 # One package per document at `packages/<corpus>/<file>/<file>.jsonl`, every line one record with a
-# `record` field: `document`, `unit`, `piece`, `node`, `alias`, `edge`, `profile`, `cell`,
+# `record` field: `document`, `unit`, `piece`, `node`, `alias`, `edge`, `cell`,
 # `abstract`, `adjudicated_fact`, `attribute`, `contradiction`, `fact`, `rejection`, `ledger`,
 # `candidate`, and a final `completion` with the counts. A `roll-up.txt` is written beside it.
 # The run logs sit at the top of the output folder: `calls.jsonl` (every model call with its
@@ -811,7 +811,7 @@ def occurrences(text, found):
 
 # %%
 # Block 5: the prompts. One triage per document (which kinds of unit to read), three per unit
-# (entities with surface forms, salience and profile; facts with quotes; summary and cells),
+# (entities with surface forms and salience; facts with quotes; summary and cells),
 # one judge over entity pairs, one fold, one adjudication per major, one support check over
 # the facts left standing, one correction pass over the facts the check flagged. None of them
 # knows what kind of document it is reading, and none sees another unit.
@@ -820,7 +820,7 @@ ENTITY_SCHEMA = {"type": "object", "required": ["entities"], "properties": {"ent
     "type": "object", "required": ["name", "named", "kind", "surface_forms"], "properties": {
         "name": {"type": "string"}, "named": {"type": "boolean"}, "kind": {"type": "string"},
         "surface_forms": {"type": "array", "items": {"type": "string"}},
-        "salience": {"type": ["string", "null"]}, "profile": {"type": ["object", "null"]}}}}}}
+        "salience": {"type": ["string", "null"]}}}}}}
 
 FACT_SCHEMA = {"type": "object", "required": ["facts"], "properties": {"facts": {"type": "array", "items": {
     "type": "object", "required": ["subject", "predicate", "object", "quote"], "properties": {
@@ -888,13 +888,13 @@ def entity_prompt(unit):
 
 Above is one unit of a longer document. Identify the entities it involves: each person, group, place, thing, event, or topic that acts, is acted upon, or is discussed in its own right, plus any named person, place, group, or thing, however briefly mentioned. Parts, components, and possessions of a listed entity are not entities; they belong inside that entity's facts.
 
-Return JSON {{"entities": [{{"name", "named", "kind", "salience", "surface_forms", "profile"}}]}} where:
+Return JSON {{"entities": [{{"name", "named", "kind", "salience", "surface_forms"}}]}} where:
 - name: for a named entity, the fullest name the text uses; for an unnamed one, a head word plus a parenthetical anchoring it to a named entity, like "car (Sam's car)"
 - named: true if the text gives it a proper name
 - kind: determine the kind classification of this entity, as one lowercase word; examples of kind include but are not limited to person, group, place, object, topic, event
 - salience: "major" only if it would appear in a two-sentence summary of this text, else "minor"
 - surface_forms: every distinct verbatim string the text uses to refer to it, copied exactly, bare pronouns excluded; a string that refers to two different entities in this text is listed under only one of them
-- profile: attributes you infer from context rather than read in the text, as {{"gender", "age_band", "animacy", "role"}} with a value or null each; null when nothing can be inferred"""
+- salience is the last field: nothing here is inferred, only read"""
 
 
 def fact_prompt(unit, names, majors):
@@ -1096,7 +1096,7 @@ def listed_names(names):
 def derive_unit(doc, unit, ctx, light=False):
     text, base, cache, tag = unit["text"], unit["start"], {}, doc_tag(doc)
     rec = {"unit_id": unit["unit_id"], "position": unit["position"], "label": unit["label"], "kind": unit["kind"],
-           "entities": [], "dropped_entities": [], "facts": [], "rejected_facts": [], "profile": [],
+           "entities": [], "dropped_entities": [], "facts": [], "rejected_facts": [],
            "summary": None, "cells": [], "empty": False}
 
     # 1. entities, each surface form located; a form that is not in the unit is dropped
@@ -1122,10 +1122,6 @@ def derive_unit(doc, unit, ctx, light=False):
         claimed.update(spans)
         rec["entities"].append({"name": name, "named": bool(e["named"]), "kind": str(e["kind"]).lower(),
                                 "major": str(e.get("salience") or "").strip().casefold() == "major", "forms": forms, "mentions": len(spans)})
-        profile = e.get("profile") if isinstance(e.get("profile"), dict) else {}
-        for attribute, value in profile.items():
-            if value not in (None, "", "null", "unknown"):
-                rec["profile"].append({"entity": name, "attribute": str(attribute), "value": str(value), "from_unit": unit["unit_id"]})
     names = [e["name"] for e in rec["entities"]]
     if not names:
         rec["empty"] = True
@@ -1207,7 +1203,7 @@ def derive_unit(doc, unit, ctx, light=False):
 # surface form, a fact stating one is the other, or a shared name word, with at least one
 # unit-major in it (never minor against minor) and never a possession against its own anchor,
 # goes into a priority queue, strongest first: the nomination's tier, then the name,
-# co-occurrence and profile scores. Round by round the entities in consideration are paired off,
+# co-occurrence scores. Round by round the entities in consideration are paired off,
 # strongest first and one pair to an entity; the judge takes ten pairs a call,
 # every cluster's dossier sent once; same unites, different stays apart, unsure waits for one
 # last look against the finished clusters, where unsure means apart. Every decision is a
@@ -1227,11 +1223,9 @@ def locals_of(records):
     """One record per entity per unit, with what the unit said about it."""
     out = []
     for rec in records:
-        facts_of, profile_of = {}, {}
+        facts_of = {}
         for f in rec["facts"]:
             facts_of.setdefault(f["subject"], []).append(f)
-        for p in rec["profile"]:
-            profile_of.setdefault(p["entity"], {})[p["attribute"]] = p["value"].casefold()
         names_here = {e["name"] for e in rec["entities"]}
         for e in rec["entities"]:
             facts = facts_of.get(e["name"], [])
@@ -1240,7 +1234,7 @@ def locals_of(records):
                         "surfaces": {s.casefold() for s in e["forms"]} | {e["name"].casefold()},
                         "is_a": [f["object"] for f in facts if f["predicate"] == "is_a"], "facts": [fact_text(f) for f in facts],
                         "relations": [f"{f['predicate']} {f['object']}" for f in facts if f["object_is_entity"]],
-                        "profile": profile_of.get(e["name"], {}), "cooc": names_here - {e["name"]}, "n_facts": len(facts)})
+                        "cooc": names_here - {e["name"]}, "n_facts": len(facts)})
     return out
 
 
@@ -1268,13 +1262,15 @@ def candidate_reason(a, b):
 
 
 def score_pair(a, b, reason):
-    """(name, co-occurrence, profile, combined): the queue's order within a tier."""
+    """(name, co-occurrence, combined): the queue's order within a tier. The weights sum to one,
+    so SIMILAR_ENOUGH means the same thing it meant when a profile term carried 0.15 of it
+    (ruling of 09-09): dropping that term without renormalising would have tightened the
+    threshold by about a fifth, and unevenly, since the term was a flat 0.15 between two people
+    and a flat 0.075 between anything else."""
     name = 1.0 if reason == "shared_surface" else difflib.SequenceMatcher(None, norm(a["name"]), norm(b["name"])).ratio()
     both = a["cooc"] | b["cooc"]
     cooc = len(a["cooc"] & b["cooc"]) / len(both) if both else 0.0
-    shared_keys = set(a["profile"]) & set(b["profile"])
-    profile = sum(a["profile"][k] == b["profile"][k] for k in shared_keys) / len(shared_keys) if shared_keys else 0.5
-    return name, cooc, profile, 0.6 * name + 0.25 * cooc + 0.15 * profile
+    return name, cooc, 0.7 * name + 0.3 * cooc
 
 
 class Clusters:
@@ -1332,9 +1328,9 @@ def pair_up(locals_, clusters, ruled_apart, seen_pairs):
             if reason is None or anchored(a, b) or anchored(b, a):
                 continue
             scores = score_pair(a, b, reason)
-            if scores[3] < SIMILAR_ENOUGH or ineligible(members, ra, rb, ruled_apart):
+            if scores[-1] < SIMILAR_ENOUGH or ineligible(members, ra, rb, ruled_apart):
                 continue
-            scored.append((TIER[reason], scores[3], b["id"], a["id"], reason, scores))
+            scored.append((TIER[reason], scores[-1], b["id"], a["id"], reason, scores))
     scored.sort(key=lambda entry: (-entry[0], -entry[1]))
     taken, queue = set(), []
     for entry in scored:
@@ -1467,12 +1463,12 @@ def reconcile(records, ctx, watch=False):
         stats["judge_rounds"] += 1
         stats["candidate_pairs"] += len(queue)
         fresh = []
-        for tier, combined, i, j, reason, (name, cooc, profile, _) in queue:
+        for tier, combined, i, j, reason, (name, cooc, _) in queue:
             seen_pairs.add(frozenset((clusters.find(i), clusters.find(j))))
             fresh.append((i, j))
             candidates.append({"a": locals_[i]["name"], "a_unit": locals_[i]["ui"], "b": locals_[j]["name"], "b_unit": locals_[j]["ui"],
                                "round": stats["judge_rounds"], "tier": tier, "reason": reason, "name_score": round(name, 3),
-                               "cooc_score": round(cooc, 3), "profile_score": round(profile, 3), "combined": round(combined, 3)})
+                               "cooc_score": round(cooc, 3), "combined": round(combined, 3)})
         if watch:
             print(f"judge round {stats['judge_rounds']}: {eligible} eligible pairs, {len(fresh)} taken (one to an entity), {PAIRS_PER_CALL} a call")
         judge_all(fresh, final=False)
@@ -1885,14 +1881,9 @@ def write_package(doc, records, entities, folded, adjudicated, ledger, candidate
         lines.append({"record": "edge", "predicate": "appears_in", "subject": nid, "object": doc_node, "units": e["unit_ids"]})
     lines += [{"record": "edge", "predicate": "has_unit", "subject": doc_node, "object": u["unit_id"], "position": u["position"]} for u in doc["units"]]
 
-    # per unit: profiles, the summary cell, the entity cells
+    # per unit: the summary cell and the entity cells. No profile record: it asserted something
+    # about the world with no quote behind it, and it was the last one that did (ruling of 09-09)
     for r in records:
-        seen_profile = set()
-        for p in r["profile"]:
-            nid = node_of.get((r["position"], p["entity"]))
-            if nid and (nid, p["attribute"], p["value"]) not in seen_profile:
-                seen_profile.add((nid, p["attribute"], p["value"]))
-                lines.append({"record": "profile", "node_id": nid, "attribute": p["attribute"], "value": p["value"], "from_unit": p["from_unit"]})
         if r["summary"]:
             lines.append({"record": "cell", "node_id": doc_node, "unit_id": r["unit_id"], "text": r["summary"], "tier": LUNA,
                           "provenance": {"ingestor": INGESTOR, "kind": "unit_summary"}})
