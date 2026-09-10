@@ -48,7 +48,7 @@ Guarantees, verified on all 19,395 documents in this release:
 - Units of one document tile it. Sorted by position, the first starts at 0, the last ends at the
   length of the text, and each start equals the previous end.
 - Every unit's slice is non-empty after stripping whitespace.
-- `unit_id` is unique across the file, and all 42,979 recompute from the document's own text.
+- `unit_id` is unique across the file, and all 42,822 recompute from the document's own text.
 
 ## pieces.jsonl
 
@@ -73,7 +73,7 @@ Guarantees, verified on all 19,395 documents:
   or all appendix. It never runs from the end of a chapter into the footnotes.
 
 `user` and `assistant` pieces do share a unit, which is the point: a unit of a conversation is a
-stretch of the conversation, and each turn keeps its own speaker. 19,153 of the 42,979 units
+stretch of the conversation, and each turn keeps its own speaker. 19,153 of the 42,822 units
 hold both, and no unit mixes any other pair of kinds.
 
 The eight kinds are two families. Six are regions of a written document. The other two are turns

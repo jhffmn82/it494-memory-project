@@ -1,8 +1,8 @@
 # ThreadAtlas Step 0: Documents, Units and Pieces
 
 Every document in the IT 494 memory-backend corpus, split into units, with a piece table that
-says what each stretch of a file is and who is speaking there. 19,395 documents, 42,979 units,
-224,718 pieces, produced in one pass by a public notebook for $6.60.
+says what each stretch of a file is and who is speaking there. 19,395 documents, 42,822 units,
+224,522 pieces, produced in one pass by a public notebook for $6.64.
 
 This is the input to a memory backend, not a finished analysis. Step 0 answers one question
 about a raw file: **where does this document divide, and what kind of text is each part?** No
@@ -39,8 +39,8 @@ author of the piece that holds it, which is what lets a later step tell "Watson 
 | file | rows | what it is |
 |---|---|---|
 | `documents.jsonl` | 19,395 | one row per document: identity, title, author, date, full text |
-| `units.jsonl` | 42,979 | the split plan: character ranges into a document's text |
-| `pieces.jsonl` | 224,718 | what each stretch of a document is, and who is speaking |
+| `units.jsonl` | 42,822 | the split plan: character ranges into a document's text |
+| `pieces.jsonl` | 224,522 | what each stretch of a document is, and who is speaking |
 | `attribution.jsonl` | 100 | the CC-BY papers: authors, title, license, DOI and source URL |
 | `receipt.json` | — | the run's own totals |
 
@@ -76,18 +76,18 @@ character offsets into that exact string, so read the file as UTF-8 and do not n
 | corpus | documents | units | pieces | characters |
 |---|---|---|---|---|
 | LongMemEval-S sessions | 19,206 | 38,412 | 218,847 | 201,075,057 |
-| Greek and Roman literature | 31 | 1,558 | 1,575 | 19,450,676 |
-| Oz books | 29 | 711 | 713 | 7,362,917 |
-| CC-BY papers on knowledge graphs and RAG | 100 | 1,565 | 2,764 | 6,597,287 |
-| GraphRAG-Bench novels | 20 | 472 | 558 | 4,819,610 |
-| Sherlock Holmes | 9 | 261 | 261 | 3,976,901 |
+| Greek and Roman literature | 31 | 1,448 | 1,463 | 19,450,676 |
+| Oz books | 29 | 714 | 714 | 7,362,917 |
+| CC-BY papers on knowledge graphs and RAG | 100 | 1,497 | 2,664 | 6,597,287 |
+| GraphRAG-Bench novels | 20 | 496 | 579 | 4,819,610 |
+| Sherlock Holmes | 9 | 255 | 255 | 3,976,901 |
 
 Three shapes on purpose. Clean Gutenberg e-texts, scanned books with OCR damage and heavy
 apparatus, and 19,206 assistant chat logs. A splitter that only works on tidy books is not a
 result.
 
-Piece kinds across the corpus: 100,522 assistant turns, 99,119 user turns, 19,553 front matter,
-4,201 body, 646 appendix, 468 notes, 134 references, 75 license. Body is 76.9% of the 42.2 M
+Piece kinds across the corpus: 100,522 assistant turns, 99,119 user turns, 19,487 front matter,
+4,259 body, 607 appendix, 320 notes, 131 references, 77 license. Body is 80.7% of the 42.2 M
 characters read from books and papers.
 
 ## The papers
@@ -113,8 +113,8 @@ in [IT494 Raw Corpora](https://www.kaggle.com/datasets/jhffmn/it494-narrative-co
 
 [ThreadAtlas Extractor](https://www.kaggle.com/code/jhffmn/threadatlas-extractor), one pass,
 `threadatlas-extractor 1.6`, `gpt-5.6-luna` at low reasoning effort, escalating to
-`gpt-5.6-terra` when a document defeats it twice, which happened to 6 of the 189. $6.60 for the
-corpus, median $0.0148 a read document, and nothing at all for the 19,206 chats. A rerun
+`gpt-5.6-terra` when a document defeats it twice, which happened to 4 of the 189. $6.64 for the
+corpus, median $0.0135 a read document, and nothing at all for the 19,206 chats. A rerun
 reproduces the shape but not the split of every hard document, since the model is not
 deterministic. `METHOD.md` has the details.
 

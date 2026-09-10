@@ -4,7 +4,7 @@ The extractor is one Kaggle notebook of nine blocks:
 [ThreadAtlas Extractor](https://www.kaggle.com/code/jhffmn/threadatlas-extractor). This release
 is `threadatlas-extractor 1.6`, one pass over the whole corpus, `gpt-5.6-luna` at low reasoning
 effort, JSON mode. A document that defeats Luna twice is asked once more on `gpt-5.6-terra`,
-which is ten times the price, when it fits in 80,000 tokens. Six of the 189 read documents
+which is ten times the price, when it fits in 80,000 tokens. Four of the 189 read documents
 escalated.
 
 The design rule behind all of it: **the extractor sees a raw file and nothing else.** No
@@ -36,7 +36,7 @@ One call per document, with the whole document in it, asking for:
 
 Dates are never inferred. A date is kept only when its year appears on the line the model read
 it from, and a month or day only when the line names the month. The transcriber's date and the
-ebook release date are excluded by the prompt, which is why 43 documents carry no date at all.
+ebook release date are excluded by the prompt, which is why 46 documents carry no date at all.
 
 ## Units
 
@@ -85,8 +85,8 @@ fails, the row carries a flag saying so rather than a guess.
 
 ## Cost and scale
 
-The run reads 19,395 files and writes 19,395 documents for **$6.60**, a median of $0.0148 a read
-document and $0.393 at the most expensive, a volume of Diodorus Siculus. The 19,206 chat sessions
+The run reads 19,395 files and writes 19,395 documents for **$6.64**, a median of $0.0135 a read
+document and $0.394 at the most expensive, a volume of Diodorus Siculus. The 19,206 chat sessions
 cost nothing, because no model is asked about them. Six documents at a time
 run in parallel, and a document's own over-cap pieces sub-split eight at a time inside that.
 Each call is billed to the document that made it, so per-document cost in the run log is real.
