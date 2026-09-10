@@ -402,8 +402,15 @@ check("an inverse fact's object is the other entity's name, and a correction can
 check("a corrected fact keeps the offsets its quote was gated on (P1)",
       all(doc["text"][f["quote_start"]:f["quote_end"]] == f["quote"] for f in facts))
 check("a fact carries when it was said, from its unit, beside when it is true (R2)",
-      facts and all("occurred_at" in f and "occurred_until" in f for f in facts)
+      facts and all("occurred_at" in f for f in facts)
       and all(f["occurred_at"] == units_by_id[f["unit_id"]].get("occurred_at") for f in facts))
+# 2026-09-09: occurred_until dropped. Across every unit of every release it was equal to
+# occurred_at or both were null, and never once differed, so it carried nothing. The day cut
+# that the range was built beside is a separate mechanism and stays.
+check("no unit row and no fact row carries occurred_until (09-09)",
+      not any("occurred_until" in u for u in UNITS.get(doc["doc_id"], []))
+      and not any("occurred_until" in f for f in facts),
+      [k for u in UNITS.get(doc["doc_id"], []) for k in u if k == "occurred_until"])
 check("a contradiction carries the document's own resolution, and the facts it names stay active (R4)",
       all(c["holds"] in (None, *c["from_facts"]) for c in by.get("contradiction", []))
       and all(f["rank"] == "active" for f in facts))
@@ -522,6 +529,14 @@ if picked:
           and any(cc["stage"] == "support" for cc in ns["CALLS"] if cc.get("doc") == picked["source_uri"]),
           sorted({cc["stage"] for cc in ns["CALLS"] if cc.get("doc") == picked["source_uri"]}))
     check("chat: unit carries the session date and facts inherit nothing invented", all(f["valid_from"] is None for f in cf) and picked["units"][0]["occurred_at"] == picked["occurred_at"])
+    # 2026-09-09: a chat's title is the session id, because that is the only name the file gives
+    # itself. Checked against the id in the document's own text, which the extractor wrote from
+    # the source's session_id key, so this passes only if the title came from the file's content
+    # rather than from its path.
+    header = picked["text"].split("\n", 1)[0]
+    stated = header.split("session_id:", 1)[1].strip() if header.startswith("session_id:") else None
+    check("chat: the title is the session id the file states, not a filename parse (09-09)",
+          stated and picked["title"] == stated, f"header {header!r}, title {picked['title']!r}")
 
 # ---------------------------------------------------------------- a paper
 paper = ns["load_document"](uri_of("/dong2005-reference-reconciliation.pdf"), BY_URI, UNITS, PIECES)

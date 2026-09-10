@@ -27,7 +27,7 @@
 # | `unit_id`, `doc_id`, `position` | its id, its document, its place in reading order |
 # | `label` | a human label, such as a chapter title or a range of turns |
 # | `start`, `end` | character offsets into the document text |
-# | `occurred_at`, `occurred_until` | when it was said, when the file carries times |
+# | `occurred_at` | when it was said, when the file carries times |
 #
 # `pieces.jsonl`, one row per natural piece (a chapter, a turn, a section) inside a unit:
 #
@@ -1924,7 +1924,7 @@ def write_package(doc, records, entities, folded, adjudicated, ledger, candidate
     # facts, each under the major it lands on. A fact whose passage does not state it is written
     # only if it was corrected against that passage; otherwise it is dumped and recorded as a
     # rejection, never written with a flag (R3, ruling of 09-07)
-    when_of = {u["unit_id"]: (u.get("occurred_at"), u.get("occurred_until")) for u in doc["units"]}
+    when_of = {u["unit_id"]: u.get("occurred_at") for u in doc["units"]}
     landed, stored, dumped = landings(records, folded), 0, []
     for e in folded["majors"]:
         nid = node_id(doc, e)
@@ -1945,13 +1945,13 @@ def write_package(doc, records, entities, folded, adjudicated, ledger, candidate
                 obj, is_node = fix["object"], False
             else:
                 obj, is_node = object_node or f["object"], object_node is not None
-            when = when_of.get(f["unit_id"], (None, None))
+            when = when_of.get(f["unit_id"])
             lines.append({"record": "fact", "fact_id": f["fact_id"], "subject": nid,
                           "predicate": fix["predicate"] if fix else f["predicate"], "object": obj, "object_is_node": is_node,
                           "direction": direction, "qualifiers": fix["qualifiers"] if fix else f["qualifiers"], "rank": "active",
                           "unit_id": f["unit_id"], "quote": f["quote"], "quote_start": f["quote_start"], "quote_end": f["quote_end"],
                           "valid_from": f["valid_from"], "valid_to": f["valid_to"],       # when it is true
-                          "occurred_at": when[0], "occurred_until": when[1],                # when it was said (R2, 09-07)
+                          "occurred_at": when,                                    # when it was said (R2, 09-07)
                           "tier": f["tier"], "author": f["author"],
                           "provenance": {"ingestor": INGESTOR, "matched_by": f["matched_by"], "subject_name": f["subject"],
                                          "voice_ambiguous": f["voice_ambiguous"],

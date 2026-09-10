@@ -14,8 +14,7 @@ the user or a loader declares carries that order.
 
     document  doc_id, source_uri, sha256, title, author, source_class, text,
               ingested_at, occurred_at?, loader
-    unit      unit_id, doc_id, position, label?, start, end,
-              occurred_at?, occurred_until?
+    unit      unit_id, doc_id, position, label?, start, end, occurred_at?
     piece     doc_id, unit_id, position, kind, start, end, author?, occurred_at?
 
 The document holds the text, once: the source decoded to a string at load,
@@ -28,6 +27,11 @@ text with a single slice and no join. A unit is the atom every other record
 points at. `position` is one integer, 0-based, no gaps. `label` is a free
 string with no meaning to the system: keep "chapter 4" or "turns
 12-30" in it if it helps a human, but nothing branches on it.
+
+`title` is the source's own name for the document. When the source names a
+document only by an identifier, that identifier is the title: a chat session
+titled nowhere takes its session id, a benchmark context takes the name the
+benchmark gives it. A title is never invented and never parsed out of a filename.
 
 `author` and `source_class` are set by the loader, never by the model reading
 the text: the Gutenberg Author line, the first page of a PDF, the role prefix on a
@@ -49,13 +53,16 @@ session fills it from the session date, a published work from publication, a
 novel with neither leaves it null. When the story is set is not this field;
 in-story time lives on facts, because it changes within a document.
 
-A unit carries a range, `occurred_at` to `occurred_until`, the time of its
-first piece and of its last, filled by the loader only when the file carries
-times (a turn timestamp, a dated session); otherwise both are null and the
-document's `occurred_at` stands in at read time. When the file carries times,
-a unit never spans a day change: the day cut comes before the size rule, and
-the short-tail merge applies only inside a day. Two sessions that overlap in
-time are ordered fact by fact through their units, not whole against whole.
+A unit carries one time, `occurred_at`, the time of its first piece, filled by
+the loader only when the file carries times (a turn timestamp, a dated session);
+otherwise it is null and the document's `occurred_at` stands in at read time. It
+is one time and not a range because a range never held one: across every unit of
+every release so far, the two ends have been equal or both null and have never
+differed. When the file carries times, a unit never spans a day change: the day
+cut comes before the size rule, and the short-tail merge applies only inside a
+day. That rule governs where a unit is cut, not what its record carries, so it
+survives the range's removal. Two sessions that overlap in time are ordered fact
+by fact through their units, not whole against whole.
 
 The split plan is the piece table: one row per natural piece the loader cut
 (a chapter, a turn, a section), with its range, its unit, its `kind`, its
@@ -89,13 +96,12 @@ quote gate a lie.
 
     fact      fact_id, subject, predicate, object, qualifiers, rank, unit_id,
               quote, quote_start, quote_end, valid_from, valid_to,
-              occurred_at, occurred_until, tier, provenance
+              occurred_at, tier, provenance
     cell      cell_id, node_id, unit_id, text, tier, provenance
     abstract  node_id, text, tier, updated_at
     contradiction  node_id, note, from_facts, holds, because
 
-A fact carries its unit's `occurred_at` and `occurred_until`, copied down: when
-it was said. `valid_from` and `valid_to` are when it is true, and only when the
+A fact carries its unit's `occurred_at`, copied down: when it was said. `valid_from` and `valid_to` are when it is true, and only when the
 text states them.
 
 Every stored fact is one its own passage states. A passage states a fact when

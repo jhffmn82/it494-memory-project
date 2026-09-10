@@ -7,7 +7,7 @@ The records themselves are defined in SCHEMA.md.
 Every dataset enters through a loader that emits documents and units and
 nothing else, and is scored by an evaluator that reads the finished store and
 computes one metric. A loader must fill `author` (quote-backed from the file bytes, or flagged unknown) and `source_class` (from the sniffed format), may fill
-`occurred_at` on the document, `occurred_at` and `occurred_until` on units when
+`occurred_at` on the document, `occurred_at` on units when
 the file carries times, and `label`, may not add fields, and the system may not branch
 on which loader ran. The loader sees the file bytes and nothing else: the format is sniffed from them, never taken from a flag, and no manifest, metadata record, or question set is an input. Structured inputs (a chat session with turns) become pieces with no model call, the role the author. Unstructured text is split by one model call per document that numbers the document's lines; the model points at each boundary by line number and copies the line, code verifies the number against the copy and cuts (`docs/extractor.md`). The three gates verify, and the split plan is stored as the piece table (one row per piece: kind, range, unit, author when the file names a speaker, time when it carries one) so a re-run is a replay and a fact's voice is a lookup. A unit is a size-bounded run of the document's natural pieces (chapters, turns, sections), cut only at a piece boundary, never a turn alone, never across a day change when the file carries times, with a short tail merged into the unit before it. There are no per-work or
 per-corpus rules in the splitter; a document the gates reject is stored as

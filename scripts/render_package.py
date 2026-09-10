@@ -211,7 +211,7 @@ def demo_package(out_dir):
          "title": "The Widget Report", "author": "A. Author", "source_class": "canonical",
          "ingested_at": "2026-09-08T00:00:00+00:00", "occurred_at": "2026", "loader": "demo", "flags": [], "text_length": 100},
         {"record": "unit", "unit_id": "demo:u0", "doc_id": "demo", "position": 0, "label": "Chapter 1", "start": 0, "end": 100,
-         "occurred_at": None, "occurred_until": None, "kind": "body"},
+         "occurred_at": None, "kind": "body"},
         {"record": "node", "node_id": dn, "name": "The Widget Report", "kind": "document", "created_from_unit": "demo:u0", "provenance": {}},
         {"record": "node", "node_id": e, "name": "Widget", "kind": "object", "created_from_unit": "demo:u0",
          "provenance": {"names": ["Widget", "the widget"]}},
@@ -225,7 +225,7 @@ def demo_package(out_dir):
         {"record": "fact", "fact_id": "demo:u0:f0", "subject": e, "predicate": "is_colored", "object": "blue",
          "object_is_node": False, "direction": "forward", "qualifiers": None, "rank": "active", "unit_id": "demo:u0",
          "quote": "the widget is blue", "quote_start": 0, "quote_end": 18, "valid_from": None, "valid_to": None,
-         "occurred_at": "2026", "occurred_until": None, "tier": "demo", "author": "A. Author",
+         "occurred_at": "2026", "tier": "demo", "author": "A. Author",
          "provenance": {"subject_name": "Widget", "matched_by": "exact"}},
         {"record": "completion", "doc_id": "demo", "ingestor": "demo", "counts": {"units": 1}, "empty": False},
     ]

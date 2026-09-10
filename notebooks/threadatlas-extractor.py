@@ -59,7 +59,7 @@
 # | `unit_id`, `doc_id`, `position` | its id, its document, its place in reading order |
 # | `label` | a human label: a chapter title, or a range of turns |
 # | `start`, `end` | character offsets into the document text |
-# | `occurred_at`, `occurred_until` | when it was said, when the file carries times |
+# | `occurred_at` | when it was said, when the file carries times |
 #
 # `pieces.jsonl`, one row per natural piece (a chapter, a section, a turn) inside a unit:
 #
@@ -249,7 +249,7 @@ def chat_text(obj, turns):
 def to_text(path):
     data = path.read_bytes()
     doc = {"path": str(path), "sha256": hashlib.sha256(data).hexdigest(),
-           "kind": file_kind(data), "text": "", "turns": None, "dates": []}
+           "kind": file_kind(data), "text": "", "turns": None, "dates": [], "session_id": None}
     if doc["kind"] == "pdf":
         doc["text"] = pdf_text(data)
     elif doc["kind"] == "json":
@@ -261,6 +261,10 @@ def to_text(path):
             doc["kind"] = "chat"
             doc["text"], doc["turns"] = chat_text(obj, turns)
             doc["dates"] = list(obj.get("dates", []))
+            # the source's own name for the session. A LongMemEval file names it no other way,
+            # so this becomes the document's title at export: an identifier is still a name.
+            sid = obj.get("session_id") if isinstance(obj, dict) else None
+            doc["session_id"] = str(sid) if isinstance(sid, (str, int)) else None
     else:
         doc["text"] = data.decode("utf-8", errors="replace")
     return doc
@@ -1049,7 +1053,7 @@ def units_from_runs(pieces, runs, text):
         times = [q["occurred_at"] for q in ps if q["occurred_at"]]
         label = ps[0]["label"] if len(ps) == 1 else f"{ps[0]['label']} .. {ps[-1]['label']}"
         units.append({"position": i, "start": ps[0]["start"], "end": ps[-1]["end"], "label": label,
-                      "occurred_at": min(times) if times else None, "occurred_until": max(times) if times else None,
+                      "occurred_at": min(times) if times else None,
                       "pieces": len(ps), "words": sum(words(text, q) for q in ps)})
         for q in ps:
             q["unit"] = i
@@ -1195,7 +1199,7 @@ def run_one(path):
         units = units_from_runs(pieces, runs, doc["text"])
         if doc["kind"] != "chat":                    # a text or PDF unit carries the document's date
             for u in units:
-                u["occurred_at"] = u["occurred_until"] = iso_of(reply)
+                u["occurred_at"] = iso_of(reply)
             stats["short_units"] = sum(1 for u in units if u["words"] < SHORT_WORDS)
     except SpendStop as e:                       # keep what it cost, flagged; it is redone next session
         stopped = True
@@ -1238,7 +1242,7 @@ print(f"{len(done)} documents in {SPLITS.name}, ${spend():.2f} spent this sessio
 # Block 9: export in the schema, plus the receipt. Last record per document wins.
 #   documents.jsonl  doc_id, source_uri, sha256, title, author, source_class, text, ingested_at,
 #                    occurred_at, loader, flags
-#   units.jsonl      unit_id, doc_id, position, label, start, end, occurred_at, occurred_until
+#   units.jsonl      unit_id, doc_id, position, label, start, end, occurred_at
 #   pieces.jsonl     the piece table of SCHEMA.md: doc_id, unit_id, position, kind, start, end,
 #                    author, occurred_at
 #   receipt.json     counts by kind, chars by piece kind, flags by kind, unknown authors and dates,
@@ -1311,6 +1315,10 @@ with ThreadPoolExecutor(max_workers=32) as pool:
         if doc["kind"] == "chat":                        # the date it started on, as block 7 gives its units
             dates = sorted(t for t in (parse_time(d) for d in doc["dates"]) if t)
             occurred = dates[0] if dates else None
+            # `title` is the source's own name for the document, and when the source names it only
+            # by an identifier that identifier is the name. No model call is made for a chat, so
+            # this is the loader's to set, as author and source_class already are.
+            title = doc["session_id"] or title
         source_class = BY_KIND.get(doc["kind"], r.get("source_class") if isinstance(r, dict) else None)
         if source_class not in CLASSES:
             flags.append("source_class unknown")
@@ -1324,8 +1332,8 @@ with ThreadPoolExecutor(max_workers=32) as pool:
             ids.append(uid)
             assert text[u["start"]:u["end"]].strip(), (src, u)          # round trip: every unit is a real slice
             files["units"].write(json.dumps({"unit_id": uid, "doc_id": doc_id, "position": u["position"], "label": u["label"],
-                                             "start": u["start"], "end": u["end"], "occurred_at": u["occurred_at"],
-                                             "occurred_until": u["occurred_until"]}, ensure_ascii=False) + "\n")
+                                             "start": u["start"], "end": u["end"],
+                                             "occurred_at": u["occurred_at"]}, ensure_ascii=False) + "\n")
             side = "chat" if doc["kind"] == "chat" else "read"
             receipt[f"over_cap_{side}"] += u["words"] > CAP_WORDS
             receipt[f"short_{side}"] += u["words"] < SHORT_WORDS

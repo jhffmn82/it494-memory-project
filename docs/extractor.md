@@ -118,7 +118,7 @@ indices into `documents.text` for the same `doc_id`, one coordinate system, so a
 | file | rows (1.5) | one row is |
 |---|---|---|
 | `documents.jsonl` | 19,436 | a document: `doc_id` (sha256 of the bytes), `source_uri`, `sha256`, `title`, `author`, `source_class`, `text` (the decoded string, `null` for the 141 papers), `ingested_at`, `occurred_at`, `loader`, `flags` |
-| `units.jsonl` | 44,262 | a unit: `unit_id`, `doc_id`, `position` (0-based, dense), `label`, `start`/`end` (char range), `occurred_at`/`occurred_until` |
+| `units.jsonl` | 44,262 | a unit: `unit_id`, `doc_id`, `position` (0-based, dense), `label`, `start`/`end` (char range), `occurred_at` |
 | `pieces.jsonl` | 227,100 | a piece: `doc_id`, `unit_id`, `position`, `kind`, `start`/`end`, `author`, `occurred_at` |
 | `papers.jsonl` | 141 | a withheld document's rebuild key: `doc_id`, `file`, `pdf_sha256`, `bytes`, `source_url`, `title`, `author` |
 | `receipt.json` | — | the run's own counts and cost, written by the run |

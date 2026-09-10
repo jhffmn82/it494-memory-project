@@ -155,8 +155,8 @@ def main():
             ids.append(uid)
             assert text[u["start"]:u["end"]].strip(), (src, u)
             files["units"].write(json.dumps({"unit_id": uid, "doc_id": doc_id, "position": u["position"], "label": u["label"],
-                                             "start": u["start"], "end": u["end"], "occurred_at": u["occurred_at"],
-                                             "occurred_until": u["occurred_until"]}, ensure_ascii=False) + "\n")
+                                             "start": u["start"], "end": u["end"],
+                                             "occurred_at": u["occurred_at"]}, ensure_ascii=False) + "\n")
         for position, p in enumerate(pieces):
             files["pieces"].write(json.dumps({"doc_id": doc_id, "unit_id": ids[p["unit"]], "position": position,
                                               "kind": p["kind"], "start": p["start"], "end": p["end"],
@@ -206,7 +206,7 @@ def main():
             else:
                 assert p["unit"] == len(units), (name, p)
                 units.append({"position": p["unit"], "start": p["start"], "end": p["end"], "label": p["label"],
-                              "first": p["label"], "occurred_at": occurred, "occurred_until": occurred})
+                              "first": p["label"], "occurred_at": occurred})
         for u in units:
             del u["first"]
         exported[doc_id] = name

@@ -16,7 +16,7 @@ receipt's `duplicate_files` names the file that was dropped and the one it match
 | `doc_id` | string | sha256 of the document's bytes, hex. The join key everywhere else. |
 | `source_uri` | string | dataset and path of the file it was read from. |
 | `sha256` | string | the same hash again, as the schema names it separately from the id. |
-| `title` | string or null | read off the page, not from the filename. Null when the page does not give one. |
+| `title` | string or null | the source's own name for the document: read off the page for a book or a paper, and the session id for a chat, which is the only name a session file carries. Never a filename. Null when the source gives no name at all. |
 | `author` | string or null | the person who wrote it. A publication only when no person is named, and then flagged. |
 | `source_class` | string or null | `canonical`, `published`, `record`, `authored` or `tool-output`. |
 | `text` | string | the document as text. **Never null in this release**; every document carries its own. |
@@ -41,7 +41,6 @@ The split plan. A unit is a run of consecutive pieces, cut only at piece boundar
 | `label` | string | the heading or opening the model named for this unit. Not unique, not a key. |
 | `start`, `end` | integer | character range into `documents.text`. |
 | `occurred_at` | string or null | when the unit is from. For a chat, the date the session started on. |
-| `occurred_until` | string or null | the end of the range when a unit spans time, else null. |
 
 Guarantees, verified on all 19,395 documents in this release:
 

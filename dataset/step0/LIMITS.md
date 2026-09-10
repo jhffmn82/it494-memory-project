@@ -77,7 +77,7 @@ no-inferred-dates rule working: a Project Gutenberg preamble often gives only an
 date, and the prompt forbids keeping that as the work's date. Do not read a null date as an
 unknown work. Three of the 100 papers carry no date for the same reason.
 
-Every chat carries a date and no title, because a LongMemEval session has one and not the other.
+Every chat carries a date and, as its title, its session id, because that is the only name a LongMemEval session file gives itself.
 
 ## Things this dataset does not claim
 
