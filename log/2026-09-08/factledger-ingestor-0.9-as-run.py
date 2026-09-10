@@ -1,5 +1,5 @@
 # %% [markdown]
-# # ThreadAtlas ingestor
+# # FactLedger ingestor
 #
 # One document at a time, from the extractor's export to a **document package**: the entities
 # the document is about, every fact with a verbatim quote located at document offsets, a
@@ -20,21 +20,21 @@
 # | `sha256`, `title`, `author`, `source_class`, `occurred_at`, `loader`, `ingested_at`, `flags` | what the extractor knew about the file |
 # | `text` | the whole text of the document |
 #
-# `units.jsonl`, one row per unit, the size-bounded runs the extractor cut the text into (a chat's unit is one turn):
+# `units.jsonl`, one row per unit, the size-bounded runs the extractor cut the text into:
 #
 # | field | meaning |
 # |---|---|
 # | `unit_id`, `doc_id`, `position` | its id, its document, its place in reading order |
-# | `label` | a human label: a chapter title, or a chat turn's opening line `SESSION <id> TURN <n> <date>` |
+# | `label` | a human label, such as a chapter title or a range of turns |
 # | `start`, `end` | character offsets into the document text |
-# | `occurred_at` | when it was said, when the file carries times |
+# | `occurred_at`, `occurred_until` | when it was said, when the file carries times |
 #
 # `pieces.jsonl`, one row per natural piece (a chapter, a turn, a section) inside a unit:
 #
 # | field | meaning |
 # |---|---|
 # | `doc_id`, `unit_id`, `position`, `start`, `end` | where it is |
-# | `kind` | `body`, `front_matter`, `license`, `references`, `user`, `assistant`, and so on; a unit's kind is the kind of most of its characters |
+# | `kind` | `body`, `front_matter`, `license`, `references`, `turn`, and so on; a unit's kind is the kind of most of its characters |
 # | `author` | the speaker of a chat turn, else `null` |
 # | `occurred_at` | the time of a turn, else `null` |
 #
@@ -81,7 +81,7 @@
 #     write       the package, then the roll-up
 # ```
 #
-# ## The algorithm for a document of one unit
+# ## The algorithm for a document of one unit (a chat session)
 #
 # ```
 # ingest(doc):
@@ -93,13 +93,12 @@
 #     verify      as above
 #     write       the package
 # ```
-# About four calls a document instead of twenty-five. Since Step 0 1.7 a chat session is one
-# unit per turn, so it takes the many-unit path above; this one is for a document left with a
-# single unit to read, such as a session of one turn.
+# About four calls a document instead of twenty-five.
 #
 # ## On Kaggle
 #
-# Attach the export dataset (`jhffmn/it494-threadatlas-step0`). Attach
+# Attach the export dataset (`jhffmn/it494-factledger-step0`) and, for the reference papers
+# whose text it withholds, the private PDFs (`jhffmn/it494-reference-papers`). Attach
 # `OPENAI_API_KEY` under Add-ons > Secrets, turn Internet on, run block 3 to see the connection
 # work, then the run blocks. The packages land under `/kaggle/working/packages`. To continue a
 # stopped run, make a dataset from that output and attach it: finished packages are copied in
@@ -108,17 +107,19 @@
 # %% [markdown]
 # ## Block 1: files
 #
-# Finds the export and the output folder, indexes `documents.jsonl` by byte
+# Finds the export, the output folder and the papers folder, indexes `documents.jsonl` by byte
 # offset so a document is read back with one seek, and loads the units and pieces grouped by
 # document. `load_document(uri)` returns one document with its text, its units (each stamped
-# with its kind) and its pieces.
+# with its kind) and its pieces. A reference paper's text is rebuilt from its PDF the way the
+# extractor read it.
 
 # %%
 # Block 1: where things are, and how a document is read.
 #
 # The export is read from the first of these that exists: the EXPORT environment variable,
 # the Kaggle dataset, the local folder. documents.jsonl is indexed once (doc_id, title, byte
-# offset) and a document is read back with one seek.
+# offset) and a document is read back with one seek. The public export withholds the
+# reference papers' text; it is rebuilt from the PDF exactly as the extractor read it.
 import hashlib
 import json
 import os
@@ -131,8 +132,8 @@ from datetime import datetime, timezone
 from contextlib import redirect_stdout
 from pathlib import Path
 
-INGESTOR = "threadatlas-ingestor 0.9"
-KAGGLE_EXPORTS = (Path("/kaggle/input/datasets/jhffmn/it494-threadatlas-step0"), Path("/kaggle/input/it494-threadatlas-step0"))
+INGESTOR = "factledger-ingestor 0.9"
+KAGGLE_EXPORTS = (Path("/kaggle/input/datasets/jhffmn/it494-factledger-step0"), Path("/kaggle/input/it494-factledger-step0"))
 LOCAL_EXPORT = Path("data/export")
 KAGGLE_OUT, LOCAL_OUT = Path("/kaggle/working/packages"), Path("data/packages")
 BOILERPLATE = ("front_matter", "license")   # never the work, whatever the document
@@ -789,7 +790,7 @@ FACT_SCHEMA = {"type": "object", "required": ["facts"], "properties": {"facts": 
     "type": "object", "required": ["subject", "predicate", "object", "quote"], "properties": {
         "subject": {"type": "string"}, "predicate": {"type": "string"}, "object": {"type": "string"},
         "qualifiers": {"type": ["string", "null"]}, "quote": {"type": "string"},
-        "valid_from": {"type": ["string", "null"]}}}}}}
+        "valid_from": {"type": ["string", "null"]}, "valid_to": {"type": ["string", "null"]}}}}}}
 
 CELLS_SCHEMA = {"type": "object", "required": ["summary", "cells"], "properties": {
     "summary": {"type": "string"},
@@ -866,13 +867,13 @@ def fact_prompt(unit, names, majors):
 
 Above is one unit of a longer document; below, the entities identified in it. For each entity, distill every durable fact the text states about it: what it is, its attributes, its states, its situation, its parts and possessions, its relationships to the other listed entities. Not moment-to-moment actions or passing remarks; a lasting disposition, habit, or position counts.
 
-Return JSON {{"facts": [{{"subject", "predicate", "object", "qualifiers", "quote", "valid_from"}}]}} where:
+Return JSON {{"facts": [{{"subject", "predicate", "object", "qualifiers", "quote", "valid_from", "valid_to"}}]}} where:
 - subject: a name from ENTITIES, exactly as written
 - predicate: a lowercase_snake_case relation in the present tense, named the way the text gives it; use is_a for what kind of thing the subject is
 - object: another entity's name exactly as written when the fact relates two entities, else a short literal value that does not repeat the predicate; never a bare true or false
 - qualifiers: one short phrase for role, manner or condition, as a string, else null; never an object
 - quote: one verbatim substring of the text that STATES the fact, copied exactly as it appears, punctuation and all; an ellipsis (...) may skip words between two verbatim pieces. {QUOTE_RULE}. Quote enough to carry the claim: for a table value, quote the heading it sits under as well as the value
-- valid_from: an ISO date (YYYY, YYYY-MM or YYYY-MM-DD) only when the quote itself states when the fact began; otherwise null. Never infer a date.
+- valid_from, valid_to: an ISO date (YYYY, YYYY-MM or YYYY-MM-DD) only when the quote itself states when the fact began or ended; otherwise null. Never infer a date.
 - each fact is atomic: one attribute or one relationship, with a bare value rather than a phrase
 - a relationship between a major entity and a minor one is stated once, under the major entity; only between two major entities may it be stated from both sides
 
@@ -1127,7 +1128,7 @@ def derive_unit(doc, unit, ctx, light=False):
                                      "subject": subject, "predicate": predicate, "object": obj, "object_is_entity": obj in names,
                                      "qualifiers": f.get("qualifiers") or None, "unit_id": unit["unit_id"], "quote": quote,
                                      "quote_start": base + s0, "quote_end": base + e0, "matched_by": how,
-                                     "valid_from": stated_date(f.get("valid_from"), quote),
+                                     "valid_from": stated_date(f.get("valid_from"), quote), "valid_to": stated_date(f.get("valid_to"), quote),
                                      "author": None if len(voices) > 1 else author,    # the same words in two voices: no voice is claimed
                                      "voice_ambiguous": len(voices) > 1, "tier": LUNA})
                 stored += 1
@@ -1491,22 +1492,10 @@ ADJUDICATE_MIN_FACTS = 4                      # fewer than this: nothing to cons
 VERIFY_BATCH = 60                             # facts to a support or correction call
 
 
-def empty_turn(doc, unit):
-    """True for a chat turn with nothing said in it: its opening line, the speaker's "role:",
-    then only blanks or a zero-width space. The 1.7 export has 55, in 48 sessions. It is not a
-    unit to read, so no call is spent on it."""
-    if unit["kind"] not in ("user", "assistant"):
-        return False
-    text = doc["text"][unit["start"]:unit["end"]]
-    said = text.split("\n", 1)[1] if "\n" in text else ""
-    said = said.split(":", 1)[1] if ":" in said else said
-    return said.replace("\N{ZERO WIDTH SPACE}", "").strip() == ""
-
-
 def one_reading(doc):
-    """True when setting the boilerplate and the empty turns aside leaves a single unit to read.
-    Such a document has nothing to merge, so it takes the short path (ruling of 09-07)."""
-    return sum(1 for u in doc["units"] if u["kind"] not in BOILERPLATE and not empty_turn(doc, u)) == 1
+    """True when setting the boilerplate aside leaves a single unit to read. Such a document has
+    nothing to merge, so it takes the short path (ruling of 09-07)."""
+    return sum(1 for u in doc["units"] if u["kind"] not in BOILERPLATE) == 1
 
 
 def summarise(what, children, ctx, stage="fold"):
@@ -1903,7 +1892,7 @@ def write_package(doc, records, entities, folded, adjudicated, ledger, candidate
     # facts, each under the major it lands on. A fact whose passage does not state it is written
     # only if it was corrected against that passage; otherwise it is dumped and recorded as a
     # rejection, never written with a flag (R3, ruling of 09-07)
-    when_of = {u["unit_id"]: u.get("occurred_at") for u in doc["units"]}
+    when_of = {u["unit_id"]: (u.get("occurred_at"), u.get("occurred_until")) for u in doc["units"]}
     landed, stored, dumped = landings(records, folded), 0, []
     for e in folded["majors"]:
         nid = node_id(doc, e)
@@ -1924,13 +1913,13 @@ def write_package(doc, records, entities, folded, adjudicated, ledger, candidate
                 obj, is_node = fix["object"], False
             else:
                 obj, is_node = object_node or f["object"], object_node is not None
-            when = when_of.get(f["unit_id"])
+            when = when_of.get(f["unit_id"], (None, None))
             lines.append({"record": "fact", "fact_id": f["fact_id"], "subject": nid,
                           "predicate": fix["predicate"] if fix else f["predicate"], "object": obj, "object_is_node": is_node,
                           "direction": direction, "qualifiers": fix["qualifiers"] if fix else f["qualifiers"], "rank": "active",
                           "unit_id": f["unit_id"], "quote": f["quote"], "quote_start": f["quote_start"], "quote_end": f["quote_end"],
-                          "valid_from": f["valid_from"],                          # when it began, if the text says
-                          "occurred_at": when,                                    # when it was said (R2, 09-07)
+                          "valid_from": f["valid_from"], "valid_to": f["valid_to"],       # when it is true
+                          "occurred_at": when[0], "occurred_until": when[1],                # when it was said (R2, 09-07)
                           "tier": f["tier"], "author": f["author"],
                           "provenance": {"ingestor": INGESTOR, "matched_by": f["matched_by"], "subject_name": f["subject"],
                                          "voice_ambiguous": f["voice_ambiguous"],
@@ -2080,11 +2069,10 @@ def ingest(doc, ctx=None):
     logged_before = len(CALLS)                  # this document's own calls start here
     light = one_reading(doc)                    # one unit to read: nothing to merge, so the short path
 
-    # which kinds of unit to read, and which turns say nothing
+    # which kinds of unit to read
     excluded, flags = triage(doc, ctx)
-    kept = [u for u in doc["units"] if u["kind"] not in excluded and not empty_turn(doc, u)]
-    left_out = [{"position": u["position"], "kind": u["kind"], "label": u["label"], "reason": excluded.get(u["kind"], "nothing said in the turn")}
-                for u in doc["units"] if u["kind"] in excluded or empty_turn(doc, u)]
+    kept = [u for u in doc["units"] if u["kind"] not in excluded]
+    left_out = [{"position": u["position"], "kind": u["kind"], "label": u["label"], "reason": excluded[u["kind"]]} for u in doc["units"] if u["kind"] in excluded]
     if WATCH:
         print(f"triage: {counts_text(tally(u['kind'] for u in doc['units']))}; " + (f"left out {len(left_out)} unit(s)" if left_out else "nothing left out"))
         for kind, reason in excluded.items():
@@ -2420,41 +2408,27 @@ def draw_graph(path):
     return G
 
 # %% [markdown]
-# ## Block 12: run, one user's chat history
+# ## Block 12: run, chat sessions
 #
-# Every session of one LongMemEval haystack, the whole history one question is asked over. Each
-# session is still its own document and its own package.
+# A sample of LongMemEval sessions, sixteen at a time. Each is one reading, so it takes the short
+# path.
 
 # %%
-# Block 12: the run, one user's whole chat history, in place of the 200 random sessions run
-# before. A LongMemEval question is asked over a haystack of 39 to 66 sessions, 50 on average;
-# this is the haystack of question gpt4_2ba83207, a multi-session question: 53 sessions, 502
-# turns. Its four answer sessions are dated. 7 of its sessions are ones the benchmark places on
-# several dates, which the export leaves undated because that date belongs to the question
-# (ruling of 09-10). The list is copied from longmemeval_s.json; the export does not carry it.
-# Since Step 0 1.7 a session is one unit per turn, so each takes the full path, merge and
-# abstracts included. Nothing here reaches across documents: each session is its own package.
-HAYSTACK = "gpt4_2ba83207"
-SESSIONS = [
-    "8fd5852e", "b0855671_3", "sharegpt_gQsEPQ6_67", "33028509_2", "1fcb4134_1", "fda75251_2",
-    "654a70b7_1", "sharegpt_wIkETEO_27", "ultrachat_554682", "eb409031_3", "ultrachat_48248",
-    "sharegpt_t2Mp1pw_0", "ultrachat_224880", "cc3c5fa9_2", "7a0de364", "41dc5d45_4",
-    "325c2005", "ultrachat_568233", "sharegpt_u1DIJRf_0", "bc6de190_1", "ultrachat_333617",
-    "sharegpt_oADGRO3_0", "ultrachat_227874", "sharegpt_WRwHw6I_0", "sharegpt_S9w4KiZ_0",
-    "ultrachat_19446", "ultrachat_84545", "131ff17e", "ultrachat_492298", "sharegpt_iwYf36y_5",
-    "answer_6a3b5c13_3", "43668d77_5", "answer_6a3b5c13_1", "ultrachat_94578",
-    "sharegpt_mfMYumL_0", "c3052781", "ultrachat_500140", "4ad63a03_2", "f379d356_2",
-    "sharegpt_kK91pas_0", "34a3fe2c_2", "sharegpt_JXREDs0_4", "ultrachat_293558",
-    "sharegpt_yy5YePJ_0", "answer_6a3b5c13_2", "sharegpt_EpJp627_15", "e40c7fd3_3", "58d66fec",
-    "answer_6a3b5c13_4", "ultrachat_221073", "ultrachat_385963", "sharegpt_HxOhjmq_29",
-    "ea336da0",
-]
-CHAT_AT_ONCE, BUDGET = 16, 15.00
+# Block 12: the run, a spread of chat sessions, first of all. Every one of the 19,206 sessions
+# is two units, one of them the session id, so each takes the one-reading path: no triage, no
+# entity abstract, no adjudication, and one verification pass over its facts. Four calls a
+# document instead of twenty-five. The seed is unchanged from the run of 09-07, so the first 40
+# of these 200 are the same 40 that run ingested on the full path, and the two are comparable.
+# Nothing here reaches across documents: each session is its own package, in its own folder.
+CHAT_SAMPLE, CHAT_SEED, CHAT_AT_ONCE = 200, 494, 16
+BUDGET = 5.00
 
-if __name__ == "__main__" and SESSIONS:
-    chats = sorted(u for u in BY_URI if BY_URI[u]["title"] in SESSIONS)
+if __name__ == "__main__" and CHAT_SAMPLE:
+    chats = sorted(u for u in BY_URI if "/longmemeval/" in u)
+    random.Random(CHAT_SEED).shuffle(chats)
+    chats = sorted(chats[:CHAT_SAMPLE])
     start_block(BUDGET)
-    print(f"chats: haystack {HAYSTACK}, {len(chats)} of its {len(SESSIONS)} sessions,"
+    print(f"chats: {len(chats)} sessions sampled from {sum(1 for u in BY_URI if '/longmemeval/' in u):,},"
           f" {CHAT_AT_ONCE} at a time; budget ${BUDGET:.2f} for this block")
     run_and_roll_up(chats, at_once=CHAT_AT_ONCE)
 
@@ -2483,16 +2457,16 @@ if __name__ == "__main__":
 # ## Block 14: run, five papers
 
 # %%
-# Block 14: the run, five of the 100 CC-BY papers on knowledge graphs and RAG (kg-rag-cc),
-# drawn with a fixed seed. Zep left with the private papers these replaced, so none is run
-# first. Their text is in the export like everything else; no private dataset is needed.
-PAPERS_TO_RUN, SEED = 5, 494
+# Block 14: the run, five papers, Zep first. Their text is in the export like everything else
+# since 09-09; nothing is withheld and no private dataset is needed.
+PAPERS_TO_RUN, SEED, ALWAYS = 5, 494, ["rasmussen2025-zep.pdf"]
 BUDGET = 8.00
 
 if __name__ == "__main__" and PAPERS_TO_RUN:
-    papers = sorted(u for u in BY_URI if "/kg-rag-cc/" in u)
-    random.Random(SEED).shuffle(papers)
-    chosen = sorted(papers[:PAPERS_TO_RUN])
+    chosen = [find_document(name) for name in ALWAYS]
+    others = sorted(u for u in BY_URI if u.endswith(".pdf") and u not in chosen)
+    random.Random(SEED).shuffle(others)
+    chosen += others[:PAPERS_TO_RUN - len(chosen)]
     start_block(BUDGET)
     print(f"papers: {[BY_URI[u]['title'] or u for u in chosen]}; budget ${BUDGET:.2f} for this block")
     run_and_roll_up(chosen)
@@ -2522,7 +2496,7 @@ if __name__ == "__main__" and OTHERS:
 # 09-02 demo's way and saved beside the packages. Needs networkx and matplotlib, which Kaggle has.
 if __name__ == "__main__":
     for uri, records_, counts_, stats_ in RESULTS:
-        if len(records_) < 2:              # one reading: a graph of it says nothing
+        if len(records_) < 2:              # a chat session is one reading: a graph of it says nothing
             continue
         if package_path({"source_uri": uri}).exists():
             draw_graph(package_path({"source_uri": uri}))
