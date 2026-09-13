@@ -15,11 +15,12 @@
 # ## What comes in
 #
 # One mount (`RAW`, the public raw dataset), one folder per corpus, each with a `manifest.json`
-# recording every file's source URL, byte count and sha256:
+# recording every file's source URL, byte count and sha256. Block 0 first unpacks LongMemEval's
+# benchmark file into chat histories under `/kaggle/temp/chats`, one folder per history:
 #
 # | corpus | files | shape |
 # |---|---|---|
-# | `longmemeval` | 19,206 | one JSON per assistant chat session |
+# | `longmemeval` | 25,112 | chat sessions in 500 histories, every turn timestamped (block 0) |
 # | `kg-rag-cc` | 100 | CC-BY papers on knowledge graphs and RAG, PDFs under `pdf/` |
 # | `greek` | 31 | Greek and Roman literature, including OCR'd institutional scans |
 # | `oz` | 29 | the Oz books |
@@ -31,7 +32,7 @@
 # | sniffed as | how it is read |
 # |---|---|
 # | PDF | the text layer, pages joined by one newline (PyMuPDF, the one dependency) |
-# | chat JSON | one block per turn: a `SESSION <id> TURN <n> <date>` line, then `role: content`; turn spans kept |
+# | chat JSON | one block per turn that says something: a `SESSION <id> TURN <n> <time>` line, then `role: content`; turn spans and times kept |
 # | plain text | the bytes decoded as UTF-8, unchanged |
 #
 # ## What goes out
@@ -46,8 +47,9 @@
 # | field | meaning |
 # |---|---|
 # | `doc_id` | the sha256 of the file bytes; every other row joins on it |
-# | `source_uri` | mount, corpus and file, for example `it494-narrative-corpora-raw/oz/01_55.txt` |
-# | `title`, `author`, `occurred_at` | what the model read off the page and a pointer proved |
+# | `source_uri` | mount, corpus and file, for example `it494-narrative-corpora-raw/oz/01_55.txt`; a chat is `chats/longmemeval/<history>/<session>.json` |
+# | `title`, `author` | what the model read off the page and a pointer proved; a chat's title is its session id |
+# | `occurred_at` | the earliest of its units' dates |
 # | `source_class` | `record` for a chat, `published` for a PDF, the model's answer for plain text |
 # | `text` | the decoded string, whole, for every document |
 # | `sha256`, `ingested_at`, `loader`, `flags` | provenance, and what the gates could not verify |
@@ -58,9 +60,9 @@
 # | field | meaning |
 # |---|---|
 # | `unit_id`, `doc_id`, `position` | its id, its document, its place in reading order |
-# | `label` | a human label: a chapter title, or for a chat the line that opens the turn, `SESSION <id> TURN <n> <date>` |
+# | `label` | a human label: a chapter title, or for a chat the line that opens the turn, `SESSION <id> TURN <n> <time>` |
 # | `start`, `end` | character offsets into the document text |
-# | `occurred_at` | the document's date for a document that was read; for a chat, the session's date when it has exactly one, else `null` |
+# | `occurred_at` | for a document that was read, the date of the work the unit belongs to; for a chat, the turn's time |
 #
 # `pieces.jsonl`, one row per natural piece (a chapter, a section, a turn) inside a unit:
 #
@@ -69,7 +71,7 @@
 # | `doc_id`, `unit_id`, `position`, `start`, `end` | where it is |
 # | `kind` | six regions of a written document (`front_matter`, `body`, `notes`, `references`, `appendix`, `license`) or two turns of a conversation (`user`, `assistant`) |
 # | `author` | the speaker of a chat turn, else `null` |
-# | `occurred_at` | a chat turn's time, its session's date when the session has exactly one; else `null` |
+# | `occurred_at` | a chat turn's time; for a document that was read, the date of the work the piece belongs to |
 #
 # `receipt.json`: the run's own counts and cost, written by the run.
 #
@@ -85,7 +87,9 @@
 #     address     number the document's own non-blank lines; a file with no usable lines
 #                 (a PDF text layer that puts one word on a line) is numbered by sentence
 #     ask once    one call over the whole document, for
-#                     source_class, title, author, source, date  each a pointer plus its value
+#                     source_class, title, author, source        each a pointer plus its value
+#                     works                                      each work the document holds,
+#                                                                with the date its page states
 #                     toc_count                                  what the contents list promises
 #                     regions                                    where front matter ends, body
 #                                                                begins, and notes, references,
@@ -98,6 +102,8 @@
 #                     wrong number, text found nearby -> recovered and counted
 #                     text nowhere                    -> dropped and counted
 #                 nothing the model asserted without a verified pointer reaches the output
+#     date        each work takes the date its page states; a work whose page states none is
+#                 looked up on the web by its title and author; every piece takes its work's date
 #     sub-split   a piece over CAP_WORDS goes back as numbered lines and is cut at the breaks
 #                 the model points at, up to three rounds; one it cannot break stays whole
 #     merge short a piece under SHORT_WORDS is offered with its text: it joins the piece
@@ -105,7 +111,7 @@
 #     group       the outline goes back and the model groups consecutive pieces into units, a
 #                 section with its subsections, never two peers merely because they fit;
 #                 code then checks the groups cover the outline in order, dissolves a group
-#                 over the cap, and cuts any group where the kind changes
+#                 over the cap, and cuts any group where the kind or the date changes
 #     write       one record to splits.jsonl; the export tiles and checks it
 # ```
 #
@@ -115,23 +121,77 @@
 # extract(chat):
 #     no call. The session already states its own boundaries.
 #     pieces      the turns; the role is the author
-#     units       one per turn, named by the line that opens it: SESSION <id> TURN <n> <date>
-#     time        the session's date when it has one; none when the benchmark placed it on
-#                 several, since each of those dates belongs to a question
+#     skip        an empty session, and a turn that says nothing; both are counted
+#     units       one per turn, named by the line that opens it: SESSION <id> TURN <n> <time>
+#     time        each turn's own timestamp; the document takes the earliest
 # ```
 #
-# 19,206 of the 19,395 documents cost nothing to split.
+# Chats cost nothing to split; the books and papers cost the model's calls and the date lookups.
 #
 # ## On Kaggle
 #
-# Attach the raw dataset (`jhffmn/it494-narrative-corpora-raw`), which carries every corpus
-# including the papers. Attach `OPENAI_API_KEY` under Add-ons > Secrets and turn Internet on.
+# Attach the raw dataset (`jhffmn/it494-narrative-corpora-raw`), which carries every corpus,
+# including the papers and the LongMemEval benchmark file. Attach `OPENAI_API_KEY` under
+# Add-ons > Secrets and turn Internet on. Every model call runs on OpenAI's Flex tier.
 # Run block 3 to see the connection work, then the blocks in order. Finished documents are
 # appended to `/kaggle/working/splits.jsonl` and skipped when block 8 is run again in the same
 # session. Nothing copies an earlier run's file in, so a new session asks every document again.
 # `REDO_ALL` re-asks clean records an older loader wrote; a hard spending stop halts the run, and
 # running out of API credit is fatal by design, so a dead key cannot walk the corpus writing
 # empty flagged records.
+
+
+# %%
+# Block 0: LongMemEval, unpacked into chat histories.
+#
+# LongMemEval ships as one file of 500 questions. Each question carries its own history: a list
+# of chat sessions, each dated in that history. A real chat archive is a folder of conversations
+# whose turns carry timestamps, so this block writes LongMemEval in that shape and the extractor
+# reads it like any other chat:
+#   chats/longmemeval/<question_id>/<session_id>.json   {"session_id", "turns": [{"role", "content", "timestamp"}]}
+# Every turn carries its history's date for the session, as ISO ("2023/05/20 (Sat) 02:38" becomes
+# "2023-05-20T02:38"). A session used by several histories is written once in each, with each
+# history's date. A history that lists one session twice (15 do, each on two dates) gets a second
+# file, <session_id>.2.json, with the second date. Empty sessions are written too; the extractor
+# decides what to skip. Nothing from the test itself is written: no question, answer, answer
+# sessions, type, question date or has_answer.
+import hashlib
+import json
+from pathlib import Path
+
+LME_CANDIDATES = (Path("/kaggle/input/it494-narrative-corpora-raw/longmemeval"),
+                  Path("/kaggle/input/datasets/jhffmn/it494-narrative-corpora-raw/longmemeval"))
+CHATS = Path("/kaggle/temp/chats")        # not /kaggle/working: 25,112 files there make the notebook's output too big to list or download
+
+
+def iso_minute(stamp):
+    """'2023/05/20 (Sat) 02:38' -> '2023-05-20T02:38'."""
+    day, weekday, clock = stamp.split(" ")
+    return f"{day.replace('/', '-')}T{clock}"
+
+
+LME = next(folder for folder in LME_CANDIDATES if folder.is_dir())
+data = (LME / "longmemeval_s.json").read_bytes()
+expected = json.loads((LME / "manifest.json").read_text(encoding="utf-8"))["unpacked_from"]["sha256"]
+if hashlib.sha256(data).hexdigest() != expected:
+    raise SystemExit("longmemeval_s.json is not the file the manifest was built from")
+
+written, with_content = 0, 0
+for question in json.loads(data):
+    folder = CHATS / "longmemeval" / question["question_id"]
+    folder.mkdir(parents=True, exist_ok=True)
+    listed = {}                                   # session id -> how many times this history has listed it
+    for session_id, stamp, turns in zip(question["haystack_session_ids"], question["haystack_dates"], question["haystack_sessions"]):
+        listed[session_id] = listed.get(session_id, 0) + 1
+        name = session_id if listed[session_id] == 1 else f"{session_id}.{listed[session_id]}"
+        when = iso_minute(stamp)
+        chat = {"session_id": session_id,
+                "turns": [{"role": turn["role"], "content": turn["content"], "timestamp": when} for turn in turns]}
+        (folder / f"{name}.json").write_text(json.dumps(chat, ensure_ascii=False), encoding="utf-8")
+        written += 1
+        with_content += bool(turns)
+print(f"LongMemEval unpacked: {len(list((CHATS / 'longmemeval').iterdir()))} histories, {written:,} session files,"
+      f" {with_content:,} with turns, {written - with_content:,} empty")
 
 
 # %%
@@ -154,7 +214,7 @@ def mount(slug):
 
 
 RAW = mount("it494-narrative-corpora-raw")
-SIDECARS = ("manifest.json", "LICENSE", "README.md")   # packaging, never a document
+SIDECARS = ("manifest.json", "LICENSE", "README.md", "longmemeval_s.json")   # packaging and sources, never a document
 
 
 def sha256(path):
@@ -191,9 +251,10 @@ for name in ("oz", "holmes", "greek", "graphrag-bench", "longmemeval", "kg-rag-c
 #   1. file_kind(data): look at the first bytes and name the container: pdf, json, or text.
 #   2. to_text(path): turn the container into one string, the document text.
 #        pdf  -> the text layer, page by page (PyMuPDF, the one dependency)
-#        json -> if it holds chat turns, one block per turn: a "SESSION <id> TURN <n> <date>"
-#                line, then "role: content". We also keep where each turn starts and ends
-#                in that string, so a chat can be cut into units without a model.
+#        json -> if it holds chat turns, one block per turn that says something: a
+#                "SESSION <id> TURN <n> <time>" line, then "role: content". We also keep where
+#                each turn starts and ends in that string, and its timestamp, so a chat can be
+#                cut into dated units without a model. A session with no turns is an empty chat.
 #        text -> the bytes decoded as UTF-8, unchanged
 import json
 
@@ -235,37 +296,39 @@ def chat_turns(obj):
 
 
 def chat_text(obj, turns):
-    """One block per turn: a line naming it, SESSION <id> TURN <n> <date>, then 'role: content'
-    and a blank line. The date is the session's own when it has exactly one; a session placed on
-    several dates names none. Returns the text and (start, end, role) for each turn, which tile
-    the text from 0."""
+    """One block per turn that says something: a line naming it, SESSION <id> TURN <n> <time>, then
+    'role: content' and a blank line. n is the turn's place in the file, so a skipped empty turn
+    leaves a gap rather than renumbering the rest. Returns the text and (start, end, role, time)
+    for each turn written, which tile the text from 0."""
     sid = obj.get("session_id") if isinstance(obj, dict) else None
-    dates = obj.get("dates", []) if isinstance(obj, dict) else []
-    stamp = f" {dates[0]}" if len(dates) == 1 else ""
     text, spans = "", []
     for i, turn in enumerate(turns):
-        start = len(text)
+        if not str(turn["content"]).replace(chr(0x200B), "").strip():   # a turn that says nothing
+            continue
+        when = str(turn.get("timestamp") or "").strip()
         name = f"SESSION {sid} TURN {i + 1}" if sid is not None else f"TURN {i + 1}"
-        text += f"{name}{stamp}\n{turn['role']}: {turn['content']}\n\n"
-        spans.append((start, len(text), turn["role"]))
+        start = len(text)
+        text += f"{name} {when}".rstrip() + f"\n{turn['role']}: {turn['content']}\n\n"
+        spans.append((start, len(text), turn["role"], when or None))
     return text, spans
 
 
 def to_text(path):
     data = path.read_bytes()
     doc = {"path": str(path), "sha256": hashlib.sha256(data).hexdigest(),
-           "kind": file_kind(data), "text": "", "turns": None, "dates": [], "session_id": None}
+           "kind": file_kind(data), "text": "", "turns": None, "skipped_turns": 0, "session_id": None}
     if doc["kind"] == "pdf":
         doc["text"] = pdf_text(data)
     elif doc["kind"] == "json":
         obj = json.loads(data)
         turns = chat_turns(obj)
-        if turns is None:
+        empty = isinstance(obj, dict) and obj.get("turns") == []      # a session with no turns is still a chat
+        if turns is None and not empty:
             doc["kind"], doc["text"] = "text", data.decode("utf-8", errors="replace")
         else:
             doc["kind"] = "chat"
-            doc["text"], doc["turns"] = chat_text(obj, turns)
-            doc["dates"] = list(obj.get("dates", []))
+            doc["text"], doc["turns"] = chat_text(obj, turns or [])
+            doc["skipped_turns"] = len(turns or []) - len(doc["turns"])
             # the source's own name for the session. A LongMemEval file names it no other way,
             # so this becomes the document's title at export: an identifier is still a name.
             sid = obj.get("session_id") if isinstance(obj, dict) else None
@@ -277,17 +340,18 @@ def to_text(path):
 
 # One of each, to see the shape.
 for path in [RAW / "oz" / "01_55.txt", RAW / "graphrag-bench" / "Novel-30752.txt",
-             RAW / "longmemeval" / "sharegpt_yywfIrx_0.json", RAW / "longmemeval" / "001cefa7_2.json",
+             *sorted((CHATS / "longmemeval").glob("*/*.json"))[:2],
              RAW / "kg-rag-cc" / "pdf" / "001_2024.eacl-demo.16.pdf"]:
     d = to_text(path)
     turns = len(d["turns"]) if d["turns"] else "-"
-    print(f"{path.name:<26} {d['kind']:<5} {len(d['text']):>8,} chars  turns {turns:>3}  dates {d['dates']}")
+    print(f"{path.name:<26} {d['kind']:<5} {len(d['text']):>8,} chars  turns {turns:>3}  empty turns skipped {d['skipped_turns']}")
     print("    " + repr(d["text"][:70]))
 
 
 # %%
 # Block 3: the model call.
 import json
+import re
 import threading
 import time
 
@@ -297,7 +361,9 @@ from kaggle_secrets import UserSecretsClient
 MODEL = "gpt-5.6-luna"
 RETRY = "gpt-5.6-terra"
 RETRY_MAX_TOKENS = 80_000     # Terra is ten times Luna's price: only a document under this many tokens gets it
-PRICE = {"gpt-5.6-luna": (0.20, 1.20), "gpt-5.6-terra": (2.00, 12.00)}   # $ per M tokens in, out
+PRICE = {"flex": {"gpt-5.6-luna": (0.10, 0.60), "gpt-5.6-terra": (1.00, 6.00)},        # $ per M tokens in, out,
+         "default": {"gpt-5.6-luna": (0.20, 1.20), "gpt-5.6-terra": (2.00, 12.00)}}    # by the tier that served the call
+SEARCH_FEE = 0.01                                                        # dollars per web search: $10 per 1,000
 SPEND_STOP = 25.00                                                       # dollars; the run halts past this
 try:
     KEY = UserSecretsClient().get_secret("OPENAI_API_KEY")
@@ -332,28 +398,24 @@ def spent_on(name):
     return sum(c["cost"] for c in calls if c.get("bill") == name)
 
 
-def generate(prompt, model=MODEL, effort="low"):
-    """One JSON-mode call; the reply parsed, the cost logged. The API rejects temperature.
-    A timeout, connection error, 429, or 5xx is retried three times with a pause; any other
-    non-200 raises with the response body."""
+def post(url, payload, model, prompt_chars, flex=True):
+    """One call to OpenAI, on the Flex tier unless told otherwise; (body, seconds). A timeout,
+    connection error, 429 or 5xx is retried three times with a pause (Flex answers 429 when it
+    has no capacity); no key or no credits stops the run; any other non-200 raises with the body."""
     if not KEY:
         raise RuntimeError("no OPENAI_API_KEY: attach it under Add-ons > Secrets and rerun block 3")
     if spend() >= SPEND_STOP:
         raise SpendStop(f"spending stop: ${spend():.2f}")
-    p_in, p_out = PRICE[model]
     t0 = time.time()
     for attempt in range(3):
         try:
-            r = requests.post("https://api.openai.com/v1/chat/completions",
-                              headers={"Authorization": f"Bearer {KEY}"}, timeout=300,
-                              json={"model": model, "reasoning_effort": effort,
-                                    "response_format": {"type": "json_object"},
-                                    "messages": [{"role": "user", "content": prompt}]})
+            r = requests.post(url, headers={"Authorization": f"Bearer {KEY}"}, timeout=900,
+                              json={**payload, "service_tier": "flex"} if flex else payload)
         except (requests.Timeout, requests.ConnectionError):
             # the server may have finished and billed the request: count the input as spent
-            calls.append({"model": model, "in": len(prompt) // 4, "out": 0, "seconds": round(time.time() - t0, 1),
+            calls.append({"model": model, "in": prompt_chars // 4, "out": 0, "seconds": round(time.time() - t0, 1),
                           "bill": BILL.get(threading.get_ident()), "timeout": True,
-                          "cost": len(prompt) // 4 * p_in / 1e6})
+                          "cost": prompt_chars // 4 * PRICE["default"][model][0] / 1e6})
             if attempt == 2:
                 raise
             time.sleep(15 * (attempt + 1))
@@ -370,15 +432,72 @@ def generate(prompt, model=MODEL, effort="low"):
                 raise TooLong(r.text[:200])
             raise RuntimeError(f"OpenAI {r.status_code}: {r.text}")
         break
-    body = r.json()
+    return r.json(), round(time.time() - t0, 1)
+
+
+def log_call(body, model, tokens_in, tokens_out, seconds, searches=0):
+    """The call's cost at the price of the tier that served it, plus its web searches."""
+    p_in, p_out = PRICE.get(body.get("service_tier"), PRICE["default"])[model]
+    calls.append({"model": model, "tier": body.get("service_tier"), "in": tokens_in, "out": tokens_out, "searches": searches,
+                  "seconds": seconds, "bill": BILL.get(threading.get_ident()),
+                  "cost": (tokens_in * p_in + tokens_out * p_out) / 1e6 + searches * SEARCH_FEE})
+
+
+def generate(prompt, model=MODEL, effort="low"):
+    """One JSON-mode call; the reply parsed, the cost logged. The API rejects temperature."""
+    body, seconds = post("https://api.openai.com/v1/chat/completions",
+                         {"model": model, "reasoning_effort": effort, "response_format": {"type": "json_object"},
+                          "messages": [{"role": "user", "content": prompt}]}, model, len(prompt))
     u = body["usage"]
-    calls.append({"model": body["model"], "in": u["prompt_tokens"], "out": u["completion_tokens"],
-                  "seconds": round(time.time() - t0, 1), "bill": BILL.get(threading.get_ident()),
-                  "cost": (u["prompt_tokens"] * p_in + u["completion_tokens"] * p_out) / 1e6})
+    log_call(body, model, u["prompt_tokens"], u["completion_tokens"], seconds)
     return json.loads(body["choices"][0]["message"]["content"])
 
 
-print(f"model {MODEL}, retry {MODEL} then {RETRY} under {RETRY_MAX_TOKENS:,} tokens, spend stop ${SPEND_STOP:.2f}, key {'present' if KEY else 'MISSING'}")
+# A date value: YYYY, YYYY-MM or YYYY-MM-DD, a signed year before the common era (counting a year
+# zero), ~ after an approximate date, and a range as two such dates joined by /.
+DATE_FORM = re.compile(r"-?\d{4}(-\d{2}(-\d{2})?)?~?(/-?\d{4}(-\d{2}(-\d{2})?)?~?)?")
+
+LOOKUP_PROMPT = """Search the web for when this work was written.
+
+Title: %s
+Author: %s
+
+Give the date the work itself was written, or first published when that is all the sources give; never the date of a translation, an edition, a transcription or an ebook. Answer with JSON only: {"date": "...", "source": "the URL the date is taken from"}, or {"date": null, "source": null} when no source gives a date. Write the date as YYYY, YYYY-MM or YYYY-MM-DD. A year before the common era is a signed year counting a year zero, so 1 BC is 0000 and 2 BC is -0001. Put ~ after a date that is approximate, and write a range as its two ends joined by /."""
+
+
+def lookup_date(title, author):
+    """(date, source) for one work, from one web search on its title and author; (None, why)
+    when the search gives no date. Web search is asked on Flex first, and on the standard tier
+    only if Flex refuses it."""
+    if not title:
+        return None, "no title to search on"
+    prompt = LOOKUP_PROMPT % (title, author or "not named")
+    payload = {"model": MODEL, "reasoning": {"effort": "low"}, "tools": [{"type": "web_search"}], "input": prompt}
+    try:
+        body, seconds = post("https://api.openai.com/v1/responses", payload, MODEL, len(prompt))
+    except RuntimeError as e:
+        if "service_tier" not in str(e) and "flex" not in str(e).lower():
+            raise
+        body, seconds = post("https://api.openai.com/v1/responses", payload, MODEL, len(prompt), flex=False)
+    output = body.get("output") or []
+    u = body.get("usage") or {}
+    log_call(body, MODEL, u.get("input_tokens", 0), u.get("output_tokens", 0), seconds,
+             searches=sum(1 for item in output if item.get("type") == "web_search_call"))
+    content = [c for item in output if item.get("type") == "message" for c in item.get("content") or []]
+    answer = "".join(c.get("text") or "" for c in content)
+    cited = [a.get("url") for c in content for a in c.get("annotations") or [] if a.get("type") == "url_citation"]
+    try:
+        reply = json.loads(answer[answer.index("{"):answer.rindex("}") + 1])
+    except ValueError:
+        return None, "the search did not answer in JSON"
+    date = str(reply.get("date") or "").strip()
+    if not DATE_FORM.fullmatch(date):
+        return None, "the search found no date"
+    return date, str(reply.get("source") or (cited[0] if cited else "a web search"))
+
+
+print(f"model {MODEL}, retry {MODEL} then {RETRY} under {RETRY_MAX_TOKENS:,} tokens, every call on the Flex tier,"
+      f" spend stop ${SPEND_STOP:.2f}, key {'present' if KEY else 'MISSING'}")
 
 
 # %%
@@ -422,8 +541,8 @@ for path in [RAW / "oz" / "01_55.txt", RAW / "greek" / "03_348.txt", RAW / "grap
 # Block 5: the question. One call per document, the whole document in it. Every pointer is a
 # number and the line's text, so the number can be checked and, when it is off by a few,
 # recovered from the text. Regions and pieces are the model's decisions; code does not add,
-# move, or remove a boundary. Pieces carry no date of their own: a text or PDF unit takes
-# the document's date.
+# move, or remove a boundary. Every piece takes the date of the work it lies in: the date its
+# page states, else one looked up on the web (block 7).
 PROMPT = """Below is one document as numbered lines. Answer with JSON only. Point at a line by its number and copy its text exactly as listed (a long line may be cut after its first eight words), so a program can check the number. Never invent a line.
 
 {
@@ -431,7 +550,7 @@ PROMPT = """Below is one document as numbered lines. Answer with JSON only. Poin
   "title": {"index": n, "text": "...", "title": "the title as it should read"} or null,
   "author": {"index": n, "text": "...", "name": "the person's name as it should read"} or null,
   "source": {"index": n, "text": "...", "name": "..."} or null: the publication or organization the text comes from (a newspaper, a journal, an agency), when the text names one; never the transcriber or ebook publisher,
-  "date": {"index": n, "text": "...", "iso": "YYYY" or "YYYY-MM" or "YYYY-MM-DD"} or null: the line giving the date the work was written or first published, or sent; for a translation or a later edition, the original work's date when the file gives it; never a transcription or ebook release date; null when the file states none,
+  "works": [{"index": n, "text": "...", "title": "the work's title as it should read", "author": "its author's name when it is not the document's, else null", "date": {"index": n, "text": "...", "value": "..."} or null}, ...]: every separate work the document holds, in order, each pointed at the line where it begins. A separate work is one its author wrote as a whole of its own, such as a book, a play, a story, a poem, a letter, a treatise or a paper; the chapters, scenes and sections of one work are not separate works, and a document that is one work lists that one. A work's date points at the line stating when that work itself was written, or first published when that is all the file gives; never the date of a translation, an edition, a transcription or an ebook; null when the file states none. Write its value as YYYY, YYYY-MM or YYYY-MM-DD; a year before the common era is a signed year counting a year zero, so 1 BC is 0000 and 2 BC is -0001; put ~ after an approximate date, and write a range as its two ends joined by /,
   "toc_count": the number of pieces the contents list gives, or null,
   "regions": [{"index": n, "text": "...", "kind": "..."}, ...],
   "pieces": [{"index": n, "text": "..."}, ...]
@@ -607,7 +726,7 @@ def label_at(text, addrs, k):
 # fallback that is a fine answer in itself, so they buy no call in this session or the next.
 # The kinds not listed are the model answering badly, which another sample may fix: "pointers",
 # "count", "coverage", "regions", "over cap", and the two "... answer" kinds below.
-ADVISORY = {"metadata", "shape", "dates", "too long", "merging", "grouping"}
+ADVISORY = {"metadata", "shape", "dates", "date", "too long", "merging", "grouping"}
 
 
 def advisory(flag):
@@ -620,6 +739,32 @@ def piece(start, end, label, kind, author=None, occurred_at=None):
 
 def words(text, p):
     return len(text[p["start"]:p["end"]].split())
+
+
+def rendered(r, key, field):
+    """The model's rendering of a pointer (title, name), else the line it pointed at."""
+    v = r.get(key) or {}
+    return (v.get(field) or v.get("text")) if isinstance(v, dict) else None
+
+
+def works_from_reply(text, r, addrs):
+    """The works the document holds, in order, each as {start, title, author, date}: where it
+    begins, its title and author as the model rendered them, and the date its page states,
+    checked like any other pointer. A document that names no work is one work, its own, at 0."""
+    works = {}
+    for w in as_list(r.get("works")):
+        span = resolve(w, text, addrs, fresh_stats(addrs, None), loose=True) if isinstance(w, dict) else None
+        if span is None or span[0] in works:
+            continue
+        d, date = w.get("date"), None
+        where = resolve(d, text, addrs, fresh_stats(addrs, None), loose=True) if isinstance(d, dict) else None
+        if where is not None:
+            date = date_ok(text[slice(*where)], str(d.get("value") or ""))
+        works[span[0]] = {"start": span[0], "title": str(w.get("title") or "").strip() or None,
+                          "author": str(w.get("author") or "").strip() or None, "date": date}
+    if not works:
+        works[0] = {"start": 0, "title": rendered(r, "title", "title"), "author": None, "date": None}
+    return [works[s] for s in sorted(works)]
 
 
 def pieces_from_reply(text, r, addrs, stats):
@@ -648,11 +793,14 @@ def pieces_from_reply(text, r, addrs, stats):
         if span[0] in heads:
             stats["duplicate"] += 1
         heads[span[0]] = label_at(text, addrs, at_index[span[0]])
-    starts = sorted({s for s, _ in regions} | set(heads))
+    works = works_from_reply(text, r, addrs)
+    stats["works"] = works
+    titled = {w["start"]: w["title"] for w in works if w["title"]}
+    starts = sorted({s for s, _ in regions} | set(heads) | {w["start"] for w in works})   # a work begins a piece
     pieces = []
     for s, e in zip(starts, starts[1:] + [len(text)]):
         kind = [k for rs, k in regions if rs <= s][-1]
-        label = heads.get(s, "opening" if kind == "body" else kind.replace("_", " "))
+        label = heads.get(s) or titled.get(s) or ("opening" if kind == "body" else kind.replace("_", " "))
         pieces.append(piece(s, e, label, kind))
     stats["headed"] = sum(1 for q in pieces if q["start"] in heads)
     stats["body_share"] = round(sum(q["end"] - q["start"] for q in pieces if q["kind"] == "body") / max(1, len(text)), 3)
@@ -662,17 +810,22 @@ def pieces_from_reply(text, r, addrs, stats):
 MONTHS = ("jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec")
 
 
-def date_ok(line, iso):
-    """The iso to keep, checked against the line the model read it from: the year must be on
-    that line as digits, and a month or day is kept only when the line names the month. None
-    when the year is not there, so a date the model inferred from elsewhere is never stored."""
-    if not re.fullmatch(r"\d{4}(-\d{2}(-\d{2})?)?", iso) or iso[:4] not in line:
+def date_ok(line, value):
+    """The value to keep, checked against the line the model read it from: its first year must be
+    on that line as the line would print it (405 for the signed year -0404), and a month or day is
+    kept only when the line names the month. None when the year is not there, so a date the model
+    inferred from elsewhere is never stored."""
+    if not DATE_FORM.fullmatch(value):
         return None
-    if len(iso) > 4:
-        m, low = int(iso[5:7]), line.lower()
+    first = value.split("/")[0].rstrip("~")
+    year = int(first[:5]) if first.startswith("-") else int(first[:4])
+    if str(year if year > 0 else 1 - year) not in line:
+        return None
+    if year > 0 and len(first) > 4:
+        m, low = int(first[5:7]), line.lower()
         if not (1 <= m <= 12 and (MONTHS[m - 1] in low or re.search(rf"\b0?{m}\b", low))):
-            return iso[:4]
-    return iso
+            return first[:4]
+    return value
 
 
 def fresh_stats(addrs, model):
@@ -680,20 +833,14 @@ def fresh_stats(addrs, model):
 
 
 def verify_meta(text, r, addrs, stats):
-    """Title, author, source and date pointers, checked like every other, but counted into a
+    """Title, author and source pointers, checked like every other, but counted into a
     scratch dict so a failure here is flagged and nulled rather than bought back with a whole
     document call. Nothing the model invented is exported."""
-    for key in ("title", "author", "source", "date"):
+    for key in ("title", "author", "source"):
         v = r.get(key)
         if v is None:
             continue
         span = resolve(v, text, addrs, fresh_stats(addrs, None), loose=True) if isinstance(v, dict) else None
-        if span is not None and key == "date":
-            kept = date_ok(text[slice(*span)], str(v.get("iso") or ""))
-            if kept is None:
-                span = None
-            else:
-                v["iso"] = kept
         if span is None:
             r[key] = None
             stats["meta_unresolved"] = stats.get("meta_unresolved", 0) + 1
@@ -771,12 +918,11 @@ def split(doc):
 #             checks that the groups cover the outline in order; a group over the cap is
 #             dissolved into its pieces and flagged; a grouping that does not cover the
 #             outline is dropped for one unit per piece and flagged.
-# A text or PDF unit carries the document's date. Chat pieces are the turns, built from the
-# turn spans block 2 kept, with the role as author. A chat unit is one turn, with no model
-# call, and its label is the line that opens it: SESSION <id> TURN <n> <date>. Its time is the
-# session's date when the session has one. A session the benchmark placed on several dates
-# keeps none, on the document, its units and its turns alike, because each of those dates
-# belongs to a question and the evaluation supplies it.
+# A text or PDF piece takes the date of the work it lies in (date_works), and a unit never spans
+# two dates: a change of date cuts a unit as a change of kind does. Chat pieces are the turns,
+# built from the turn spans block 2 kept, with the role as author and the turn's own timestamp
+# as its time. A chat unit is one turn, with no model call, and its label is the line that opens
+# it: SESSION <id> TURN <n> <time>.
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 
@@ -898,7 +1044,7 @@ def merge_short(text, pieces, stats, flags):
             j = i + 1 if how == "next" else i - 1
             if not 0 <= j < len(pieces):
                 continue
-            if pieces[j]["kind"] != pieces[i]["kind"]:      # the model's region boundary stands
+            if (pieces[j]["kind"], pieces[j]["occurred_at"]) != (pieces[i]["kind"], pieces[i]["occurred_at"]):   # a region boundary or a change of date stands
                 crossed += 1
             else:
                 closes[min(i, j)] = True
@@ -943,11 +1089,11 @@ def merge_short(text, pieces, stats, flags):
 
 
 def split_by_kind(pieces, run):
-    """The run cut wherever the kind changes, so a unit never holds two kinds. Returns the run
-    itself when it is already of one kind, which is how the caller counts the cuts."""
+    """The run cut wherever the kind or the date changes, so a unit never holds two kinds or two
+    dates. Returns the run itself when it is already whole, which is how the caller counts the cuts."""
     parts, part = [], [run[0]]
     for i in run[1:]:
-        if pieces[i]["kind"] == pieces[part[-1]]["kind"]:
+        if (pieces[i]["kind"], pieces[i]["occurred_at"]) == (pieces[part[-1]]["kind"], pieces[part[-1]]["occurred_at"]):
             part.append(i)
         else:
             parts.append(part)
@@ -986,9 +1132,38 @@ def group(text, pieces, stats, flags):
             else:
                 out.append(part)
     if mixed:
-        flags.append(f"grouping: {mixed} group(s) cut where the kind changed")
+        flags.append(f"grouping: {mixed} group(s) cut where the kind or the date changed")
     stats["groups"] = len(out)
     return out
+
+
+def date_works(doc, pieces, reply, stats, flags):
+    """Every piece takes the date of the work it lies in: the date the work's page states, else the
+    one a web search on its title and author finds, else none. Anything before the first work
+    takes the first work's date. Each work's date, and where it came from, goes in the flags."""
+    works = stats.get("works") or [{"start": 0, "title": rendered(reply, "title", "title"), "author": None, "date": None}]
+    author = rendered(reply, "author", "name")
+    name = BILL.get(threading.get_ident())
+
+    def one(work):
+        if work["date"]:
+            return work["date"], "the page"
+        bill_to(name)
+        try:
+            return lookup_date(work["title"], work["author"] or author)
+        except (RuntimeError, requests.RequestException) as e:        # one failed lookup must not lose the document
+            return None, f"the lookup failed: {str(e)[:80]}"
+
+    with ThreadPoolExecutor(max_workers=min(FANOUT, len(works))) as pool:
+        found = list(pool.map(one, works))
+    for work, (date, source) in zip(works, found):
+        work["date"], work["source"] = date, source
+        flags.append(f"date: {work['title'] or 'the document'}: {date} from {source}" if date
+                     else f"date: {work['title'] or 'the document'}: none, {source}")
+    for p in pieces:
+        before = [w for w in works if w["start"] <= p["start"]]
+        p["occurred_at"] = (before[-1] if before else works[0])["date"]
+    stats["works"] = works
 
 
 def parse_time(value):
@@ -1007,22 +1182,34 @@ def parse_time(value):
 
 
 def chat_pieces(doc):
-    """One piece per turn, labelled by the line that opens it, with the role block 2 recorded as
-    author. The time is the session's date when it has exactly one. A session the benchmark
-    placed on several dates keeps none: each of those dates belongs to a question, and the
-    evaluation supplies it per question."""
-    dates = sorted(set(t for t in (parse_time(d) for d in doc["dates"]) if t))
-    when = dates[0] if len(dates) == 1 else None
+    """One piece per turn that says something, labelled by the line that opens it, with the role
+    as author and the turn's own timestamp as its time. A turn whose time cannot be read, a skipped
+    empty turn, and a session with no turns at all are flagged."""
     text = doc["text"]
-    pieces = [piece(s, e, text[s:text.index("\n", s)], kind=role, author=role, occurred_at=when)
-              for s, e, role in doc["turns"]]
-    flags = [f"dates: {len(dates)} session dates, none kept"] if len(dates) > 1 else []
+    pieces = [piece(s, e, text[s:text.index("\n", s)], kind=role, author=role, occurred_at=parse_time(when) if when else None)
+              for s, e, role, when in doc["turns"]]
+    if not pieces:
+        return [], ["empty session: no turns"]
+    flags = []
+    undated = sum(1 for p in pieces if p["occurred_at"] is None)
+    if undated:
+        flags.append(f"date: {undated} turn(s) with no time the file gives")
+    if doc["skipped_turns"]:
+        flags.append(f"empty turns: {doc['skipped_turns']} skipped")
     return pieces, flags
 
 
 def chat_runs(pieces, text):
     """One run per turn: a turn is a unit of its own."""
     return [[i] for i in range(len(pieces))]
+
+
+def date_key(value):
+    """A date value as a sortable key, by its first moment: -0404~ before 0100, a range by its start."""
+    first = value.split("/")[0].rstrip("~")
+    if first.startswith("-"):
+        return int(first[:5]), first[5:]
+    return int(first[:4]), first[4:]
 
 
 def units_from_runs(pieces, runs, text):
@@ -1032,7 +1219,7 @@ def units_from_runs(pieces, runs, text):
         times = [q["occurred_at"] for q in ps if q["occurred_at"]]
         label = ps[0]["label"] if len(ps) == 1 else f"{ps[0]['label']} .. {ps[-1]['label']}"
         units.append({"position": i, "start": ps[0]["start"], "end": ps[-1]["end"], "label": label,
-                      "occurred_at": min(times) if times else None,
+                      "occurred_at": min(times, key=date_key) if times else None,
                       "pieces": len(ps), "words": sum(words(text, q) for q in ps)})
         for q in ps:
             q["unit"] = i
@@ -1048,8 +1235,9 @@ def units_from_runs(pieces, runs, text):
 # wins. A settled record an older loader wrote is kept for a document the model read, unless
 # REDO_ALL is set; a chat an older loader wrote is always split again, since that costs nothing
 # and a code change is exactly what a resume must not keep. Only /kaggle/working/splits.jsonl is
-# read, so a new Kaggle session starts empty and asks every document again. Chats need no model
-# call. Texts and PDFs print a full entry; chats print one line per hundred. The spend stop
+# read, so a new Kaggle session starts empty and asks every document again. Chats are read from
+# the histories block 0 unpacked and need no model call. Texts and PDFs print a full entry; chats
+# print one line per hundred and every flagged one. The spend stop
 # writes the document in flight as a flagged record, so its cost is kept, and ends the loop.
 import threading
 
@@ -1059,12 +1247,15 @@ LOG = Path("/kaggle/working/splits.log")
 # this in step with the code: 1.1 and 1.2 both shipped under the 1.0 label, so running the
 # older notebook after a newer one could not tell the work had been done and asked the whole
 # corpus again.
-LOADER = "threadatlas-extractor 1.7"
+LOADER = "threadatlas-extractor 1.8"
 REDO_ALL = False                        # True also re-asks clean records an older loader wrote
 
 
 def rel_of(path):
-    """'raw/oz/01_55.txt' or 'raw/kg-rag-cc/pdf/001_x.pdf': the same name on any Kaggle mount."""
+    """'raw/oz/01_55.txt', 'raw/kg-rag-cc/pdf/001_x.pdf', or 'chats/longmemeval/<history>/<session>.json'
+    for a chat block 0 unpacked: the same name on any Kaggle mount."""
+    if path.is_relative_to(CHATS):
+        return f"chats/{path.relative_to(CHATS).as_posix()}"
     return f"raw/{path.relative_to(RAW).as_posix()}"
 
 
@@ -1072,16 +1263,13 @@ def path_of(record):
     rel = record.get("file")
     if rel is None:
         return Path(record["path"])                          # a record written before files were named
+    if rel.startswith("chats/"):
+        return CHATS / rel[6:]
     if not rel.startswith("raw/"):
         # a record from before the papers moved into the raw dataset; stripping four characters
         # off it would name a file that does not exist and read as a mystery, so say what it is
         raise ValueError(f"{rel!r} is not in the raw dataset; re-extract this file or drop the record")
     return RAW / rel[4:]
-
-
-def iso_of(reply):
-    d = reply.get("date") if isinstance(reply, dict) else None
-    return d.get("iso") if isinstance(d, dict) else None
 
 
 def read_splits():
@@ -1101,12 +1289,6 @@ def read_splits():
     return latest
 
 
-def rendered(r, key, field):
-    """The model's rendering of a pointer (title, name), else the line it pointed at."""
-    v = r.get(key) or {}
-    return (v.get(field) or v.get("text")) if isinstance(v, dict) else None
-
-
 def show(doc, record):
     text, r, pieces, units = doc["text"], record["reply"], record["pieces"], record["units"]
     st = record["stats"]
@@ -1116,7 +1298,7 @@ def show(doc, record):
              f" groups {st.get('groups', 0)} short units {st.get('short_units', 0)}  model {st.get('model', '-')}  ${record['cost']:.3f}",
              f"    class {r.get('source_class')} | title {rendered(r, 'title', 'title')!r}"
              f" | author {rendered(r, 'author', 'name')!r} | source {rendered(r, 'source', 'name')!r}"
-             f" | date {iso_of(r)}"
+             f" | works {len(st.get('works') or [])}"
              f" | toc {r.get('toc_count')} | body {st.get('body_share', 0):.0%} of {len(text):,} chars"]
     for p in pieces:
         snippet = " ".join(text[p["start"]:p["start"] + 90].split())[:60]
@@ -1131,7 +1313,7 @@ def show(doc, record):
 
 paths = sorted(RAW.glob("oz/*.txt")) + sorted(RAW.glob("holmes/*.txt")) + sorted(RAW.glob("greek/*.txt")) \
       + sorted(RAW.glob("graphrag-bench/*.txt")) + sorted(RAW.glob("kg-rag-cc/pdf/*.pdf")) \
-      + sorted(p for p in RAW.glob("longmemeval/*.json") if p.name != "manifest.json")
+      + sorted(CHATS.glob("longmemeval/*/*.json"))
 latest = read_splits()
 def settled(rec):
     """A record needs no further call: it is clean or only advisory, or it is a chat (whose
@@ -1168,10 +1350,11 @@ def run_one(path):
         doc = to_text(path)
         if doc["kind"] == "chat":
             pieces, flags = chat_pieces(doc)
-            reply, stats = {}, {"addresses": None}
+            reply, stats = {}, {"addresses": None, "skipped_turns": doc["skipped_turns"]}
             runs = chat_runs(pieces, doc["text"])
         else:
             pieces, reply, flags, stats = split(doc)
+            date_works(doc, pieces, reply, stats, flags)      # every piece takes its work's date
             unresolved = stats["unresolved"]
             if not stats.get("too_long"):
                 pieces = subsplit_all(doc["text"], pieces, stats)
@@ -1183,9 +1366,7 @@ def run_one(path):
                     flags.append(f"over cap: {q['label'][:40]} ({words(doc['text'], q):,} words)")
             runs = group(doc["text"], pieces, stats, flags)
         units = units_from_runs(pieces, runs, doc["text"])
-        if doc["kind"] != "chat":                    # a text or PDF unit carries the document's date
-            for u in units:
-                u["occurred_at"] = iso_of(reply)
+        if doc["kind"] != "chat":
             stats["short_units"] = sum(1 for u in units if u["words"] < SHORT_WORDS)
     except SpendStop as e:                       # keep what it cost, flagged; it is redone next session
         stopped = True
@@ -1232,7 +1413,7 @@ print(f"{len(done)} documents in {SPLITS.name}, ${spend():.2f} spent this sessio
 #   pieces.jsonl     the piece table of SCHEMA.md: doc_id, unit_id, position, kind, start, end,
 #                    author, occurred_at
 #   receipt.json     counts by kind, chars by piece kind, flags by kind, unknown authors and dates,
-#                    reused session dates, pointer mismatches, recoveries and duplicates, over-cap
+#                    empty sessions and turns, pointer mismatches, recoveries and duplicates, over-cap
 #                    units, cost of every call this file holds, not only the winning records
 # Files are read 32 at a time: one at a time, 19,206 chats take tens of minutes on Kaggle's
 # network filesystem (block 1's own measurement).
@@ -1273,7 +1454,7 @@ def load(record):
 
 records = list(read_splits().values())
 receipt = {"documents": 0, "units": 0, "pieces": 0, "by_kind": {}, "chars_by_kind": {}, "flags_by_kind": {}, "flagged": [],
-           "duplicate_files": [], "unknown_author": 0, "unknown_date": 0, "ambiguous_date": 0,
+           "duplicate_files": [], "unknown_author": 0, "unknown_date": 0, "empty_sessions": 0, "empty_turns": 0,
            "mismatch": 0, "recovered": 0, "unresolved": 0, "duplicate": 0, "meta_unresolved": 0,
            "over_cap_read": 0, "over_cap_chat": 0, "short_read": 0, "short_chat": 0,
            "total_chars": 0, "read_chars": 0, "cost": round(spent_in(SPLITS), 3)}
@@ -1284,23 +1465,25 @@ with ThreadPoolExecutor(max_workers=32) as pool:
     docs = pool.map(load, records)
     for record, doc in zip(records, docs):
         text, doc_id, r = doc["text"], doc["sha256"], record["reply"]
+        if doc["kind"] == "chat" and not record["pieces"]:     # an empty session: counted, and exported as nothing
+            receipt["empty_sessions"] += 1
+            continue
         if doc_id in exported:                           # same bytes as a file already exported: same doc_id, one row
             receipt["duplicate_files"].append({"file": record["file"], "same_as": exported[doc_id]})
             continue
         exported[doc_id] = record["file"]
         rel = record.get("file") or rel_of(Path(record["path"]))
-        src = f"{RAW.name}/{rel[4:]}"
+        src = rel if rel.startswith("chats/") else f"{RAW.name}/{rel[4:]}"
         title = rendered(r, "title", "title")
         author = rendered(r, "author", "name")
-        occurred = iso_of(r) or None
+        times = [u["occurred_at"] for u in record["units"] if u["occurred_at"]]
+        occurred = min(times, key=date_key) if times else None      # the earliest of its units
         flags = list(record["flags"])
         if author is None and "author" not in (record.get("stats") or {}).get("meta_nulled", []) \
                 and rendered(r, "source", "name"):
             author = rendered(r, "source", "name")     # no person named at all: the publication is the voice
             flags.append("author is a publication")
-        if doc["kind"] == "chat":                        # the session's one date, as block 7 gives its units
-            dates = sorted(set(t for t in (parse_time(d) for d in doc["dates"]) if t))
-            occurred = dates[0] if len(dates) == 1 else None
+        if doc["kind"] == "chat":
             # `title` is the source's own name for the document, and when the source names it only
             # by an identifier that identifier is the name. No model call is made for a chat, so
             # this is the loader's to set, as author and source_class already are.
@@ -1337,8 +1520,8 @@ with ThreadPoolExecutor(max_workers=32) as pool:
         receipt["pieces"] += len(record["pieces"])
         receipt["by_kind"][doc["kind"]] = receipt["by_kind"].get(doc["kind"], 0) + 1
         receipt["unknown_author"] += author is None and doc["kind"] != "chat"
-        receipt["unknown_date"] += occurred is None and doc["kind"] != "chat"
-        receipt["ambiguous_date"] += any(f.split(":")[0] in ("dates", "ambiguous date") for f in flags)
+        receipt["unknown_date"] += occurred is None
+        receipt["empty_turns"] += (record.get("stats") or {}).get("skipped_turns", 0)
         receipt["total_chars"] += len(text)
         receipt["read_chars"] += len(text) if doc["kind"] != "chat" else 0
         for f in flags:
@@ -1360,7 +1543,7 @@ print(f"chars by kind: {receipt['chars_by_kind']}")
 print(f"body {receipt['body_share']:.1%} of the {receipt['read_chars']:,} chars read from text and PDF;"
       f" chats add {receipt['total_chars'] - receipt['read_chars']:,}")
 print(f"flagged {len(receipt['flagged'])} {receipt['flags_by_kind']}  unknown author {receipt['unknown_author']}  unknown date {receipt['unknown_date']}"
-      f"  reused dates {receipt['ambiguous_date']}"
+      f"  empty sessions {receipt['empty_sessions']}  empty turns {receipt['empty_turns']}"
       f"  over-cap units {receipt['over_cap_read']} read + {receipt['over_cap_chat']} chat"
       f"  short units {receipt['short_read']} read + {receipt['short_chat']} chat"
       f"  model cost ${receipt['cost']:.2f}")
