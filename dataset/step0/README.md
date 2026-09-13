@@ -2,8 +2,8 @@
 
 Every document in the IT 494 memory-backend corpus, split into units, with a piece table that
 says what each stretch of a file is, who is speaking there, and when it is from. 24,071
-documents, 251,446 units, 252,830 pieces, **every unit dated**, produced in one pass by a public
-notebook for $8.24.
+documents, 251,446 units, 252,830 pieces, **every unit dated where a source gives a date** (15
+are not), produced in one pass by a public notebook for $8.24.
 
 This is the input to a memory backend, not a finished analysis. Step 0 answers two questions
 about a raw file: **where does this document divide, and what kind of text is each part, from
@@ -27,9 +27,10 @@ Three properties follow, and all are verified in this release rather than assert
   and exactly one unit, with no gaps and no overlaps.
 - **A unit never mixes kinds or dates.** A unit is all body, or all references, or all appendix,
   and all from one date. A chat unit is one turn, with one speaker.
-- **Every unit is dated, and a document is dated by its earliest unit.** A book or paper unit
-  carries the date its work was written, BC and approximate dates included; a chat unit carries
-  its turn's time.
+- **Every unit is dated where a source gives a date, and a document is dated by its earliest
+  unit.** A book or paper unit carries the date its work was written, BC and approximate dates
+  included; a chat unit carries its turn's time. 15 units of 12 works have no date because no
+  source gave one, and no document is undated.
 
 ## Changes in this version
 
@@ -54,7 +55,7 @@ Three properties follow, and all are verified in this release rather than assert
 | `units.jsonl` | 251,446 | the split plan: character ranges into a document's text, each dated |
 | `pieces.jsonl` | 252,830 | what each stretch of a document is, who is speaking, and when |
 | `attribution.jsonl` | 100 | the CC-BY papers: authors, title, license, DOI and source URL |
-| `receipt.json` | — | the run's own totals |
+| `receipt.json` | | the run's own totals |
 
 **Every document carries its text.** `SCHEMA.md` gives the fields. `METHOD.md` explains how the
 split and the dates are made. `PROVENANCE.md` says where each document came from and under what
@@ -71,8 +72,10 @@ for line in open("/kaggle/input/it494-threadatlas-step0/documents.jsonl", encodi
     docs[d["doc_id"]] = d
 
 # one LongMemEval history: every session of question gpt4_2ba83207, in time order
-history = sorted((d for d in docs.values() if d["source_uri"].startswith("chats/longmemeval/gpt4_2ba83207/")),
-                 key=lambda d: d["occurred_at"])
+def when(d):
+    return d["occurred_at"]
+
+history = sorted((d for d in docs.values() if d["source_uri"].startswith("chats/longmemeval/gpt4_2ba83207/")), key=when)
 print(len(history), history[0]["title"], history[0]["occurred_at"])
 ```
 
