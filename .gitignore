@@ -25,7 +25,7 @@ data/raw/longmemeval/
 # local benchmark scratch (LitBank clone and other rejected or oversized sets)
 data/eval/
 
-# The extractor export rebuilt locally by scripts/rebuild_export.py: about 300 MB
+# The extractor export rebuilt locally by archive/scripts/rebuild_export.py (untracked): about 300 MB
 data/export/
 # The ingestor's local runs
 data/packages/
@@ -33,22 +33,12 @@ data/packages-test/
 
 
 # Reference PDFs for the reading list: per-paper licenses, most not redistributable. Untracked since
-# 2026-09-13 (they remain in git history before that date). Fetch with scripts/fetch_papers.py.
+# 2026-09-13 (they remain in git history before that date). Fetch with archive/scripts/fetch_papers.py (untracked).
 papers/*.pdf
 papers/_unused/*.pdf
 
 # LongMemEval oracle split: not used (ruling of 2026-09-04); scripts/fetch_benchmarks.py fetches it
 data/benchmarks/longmemeval/longmemeval_oracle.json
-
-# 2026-09-13: the public tree holds only what a person reads. Working tooling stays on disk, untracked:
-archive/
-papers/
-tests/
-scripts/py_to_ipynb.py
-scripts/check_cell_order.py
-reading/*.json
-reading/paper-manifest.md
-log/**/*.jsonl
 
 # 2026-09-13: the public tree holds only what a person reads. Working tooling stays on disk, untracked:
 archive/

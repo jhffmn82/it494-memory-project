@@ -79,10 +79,15 @@ stretch between them is three weeks of exams and nothing gets scheduled there.
 | Nov 10 | Dataset DOI minted |
 | Nov 15 | Paper frozen; wiki demo standing; arXiv submission the next day |
 
-Hours are the scarce resource, and the author writes the code; AI drafts and
-argues but ships nothing unexamined.
+Hours are the scarce resource. The author directs, reviews and answers for the
+code, which is drafted with AI assistance under his rulings and checked by a
+test battery; nothing ships unexamined.
 
 ## The bill, priced now
+
+Superseded 2026-09-13 by `docs/execution-plan.md` (PROPOSED), which re-prices
+the slate below against the hours that remain and sets the cut order. The
+August pricing is kept here for the record.
 
 The two open blocks hold roughly 64 hours at eight a week, and the
 8-hours-a-week assumption is itself unverified against a real week. The
@@ -136,7 +141,7 @@ author's machine, untracked.
     docs/entity-resolution.md  the resolution design, its guards, and the tree
     docs/references.md       sources behind the schema decisions
     notebooks/               the extractor and ingestor, as script and notebook, as they run on Kaggle
-    dataset/step0/           the published Step 0 dataset's docs, kept byte-identical to Kaggle
+    dataset/step0/           the published Step 0 dataset's docs, as published, with the 09-13 corrections pending republish
     data/raw/                the raw corpora (three literature corpora, GraphRAG-Bench novels, kg-rag-cc papers, LongMemEval) and their manifests
     data/benchmarks/         GraphRAG-Bench, LongMemEval, NarrativeQA gold files
     scripts/                 the fetchers and unpackers that built the raw dataset, the Step 0 packer, the package renderer

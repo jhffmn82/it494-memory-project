@@ -25,7 +25,7 @@ per corpus, each with a `manifest.json` recording every file's source URL, byte 
 
 | corpus | files | what it is |
 |---|---|---|
-| `longmemeval` | 25,112 | chat sessions in 500 histories, every turn timestamped (written by block 0) |
+| `longmemeval` | 19,206 session files plus `longmemeval_s.json` | block 0 unpacks the benchmark file into 25,112 session files in 500 history folders under `/kaggle/temp/chats`, every turn timestamped; the extractor reads those, not the 19,206 |
 | `kg-rag-cc` | 100 | CC-BY papers on knowledge graphs and RAG, PDFs under `pdf/` |
 | `greek` | 31 | Greek and Roman literature, including OCR'd institutional scans |
 | `oz` | 29 | the Oz books |

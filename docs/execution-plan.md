@@ -1,170 +1,211 @@
 # Execution plan: from the 1.8 packages to the paper
 
-PROPOSED 2026-09-13, until Justin rules on the slate in section 1. Replaces the 09-08 forward
-plan (`log/2026-09-08/forward-plan.md`), which made LongMemEval the first benchmark to cut; the
-build since then made it the spine. Feasibility is tracked in section 7 and is to be updated
-weekly with real hours. The audit behind this plan is `log/2026-09-13/academic-audit.md`.
+PROPOSED 2026-09-13, revised the same night after an adversarial review of its first draft
+(`log/2026-09-13/attack-assessment.md`); until Justin rules on the slate in section 1. Replaces
+the 09-08 forward plan (`log/2026-09-08/forward-plan.md`). Feasibility is tracked in section 8
+and is re-priced weekly with real hours. The audit behind this plan is
+`log/2026-09-13/academic-audit.md`.
 
-## 1. The slate (the ruling this plan needs)
+## 1. The slate (the ruling this plan needs first)
 
-| item | status | recommendation |
+Two benchmarks are on the table. What each costs on the path from the 1.8 packages:
+
+| | GraphRAG-Bench | LongMemEval |
 |---|---|---|
-| LongMemEval: full-context parity arm, flat-retrieval arm, ThreadAtlas arm; the knowledge-update band | the spine | **committed** |
-| The free instruments: rejection and quote-gate rates per stage and tier, cost per stage, duplicate mints per unit, unit-versus-abstract agreement | from receipts and packages | **committed** |
-| The dataset and the two-stage method, with measured limits | in hand | **committed** |
-| The merge-free tree as a design position, with its query-time cost measured on the LongMemEval arm | needs the global layer | **committed** |
-| GraphRAG-Bench: three arms over the 20 novels against the nine published baselines | needs Step 1 over the novels plus the same harness | **stretch**: built only if the store and retrieval land by October 25 |
-| The resolution ablation (co-occurrence off) | the signal now nominates pairs inside a document only; the up-edge does not exist | **cut**, restated as attachment accuracy on Oz if the alias set is written and Oz is ingested; otherwise reported as an instrument |
-| NarrativeQA | secondary | **cut** |
-| The wiki (Tip and Ozma, Holmes, Helen pages; assembled versus generated) | the visible artifact | **cut from the fall paper**; one assembled entity page from `render_package.py` if a spare hour appears, for the symposium board |
-| The cells ablation | chats have no cells | **cut** |
+| ingest | Step 1 over the 20 novels: 480 units on the full path, tens of dollars, one Kaggle session | Step 1 over chats: $107 and about 48 kernel hours for all 500 histories, or a subset |
+| graph | one document per graph, so no global layer is on its path | one history per graph; needs the first-cut global layer (2b) |
+| questions and scoring | 2,010 questions with gold answers and evidence, the benchmark's own scorer, nine published baselines under gpt-4o-mini | 500 questions, the benchmark's own GPT-4o evaluator prompt, Zep's published numbers under gpt-4o-mini and gpt-4o |
+| judge to build | none | none if the benchmark's evaluator is used as published |
+| what it tests of the design | retrieval over cells, facts and abstracts of a book; contamination answered (pre-1900) | retrieval over facts and session abstracts of a chat history (chats have no cells); the benchmark is public since 2024 and inside the model's training window |
+| standing with the advisor | the first committed measurement in the filed proposal | a stretch item in the filed proposal, the spine of the last four days' build |
 
-Reasoning: 33 to 46 build hours remain (section 7); the spine costs 24 to 34; nothing else fits
-beside it. The August calibration named exactly this reach: ingest and organize plus one
-comparison.
+Recommendation: **GraphRAG-Bench is the spine and LongMemEval the second arm**, both through the
+same store and retrieval. GraphRAG-Bench is the cheaper path to a number a reviewer can place
+beside published ones (no global layer, no judge, a scorer that exists), and it is what the
+advisor was told first. LongMemEval follows because its ingest runs unattended and because the
+end state is chats. Cut from the fall: NarrativeQA, the wiki, the cells ablation, the
+resolution ablation (its signal nominates pairs inside a document; the up-edge it would have
+measured does not exist). Reported as instruments, not results: rejection and quote-gate rates,
+cost per stage and tier, duplicate parents per history from the candidate log.
+
+The three-tier pilot the filed proposal promised (goal 4, model sensitivity as a result) is not
+in this slate; it returns only if the reader-model ruling in section 5 allows a second tier on
+one arm.
 
 ## 2. What the spine needs, in build order
 
-Each step names its input, its output, its hours, and the gate that says it is done. Every step
-runs on one LongMemEval history first (`gpt4_2ba83207`, 53 sessions, four answer sessions
-dated), because a path that answers one question end to end is what every later number runs
-through.
+Prices are revised upward from the first draft, which had halved the 09-08 estimates with no
+build in between. Each step names its input, output, hours and gate.
 
-### Step 2a. The store (4 to 6 hours)
+### 2a. The store (6 to 10 hours)
 
-- In: the packages of the 1.8 run (`packages/longmemeval/<history>/<session>/`).
-- Out: one SQLite file per graph, built from packages by one script: tables for document, unit,
-  piece, node, alias, fact, abstract, cell, contradiction, with FTS5 over abstract text, cell
-  text and fact quotes; every quote re-resolved from its offsets at load and the load refused on
-  the first mismatch. The scope rule: a graph is one history folder, selected by `source_uri`
-  prefix (ruling of 09-13).
-- Gate: the store built from the 53 packages; every fact's quote slices to its text; row counts
-  equal the packages' completion records.
+- In: the packages of the 1.8 run.
+- Out: one SQLite file per graph, built by one script: document, unit, piece, node, alias, fact,
+  abstract, cell, contradiction; FTS5 over abstract text, cell text and fact quotes; every quote
+  re-resolved from its offsets at load, the load refused on the first mismatch. A graph is one
+  document for GraphRAG-Bench and one history folder (by `source_uri` prefix) for LongMemEval.
+- Gate: a store built from one novel's package and from history gpt4_2ba83207's 53 packages;
+  every quote slices to its text; counts equal the completion records.
 
-### Step 2b. The global layer, first cut (6 to 10 hours)
+### 2b. The global layer, first cut (8 to 12 hours; LongMemEval only)
 
-- In: the store's document-local nodes.
 - Out: a `parent` table (id, name, kind, abstract) and an `instance_of` edge per node, owned by
   the node's document. First cut: nodes unite under one parent when their case-folded name and
-  kind agree; a shared name with a kind conflict stays apart and is logged as a candidate; no
-  judge yet. The parent's name is its most frequent child name; its abstract is the count
-  sentence ("appears in N sessions as a K") until a fold is written. Every edge carries its
-  reason. This is the ruling-1 signal question of the 09-08 plan made concrete: log what an
-  attach decided on, so a stronger signal can be replayed later.
-- Gate: the four answer sessions' subjects (the stores and amounts of the grocery question) sit
-  under one parent each; the candidate log lists the conflicts; no parent asserts a fact.
+  their case-folded kind string agree; a shared name with a kind conflict stays apart and is
+  logged as a candidate; every edge carries its reason. The parent's name is its most frequent
+  child name; its abstract is the count sentence until a fold is written. Kind is an open
+  vocabulary, so near-synonym kinds will split parents; the split count is an instrument.
+- Gate (one that can fail): a hand check of 30 parents drawn at random from the history, with
+  the wrong-unite and wrong-split counts recorded; and a second arm in 2d that runs the same
+  retrieval with the parent join switched off, so what the tree buys is measured rather than
+  asserted.
 
-### Step 2c. Retrieval and context (6 to 8 hours)
+### 2c. Retrieval and context (8 to 10 hours)
 
-- In: the store, a question.
-- Out: `retrieve(question, history) -> context`: FTS5 over abstracts, cells and fact quotes, the
-  hits expanded through their parent to sibling facts, each item rendered by one deterministic
-  function with its document date, packed greedily whole-item by rank within a token budget;
-  `answer(question, context)` on Luna; the routing and admission log per question (BUILD.md's
-  "never a candidate" versus "cut by the budget"). Facts are served with their dates and, on a
-  functional predicate, the later fact first; the predicate list is the ruling in 4.3, and until
-  it exists every fact is served and the model chooses.
-- Gate: the grocery question answered correctly from the store, with the four stores and amounts
-  in the returned context and nothing from outside the history.
+- Out: `retrieve(question, graph) -> context`: FTS5 over abstracts, cells and fact quotes, hits
+  expanded through their parent to sibling facts where a parent exists, each item rendered by one
+  deterministic function with its document date, packed greedily whole-item by rank within a
+  token budget; `answer(question, context)` on the reader model of section 5; a routing and
+  admission log per question. Every dated fact is served; no read-time supersession is built
+  this fall, and the paper says so.
+- Gate: the grocery question answered from history gpt4_2ba83207's store with the four stores
+  and amounts in the returned context; one GraphRAG-Bench question answered from one novel's
+  store.
 
-### Step 2d. The harness (6 to 8 hours)
+### 2d. The harnesses
 
-- In: `longmemeval_s.json` (questions, `question_date`, answers, `answer_session_ids`), the
-  store per history.
-- Out: three arms over N histories: full-context (every session of the history in the window,
-  the parity arm), flat retrieval (FTS5 over raw turns, no store), ThreadAtlas (2c); a judge on
-  Terra with the benchmark's answer, calibrated on thirty hand-labeled items first; per-question
-  cost and token counts per arm; the knowledge-update band reported with its denominator.
-- Check in the first hour: whether gpt-4o-mini is callable. If yes, the parity arm reproduces
-  Zep's 55.4 full-context baseline on the original `_s` before anything else is claimed. If no,
-  every number is a ratio between the three arms and Zep's table is cited as context only.
-- Gate: the 14 known questions scored by the judge on all three arms; the judge agrees with the
-  thirty hand labels at 0.7 kappa or better.
+GraphRAG-Bench (4 to 6 hours): the benchmark's questions and scorer as published; arms:
+no-context, flat retrieval over raw units, ThreadAtlas; the plain-RAG parity check first (their
+58.76 on fact retrieval at 879 tokens). Gate: the three arms scored on one novel.
 
-### Step 2e. Scale and variance (Kaggle time, few build hours)
+LongMemEval (8 to 12 hours): the benchmark's `_s` questions, `question_date`, answers and its
+own evaluator prompt as published; arms: full-context (every session of the history, with the
+truncation rule stated; 429 of 500 histories exceed 120k tokens at four characters a token),
+flat retrieval over raw turns, ThreadAtlas, ThreadAtlas with the parent join off. The 14 questions
+used to tune Step 1 are a development set and are excluded from any reported number. A question
+is scored only over a history ingested whole. The six abstention questions are reported with the
+benchmark's rule. Gate: the four arms scored on ten histories held out from tuning.
 
-- Step 1 over 50 histories first (about 2,400 sessions, $11, 5 hours of kernel time), then all
-  500 in four or five 12-hour sessions with the previous output attached (about $107, 48 hours
-  of kernel time), during the exam block.
-- The three arms over every history ingested; the band from three reruns of one 50-history
-  subset.
-- Gate: one stated run over the largest set that completed, with the band, by October 25.
+### 2e. Kaggle changes before any scaled run (2 to 4 hours)
 
-### Step 2f. Instruments (2 hours)
+- Packages are written two files per document, 48,000 files for all chats; 25,000 output files
+  already made one notebook impossible to list or download. Before the full run: one JSONL per
+  history (or a zip per block) in the output.
+- Block 12 stops at its $15 budget, about 3,300 sessions at $0.0045; the full run needs the
+  budget raised and the resume tested across sessions. A 12-hour session at 16 sessions at a time
+  ingests about 5,900 sessions, so all 500 histories are four to five sessions and each is a
+  manual launch. `CHAT_AT_ONCE` is a constant, not a limit; raising it is a ruling (rate limits
+  on Flex are the risk).
 
-- One script over receipts and packages: rejection categories per stage and tier, quote-gate
-  rate, cost per stage per document kind, duplicate parents per history from the candidate log,
-  agreement between unit summaries and the session abstract where both exist.
+### 2f. Scale and variance (Kaggle time; 2 hours of build)
 
-### Stretch: GraphRAG-Bench (8 to 12 hours plus its ingest)
+- GraphRAG-Bench: all 20 novels, all 2,010 questions, one stated run; the band from three
+  reruns of the questions over one fixed store (the reader's variance) and, if hours allow, from
+  three re-ingests of two novels (the pipeline's variance).
+- LongMemEval: 50 held-out histories first (about 2,400 sessions, $11, one session); that is a
+  pilot, with a standard error near 7 points on a 500-question benchmark, not a positioning
+  claim. All 500 only if the exam block's sessions complete. State the denominator.
 
-Only if 2a to 2d are green by October 25. Step 1 over the 20 novels (already in the 1.8 export,
-480 units; tens of dollars), the same store and retrieval, the benchmark's own 2,010 questions
-and scorer, the plain-RAG parity check at 879 tokens a question.
+### 2g. Instruments and tables (4 to 6 hours)
 
-## 3. Calendar
+One script over receipts, packages and the candidate log; the paper's tables written from it.
 
-| week | dates | hours | build | write | gate |
-|---|---|---|---|---|---|
-| 1 | Sep 14 to 20 | 8 | read the 1.8 run; 2a on one history; 2b first cut; the grocery question through 2c | the addendum to Dr. Fang; the endorsement email if unsent | **Sep 16**: the store and the first-cut parents exist on one history. **Sep 20**: one question answered end to end, or the floor paper is declared |
-| 2 | Sep 21 to 27 | 8 | 2c finished; 2d on the 14 questions; the thirty judge labels; the gpt-4o-mini check | nothing | **Sep 27**: the 14 questions scored on three arms |
-| exams | Sep 28 to Oct 18 | 0 to 8 | Kaggle only: Step 1 over 50 histories, then all 500, unattended | the results-independent skeleton: introduction, related work from `reading/related-work/`, method (the two stages, the tree), dataset, contamination; the ASKS comparison and the tree search (2 hours of reading) | **Oct 18**: skeleton drafted; packages for at least 50 histories on disk |
-| 3 | Oct 19 to 25 | 8 | 2e: the arms over every history ingested; the band; 2f | tables slotted as they land | **Oct 25**: the LongMemEval number and the band exist |
-| 4 | Oct 26 to 31 | 8 | GraphRAG-Bench if green; else the knowledge-update band analysis and the query-time cost of the tree | results section | **Oct 31: build stop** |
-| 5 | Nov 1 to 8 | 8 | none | full draft to Dr. Fang by Nov 3; Zenodo record prepared | **Nov 3**: draft sent |
-| 6 | Nov 9 to 15 | 8 | none | revise on comments; DOI by Nov 10; freeze Nov 15 | **Nov 16**: arXiv cs.CL |
+### Debugging, Kaggle friction, downloads (6 to 8 hours)
 
-Two release valves, decided at the gates, never later: if Sep 20 fails, the paper is the floor
-(dataset, method, instruments, the tree as a position) and weeks 3 and 4 go to the instruments
-and the writing; if Oct 25 fails, the number is reported on whatever subset completed with its
-denominator stated.
+Priced explicitly because the first draft priced none of it.
 
-## 4. Rulings the plan needs, one at a time
+## 3. Totals and hours
+
+Spine (2a, 2c, 2d GraphRAG-Bench, 2f, 2g, debugging): 30 to 42 hours. LongMemEval on top (2b,
+2d LongMemEval, 2e): 18 to 28 hours. The paper: 10 to 15 hours, of which the results-independent
+skeleton can be written in the exam block.
+
+Hours available at the plan's 8 a week: 16 in weeks 1 and 2, 0 to 8 in the exam block, 32 in
+weeks 3 to 6, of which weeks 5 and 6 are writing. So 32 to 40 build hours at the planned pace.
+The planned pace is contradicted by the repository's own record (commits on 17 of 22 days from
+August 23 to September 13, 55 commits on September 6, Kaggle launches past midnight), so the
+real pace is likely several times 8 a week; the plan is re-priced after week 1's real hours and
+not before.
+
+At 8 a week the GraphRAG-Bench spine fits and LongMemEval does not. At the measured pace both
+fit. The gates below decide which world this is.
+
+## 4. Calendar
+
+| week | dates | build | write | gate |
+|---|---|---|---|---|
+| 1 | Sep 14 to 20 | read the 1.8 run's receipt; 2a on one novel and one history; 2c to the first answered question | the addendum to Dr. Fang, with the slate as a question; the endorsement email if unsent; ask what IT 494 grades | **Sep 20**: one GraphRAG-Bench question and the grocery question answered from a store, or the floor paper is declared |
+| 2 | Sep 21 to 27 | 2d GraphRAG-Bench on one novel with the parity check; 2e | nothing | **Sep 27**: three arms scored on one novel; the Kaggle output shape fixed |
+| exams | Sep 28 to Oct 18 | Kaggle only, unattended: Step 1 over the 20 novels; Step 1 over 50 held-out histories, then more | the skeleton: introduction, related work, method, dataset, contamination; the ASKS comparison and the tree search first (2 hours of reading) | **Oct 18**: skeleton drafted; novel packages on disk |
+| 3 | Oct 19 to 25 | 2f GraphRAG-Bench: all novels, all questions, the band | tables as they land | **Oct 25**: the GraphRAG-Bench number exists |
+| 4 | Oct 26 to 31 | 2b and 2d LongMemEval on the 50-history pilot, if the pace allows; else 2g | results | **Oct 31: build stop** |
+| 5 | Nov 1 to 8 | none | full draft to Dr. Fang by **Nov 5** (the first draft's Nov 3 had no writing hours behind it) | draft sent |
+| 6 | Nov 9 to 15 | none | revise; DOI by Nov 10; freeze Nov 15 | **Nov 16**: arXiv cs.CL |
+
+Release valves, decided at the gates: if Sep 20 fails, the paper is the floor (dataset, method,
+instruments, the tree as a position) and weeks 3 and 4 go to instruments and writing; if Oct 25
+fails, the number is reported on the novels that completed with the denominator stated; if
+LongMemEval does not reach the pilot, it is reported as ingest cost and the presence check only,
+labelled as such.
+
+## 5. Rulings the plan needs, one at a time
 
 1. The slate in section 1.
-2. The scope rule is ruled (one history per graph); the first-cut attach rule in 2b (case-folded
-   name and kind) needs a yes, since it is the up-edge signal the paper will describe.
-3. The functional-predicate list for the knowledge-update band, or the rule that every dated fact
-   is served and the model chooses. Recommendation: the second for the fall, the list named as
-   spring work; state the denominator either way.
-4. Whether Oz is ingested and the alias set written this fall (1 hour of labels, plus the three
-   Oz packages that already exist). Recommendation: no, unless week 2 finishes early; it is the
-   symposium's fixture, not the paper's number.
-5. The paper's authorship sentence (section 4.6 of the audit).
+2. The reader model: one model for every arm of a benchmark. Parity with the published baselines
+   needs gpt-4o-mini for both benchmarks; if it is not callable, every number is a ratio between
+   your own arms and the published tables are context only. Check before ruling.
+3. The evaluator: the benchmark's own published scorer and prompt, not a custom judge; a hand
+   check of 30 of its verdicts after the first scored run, as a sanity check, not a gate.
+4. The 14 tuning questions are excluded from every reported number; any scored history is
+   ingested whole.
+5. The knowledge-update band is reported as accuracy only; the paper claims no supersession
+   mechanism this fall (every dated fact is served). The functional-predicate list and the
+   read-time view are spring.
+6. The first-cut attach rule (case-folded name and kind) and its hand-checked gate.
+7. The Kaggle output shape (one JSONL per history) and the block budget for the full run.
+8. Which verification artifacts are public: the offline battery, the export verifier and the
+   answer check left the tree tonight as working tooling, but they are what lets a reader check
+   "94 of 94" and "0 quotes off". Recommendation: a tracked `tests/` with those three and
+   nothing else, or the same files attached to the Kaggle kernels.
+9. Whether the one-semester form was filed (the proposal says it was the remaining paperwork).
+10. The authorship sentence, in the paper and in README (which still says "the author writes the
+    code").
 
-## 5. Mechanics with lead time
+## 6. Mechanics with lead time
 
 - The arXiv cs.CL endorsement: status unknown since 09-08. Ask this week.
-- What IT 494 grades (report, presentation, symposium board): not recorded. Ask this week.
-- The addendum to Dr. Fang: the corpus as it is, the slate, the milestone slip, the authorship
-  sentence. One page, with the next weekly.
-- Zenodo DOI for the Step 0 dataset by Nov 10; the Kaggle dataset stays the working copy.
-- Kaggle housekeeping (questions 3 and 4 of `log/2026-09-13/questions.md`): the stale units
-  dataset marked superseded, the private papers dataset deleted, the Step 0 docs republished.
+- What IT 494 grades: not recorded. Ask this week, before the addendum, since a report or a
+  talk changes November.
+- The addendum to Dr. Fang, one page: the corpus as it is, the slate as a question with this
+  plan's recommendation, the September 27 milestone slip, the authorship sentence.
+- Zenodo DOI for the Step 0 dataset by Nov 10.
+- Kaggle housekeeping (questions 3 and 4 of `log/2026-09-13/questions.md`).
 
-## 6. Risks, and what each does to the plan
+## 7. Risks
 
 | risk | effect | answer |
 |---|---|---|
-| the 8-hour week is really 4 | the spine slips a week; GraphRAG-Bench is gone | verify against week 1's real hours; re-price on Sep 20 |
-| gpt-4o-mini is not callable | no parity with Zep; ratios only | check in the first hour of 2d; say so in the paper |
-| the 1.8 Step 1 run fails or its packages differ from the 1.7 runs | week 1 starts with a debug | the run is in progress; read its receipt first thing |
-| Kaggle 12-hour sessions and resume | the full ingest takes five sessions across the exam block | the 50-history subset is the fallback and is enough for a number |
-| the judge disagrees with the labels | the scoring design changes (a second judge, or exact-match where the benchmark allows) | the thirty labels are the first thing in 2d |
-| the first-cut attach unites wrong things (homonyms in one history) | the candidate log shows it; the kind conflict rule catches the measured case | log every attach with its reason; re-point, never rewrite |
-| the exam block yields no writing hours | November is results and writing together; the review window shrinks | the skeleton is the one thing the exam block must produce; two evenings |
+| the pace is really 8 a week | LongMemEval is gone; the spine is tight | week 1's real hours re-price the plan on Sep 20 |
+| gpt-4o-mini is not callable | no parity; ratios only | check in week 1; say so in the paper |
+| the 1.8 Step 1 run fails or its packages differ from the 1.7 runs | week 1 starts with a debug | read its receipt first |
+| Kaggle output files and the block budget | the full chat ingest cannot be downloaded or stops early | 2e before any scaled run |
+| the benchmark's evaluator disagrees with a hand check | the number carries a caveat, not a fix | 30 verdicts checked after the first run |
+| the tree buys nothing on chats (exact-name parents over one user's history) | the tree is a position, not a result | the parent-off arm measures it either way |
+| LongMemEval is inside the training window | arm-versus-arm survives; the comparison to Zep's run does not | state it; the pre-1900 novels carry the contamination answer |
+| the exam block yields no writing hours | November is results and writing together | the skeleton is the one thing the exam block must produce |
+| the advisor wants the filed slate | GraphRAG-Bench first honours it; LongMemEval becomes the stretch he was told it was | the addendum asks, week 1 |
 
-## 7. Feasibility tracker
+## 8. Feasibility tracker
 
 Update weekly: real hours, what landed, the re-priced remainder. The build stop does not move.
 
 | week ending | planned hours | real hours | landed | remaining build (priced) | note |
 |---|---|---|---|---|---|
-| Sep 13 | | | Step 0 1.8; Step 1 frozen; the cleanup | 24 to 34 for the spine; 8 to 12 stretch | baseline |
-| Sep 20 | 8 | | | | |
+| Sep 13 | | | Step 0 1.8; Step 1 frozen; the cleanup; this plan | spine 30 to 42; LongMemEval 18 to 28 | baseline |
+| Sep 20 | 8 | | | | re-price here |
 | Sep 27 | 8 | | | | |
 | Oct 18 | 0 to 8 | | | | |
 | Oct 25 | 8 | | | | |
 | Oct 31 | 8 | | | | build stop |
-| Nov 8 | 8 | | | | draft to Fang |
+| Nov 8 | 8 | | | | draft to Fang Nov 5 |
 | Nov 15 | 8 | | | | freeze |

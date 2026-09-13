@@ -14,13 +14,13 @@ here on 2026-09-13); its status. A new ruling is a new line, never an edit of an
 | date | ruling | recorded | status |
 |---|---|---|---|
 | 09-02 | The corpus is public domain literature (Oz, Holmes, Greek and Roman), so it can be published; copyrighted modern fiction is excluded. | log/2026-09-02/README.md:24 | stands |
-| 09-04 | `chinese/` is out; the Thebaid is removed; greek is 31 files. | log/2026-09-04/inventory.md:60-64 | stands |
-| 09-04 | GraphRAG-Bench's 20 contexts are unpacked to 20 text files, as is. | inventory.md:73-75 | stands |
-| 09-04 | The papers are the 142 reference PDFs in a private Kaggle dataset; the extractor reads a PDF like any other file. | inventory.md:76-81 | superseded 09-09: the paper corpus is the 100 CC-BY kg-rag-cc papers, inside the public raw dataset, text carried in full |
-| 09-04 | The public dataset's license is MIT with attribution in the manifests. | inventory.md:82-83 | superseded 09-09 for the raw dataset: the label is "other", three licenses by folder (log/2026-09-09/README.md) |
-| 09-04 | The manifest is packaging, never an input. | inventory.md:84-87 | stands; block 1 reads it only to verify bytes |
-| 09-04 | The extractor lives on Kaggle for now; eventually a desktop tool. | inventory.md:92-93 | stands |
-| 09-04 | LongMemEval is fall; the evaluation is scored at the evaluation step. | inventory.md:96-97 | stands |
+| 09-04 | `chinese/` is out; the Thebaid is removed; greek is 31 files. | log/2026-09-04/inventory.md rulings 1 and 2 | stands |
+| 09-04 | GraphRAG-Bench's 20 contexts are unpacked to 20 text files, as is. | inventory.md ruling 5 | stands |
+| 09-04 | The papers are the 142 reference PDFs in a private Kaggle dataset; the extractor reads a PDF like any other file. | inventory.md ruling 6 | superseded 09-09: the paper corpus is the 100 CC-BY kg-rag-cc papers, inside the public raw dataset, text carried in full |
+| 09-04 | The public dataset's license is MIT with attribution in the manifests. | inventory.md ruling 7 | superseded 09-09 for the raw dataset: the label is "other", three licenses by folder (log/2026-09-09/README.md) |
+| 09-04 | The manifest is packaging, never an input. | inventory.md ruling 8 | stands; block 1 reads it only to verify bytes |
+| 09-04 | The extractor lives on Kaggle for now; eventually a desktop tool. | inventory.md ruling 11 | stands |
+| 09-04 | LongMemEval is fall; the evaluation is scored at the evaluation step. | inventory.md ruling 13 | stands |
 | 09-08 | The system is ThreadAtlas; narrative cells are the primary representation; the wiki is a read model; document-local entities attach to global parents. | log/2026-09-08/threadatlas-decision.md:17-26 | stands; cell primacy narrowed for chats on 09-12 (chats get no cells) |
 | 09-09 | The papers corpus is 100 CC-BY papers gathered from OpenAlex, with `attribution.jsonl` in the export; nothing is withheld. | log/2026-09-09/README.md | stands |
 | 09-09 | Block 13 runs the first three Oz books, not one. | log/2026-09-09/README.md | stands |
@@ -31,14 +31,14 @@ here on 2026-09-13); its status. A new ruling is a new line, never an edit of an
 
 | date | ruling | recorded | status |
 |---|---|---|---|
-| 09-04 | The extractor sees a raw file and nothing else: no manifest, no metadata, no question set, no per-corpus branch; the format is sniffed from the bytes. | log/2026-09-04/inventory.md:56-58 | stands |
-| 09-04 | Source class follows the sniffed format: chat to `record`, paper to `published`, book to `canonical`. | inventory.md:88-89 | narrowed 09-05: a text document takes the model's answer |
-| 09-05 | No font sizes and no code deciding where a break may go: the document's non-blank lines are numbered and shown whole in one call; the model answers by line number and copies the line; code verifies the copy. | log/2026-09-05/README.md:43-48 | stands |
-| 09-05 | Keep every byte: regions are labels in the piece's `kind`, pieces tile the document. | 09-05/README.md:49-53 | stands |
-| 09-05 | Sentences are the address unit when a file has no usable lines. | 09-05/README.md:54 | stands |
-| 09-05 | Units are the model's too: sub-split over 4,000 words, merge short pieces, group the outline; a group over the cap is dissolved. | 09-05/README.md:55-59 | stands; a group is also cut where the kind or the date changes (1.8) |
-| 09-05 | A publication becomes the author when no person is named, flagged. | 09-05/README.md:64-67 | stands |
-| 09-05 | Retry on a flag: Luna again; Terra only for a document under 80,000 tokens. | 09-05/README.md:70-71 | stands |
+| 09-04 | The extractor sees a raw file and nothing else: no manifest, no metadata, no question set, no per-corpus branch; the format is sniffed from the bytes. | log/2026-09-04/inventory.md, the governing rule | stands |
+| 09-04 | Source class follows the sniffed format: chat to `record`, paper to `published`, book to `canonical`. | inventory.md ruling 9 | narrowed 09-05: a text document takes the model's answer |
+| 09-05 | No font sizes and no code deciding where a break may go: the document's non-blank lines are numbered and shown whole in one call; the model answers by line number and copies the line; code verifies the copy. | log/2026-09-05/README.md ruling 2 | stands |
+| 09-05 | Keep every byte: regions are labels in the piece's `kind`, pieces tile the document. | 09-05/README.md ruling 3 | stands |
+| 09-05 | Sentences are the address unit when a file has no usable lines. | 09-05/README.md ruling 4 | stands |
+| 09-05 | Units are the model's too: sub-split over 4,000 words, merge short pieces, group the outline; a group over the cap is dissolved. | 09-05/README.md ruling 5 | stands; a group is also cut where the kind or the date changes (1.8) |
+| 09-05 | A publication becomes the author when no person is named, flagged. | 09-05/README.md ruling 9 | stands |
+| 09-05 | Retry on a flag: Luna again; Terra only for a document under 80,000 tokens. | 09-05/README.md ruling 11 | stands |
 | 09-09 | A record naming a file outside the raw dataset is refused, not truncated. | log/2026-09-09/README.md | stands |
 | 09-13 | Every model call runs on OpenAI's Flex tier. | log/2026-09-13/README.md | stands |
 
@@ -50,13 +50,13 @@ here on 2026-09-13); its status. A new ruling is a new line, never an edit of an
 | 09-04 | A document is an entity in its own right; two documents never merge. | 09-04/README.md:24-25 | stands |
 | 09-04 | Units carry a time range `occurred_at` to `occurred_until`, and a unit never spans a day change. | 09-04/README.md:117-121 | superseded 09-09 (`occurred_until` dropped) and 09-10 (no day cut) |
 | 09-04 | Unknown dates stay null, never inferred. | 09-04/README.md:119-121 | superseded 09-13: a work's date is looked up when its page states none |
-| 09-05 | No dates on text or PDF pieces; the unit carries the document's date. | log/2026-09-05/README.md:60-62 | superseded 09-13: every piece takes the date of the work it lies in |
-| 09-05 | The date asked for is the original work's, never the edition's or translation's. | 09-05/README.md:60-62 | stands, restated 09-13 |
-| 09-05 | No inferred dates; a document whose file states no date stays null. | 09-05/README.md:63-64 | superseded 09-13 |
+| 09-05 | No dates on text or PDF pieces; the unit carries the document's date. | log/2026-09-05/README.md ruling 6 | superseded 09-13: every piece takes the date of the work it lies in |
+| 09-05 | The date asked for is the original work's, never the edition's or translation's. | 09-05/README.md ruling 6 | stands, restated 09-13 |
+| 09-05 | No inferred dates; a document whose file states no date stays null. | 09-05/README.md ruling 7 | superseded 09-13 |
 | 09-09 | `occurred_until` is gone from the unit and the fact: the two ends never differed. | log/2026-09-09/README.md; fa48997 | stands |
 | 09-10 | A unit is a snapshot in time and carries one time. | log/2026-09-10/chat-rulings.md:43-44 | stands |
 | 09-13 | Every unit and every fact is dated wherever the source allows; a document takes its earliest unit's date. The 09-10 wording that left multi-date sessions undated was not an informed ruling and is not cited. | chat; log/2026-09-13/README.md | stands |
-| 09-13 | Books are dated by when the work was written, BC and approximate included: the page first, then a web search, then null with the reason in the flags. | chat; log/2026-09-13/extractor/make_18.py | stands |
+| 09-13 | Books are dated by when the work was written, BC and approximate included: the page first, then a web search, then null with the reason in the flags. | chat; code (extractor 1.8) | stands |
 | 09-13 | `occurred_at` forms: `YYYY`, `YYYY-MM`, `YYYY-MM-DD`, a timestamp, a signed BC year counting a year zero, a trailing `~` for approximate, `/` joining the ends of a range; the date's source goes in the document's flags. | code (extractor 1.8); dataset/step0/SCHEMA.md:9-15 | stands |
 | 09-13 | A volume of several works is dated work by work, and a unit never spans two dates. | code (extractor 1.8) | stands |
 
@@ -64,10 +64,10 @@ here on 2026-09-13); its status. A new ruling is a new line, never an edit of an
 
 | date | ruling | recorded | status |
 |---|---|---|---|
-| 09-04 | LongMemEval `_s` is the source; a session is a document; one JSON file per distinct non-empty session; the oracle file and `has_answer` are not used. | log/2026-09-04/inventory.md:65-72 | source and session-as-document stand; one file per distinct session superseded 09-13 |
-| 09-04 | Units are turn groups cut by size at turn boundaries, never a turn alone, a short tail merged back. | inventory.md:70-72 | superseded 09-10 |
+| 09-04 | LongMemEval `_s` is the source; a session is a document; one JSON file per distinct non-empty session; the oracle file and `has_answer` are not used. | log/2026-09-04/inventory.md ruling 3 | source and session-as-document stand; one file per distinct session superseded 09-13 |
+| 09-04 | Units are turn groups cut by size at turn boundaries, never a turn alone, a short tail merged back. | inventory.md ruling 4 | superseded 09-10 |
 | 09-04 | Turn-as-unit was weighed and declined. | 09-04/README.md:129-131 | reversed 09-10 |
-| 09-05 | The chat header is a `front_matter` piece. | log/2026-09-05/README.md:65 | superseded 09-10: there is no header piece |
+| 09-05 | The chat header is a `front_matter` piece. | log/2026-09-05/README.md ruling 8 | superseded 09-10: there is no header piece |
 | 09-09 | A chat's title is the session id its file states; a title is the source's own name, an identifier counts, and a title is never parsed from a filename. Author stays null on a chat. | log/2026-09-09/README.md; fa48997 | stands |
 | 09-10 | The ingestor rerun is held until chat preprocessing is redesigned. | log/2026-09-10/chat-rulings.md:39 | discharged 09-10 (1.7 ran) |
 | 09-10 | A chat document is a conversation; every turn keeps its speaker, position and time; a history is an ordering over conversations. | chat-rulings.md:40-42 | stands |
@@ -75,7 +75,9 @@ here on 2026-09-13); its status. A new ruling is a new line, never an edit of an
 | 09-10 | Chats are preprocessed by a script specific to LongMemEval, not the general extractor. | chat-rulings.md:47-48 | partly superseded 09-13: block 0 unpacks the benchmark file, then the general extractor reads the result like any chat |
 | 09-10 | A LongMemEval session is a document titled by its session id; a turn is a unit named `SESSION <id> TURN <n> <date>`; a session placed on several dates keeps none. | chat-rulings.md:54-60 | the unit shape stands; the undated case superseded 09-13 |
 | 09-10 | The evaluation filters by the question's haystack session ids, never by date. | chat-rulings.md:57-59 | stands (no evaluation built yet) |
-| 09-13 | LongMemEval is unpacked into one folder per history; a session used by several histories is a separate document in each, dated as that history dates it; nothing from the test itself is written. | chat; log/2026-09-13/extractor/block0_unpack.py | stands |
+| 09-10 | The output schema must carry Gemini, Grok, Claude and OpenAI chats: a conversation with a title, a time and an author, each unit with its own time. The placement record and a `tool` piece kind were PROPOSED and never ruled. | chat-rulings.md:49-52 | stands as a requirement; the proposed records are open |
+| 09-08 | Review rulings 4 (the set node) and 6 (a controlled predicate list at Step 2) were asked for and never ruled. | log/2026-09-08/review.md | open |
+| 09-13 | LongMemEval is unpacked into one folder per history; a session used by several histories is a separate document in each, dated as that history dates it; nothing from the test itself is written. | chat; code (extractor 1.8, block 0) | stands |
 | 09-13 | Each chat turn carries its own timestamp; empty sessions and empty turns are skipped and counted. | code (extractor 1.8) | stands |
 
 ## Step 1: reading a document
@@ -83,10 +85,12 @@ here on 2026-09-13); its status. A new ruling is a new line, never an edit of an
 | date | ruling | recorded | status |
 |---|---|---|---|
 | 09-06 | Every unit is derived; nothing branches on kind. | log/2026-09-06/audit.md decision 13 | superseded 09-07: triage leaves out kinds that are not the work |
-| 09-06 | Predicates are the model's own strings; there is no controlled list at Step 1 and predicates are never merged or renamed. | log/2026-09-06/decisions-ingestor-0.5.md 12, 32, 39, 41 | stands; ruled repeatedly, do not raise merging again |
+| 09-06 | Predicates are the model's own strings; there is no controlled list at Step 1 and predicates are never merged or renamed. | log/2026-09-06/decisions-ingestor-0.5.md 12, 39, 41; audit.md 32 | stands; ruled repeatedly, do not raise merging again |
 | 09-06 | A running roster carried across units (rolling reconciliation). | decisions-ingestor-0.5.md 2, 13 | superseded 09-07 by decisions 31 and 33: no look back; reconciliation at the end of the document |
 | 09-07 | A small entity's facts (under 4) get a Luna support call; a major with 4 or more is adjudicated on Terra. | log/2026-09-07/decisions-ingestor-0.7.md 43 | stands |
-| 09-07 | Triage may not leave out more than half a document; front matter is triage's decision, not a rule. | decisions-ingestor-0.7.md 63; log/2026-09-07/ingestor.md:149-160 | stands |
+| 09-07 | Triage may not leave out more than half a document; front matter is triage's decision, not a rule. | decisions-ingestor-0.7.md 63; log/2026-09-07/ingestor.md:149-160 | the half guard stands; front matter and license are excluded by rule in 1.7 (`BOILERPLATE`), so that half is superseded by code |
+| 09-07 | Triage of references and appendices stands as it is, inconsistency across documents accepted. | log/2026-09-07/ingestor.md:164-165 | stands |
+| 09-07 | Two pruning rules and no queue cap: entities of one unit are never paired, and a pair ruled different is not offered again (decision 44); scored candidate rows stay in the package (decision 57). | decisions-ingestor-0.7.md 44, 57 | stands (`ineligible()`, `candidate` records) |
 | 09-07 | The spending stop is a per-block budget; the roll-up is written beside its package. | ingestor.md:149-156 | stands |
 | 09-07 | Kind is an open vocabulary, and a merged entity settles on one kind. | ingestor.md:170-176 | stands |
 | 09-07 | The embedding interface stays (decision 64, withdrawn). | decisions-ingestor-0.7.md 64 | reversed the same day: the removal was applied (ingestor.md:177); the ingestor has no `embed()` |
@@ -115,7 +119,7 @@ here on 2026-09-13); its status. A new ruling is a new line, never an edit of an
 | 09-06 | An ellipsis quote is kept as pieces. | decisions-ingestor-0.5.md 34 | reversed 09-08: `locate` refuses an ellipsis |
 | 09-06 | The `words` path takes only edge rewording. | decisions-ingestor-0.5.md 36; 0.7 decision 47 | stands |
 | 09-07 | A quote must state its fact (R1); an unsupported fact is corrected against its passage or dumped, never stored with a flag or a rank (R3). | log/2026-09-07/decisions-ingestor-0.8.md R1, R3 | stands |
-| 09-07 | A fact whose object restates its subject is rejected as `self_reference`. | log/2026-09-07/ingestor.md:167-168 | stands |
+| 09-07 | A fact whose object restates its subject is rejected as `self_reference`. | log/2026-09-07/ingestor.md:170 | stands |
 | 09-07 | A fact carries `occurred_at` and `occurred_until` copied from its unit (R2). | decisions-ingestor-0.8.md R2 | half superseded 09-09: `occurred_at` only |
 | 09-07 | A quote may not span a change of speaker (decision 46). | decisions-ingestor-0.7.md 46 | moot since 09-10 (a chat unit is one turn); the code was dropped 09-11 (B7) |
 | 09-11 | A flagged fact the correction step skips is dropped. | log/2026-09-11/README.md ruling 10 | stands |

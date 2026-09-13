@@ -88,7 +88,7 @@ Done, each as its own commit on `claude/kg-rag-cc-corpus`:
 - `docs/rulings.md`, the ledger.
 - SCHEMA.md and BUILD.md as PROPOSED commits; docs/extractor.md and docs/ingestor.md rewritten
   for 1.8 and the frozen 1.7; docs/entity-resolution.md, README.md, RESEARCH.md, docs/proposal,
-  evaluation-corpus, references, reports/pipeline-and-outline, the data/raw docs and the Step 0
+  evaluation-corpus, references, reports/pipeline-and-outline (untracked later), the data/raw docs and the Step 0
   docs brought to the code. No em dash in any master document.
 - `archive/`: the private-papers scripts moved; the 150 reference PDFs untracked and ignored.
 - `project-state.md`: what exists and what is verified. `questions.md`: nine rulings left open,

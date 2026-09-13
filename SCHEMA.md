@@ -1,7 +1,7 @@
 # Schema
 
 The record types below, plus logs. Anything not listed here gets added when the
-data demands it. Storage is SQLite and JSONL in a single folder, no server. Raw
+data demands it. Storage is JSONL packages today, one per document, and will be SQLite in one folder, no server (Step 2, not built). Raw
 files are never edited; document and unit ids are content hashes, entity and
 fact ids are readable and minted per document (2026-09-08); re-ingesting the
 same input is a no-op rather than a duplicate.
@@ -48,8 +48,7 @@ document class; user and assistant are piece kinds.
 
 A document is an entity in its own right: a node whose cells are its unit
 summaries, whose abstract folds from them, with `has_unit` edges in order,
-`produced_by` to its author, and `appears_in` edges from the entities found in
-it. Two documents never merge; the same bytes are the same document by hash,
+and `appears_in` edges from the entities found in it (`produced_by` to its author is planned and not yet written). Two documents never merge; the same bytes are the same document by hash,
 and a revision of a work is linked as the same work, not unioned.
 
 `occurred_at` has exactly one meaning: when the source was produced. A chat
@@ -115,10 +114,12 @@ document, so nothing unsourced can exist in the store.
 
 ## The record side
 
-    fact      fact_id, subject, predicate, object, qualifiers, rank, unit_id,
-              quote, quote_start, quote_end, valid_from,
-              occurred_at, tier, provenance
-    cell      cell_id, node_id, unit_id, text, tier, provenance
+        fact      fact_id, subject, predicate, object, object_is_node, direction,
+              qualifiers, rank, unit_id, quote, quote_start, quote_end,
+              valid_from, occurred_at, tier, author, provenance
+    adjudicated_fact  node_id, predicate, object, qualifiers, from_facts, tier
+    attribute  node_id, attribute, value, from_facts, tier
+    cell      node_id, unit_id, text, tier, provenance
     abstract  node_id, text, tier, updated_at
     contradiction  node_id, note, from_facts, holds, because
 
@@ -166,10 +167,7 @@ exactly the mixed corpus the spring product ingests.
 `rank` covers the case supersession cannot: we were wrong, there is no later
 event, and deleting would break append-only. `deprecated` means present,
 preserved, excluded from reads. `qualifiers` carry role and timing so nobody
-invents a new predicate for "as Chancellor". Predicates come from a small
-controlled list with a table of which subject and object kinds each may join,
-which catches the error a quote cannot: a fabricated relationship carrying a
-perfectly real quote.
+invents a new predicate for "as Chancellor". Predicates are the model's own strings at Step 1, in snake_case, never merged or renamed (ruled 2026-09-06); a controlled list with a table of which subject and object kinds each may join belongs to Step 2 and is not built.
 
 Salience decides a major entity and nothing else does (ruled 2026-09-07).
 It is decided per unit -- major only if the entity would appear in a
@@ -181,8 +179,7 @@ summarise, falls to minor (decision 52, 2026-09-07). A fact lands on the major
 that is its subject, or under the major it points at with the minor's name as
 its value; a fact whose subject is minor in every unit and which points at no
 major is not stored, and the completion record keeps the count (ruled
-2026-09-11; riding to a related major was dropped on 2026-09-07). In a chat the user is a standing major on every user turn
-(2026-09-10), and the global layer will not make a `user` entity.
+2026-09-11; riding to a related major was dropped on 2026-09-07). In a chat the user is a major wherever a kept fact names them (2026-09-10, narrowed 2026-09-12), and the global layer will not make a `user` entity.
 
 Until 2026-09-07 the abstract was the ONLY route -- "an entity named in the
 abstract is major, with unit count and fact count as tie-breakers" -- which made
@@ -202,8 +199,9 @@ nothing is clustered.
 
 ## What the code enforces
 
-1. Raw text is never edited. Ids are content hashes, so a corrected split
-   changes one id instead of every id after it.
+1. Raw text is never edited. Document and unit ids are content hashes, so a
+   corrected split changes one id instead of every id after it; entity and
+   fact ids are readable and minted per document.
 2. Nothing is overwritten. Supersession and merges resolve at read time.
 3. Every fact carries a verbatim quote that must appear in its unit, and the
    offsets where it was found. A fact whose quote does not is dropped and
@@ -218,11 +216,12 @@ nothing is clustered.
    where the file has them, with no gaps and no overlaps, and no single unit
    holds a wildly disproportionate share. Round-trip: every unit's slice of
    the document text is identical to what the splitter cut.
-5. An abstract is a fold over its cells and facts; it is rebuilt whenever
-   the hash of its children changes, and staleness is that hash comparison,
-   never a guess.
-6. A relationship that violates the predicate type table is rejected before
-   it is stored.
+5. An abstract is a fold over its cells and facts. Rebuilding it when its
+   children change is the store's rule (Step 2, not built); the ingestor
+   writes each abstract once per run.
+6. A fact whose quote is not found, whose subject the unit did not list,
+   whose object restates its subject, or which repeats a stored fact is
+   rejected before it is stored, with its category logged.
 7. Model calls, rejections, consults, and costs go to the run log.
 
 Gate 4's proportion clause was added after a real failure: Metamorphoses

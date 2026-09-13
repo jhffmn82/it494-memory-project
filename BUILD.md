@@ -12,8 +12,7 @@ timestamp; for a book or paper the date the work was written, read off the page
 or found by a web search, with the source of the date in the document's
 `flags`), and `label`, may not add fields, and the system may not branch
 on which loader ran. The loader sees the file bytes and nothing else: the format is sniffed from them, never taken from a flag, and no manifest, metadata record, or question set is an input. Structured inputs (a chat session with turns) become pieces with no model call, the role the author, each turn a piece and a unit of its own. Unstructured text is split by one model call per document that numbers the document's lines; the model points at each boundary by line number and copies the line, code verifies the number against the copy and cuts; three more calls sub-split over-long pieces, merge short ones and group the outline into units (`docs/extractor.md`). The three gates verify, and the split plan is stored as the piece table (one row per piece: kind, range, unit, author when the file names a speaker, date) so a re-run is a replay and a fact's voice is a lookup. A unit is a size-bounded run of the document's natural pieces (chapters, sections), cut only at a piece boundary, never across a change of kind or of date. There are no per-work or
-per-corpus rules in the splitter; a document the gates reject is stored as
-one unit and flagged, never dropped. Gold files and
+per-corpus rules in the splitter; a document a shape gate flags keeps the answer with a body region and the fewest flags, and carries the flag; nothing is dropped. Gold files and
 question sets keep whatever shape they shipped in, because each evaluator is
 dataset-specific by definition. Adding a dataset is one fetch or unpack script that lays raw files and their manifest on disk, one evaluator, and a loader only when the sniffed format is new; anything that cannot be expressed that way means the schema is
 missing a field.
@@ -54,19 +53,23 @@ so there is no merged-into chain to resolve and no un-merge problem.
 Within a document, entity pairs are nominated by a shared surface form, a shared
 name word, or a fact saying one is the other, and a judge rules
 same/different/unsure on their dossiers; every verdict and every scored pair is
-logged. The guards in `docs/entity-resolution.md` are binding: a different
-verdict never vetoes a later one reached on more evidence, every decision records
-its evidence and stays revocable, cluster size is capped, and the pairing rate is
-watched, because a spike is a black hole forming. Which resolution signals the
+logged. Every verdict records its evidence in the ledger and stays revocable; a pair ruled
+different is not offered again and two entities of one unit are never paired
+(decisions 44 and 51); no cluster cap or pairing-rate watch is built, and the
+guards in `docs/entity-resolution.md` beyond these are design intent for the
+global layer. Which resolution signals the
 paper ablates is the open item there.
 
-Summaries rebuild only when the hash of their inputs changes, and staleness
+In the store (Step 2, not built), summaries rebuild only when the hash of their inputs changes, and staleness
 markers are stripped before hashing so stamping a summary cannot cascade. A
 rebuild reads the ordered child texts, never raw source, and is bounded to 400
 words; the fold is a summary of the children and stands as written. Supersession
 applies only to a small list of functional predicates, maintained by hand.
 
 ## Exact match, whole items, byte-for-byte replay
+
+This section and the two after it describe the serving side, which is not built;
+`docs/execution-plan.md` says when.
 
 Alias lookup is exact match, then case-folded match; fuzzy matching stays
 out of the query path. Context is

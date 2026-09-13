@@ -2,13 +2,18 @@
 
 Verdict first, no silver linings. Companion to `project-state.md` (what exists and what is
 verified) and `docs/execution-plan.md` (what to do about it). Every claim below names its
-source; where the source is a chat, it says so.
+source; where the source is a chat, it says so. Revised the same night after an adversarial
+review (`attack-assessment.md`, `attack-repo.md`); the revisions are marked.
 
 ## 1. Verdict
 
-The project is a sound resource-and-experience paper today and an unproven research paper. The
-work that exists is rigorous in a way most student projects are not: every boundary, quote and
-date is code-verified, every run has a receipt, every ruling has a date. But the goal stated in
+The project is a publishable dataset-and-method resource paper today, at the size it really
+has, and an unproven research paper. The resource claim rests on the 189 read documents'
+verified contract and the dataset's shape, not on its row count: 23,882 of the 24,071 documents
+are a deterministic, no-model unpack of an MIT benchmark, and the read documents carry 103
+flags, 50 dropped breaks and four known-wrong dates (revised after review). The work that
+exists is rigorous in a way most student projects are not: every boundary, quote and date is
+code-verified, every run has a receipt, every ruling has a date. But the goal stated in
 August was a harness that ingests, organizes, retrieves, injects and maintains, measured against
 a published number, and after four weeks the harness ingests. It does not organize, retrieve,
 inject or maintain, and no number exists. The proposal filed with the advisor commits five
@@ -93,7 +98,13 @@ measurement worth owning" (co-occurrence as a resolution signal) has moved: the 
 merges across documents, so the signal only nominates pairs inside a document, and the 09-08
 review's fix (restate it as attachment accuracy at the up-edge) requires the up-edge, which does
 not exist. As the proposal stands, the ablation would measure a signal at a place the paper's
-story does not turn on. Either restate it (the plan does) or drop it.
+story does not turn on. The plan cuts it and says why; what replaces it is an arm with the
+parent join switched off, which measures what the tree buys instead of asserting it. One more
+question the review raised and this audit had not: what a positive result would be worth.
+"Retrieval over model-written facts approaches full context at a fraction of the tokens" is
+what every retrieval baseline in the LongMemEval and Zep papers already shows; the design's
+distinctive benefits (insertion, deletion, provenance, re-pointing) are exercised by no
+benchmark in the slate. The paper must measure at least one of them or claim it as a position.
 
 ### 4.3 Evaluation validity
 
@@ -118,6 +129,16 @@ story does not turn on. Either restate it (the plan does) or drop it.
 - **The presence check is not evaluation.** "All 14 answers are stored" says the facts exist
   somewhere in the packages. A reviewer will ask whether retrieval finds them and the model
   answers with them. Do not present presence as accuracy.
+- **The reader model** (added after review). Every arm of a benchmark must answer with one
+  model, and parity with a published number needs that number's model; the pipeline's Luna and
+  Terra are neither gpt-4o-mini nor gpt-4o. The benchmark's own evaluator, as published, is the
+  scorer; a custom judge with thirty labels would be a second experiment, not a control.
+- **The development set** (added after review). The 14 questions that tuned Step 1 on 09-12
+  are excluded from every reported number, and a history is scored only when ingested whole;
+  13 of the 14 had only their answer sessions in the package set, which is no test of retrieval.
+- **Contamination on the spine** (added after review). LongMemEval has been public since 2024,
+  inside the training window of every model here; arm-versus-arm survives, the comparison to
+  Zep's 2025 run does not, and no chat-side probe like the deerstalker exists.
 - **Gold.** LitBank is dead (96 of 100 documents are two chunks); BookCoref was proposed on 09-08
   and never ruled; the Oz alias set was due in week one and is unwritten. Without one of them,
   resolution and attachment have no gold and the paper reports instruments only.
@@ -130,8 +151,12 @@ anti-goal is right: do not try to beat Zep; the case is cost, provenance and sup
 
 ### 4.5 Reproducibility
 
-Strong where it matters: public raw dataset with hashes, public split dataset with its contract,
-public notebooks, receipts with every call's cost, the offline battery. Two gaps: the model is
+Strong on the artifacts: public raw dataset with hashes, public split dataset with its contract,
+public notebooks, receipts with every call's cost. Weakened tonight (revised after review): the
+offline battery, the export verifier and the answer check left the tracked tree under the
+ruling that working tooling stays on the author's machine, so "94 of 94" and "0 quotes off" are
+not checkable by a reader; ruling 8 of the plan asks for a tracked `tests/` holding those three
+and nothing else. Two more gaps: the model is
 not deterministic and no seed or version pin exists beyond the model name, so "a rerun will
 differ" must be stated beside every number (it is, in LIMITS.md); and the DOI is not minted.
 
@@ -144,7 +169,10 @@ end to end" is a sentence a reviewer or a committee could hold against you if th
 later evident, and the docx's own footer already says "drafted with AI assistance; every design
 decision, citation and number reviewed and answered for by the author." Say that, exactly, in
 the paper and the proposal; the venues' disclosure policies expect it, and it is true.
-`docs/proposal.md` now says it.
+`docs/proposal.md` and README now say it. Whether it satisfies the course is the instructor's
+call, and it is asked before the addendum goes (plan, section 6). The same disclosure covers
+the batteries that check the code, the documentation, the retroactive logs, the related-work
+prose, this audit and the plan: all drafted with AI assistance under the author's rulings.
 
 ### 4.7 Licensing and ethics
 
@@ -163,7 +191,10 @@ may differ. Find out this week; it changes the November calendar if a report or 
 
 ## 5. Feasibility
 
-**Hours.** The plan assumes 8 a week, unverified against a real week. From September 14: two
+**Hours** (revised after review). The plan assumes 8 a week. The repository's own record says
+otherwise: commits on 17 of 22 days from August 23 to September 13, 55 commits on September 6,
+Kaggle launches after midnight, and every notebook run by hand. The real pace is several times
+8 a week; the plan prices at 8 and re-prices after week 1's real hours. At 8 a week: From September 14: two
 open weeks to September 27 (16 hours), the exam block September 28 to October 18 (call it 0 to 8
 hours, writing only), four open weeks October 19 to November 15 (32 hours). About 48 to 56 hours
 in all, of which the paper itself takes 10 to 15. So 33 to 46 hours of build remain against a
@@ -183,7 +214,11 @@ is under $300.
 
 **Kaggle time.** The constraint nobody priced. Step 1 over every chat is about 48 hours of kernel
 time at 16 sessions at a time; a Kaggle CPU session caps at 12 hours, so that is four or five
-sessions with the attach-previous-output resume. The exam block is the place to run them, since
+sessions with the attach-previous-output resume, each a manual launch. Two things the code does
+today make it worse (added after review): block 12 stops at its $15 budget, about 3,300 sessions,
+and the packages are two files per document, 48,000 files for all chats, when 25,000 output
+files already made one notebook impossible to download. Both are fixed before any scaled run
+(plan 2e). The exam block is the place to run them, since
 they need no build hours. A 50-history subset (about 2,400 sessions, $11, 5 hours) is the
 fallback and is enough for a number with a variance band.
 

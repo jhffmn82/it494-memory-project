@@ -27,7 +27,7 @@ machine), so a script an entry names may no longer be in its folder.
   Inventory: [inventory.md](2026-09-04/inventory.md), every source audited, what the brief
   had wrong or missing, the twelve rulings.
   Brief: [step0-brief.md](2026-09-04/step0-brief.md), the extractor chat's opening message.
-  Code: [threadatlas_blocks_3_to_9.py](2026-09-04/threadatlas_blocks_3_to_9.py), candidate-index
+  Code: `threadatlas_blocks_3_to_9.py` (untracked since 09-13), candidate-index
   selection, gates, one unit rule, piece-table export; proposed, not yet applied.
 - [2026-09-05](2026-09-05/README.md): the extractor's wrong turn found (quote matching,
   chunking) and the rebuild under the day's rulings: the model decides every boundary over
@@ -35,7 +35,7 @@ machine), so a script an entry names may no longer be in its folder.
   by the model, no piece dates, no inferred dates; the old design's first full run analysed;
   a 63-agent review and the fix batch; Kaggle import, CLI, and secret notes; open items.
   Review: [review.md](2026-09-05/review.md), the confirmed findings consolidated and the
-  measured cost of the run. Docs: [docs-rulings-2026-09-05.patch](2026-09-05/docs-rulings-2026-09-05.patch),
+  measured cost of the run. Docs: `docs-rulings-2026-09-05.patch` (untracked since 09-13),
   the SCHEMA.md and BUILD.md sentences drafted for correction. The old run's log and records
   as `old-design-run.*`; the offline checks as `test_review.py`, `test_verify.py` and `test_run1.py`, and
   `py_to_ipynb.py`, which builds the notebook from the script and checks the round trip.

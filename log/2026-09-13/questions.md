@@ -95,6 +95,25 @@ decision record, and the two run-log Python copies). The logs are snapshots and 
 touched. Recommendation: leave them; the rule applies to master documents and published
 artifacts.
 
+## 10. A root LICENSE (from the adversarial review)
+
+The repository has no LICENSE file; PROVENANCE.md licenses the Kaggle dataset only, so the
+public code and documents carry no grant. Recommendation: MIT, matching the dataset's packaging
+license, as a root `LICENSE` naming you.
+
+## 11. The NarrativeQA files
+
+The ruling of 09-04 made NarrativeQA 11 works and 319 questions (Chinese out), and every master
+document says so, but the tracked `data/benchmarks/narrativeqa/*.csv` still hold 12 works and
+345 questions and `scripts/fetch_benchmarks.py` says 345. Recommendation: filter the two CSVs
+to the 11 works and fix the script's comment; NarrativeQA is cut from the fall anyway.
+
+## 12. Which verification scripts are public
+
+Ruling 8 of `docs/execution-plan.md`: the battery, the export verifier and the answer check are
+what a reader needs to check "94 of 94" and "0 quotes off". Recommendation: a tracked `tests/`
+with those three files only.
+
 ## 9. Open items no ruling closed (from the logs, for the global thread)
 
 - The R4 read rule's two PROPOSED sentences (09-07 worklist) never entered SCHEMA.md.

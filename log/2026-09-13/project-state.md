@@ -57,7 +57,11 @@ the mutation tool live under `log/2026-09-08/`.
 
 ## What is verified, and what is only claimed
 
-Verified means a script checked it on every row and its output is on disk.
+Verified means a script checked it on every row and its output is on disk. Note added the same
+evening: the scripts named below (`verify_18.py`, `check_flex_run.py`, the battery) left the
+tracked tree under the ruling that working tooling stays on the author's machine, so a reader
+cannot rerun them; ruling 8 of `docs/execution-plan.md` asks whether they return as a tracked
+`tests/` folder.
 
 - Verified in Step 0 (`verify_18.py`, the export's own checks): pieces and units tile every
   document; `unit_id` is unique and recomputes from the text; no unit mixes kinds or dates; every
@@ -193,7 +197,8 @@ spends its first hour.
   code (the 09-10 "not the one-reading shortcut").
 - Master documents brought to the code: SCHEMA.md and BUILD.md (PROPOSED), docs/extractor.md and
   docs/ingestor.md (rewritten), docs/entity-resolution.md, README.md, RESEARCH.md, docs/proposal,
-  evaluation-corpus, references, reports/pipeline-and-outline, the data/raw docs, the Step 0 docs.
+  evaluation-corpus, references, reports/pipeline-and-outline (untracked later that evening), the
+  data/raw docs, the Step 0 docs.
   No em dash remains in any of them; no copyrighted modern fiction is named in any public file.
 - `archive/` holds the private-papers scripts; the 150 reference PDFs are untracked.
 - `questions.md` beside this file lists the nine rulings left open.

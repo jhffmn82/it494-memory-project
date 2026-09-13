@@ -290,7 +290,7 @@ traversal, deterministic and cheap, but it is a traversal.
 
 **Duplicate-minting rate stops being a metric this system can compete on**, because it is not
 minting duplicates, it is declining to decide. The honest replacement is *attachment accuracy*:
-how often the up-edge puts a child under the right parent, scored against LitBank's gold
+how often the up-edge puts a child under the right parent, scored against a hand-labeled alias set or BookCoref's gold (LitBank was rejected: 96 of its 100 documents are two chunks long)
 coreference. That is a cleaner question than "did the merge lose something" and it is measurable
 without a judge model.
 
@@ -337,7 +337,7 @@ consequences rather than separate rules. Numbering is from
   Decide deliberately rather than inheriting it.
 
 - **61.** A node records whether its document ever named it, so the both-named rule can be applied
-  across documents rather than guessed from aliases. That rule is now what draws the up-edge.
+  across documents rather than guessed from aliases. That record was cut the same night (dcd11c0); what draws the up-edge is still open, and the first cut in `docs/execution-plan.md` is case-folded name and kind.
 
 ### Not yet claimed as novel
 

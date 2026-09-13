@@ -220,7 +220,7 @@ reachable tunnel. Updates snapshot per layer and roll back rather than merge.
 
 ### PROPOSED 2026-09-08: the model tiers are the user's own, behind the seam
 
-Principle: the two model interfaces (`generate`, `embed`) exist so the pipeline
+Principle: the two model interfaces (`generate`, and `embed` once retrieval is built) exist so the pipeline
 binds to whatever the person already runs, never to one vendor. Assistant note,
 PROPOSED until Justin rules.
 
