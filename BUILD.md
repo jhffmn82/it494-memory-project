@@ -7,9 +7,11 @@ The records themselves are defined in SCHEMA.md.
 Every dataset enters through a loader that emits documents and units and
 nothing else, and is scored by an evaluator that reads the finished store and
 computes one metric. A loader must fill `author` (quote-backed from the file bytes, or flagged unknown) and `source_class` (from the sniffed format), may fill
-`occurred_at` on the document, `occurred_at` on units when
-the file carries times, and `label`, may not add fields, and the system may not branch
-on which loader ran. The loader sees the file bytes and nothing else: the format is sniffed from them, never taken from a flag, and no manifest, metadata record, or question set is an input. Structured inputs (a chat session with turns) become pieces with no model call, the role the author. Unstructured text is split by one model call per document that numbers the document's lines; the model points at each boundary by line number and copies the line, code verifies the number against the copy and cuts (`docs/extractor.md`). The three gates verify, and the split plan is stored as the piece table (one row per piece: kind, range, unit, author when the file names a speaker, time when it carries one) so a re-run is a replay and a fact's voice is a lookup. A unit is a size-bounded run of the document's natural pieces (chapters, turns, sections), cut only at a piece boundary, never a turn alone, never across a day change when the file carries times, with a short tail merged into the unit before it. There are no per-work or
+`occurred_at` on the document and on every unit and piece (a chat turn's
+timestamp; for a book or paper the date the work was written, read off the page
+or found by a web search, with the source of the date in the document's
+`flags`), and `label`, may not add fields, and the system may not branch
+on which loader ran. The loader sees the file bytes and nothing else: the format is sniffed from them, never taken from a flag, and no manifest, metadata record, or question set is an input. Structured inputs (a chat session with turns) become pieces with no model call, the role the author, each turn a piece and a unit of its own. Unstructured text is split by one model call per document that numbers the document's lines; the model points at each boundary by line number and copies the line, code verifies the number against the copy and cuts; three more calls sub-split over-long pieces, merge short ones and group the outline into units (`docs/extractor.md`). The three gates verify, and the split plan is stored as the piece table (one row per piece: kind, range, unit, author when the file names a speaker, date) so a re-run is a replay and a fact's voice is a lookup. A unit is a size-bounded run of the document's natural pieces (chapters, sections), cut only at a piece boundary, never across a change of kind or of date. There are no per-work or
 per-corpus rules in the splitter; a document the gates reject is stored as
 one unit and flagged, never dropped. Gold files and
 question sets keep whatever shape they shipped in, because each evaluator is
@@ -22,9 +24,10 @@ differs from chunk 20, which is what supersession is for.
 
 ## Two interfaces, every failure measured
 
-Every model touch goes through two interfaces, embed(texts) and
-generate(prompt, schema), and every call records its model id, tokens, and
-latency. Schema-invalid output gets one retry with the validation error
+Every model touch in the ingestor goes through one interface,
+generate(prompt, schema), and every call records its model id, tier, tokens,
+latency and cost; embed(texts) belongs to the serving side and is not built
+(the ingestor's embedding path was removed on 2026-09-07). Schema-invalid output gets one retry with the validation error
 appended, then a logged rejection. Semantic failure is different: a quote that
 is not in its unit or an alias pointing at an unknown entity is rejected with
 no retry, because that is bad data, not bad formatting, and the two get
@@ -33,8 +36,10 @@ the unit ordinal behind every fact date and the id lists behind every merge are
 set by code. On local tiers, use grammar-constrained decoding so malformed
 output is impossible rather than counted.
 
-Cross-unit coreference gets the previous unit's summary as context. A pronoun
-that still does not resolve stays recorded as unresolved.
+Each unit is read on its own; nothing from another unit is seen, and unit-local
+entities become document entities in one reconciliation at the end of the
+document (decisions 31 and 33, 2026-09-07). A chat session is the exception
+and is read whole, in one call, its facts tied to their turns (2026-09-12).
 A stage that completes with zero yield and zero rejections writes an explicit
 empty completion record, so a resumed run can tell done-but-empty from failed.
 
@@ -90,8 +95,7 @@ and a wider vector buys nothing, which is why retrieval is benchmarked on brute
 force rather than an ANN index (the ANN option sits behind the same port call,
 so the recall confound stays out of the measurement). The sidecar carries a
 header (model, dimension, built_at); a mismatch on load rebuilds rather than
-serves stale vectors. The ingestor stores no vector; only the dossier text it
-would embed.
+serves stale vectors. The ingestor stores no vector.
 
 ## The stop comes before the run
 
