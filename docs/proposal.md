@@ -115,10 +115,7 @@ my rulings and checked by an offline test battery; the model is the only black
 box. Each benchmark is scored with its own published evaluator, on one reader
 model for every arm.
 
-Deferred to spring, with reasons recorded: NarrativeQA; the assembled wiki
-and its fabrication probe; the narrative-cell ablation; the resolution
-ablation, whose signal now acts only inside a document; and the three-tier
-model-sensitivity pilot.
+Also this fall, after the numbers: wiki pages over document clusters, rendered from the store, an afternoon's work that makes the store visible. Deferred to spring, with reasons recorded: NarrativeQA; the assembled-versus-generated fabrication probe; the narrative-cell ablation; the resolution ablation, whose signal now acts only inside a document; the three-tier model-sensitivity pilot; and maintenance, deployment and a living stream of data.
 
 ## The calendar
 

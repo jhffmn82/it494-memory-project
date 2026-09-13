@@ -265,3 +265,5 @@ The academic risks that remain are the ones in section 4: one reader model and t
 own evaluator (rulings 2 and 3 of the plan), the tuning questions excluded, no supersession
 claim without a mechanism, the ASKS comparison and the tree search before any prose, the
 authorship sentence everywhere, and the course's own deliverables, still unasked.
+
+On point 2, Justin ruled the fall scope: ingest, the global layer, storage, retrieval, the test harness, test and assessment, and wiki pages over document clusters (an afternoon after the numbers); then publish. Maintenance, deployment and a living stream of data are spring, and the proposal now says so.

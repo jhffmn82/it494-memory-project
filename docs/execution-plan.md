@@ -33,8 +33,7 @@ on those packages to the point it is ready for testing; the tuning happens first
 set, and the kernel time of the full run is writing time. Testing begins by the end of September so October is refinement and dataset building. Added the same night: **a first draft of the paper is due in mid-October** (tentative), so the results-independent sections are written in the exam block while the pipeline is tuned and the batches run, and the mid-October draft carries whatever numbers exist by then, each with its denominator. Both benchmarks stay. Which is scored first is a
 sequencing choice, not a slate choice: GraphRAG-Bench needs no global layer and has its own
 scorer, so it can be scored the week the query path works; LongMemEval scores as its batches
-land. Cut from the fall: NarrativeQA, the wiki, the cells ablation, the resolution ablation (its
-signal nominates pairs inside a document; the up-edge it would have measured does not exist).
+land. Ruled on the audit's point 2: the fall scope is ingest, the global layer, storage, retrieval, the test harness, and test and assessment, plus wiki pages over document clusters (an afternoon's work, after the numbers, rendered from the store the way `render_package.py` renders a package); then publish. Maintenance, deployment and a living stream of data are spring. Cut from the fall: NarrativeQA, the cells ablation, the resolution ablation (its signal nominates pairs inside a document; the up-edge it would have measured does not exist).
 Reported as instruments, not results: rejection and quote-gate rates, cost per stage and tier,
 duplicate parents per history from the candidate log.
 
@@ -172,7 +171,7 @@ end of September) assumes the measured pace, and the gates below say by Sep 20 w
 | 2 | Sep 21 to 27 | 2c (the query path) to the first answered question on a novel and on the history; 2d (the harness) on the 14 known questions and one novel, with the parity check; 2e (the Kaggle output shape and budget) | nothing | **Sep 27, the design lock**: the harness runs the tests end to end through store, parents, vectors and query on both corpora; testing can start, and the full data may run |
 | exams | Sep 28 to Oct 18 | first, tuning of the whole pipeline on the test packages until it is ready for testing (the harness green, the query path's misses classified and fixed); then, and only then, Kaggle in batches, unattended: the 20 novels, then the chat histories | the ASKS comparison and the tree search first (2 hours of reading); then the full first draft, written while the batches run: introduction, related work, method (the two stages, the tree, the store, the query path), dataset, contamination, the instruments, and the results that exist by then | **Oct 11**: results-independent sections drafted. **Oct 15: the first draft**, with whatever numbers exist, each with its denominator. **Oct 18**: pipeline tuned; the packages on disk; the GraphRAG-Bench arms scored on all 20 novels |
 | 3 | Oct 19 to 25 | 2d LongMemEval over every history ingested; 2f the bands | tables as they land | **Oct 25**: both numbers exist, each with its denominator |
-| 4 | Oct 26 to 31 | 2g; the parent-off arm; what the batches showed folded into the dataset | results | **Oct 31: build stop** |
+| 4 | Oct 26 to 31 | 2g; the parent-off arm; what the batches showed folded into the dataset; the wiki pages over document clusters (one afternoon) | results | **Oct 31: build stop** |
 | 5 | Nov 1 to 8 | none | the second draft, with the October numbers, to Dr. Fang by **Nov 3** | draft sent |
 | 6 | Nov 9 to 15 | none | revise; DOI by Nov 10; freeze Nov 15 | **Nov 16**: arXiv cs.CL |
 

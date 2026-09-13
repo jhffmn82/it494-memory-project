@@ -27,8 +27,7 @@ myth for cross-source disagreement and free entity-resolution labels.
 
 ## The visible artifact
 
-From the ingested corpora we will assemble a wiki (spring; the fall ships the
-store, the query path and the numbers). Pages are composed mechanically
+From the ingested corpora we will assemble a wiki: this fall, pages over document clusters rendered from the store; the full assembled-versus-generated pair in spring. Pages are composed mechanically
 from the store: the infobox from fact rows, the lead from the entity summary,
 the biography from narrative cells, every claim traceable to a verbatim quote.
 A second version is then written by a strong model doing RAG over the same
@@ -46,8 +45,7 @@ up, we caught the model's weights leaking into the record.
 | GraphRAG-Bench, LongMemEval, each with its own published evaluator | the store, the embedding sidecar, the query path, the harness | full-context and flat-retrieval arms; Zep's LongMemEval numbers, parity arm first |
 | hierarchical summaries (GraphRAG, RAPTOR), dated facts (Zep), per-character summaries (EntSUM) | narrative cells and summary folding, for books and papers | the instruments: quote-gate and rejection rates, cost per stage and tier, duplicate parents |
 
-Deferred to spring: NarrativeQA, the assembled wiki and its fabrication probe, the cells and
-resolution ablations, the three-tier model-sensitivity pilot.
+Also in the fall, after the numbers: wiki pages over document clusters, rendered from the store (an afternoon). Deferred to spring: NarrativeQA, the cells and resolution ablations, the three-tier model-sensitivity pilot, maintenance (re-ingest, refold, delete), deployment and a living stream of data.
 
 The schema is in `SCHEMA.md`, the pipeline rules in `BUILD.md`, and the claim,
 prior art, and measurement plan in `RESEARCH.md`.
