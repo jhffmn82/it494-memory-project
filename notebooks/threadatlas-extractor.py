@@ -31,7 +31,7 @@
 # | sniffed as | how it is read |
 # |---|---|
 # | PDF | the text layer, pages joined by one newline (PyMuPDF, the one dependency) |
-# | chat JSON | rendered `role: content` per turn under a session header, turn spans kept |
+# | chat JSON | one block per turn: a `SESSION <id> TURN <n> <date>` line, then `role: content`; turn spans kept |
 # | plain text | the bytes decoded as UTF-8, unchanged |
 #
 # ## What goes out
@@ -52,14 +52,15 @@
 # | `text` | the decoded string, whole, for every document |
 # | `sha256`, `ingested_at`, `loader`, `flags` | provenance, and what the gates could not verify |
 #
-# `units.jsonl`, one row per unit, the size-bounded runs the pieces were grouped into:
+# `units.jsonl`, one row per unit: for a document that was read, the size-bounded runs its pieces
+# were grouped into; for a chat, one turn:
 #
 # | field | meaning |
 # |---|---|
 # | `unit_id`, `doc_id`, `position` | its id, its document, its place in reading order |
-# | `label` | a human label: a chapter title, or a range of turns |
+# | `label` | a human label: a chapter title, or for a chat the line that opens the turn, `SESSION <id> TURN <n> <date>` |
 # | `start`, `end` | character offsets into the document text |
-# | `occurred_at` | when it was said, when the file carries times |
+# | `occurred_at` | the document's date for a document that was read; for a chat, the session's date when it has exactly one, else `null` |
 #
 # `pieces.jsonl`, one row per natural piece (a chapter, a section, a turn) inside a unit:
 #
@@ -68,7 +69,7 @@
 # | `doc_id`, `unit_id`, `position`, `start`, `end` | where it is |
 # | `kind` | six regions of a written document (`front_matter`, `body`, `notes`, `references`, `appendix`, `license`) or two turns of a conversation (`user`, `assistant`) |
 # | `author` | the speaker of a chat turn, else `null` |
-# | `occurred_at` | the time of a turn, else `null` |
+# | `occurred_at` | a chat turn's time, its session's date when the session has exactly one; else `null` |
 #
 # `receipt.json`: the run's own counts and cost, written by the run.
 #
@@ -114,9 +115,9 @@
 # extract(chat):
 #     no call. The session already states its own boundaries.
 #     pieces      the turns; the role is the author
-#     units       runs of turns under CAP_WORDS, never a lone turn, never spanning a change of
-#                 day, a tail under TAIL_FLOOR merged back into the unit before it
-#     header      the session header is front matter and a unit of its own
+#     units       one per turn, named by the line that opens it: SESSION <id> TURN <n> <date>
+#     time        the session's date when it has one; none when the benchmark placed it on
+#                 several, since each of those dates belongs to a question
 # ```
 #
 # 19,206 of the 19,395 documents cost nothing to split.
@@ -126,10 +127,11 @@
 # Attach the raw dataset (`jhffmn/it494-narrative-corpora-raw`), which carries every corpus
 # including the papers. Attach `OPENAI_API_KEY` under Add-ons > Secrets and turn Internet on.
 # Run block 3 to see the connection work, then the blocks in order. Finished documents are
-# appended to `splits.jsonl` and skipped on a restart, so to continue a stopped run, make a
-# dataset from that output and attach it. `REDO_ALL` re-asks clean records an older loader
-# wrote; a hard spending stop halts the run, and running out of API credit is fatal by design,
-# so a dead key cannot walk the corpus writing empty flagged records.
+# appended to `/kaggle/working/splits.jsonl` and skipped when block 8 is run again in the same
+# session. Nothing copies an earlier run's file in, so a new session asks every document again.
+# `REDO_ALL` re-asks clean records an older loader wrote; a hard spending stop halts the run, and
+# running out of API credit is fatal by design, so a dead key cannot walk the corpus writing
+# empty flagged records.
 
 
 # %%
@@ -189,8 +191,8 @@ for name in ("oz", "holmes", "greek", "graphrag-bench", "longmemeval", "kg-rag-c
 #   1. file_kind(data): look at the first bytes and name the container: pdf, json, or text.
 #   2. to_text(path): turn the container into one string, the document text.
 #        pdf  -> the text layer, page by page (PyMuPDF, the one dependency)
-#        json -> if it holds chat turns, one "role: content" block per turn under a header
-#                of the session id and dates. We also keep where each turn starts and ends
+#        json -> if it holds chat turns, one block per turn: a "SESSION <id> TURN <n> <date>"
+#                line, then "role: content". We also keep where each turn starts and ends
 #                in that string, so a chat can be cut into units without a model.
 #        text -> the bytes decoded as UTF-8, unchanged
 import json
@@ -233,16 +235,19 @@ def chat_turns(obj):
 
 
 def chat_text(obj, turns):
-    """Header lines, a blank line, then 'role: content' per turn. Returns the text and the
-    (start, end) of each turn inside it."""
-    header = [f"session_id: {obj['session_id']}"] if "session_id" in obj else []
-    header += [f"date: {d}" for d in obj.get("dates", [])]
-    text = "\n".join(header) + "\n\n"
-    spans = []
-    for turn in turns:
+    """One block per turn: a line naming it, SESSION <id> TURN <n> <date>, then 'role: content'
+    and a blank line. The date is the session's own when it has exactly one; a session placed on
+    several dates names none. Returns the text and (start, end, role) for each turn, which tile
+    the text from 0."""
+    sid = obj.get("session_id") if isinstance(obj, dict) else None
+    dates = obj.get("dates", []) if isinstance(obj, dict) else []
+    stamp = f" {dates[0]}" if len(dates) == 1 else ""
+    text, spans = "", []
+    for i, turn in enumerate(turns):
         start = len(text)
-        text += f"{turn['role']}: {turn['content']}\n\n"
-        spans.append((start, len(text)))
+        name = f"SESSION {sid} TURN {i + 1}" if sid is not None else f"TURN {i + 1}"
+        text += f"{name}{stamp}\n{turn['role']}: {turn['content']}\n\n"
+        spans.append((start, len(text), turn["role"]))
     return text, spans
 
 
@@ -472,7 +477,6 @@ def ask(text, addrs, model=MODEL):
 KINDS = ("front_matter", "body", "notes", "references", "appendix", "license")
 WINDOW = 5          # addresses either side searched when an index and its text disagree
 CAP_WORDS = 4000    # a unit stays under this; block 7 splits and groups against it
-TAIL_FLOOR = CAP_WORDS // 3   # a last run of turns under this joins the unit before it
 
 
 def norm(s):
@@ -768,13 +772,11 @@ def split(doc):
 #             dissolved into its pieces and flagged; a grouping that does not cover the
 #             outline is dropped for one unit per piece and flagged.
 # A text or PDF unit carries the document's date. Chat pieces are the turns, built from the
-# turn spans block 2 kept, with the role as author and the session date as time when there is
-# one, after a front_matter piece for the header. A chat unit is a run of at least two turns
-# under the cap, never across a day change, the short tail merged into the unit before it, with
-# no model call; the header opens the first turn's unit. Voice does not depend on where a unit
-# ends: every turn is its own piece and carries its own author. A session the benchmark reused
-# carries several dates and takes the one it started on, on the document, its units and its
-# turns alike.
+# turn spans block 2 kept, with the role as author. A chat unit is one turn, with no model
+# call, and its label is the line that opens it: SESSION <id> TURN <n> <date>. Its time is the
+# session's date when the session has one. A session the benchmark placed on several dates
+# keeps none, on the document, its units and its turns alike, because each of those dates
+# belongs to a question and the evaluation supplies it.
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 
@@ -1005,45 +1007,22 @@ def parse_time(value):
 
 
 def chat_pieces(doc):
-    """The header as front matter, then one piece per turn. The role is read back from the
-    'role: ' prefix block 2 wrote. A session reused by the benchmark carries several dates;
-    the document, its units and its turns take the one it started on."""
+    """One piece per turn, labelled by the line that opens it, with the role block 2 recorded as
+    author. The time is the session's date when it has exactly one. A session the benchmark
+    placed on several dates keeps none: each of those dates belongs to a question, and the
+    evaluation supplies it per question."""
+    dates = sorted(set(t for t in (parse_time(d) for d in doc["dates"]) if t))
+    when = dates[0] if len(dates) == 1 else None
     text = doc["text"]
-    dates = sorted(t for t in (parse_time(d) for d in doc["dates"]) if t)
-    when = dates[0] if dates else None
-    pieces = [piece(0, doc["turns"][0][0], "front matter", "front_matter", occurred_at=when)]   # the header block 2 wrote
-    for i, (s, e) in enumerate(doc["turns"]):
-        role = text[s:e].split(":", 1)[0].strip()
-        pieces.append(piece(s, e, f"turn {i + 1}", kind=role, author=role, occurred_at=when))
-    flags = [f"dates: {len(dates)} session dates, {when[:10]} kept"] if len(dates) > 1 else []
+    pieces = [piece(s, e, text[s:text.index("\n", s)], kind=role, author=role, occurred_at=when)
+              for s, e, role in doc["turns"]]
+    flags = [f"dates: {len(dates)} session dates, none kept"] if len(dates) > 1 else []
     return pieces, flags
 
 
-def day(t):
-    return (t or "")[:10]
-
-
 def chat_runs(pieces, text):
-    """Runs of piece indices: at least two turns each unless a day changes, under the cap where
-    two turns allow it, the short tail merged into the unit before it. Index 0 is the header,
-    which is front matter, and so is a unit of its own: a unit is all of one kind."""
-    runs, run, size = [], [], 0
-    for i, q in enumerate(pieces[1:], start=1):
-        w = words(text, q)
-        turns = len(run)
-        new_day = bool(run) and day(q["occurred_at"]) != day(pieces[run[-1]]["occurred_at"])
-        if run and (new_day or (size + w > CAP_WORDS and turns >= 2)):
-            runs.append(run)
-            run, size = [], 0
-        run.append(i)
-        size += w
-    if run:
-        same_day = runs and day(pieces[run[0]]["occurred_at"]) == day(pieces[runs[-1][-1]]["occurred_at"])
-        if runs and same_day and (size < TAIL_FLOOR or len(run) < 2):   # a short tail, or a lone turn
-            runs[-1].extend(run)
-        else:
-            runs.append(run)
-    return [[0]] + runs
+    """One run per turn: a turn is a unit of its own."""
+    return [[i] for i in range(len(pieces))]
 
 
 def units_from_runs(pieces, runs, text):
@@ -1064,12 +1043,14 @@ def units_from_runs(pieces, runs, text):
 # Block 8: every document in the raw dataset, resumable. Each finished document is appended to
 # splits.jsonl as one record: file (dataset-relative), path, sha256, kind, reply, pieces, units,
 # flags, stats, cost. On a rerun a document is skipped by file name before it is read when its
-# last record was written by this loader AND is clean or carries only advisory flags (metadata,
-# shape), or is a chat (a chat's flags cannot change), or it has been asked in two sessions
-# already; otherwise it is tried again, and the last record per file wins. A record an older
-# loader wrote is always redone, because a code change is exactly what a resume must not keep. Chats need
-# no model call. Texts and PDFs print a full entry; chats print one line per hundred. The spend
-# stop writes the document in flight as a flagged record, so its cost is kept, and ends the loop.
+# last record is settled: clean or carrying only advisory flags (the ADVISORY kinds), or a chat,
+# or asked in two sessions already; otherwise it is tried again, and the last record per file
+# wins. A settled record an older loader wrote is kept for a document the model read, unless
+# REDO_ALL is set; a chat an older loader wrote is always split again, since that costs nothing
+# and a code change is exactly what a resume must not keep. Only /kaggle/working/splits.jsonl is
+# read, so a new Kaggle session starts empty and asks every document again. Chats need no model
+# call. Texts and PDFs print a full entry; chats print one line per hundred. The spend stop
+# writes the document in flight as a flagged record, so its cost is kept, and ends the loop.
 import threading
 
 SPLITS = Path("/kaggle/working/splits.jsonl")
@@ -1078,7 +1059,7 @@ LOG = Path("/kaggle/working/splits.log")
 # this in step with the code: 1.1 and 1.2 both shipped under the 1.0 label, so running the
 # older notebook after a newer one could not tell the work had been done and asked the whole
 # corpus again.
-LOADER = "threadatlas-extractor 1.6"
+LOADER = "threadatlas-extractor 1.7"
 REDO_ALL = False                        # True also re-asks clean records an older loader wrote
 
 
@@ -1158,11 +1139,16 @@ def settled(rec):
     return all(advisory(f) for f in rec["flags"]) or rec.get("kind") == "chat" or rec["tries"] >= 2
 
 
-done = {key for key, rec in latest.items() if settled(rec) and (rec.get("loader") == LOADER or not REDO_ALL)}
-older = sum(1 for key, rec in latest.items() if settled(rec) and rec.get("loader") != LOADER)
+# A chat costs nothing to split, so one an older loader wrote is always split again; a document
+# the model read keeps a settled record an older loader wrote, unless REDO_ALL.
+done = {key for key, rec in latest.items() if settled(rec)
+        and (rec.get("loader") == LOADER or (not REDO_ALL and rec.get("kind") != "chat"))}
+older = sum(1 for key, rec in latest.items() if settled(rec) and rec.get("loader") != LOADER and rec.get("kind") != "chat")
+resplit = sum(1 for key, rec in latest.items() if rec.get("kind") == "chat" and rec.get("loader") != LOADER)
 print(f"{LOADER}: {len(done)} documents already settled"
       + (f", {older} of them written by an older loader and kept (REDO_ALL is False)" if older and not REDO_ALL
-         else f"; REDO_ALL is True, so {older} written by an older loader are asked again" if older else ""))
+         else f"; REDO_ALL is True, so {older} written by an older loader are asked again" if older else "")
+      + (f"; {resplit} chats from an older loader are split again, at no cost" if resplit else ""))
 DOCUMENTS = 6        # documents in flight at once; each may fan out FANOUT sub-splits
 lock = threading.Lock()
 stop = threading.Event()                         # set once the spend stop trips
@@ -1312,9 +1298,9 @@ with ThreadPoolExecutor(max_workers=32) as pool:
                 and rendered(r, "source", "name"):
             author = rendered(r, "source", "name")     # no person named at all: the publication is the voice
             flags.append("author is a publication")
-        if doc["kind"] == "chat":                        # the date it started on, as block 7 gives its units
-            dates = sorted(t for t in (parse_time(d) for d in doc["dates"]) if t)
-            occurred = dates[0] if dates else None
+        if doc["kind"] == "chat":                        # the session's one date, as block 7 gives its units
+            dates = sorted(set(t for t in (parse_time(d) for d in doc["dates"]) if t))
+            occurred = dates[0] if len(dates) == 1 else None
             # `title` is the source's own name for the document, and when the source names it only
             # by an identifier that identifier is the name. No model call is made for a chat, so
             # this is the loader's to set, as author and source_class already are.

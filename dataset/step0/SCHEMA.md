@@ -21,8 +21,8 @@ receipt's `duplicate_files` names the file that was dropped and the one it match
 | `source_class` | string or null | `canonical`, `published`, `record`, `authored` or `tool-output`. |
 | `text` | string | the document as text. **Never null in this release**; every document carries its own. |
 | `ingested_at` | string | when this run read the file, ISO 8601 UTC. |
-| `occurred_at` | string or null | when the document is from, as a year, a year and month, or a full date. Null when the page does not say. |
-| `loader` | string | the extractor version that wrote the row. `threadatlas-extractor 1.6` throughout. |
+| `occurred_at` | string or null | when the document is from, as a year, a year and month, or a full date. Null when the page does not say. For a chat, the session's date when it has exactly one, else null. |
+| `loader` | string | the extractor version that wrote the row. `threadatlas-extractor 1.7` throughout. |
 | `flags` | array of string | what the run could not settle. Empty when nothing. See `LIMITS.md`. |
 
 `source_class` is fixed by kind for two of the three: a chat log is a `record` and a PDF is
@@ -31,28 +31,30 @@ literature.
 
 ## units.jsonl
 
-The split plan. A unit is a run of consecutive pieces, cut only at piece boundaries.
+The split plan. A unit is a run of consecutive pieces, cut only at piece boundaries. A chat unit
+is exactly one turn.
 
 | field | type | meaning |
 |---|---|---|
 | `unit_id` | string | sha256 of the document id, how many identical slices came before it, and the slice. |
 | `doc_id` | string | the document. |
 | `position` | integer | 0-based, dense, in document order. |
-| `label` | string | the heading or opening the model named for this unit. Not unique, not a key. |
+| `label` | string | for a book or paper, the heading or opening the model named for this unit; for a chat, the line that opens the turn, `SESSION <id> TURN <n> <date>`, the date only when the session has exactly one. Not unique, not a key. |
 | `start`, `end` | integer | character range into `documents.text`. |
-| `occurred_at` | string or null | when the unit is from. For a chat, the date the session started on. |
+| `occurred_at` | string or null | when the unit is from: the document's date for a book or paper; for a chat, the session's date when it has exactly one, else null. |
 
 Guarantees, verified on all 19,395 documents in this release:
 
 - Units of one document tile it. Sorted by position, the first starts at 0, the last ends at the
   length of the text, and each start equals the previous end.
 - Every unit's slice is non-empty after stripping whitespace.
-- `unit_id` is unique across the file, and all 42,822 recompute from the document's own text.
+- `unit_id` is unique across the file, and all 204,126 recompute from the document's own text.
 
 ## pieces.jsonl
 
-What each stretch of a document is, and who is speaking there. This is where a fact's voice
-comes from.
+What each stretch of a document is, and, where the file names one, who is speaking there. This
+is where a fact's voice comes from; when a piece names no speaker, the voice is the document's
+`author`.
 
 | field | type | meaning |
 |---|---|---|
@@ -61,19 +63,18 @@ comes from.
 | `position` | integer | 0-based, dense, in document order. |
 | `kind` | string | `front_matter`, `body`, `notes`, `references`, `appendix`, `license`, `user` or `assistant`. |
 | `start`, `end` | integer | character range into `documents.text`. |
-| `author` | string or null | who is speaking here. `user` or `assistant` in a chat, the document's author in a book. |
-| `occurred_at` | string or null | when this piece is from. Every piece of a chat carries the session's start date; the source gives no per-turn time. |
+| `author` | string or null | the speaker, when the file names one: `user` or `assistant` on a chat turn. Null on every piece of a book or paper; the document's `author` stands there. |
+| `occurred_at` | string or null | when this piece is from. A chat turn carries its session's date when the session has exactly one, else null; the source gives no per-turn time. Null on every piece of a book or paper, whose date is on the document and its units. |
 
 Guarantees, verified on all 19,395 documents:
 
 - Pieces of one document tile it, the same way units do.
 - Every piece points at a unit that exists and belongs to the same document.
-- **No unit mixes a region kind with any other kind.** A unit is all body, or all references,
-  or all appendix. It never runs from the end of a chapter into the footnotes.
+- **No unit mixes kinds.** A unit is all body, or all references, or all appendix. It never runs
+  from the end of a chapter into the footnotes.
 
-`user` and `assistant` pieces do share a unit, which is the point: a unit of a conversation is a
-stretch of the conversation, and each turn keeps its own speaker. 19,153 of the 42,822 units
-hold both, and no unit mixes any other pair of kinds.
+In a chat, piece and unit coincide: each turn is one piece and one unit, with one speaker.
+199,641 of the 204,126 units are chat turns.
 
 The eight kinds are two families. Six are regions of a written document. The other two are turns
 of a conversation, and appear only in the LongMemEval sessions.

@@ -2,7 +2,7 @@
 
 The extractor is one Kaggle notebook of nine blocks:
 [ThreadAtlas Extractor](https://www.kaggle.com/code/jhffmn/threadatlas-extractor). This release
-is `threadatlas-extractor 1.6`, one pass over the whole corpus, `gpt-5.6-luna` at low reasoning
+is `threadatlas-extractor 1.7`, one pass over the whole corpus, `gpt-5.6-luna` at low reasoning
 effort, JSON mode. A document that defeats Luna twice is asked once more on `gpt-5.6-terra`,
 which is ten times the price, when it fits in 80,000 tokens. Four of the 189 read documents
 escalated.
@@ -54,15 +54,15 @@ Three more calls, all deciding, none measuring:
 Code then checks that the groups cover the outline in order, dissolves a group over the cap, and
 cuts any group where the kind changes, so a unit is all one kind.
 
-Chats are grouped differently, and deliberately, and with no model call at all: a session
-already states its own boundaries. A session's turns are the pieces, with the role as author.
-Units are runs of turns under the cap, never a lone turn, never spanning a change of day, with a
-short tail merged back into the unit before it. The session header is front matter and is a unit
-of its own.
+Chats are split differently, and with no model call at all: a session already states its own
+boundaries. Each turn is a piece and a unit of its own, with the role as its author. The text
+gives every turn an opening line, `SESSION <id> TURN <n> <date>`, and that line is the unit's
+label. There is no header block.
 
-The day rule is in the code for chat formats that date each turn. LongMemEval is not one: it
-dates a session, not its turns, so on this corpus the rule never fires and every turn of a
-session carries the date the session started on.
+A turn's time is its session's date when the session has exactly one. LongMemEval reuses 3,944
+sessions in the histories of different questions and dates each placement for its question, so
+those sessions have no single date of their own. They carry none, on the document, its units or
+its turns, and are flagged: the date belongs to the question, and an evaluation supplies it.
 
 ## The gates
 
@@ -85,17 +85,17 @@ fails, the row carries a flag saying so rather than a guess.
 
 ## Cost and scale
 
-The run reads 19,395 files and writes 19,395 documents for **$6.64**, a median of $0.0135 a read
-document and $0.394 at the most expensive, a volume of Diodorus Siculus. The 19,206 chat sessions
-cost nothing, because no model is asked about them. Six documents at a time
-run in parallel, and a document's own over-cap pieces sub-split eight at a time inside that.
-Each call is billed to the document that made it, so per-document cost in the run log is real.
+The run reads 19,395 files and writes 19,395 documents for **$6.75**, a median of $0.0133 a read
+document and $0.449 at the most expensive, a volume of Diodorus Siculus. The 19,206 chat sessions
+cost nothing, because no model is asked about them. Six documents at a time run in parallel, and
+a document's own over-cap pieces sub-split eight at a time inside that. Each call is billed to
+the document that made it, so per-document cost in the run log is real.
 
-The run is resumable: finished documents are appended as they complete and skipped on a restart.
-A record written by an older loader version is kept and re-exported unless `REDO_ALL` is set,
-which is the switch that makes a code change propagate; every row in this release was written by
-1.6. Running out of API credit is fatal by design rather than a retry, so a dead key
-cannot walk the corpus writing empty flagged records.
+Finished documents are appended to `splits.jsonl` as they complete and skipped when block 8 runs
+again in the same session. A new Kaggle session starts with an empty working folder and asks
+every document again. Every row in this release was written by 1.7. Running out of API credit is
+fatal by design rather than a retry, so a dead key cannot walk the corpus writing empty flagged
+records.
 
 ## Reproducing it
 
