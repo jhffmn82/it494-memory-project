@@ -19,14 +19,18 @@ Two benchmarks are on the table. What each costs on the path from the 1.8 packag
 | what it tests of the design | retrieval over cells, facts and abstracts of a book; contamination answered (pre-1900) | retrieval over facts and session abstracts of a chat history (chats have no cells); the benchmark is public since 2024 and inside the model's training window |
 | standing with the advisor | the first committed measurement in the filed proposal | a stretch item in the filed proposal, the spine of the last four days' build |
 
-Recommendation: **GraphRAG-Bench is the spine and LongMemEval the second arm**, both through the
-same store and retrieval. GraphRAG-Bench is the cheaper path to a number a reviewer can place
-beside published ones (no global layer, no judge, a scorer that exists), and it is what the
-advisor was told first. LongMemEval follows because its ingest runs unattended and because the
-end state is chats. Cut from the fall: NarrativeQA, the wiki, the cells ablation, the
-resolution ablation (its signal nominates pairs inside a document; the up-edge it would have
-measured does not exist). Reported as instruments, not results: rejection and quote-gate rates,
-cost per stage and tier, duplicate parents per history from the candidate log.
+**Ruled 2026-09-13 (Justin, evening):** the global layer is built regardless of which benchmark
+needs it. The order is the global layer, the store, the embedding sidecar and the query path
+first, because together they lock the design; the moment they exist, chat digestion starts and
+runs in Kaggle batches (about 36 kernel hours for all chats by the Step 1 thread's estimate; the
+other corpora are much smaller and go first), and testing begins by the end of September so
+October is refinement and dataset building. Both benchmarks stay. Which is scored first is a
+sequencing choice, not a slate choice: GraphRAG-Bench needs no global layer and has its own
+scorer, so it can be scored the week the query path works; LongMemEval scores as its batches
+land. Cut from the fall: NarrativeQA, the wiki, the cells ablation, the resolution ablation (its
+signal nominates pairs inside a document; the up-edge it would have measured does not exist).
+Reported as instruments, not results: rejection and quote-gate rates, cost per stage and tier,
+duplicate parents per history from the candidate log.
 
 The three-tier pilot the filed proposal promised (goal 4, model sensitivity as a result) is not
 in this slate; it returns only if the reader-model ruling in section 5 allows a second tier on
@@ -60,10 +64,21 @@ build in between. Each step names its input, output, hours and gate.
   retrieval with the parent join switched off, so what the tree buys is measured rather than
   asserted.
 
+### 2b2. The embedding sidecar (3 to 5 hours)
+
+- Out: `bge-small-en-v1.5` through fastembed (384 dimensions, ONNX, CPU, fetched once), one
+  vector per sentence of every cell and abstract and one per fact quote, in a sidecar keyed by
+  record id, sentence ordinal and model name, with a header (model, dimension, built at);
+  brute-force cosine at this scale; the store never depends on it and a header mismatch
+  rebuilds. `embed(texts)` becomes the second interface BUILD.md names.
+- Gate: the sidecar rebuilt from the store byte for byte twice; the row map verified against
+  ids on load.
+
 ### 2c. Retrieval and context (8 to 10 hours)
 
-- Out: `retrieve(question, graph) -> context`: FTS5 over abstracts, cells and fact quotes, hits
-  expanded through their parent to sibling facts where a parent exists, each item rendered by one
+- Out: `retrieve(question, graph) -> context`: FTS5 and the sentence vectors over abstracts,
+  cells and fact quotes, fused by rank, hits expanded through their parent to sibling facts
+  where a parent exists, each item rendered by one
   deterministic function with its document date, packed greedily whole-item by rank within a
   token budget; `answer(question, context)` on the reader model of section 5; a routing and
   admission log per question. Every dated fact is served; no read-time supersession is built
@@ -116,8 +131,8 @@ Priced explicitly because the first draft priced none of it.
 
 ## 3. Totals and hours
 
-Spine (2a, 2c, 2d GraphRAG-Bench, 2f, 2g, debugging): 30 to 42 hours. LongMemEval on top (2b,
-2d LongMemEval, 2e): 18 to 28 hours. The paper: 10 to 15 hours, of which the results-independent
+The design lock (2a, 2b, 2b2, 2c): 25 to 37 hours, all of it before the end of September under
+the ruling. The two harnesses (2d), 2e, 2f, 2g and debugging: 26 to 38 more. The paper: 10 to 15 hours, of which the results-independent
 skeleton can be written in the exam block.
 
 Hours available at the plan's 8 a week: 16 in weeks 1 and 2, 0 to 8 in the exam block, 32 in
@@ -127,18 +142,18 @@ August 23 to September 13, 55 commits on September 6, Kaggle launches past midni
 real pace is likely several times 8 a week; the plan is re-priced after week 1's real hours and
 not before.
 
-At 8 a week the GraphRAG-Bench spine fits and LongMemEval does not. At the measured pace both
-fit. The gates below decide which world this is.
+At 8 a week the design lock alone takes past September 27. The ruling's target (testing by the
+end of September) assumes the measured pace, and the gates below say by Sep 20 whether it holds.
 
 ## 4. Calendar
 
 | week | dates | build | write | gate |
 |---|---|---|---|---|
-| 1 | Sep 14 to 20 | read the 1.8 run's receipt; 2a on one novel and one history; 2c to the first answered question | the addendum to Dr. Fang, with the slate as a question; the endorsement email if unsent; ask what IT 494 grades | **Sep 20**: one GraphRAG-Bench question and the grocery question answered from a store, or the floor paper is declared |
-| 2 | Sep 21 to 27 | 2d GraphRAG-Bench on one novel with the parity check; 2e | nothing | **Sep 27**: three arms scored on one novel; the Kaggle output shape fixed |
-| exams | Sep 28 to Oct 18 | Kaggle only, unattended: Step 1 over the 20 novels; Step 1 over 50 held-out histories, then more | the skeleton: introduction, related work, method, dataset, contamination; the ASKS comparison and the tree search first (2 hours of reading) | **Oct 18**: skeleton drafted; novel packages on disk |
-| 3 | Oct 19 to 25 | 2f GraphRAG-Bench: all novels, all questions, the band | tables as they land | **Oct 25**: the GraphRAG-Bench number exists |
-| 4 | Oct 26 to 31 | 2b and 2d LongMemEval on the 50-history pilot, if the pace allows; else 2g | results | **Oct 31: build stop** |
+| 1 | Sep 14 to 20 | read the 1.8 run's receipt; 2a (the store) on one novel and one history; 2b (the global layer, first cut) on the history; 2e (the Kaggle output shape and budget) so batches can start | the addendum to Dr. Fang; the endorsement email if unsent; ask what IT 494 grades | **Sep 20**: the store and the first-cut parents exist; the first chat batch and the 20 novels are launched on Kaggle |
+| 2 | Sep 21 to 27 | 2b2 (the embedding sidecar); 2c (the query path) to the first answered question on a novel and on the history; 2d GraphRAG-Bench on one novel with the parity check | nothing | **Sep 27, the design lock**: one question answered end to end through store, parents, vectors and query on both corpora; testing can start |
+| exams | Sep 28 to Oct 18 | Kaggle in batches, unattended: the remaining chat histories (about 36 kernel hours in all); refinement of the query path on what the batches show, in evenings | the skeleton: introduction, related work, method, dataset, contamination; the ASKS comparison and the tree search first (2 hours of reading) | **Oct 18**: skeleton drafted; the chat packages on disk; the GraphRAG-Bench arms scored on all 20 novels |
+| 3 | Oct 19 to 25 | 2d LongMemEval over every history ingested; 2f the bands | tables as they land | **Oct 25**: both numbers exist, each with its denominator |
+| 4 | Oct 26 to 31 | 2g; the parent-off arm; what the batches showed folded into the dataset | results | **Oct 31: build stop** |
 | 5 | Nov 1 to 8 | none | full draft to Dr. Fang by **Nov 5** (the first draft's Nov 3 had no writing hours behind it) | draft sent |
 | 6 | Nov 9 to 15 | none | revise; DOI by Nov 10; freeze Nov 15 | **Nov 16**: arXiv cs.CL |
 
