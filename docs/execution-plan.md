@@ -209,6 +209,11 @@ labelled as such.
   talk changes November.
 - The addendum to Dr. Fang, one page: the corpus as it is, the slate as a question with this
   plan's recommendation, the September 27 milestone slip, the authorship sentence.
+- The venue (added on the audit's goal 9): the paper has to be submitted to a peer-reviewed
+  venue whose deadline and notification fit PhD application timelines, with arXiv on Nov 16
+  as the citable preprint beside it. Which venue is a ruling that needs a deadline table first:
+  resource, demonstration and in-use tracks and the agent-memory and KG workshops with
+  deadlines between November and January. To be checked this week and brought as one question.
 - Zenodo DOI for the Step 0 dataset by Nov 10.
 - Kaggle housekeeping (questions 3 and 4 of `log/2026-09-13/questions.md`).
 

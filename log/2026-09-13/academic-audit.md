@@ -40,6 +40,10 @@ From the August sessions and the advisor record, in your words where they were r
 7. The end state: a backend that bolts onto a desktop AI client, chat logs above all, your own
    assistant as the first user; the wiki as the store made visible. (README, 09-08 record)
 8. Public artifacts only on public-domain or licensed text; the private archive stays private.
+9. Added on 09-13, in his words: "I need a publication for a PhD admittance into a good
+   program." The paper is not an end in itself; a peer-reviewed publication, or a submission
+   under review at a named venue by the time applications are read, is the goal. An arXiv
+   preprint alone does not meet it.
 
 ## 3. The proposal, reviewed
 
