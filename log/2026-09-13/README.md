@@ -62,8 +62,16 @@ Nothing since fa48997 (09-09) had been committed. In order: extractor 1.7 as it 
 
 ## The first Step 1 run on the 1.8 export (started about 18:07)
 
-The notebook of e15623d, on Kaggle, in progress through the evening. Its packages are the global
-merge's input. Result to be recorded by the thread that reads it.
+The notebook of e15623d, on Kaggle, finished 20:38 UTC (block 15's window 20:25 to 20:38; the
+whole notebook about two and a half hours). 81 documents, 1,706 calls, $5.49, 1 schema retry
+recovered, 0 schema rejections. Packages land in per-history folders
+(`packages/<question id>/<session>/`), so the 1.8 path selection worked: 53 sessions under
+gpt4_2ba83207 and the 18 answer sessions under their 13 questions. Quotes: 3,994 exact, 3,008
+normalised, 255 words, 220 unwrapped; rejected 254 duplicate, 91 not found, 70 paraphrase, 56
+self reference, 56 unlisted subject. Cost by stage: adjudicate $2.60, judge $1.40, entity
+abstracts $0.54, facts $0.22, entities $0.16, the 71 session readings $0.25; so a chat session
+is still about half a cent and the ten books and papers are $5.07 of the $5.49. Downloaded to
+`%TEMP%r18`. These packages are the global layer's test input.
 
 ## The cleanup (afternoon and evening, local)
 
