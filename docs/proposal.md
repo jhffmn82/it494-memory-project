@@ -81,7 +81,7 @@ is already taken. That settles what kind of paper this is: here is a working
 system, and here is what each part of it is worth, measured. Novelty is
 conceded in the introduction; rigor is the price.
 
-Three measurements are committed for the fall.
+Four measurements are committed for the fall.
 
 First, question answering on GraphRAG-Bench: 2,010 questions with gold
 answers over twenty pre-1900 novels, where nine systems have published
@@ -115,7 +115,18 @@ my rulings and checked by an offline test battery; the model is the only black
 box. Each benchmark is scored with its own published evaluator, on one reader
 model for every arm.
 
-Also this fall, after the numbers: wiki pages over document clusters, rendered from the store, an afternoon's work that makes the store visible. Deferred to spring, with reasons recorded: NarrativeQA; the assembled-versus-generated fabrication probe; the narrative-cell ablation; the resolution ablation, whose signal now acts only inside a document; the three-tier model-sensitivity pilot; and maintenance, deployment and a living stream of data.
+Also this fall, after the numbers: wiki pages over document clusters, rendered from the store, an afternoon's work that makes the store visible. Fourth, the one question in the design that is genuinely open: whether the relational signal
+still pays when the candidate scorer is an embedding and a language model. Every system I
+compare against attaches or merges entities on name similarity or a model's verdict; mine also
+scores co-occurrence, whether the surrounding cast matches, at the point where a document's
+entity attaches to its cross-document parent. Both scores are logged for every candidate, so
+the attachment is replayed name-only and name plus co-occurrence and scored as attachment
+accuracy against a hand-labeled alias set over the Oz books. The same document-entity graph,
+weighted by shared entities, is what clusters the documents for the wiki pages.
+
+Deferred to spring, with reasons recorded: NarrativeQA; the assembled-versus-generated
+fabrication probe; the narrative-cell ablation; the three-tier model-sensitivity pilot; and
+maintenance, deployment and a living stream of data.
 
 ## The calendar
 
@@ -151,13 +162,15 @@ and keep the committed measurements.
 - The corpus: the Chinese classics are out (licensing), and the OCR and
   translation controls with them; GraphRAG-Bench, the CC-BY papers and
   LongMemEval are in. The private reference papers are not part of the corpus.
-- The measurements: GraphRAG-Bench and LongMemEval are the two committed
-  benchmarks; NarrativeQA, the wiki, the cells ablation and the resolution
-  ablation are deferred; the profile signal was dropped on September 9.
+- The measurements: GraphRAG-Bench and LongMemEval are the two committed benchmarks, with
+  the instruments and the resolution ablation restated at the up-edge; NarrativeQA and the
+  cells ablation are deferred; the profile signal was dropped on September 9; the wiki's fall
+  form is pages over document clusters.
 - The design: nothing is merged across documents (the tree, September 7);
   chats are read in one call and carry no narrative cells (September 12).
 - The interfaces: one today, `generate`; the embedding interface arrives with
   the store.
-- The milestone of September 27 (store and pipeline over Oz book 1 at three
-  tiers, alias set scored) is replaced by the design lock above.
+- The milestone of September 27 (store and pipeline over Oz book 1 at three tiers, alias
+  set scored) is replaced by the design lock above; the alias set is written in the week
+  after it, and the three-tier pilot is spring.
 - Authorship is stated as it is.

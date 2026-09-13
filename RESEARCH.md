@@ -68,13 +68,15 @@ merge black holes, and the citations are in `docs/entity-resolution.md`; the
 Walmart report (2607.26298) that argues against our soft-veto choice gets
 cited against ourselves.
 
-Where this stands on 2026-09-13: nothing is merged across documents any more
-(the tree, ruled 09-07), so the co-occurrence signal nominates pairs inside a
-document only and the profile signal is gone (09-09). The measurement the fall
-can own is one level up: the same retrieval with and without the parent join,
-on LongMemEval, which says what the global layer buys. The resolution ablation
-itself is spring, restated at the up-edge as attachment accuracy once a gold
-set exists.
+Where this stands on 2026-09-13: nothing is merged across documents any more (the tree,
+ruled 09-07) and the profile signal is gone (09-09), but co-occurrence survives as the
+second signal of the global layer's up-edge, as the 09-08 review restated it: a child attaches
+to a parent on its name and on the cast it co-occurs with, both scored and logged per
+candidate. The measurement the fall owns is that ablation at the up-edge, name-only against
+name plus co-occurrence, replayed from the logged scores and scored as attachment accuracy
+against the hand-labeled Oz alias set, with the parent-off arm on LongMemEval beside it to
+say what the global layer buys in retrieval. The same document-entity graph clusters the
+documents for the wiki pages.
 
 ## What the field says is unsolved
 
@@ -104,7 +106,8 @@ the rest is spring.
 | LongMemEval, one history per graph: full context (truncation rule stated), flat retrieval over raw turns, the full system, the full system with the parent join off; the benchmark's own evaluator; the 14 questions used to tune the ingestor excluded; the knowledge-update questions reported as accuracy, no supersession mechanism claimed | Zep's 63.8 over a 55.4 full-context baseline (gpt-4o-mini, original `_s` file), only if that model is callable; otherwise ratios between our own arms | about $107 to ingest every chat on the frozen version, less on the current one; the arms under $20 |
 | The parent-off arm | what the global layer buys, measured rather than asserted | a replay of the LongMemEval arm |
 | Wiki pages over document clusters, rendered from the store after the numbers | the store made visible; checked by eye, not scored | an afternoon |
-| Deferred to spring: the hand-labeled alias set and the resolution ablation (the co-occurrence signal now nominates pairs inside a document only), NarrativeQA (319 questions over 11 works we hold), the cells ablation, the fabrication probe, the three-tier pilot, the refold cost against MemTree's published figures, maintenance and deployment | | |
+| The resolution ablation at the up-edge: name-only against name plus co-occurrence as inputs to attachment, replayed from the logged candidate scores | attachment accuracy against the hand-labeled Oz alias set (one hour of labels); the retrieval difference on LongMemEval | a replay |
+| Deferred to spring: NarrativeQA (319 questions over 11 works we hold), the cells ablation, the fabrication probe, the three-tier pilot, the refold cost against MemTree's published figures, maintenance and deployment | | |
 | The free instruments: rejection rate per stage per tier, duplicate mints per unit, predicate sprawl, quote-gate pass rate, unit-versus-cell summary agreement, token cost per arm, and the long-tail count: surface forms occurring in N or more distinct documents that resolve to no node, at N = 2, 3, 5 | our own run logs and the node and alias records | free |
 
 GraphRAG-Bench carries the argument in its own baseline table: the cheapest
@@ -300,10 +303,10 @@ problem, evidence, artifact.
 4. Verify the 8-hours-a-week assumption against one real week before trusting
    the calendar.
 5. Rebuild the paper manifest (on disk, untracked); it predates half the corpus.
-6. The resolution ablation is spring (ruled 2026-09-13): the signal it would
-   switch off no longer acts across documents, and the up-edge it would be
-   restated at needs a gold set that does not exist. The fall's owned
-   measurement is the parent-off arm.
+6. The resolution ablation is a fall measurement, restated at the up-edge (the 09-08
+   review, confirmed by Justin on 09-13): name-only against name plus co-occurrence as
+   inputs to attachment, replayed from logged scores, scored as attachment accuracy against
+   the Oz alias set, with the parent-off arm on LongMemEval beside it.
 7. A first draft of the paper is due in mid-October (tentative); the
    results-independent sections are written in the exam block while the full
    corpus runs through the ingestor in batches.

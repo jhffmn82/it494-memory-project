@@ -125,10 +125,13 @@ fact sets, and the inherited facts then look like independent corroboration.
 
 ## How it gets tested
 
-As designed on 2026-08-28. Where it stands on 2026-09-13: the four arms below are spring. Nothing
-is merged across documents (the settled section), the profile signal is gone, and the fall's
-measurement of this design is one level up, the same retrieval with and without the parent join
-on LongMemEval (`docs/execution-plan.md`). The Tip fixture stays as the regression check.
+As designed on 2026-08-28. Where it stands on 2026-09-13: nothing is merged across documents
+(the settled section) and the profile signal is gone, so of the four arms below N and N+C
+survive, moved to the up-edge as the 09-08 review restated them: name-only against name plus
+co-occurrence as inputs to the attachment decision, replayed from the candidate scores the
+global layer logs, scored as attachment accuracy against the hand-labeled Oz alias set. The
+parent-off arm on LongMemEval sits beside it (`docs/execution-plan.md`). The Tip fixture stays
+as the regression check.
 
 Four arms, same corpus, same model, everything else held constant:
 
@@ -342,7 +345,7 @@ consequences rather than separate rules. Numbering is from
   Decide deliberately rather than inheriting it.
 
 - **61.** A node records whether its document ever named it, so the both-named rule can be applied
-  across documents rather than guessed from aliases. That record was cut the same night (dcd11c0); what draws the up-edge is still open, and the first cut in `docs/execution-plan.md` is case-folded name and kind.
+  across documents rather than guessed from aliases. That record was cut the same night (dcd11c0). What draws the up-edge, per the 09-08 review and the plan's first cut: the child's name and kind, and the cast it co-occurs with, scored and logged separately per candidate parent so the choice can be replayed.
 
 ### Not yet claimed as novel
 

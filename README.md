@@ -41,11 +41,14 @@ up, we caught the model's weights leaking into the record.
 | Borrowed | Built here | Measured against |
 |---|---|---|
 | SQLite and FTS5 | the extractor and its gates; the ingestor and its quote gate | 9 published GraphRAG-Bench baselines, one reader model for every arm |
-| a small local embedding model (bge-small through fastembed) | the global layer: silent parents over document-local entities | the same retrieval with the parent join off, on LongMemEval |
+| a small local embedding model (bge-small through fastembed) | the global layer: silent parents over document-local entities, attached on name and co-occurrence | attachment accuracy against the Oz alias set, name-only versus name plus co-occurrence; the parent join off, on LongMemEval |
 | GraphRAG-Bench, LongMemEval, each with its own published evaluator | the store, the embedding sidecar, the query path, the harness | full-context and flat-retrieval arms; Zep's LongMemEval numbers, parity arm first |
 | hierarchical summaries (GraphRAG, RAPTOR), dated facts (Zep), per-character summaries (EntSUM) | narrative cells and summary folding, for books and papers | the instruments: quote-gate and rejection rates, cost per stage and tier, duplicate parents |
 
-Also in the fall, after the numbers: wiki pages over document clusters, rendered from the store (an afternoon). Deferred to spring: NarrativeQA, the cells and resolution ablations, the three-tier model-sensitivity pilot, maintenance (re-ingest, refold, delete), deployment and a living stream of data.
+Also in the fall, after the numbers: wiki pages over document clusters drawn from the
+document-entity graph, rendered from the store (an afternoon). Deferred to spring:
+NarrativeQA, the cells ablation, the three-tier model-sensitivity pilot, maintenance
+(re-ingest, refold, delete), deployment and a living stream of data.
 
 The schema is in `SCHEMA.md`, the pipeline rules in `BUILD.md`, and the claim,
 prior art, and measurement plan in `RESEARCH.md`.

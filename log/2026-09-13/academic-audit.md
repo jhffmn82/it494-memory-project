@@ -51,7 +51,7 @@ true:
 |---|---|---|
 | four corpora, 81 files, 6.9M words, including the Chinese classics | three literature corpora (69 files) plus GraphRAG-Bench, 100 CC-BY papers and LongMemEval; Chinese removed 09-04 | corpus list |
 | fifth measurement: the OCR tax and the translation tax | gone with the Chinese corpus; LongMemEval took the slot | a committed measurement dropped |
-| resolution scores name, co-occurrence and a low-confidence profile; the ablation switches both off | the profile was dropped 09-09; only co-occurrence remains, and only inside a document | the open question narrowed |
+| resolution scores name, co-occurrence and a low-confidence profile; the ablation switches both off | the profile was dropped 09-09; co-occurrence survives as the global layer's second signal, and the ablation is restated at the up-edge (09-08 review) | the open question moved, not narrowed (corrected on 09-13 after Justin pointed at the 09-08 records) |
 | NarrativeQA: 345 questions over twelve books | 319 over eleven | number |
 | LongMemEval is a stretch item; the full comparison is spring | the last four days of build went into chats; LongMemEval is the de facto spine | the plan inverted |
 | "two narrow interfaces" | one; `embed` is not built | design claim |
@@ -267,3 +267,5 @@ claim without a mechanism, the ASKS comparison and the tree search before any pr
 authorship sentence everywhere, and the course's own deliverables, still unasked.
 
 On point 2, Justin ruled the fall scope: ingest, the global layer, storage, retrieval, the test harness, test and assessment, and wiki pages over document clusters (an afternoon after the numbers); then publish. Maintenance, deployment and a living stream of data are spring, and the proposal now says so.
+
+On point 3, Justin corrected the audit: co-occurrence is not a within-document leftover. The 09-08 review restates the resolution ablation at the up-edge (name-only against name plus co-occurrence as inputs to attachment, scored as attachment accuracy) and the 09-08 decision record and wiki note cluster documents from shared entities and meaningful co-occurrence. Section 4.2's claim that the signal acts inside a document only is withdrawn; the ablation is a fall measurement, the Oz alias set is written in week 2, and the plan, proposal, RESEARCH, entity-resolution and README now say so.
