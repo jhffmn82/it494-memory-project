@@ -1,9 +1,10 @@
 # Schema
 
-Nine record types plus logs. Anything not listed here gets added when the data
-demands it. Storage is SQLite and JSONL in a single folder, no server. Raw
-files are never edited, ids are content hashes, and re-ingesting the same
-input is a no-op rather than a duplicate.
+The record types below, plus logs. Anything not listed here gets added when the
+data demands it. Storage is SQLite and JSONL in a single folder, no server. Raw
+files are never edited; document and unit ids are content hashes, entity and
+fact ids are readable and minted per document (2026-09-08); re-ingesting the
+same input is a no-op rather than a duplicate.
 
 **Nothing in the schema knows what a novel is.** Books, chat logs, and PDFs
 all arrive the same way: a document holding an ordered run of units. A series
@@ -13,9 +14,12 @@ the user or a loader declares carries that order.
 ## The source side
 
     document  doc_id, source_uri, sha256, title, author, source_class, text,
-              ingested_at, occurred_at?, loader
+              ingested_at, occurred_at?, loader, flags
     unit      unit_id, doc_id, position, label?, start, end, occurred_at?
     piece     doc_id, unit_id, position, kind, start, end, author?, occurred_at?
+
+`flags` is the list of notes the loader left on the document: what a gate could
+not verify, and one `date:` note per work saying where its date came from.
 
 The document holds the text, once: the source decoded to a string at load,
 never normalized, with the sha256 of the original bytes beside it as proof of
@@ -49,44 +53,53 @@ it. Two documents never merge; the same bytes are the same document by hash,
 and a revision of a work is linked as the same work, not unioned.
 
 `occurred_at` has exactly one meaning: when the source was produced. A chat
-session fills it from the session date, a published work from publication, a
-novel with neither leaves it null. When the story is set is not this field;
-in-story time lives on facts, because it changes within a document.
+turn carries its own timestamp; a book or a paper carries the date the work was
+written, never the date of a translation, an edition or a transcription; a
+document carries the earliest date among its units. When the story is set is
+not this field; in-story time lives on facts, because it changes within a
+document.
 
-A unit carries one time, `occurred_at`, the time of its first piece, filled by
-the loader only when the file carries times (a turn timestamp, a dated session);
-otherwise it is null and the document's `occurred_at` stands in at read time. It
-is one time and not a range because a range never held one: across every unit of
-every release so far, the two ends have been equal or both null and have never
-differed. When the file carries times, a unit never spans a day change: the day
-cut comes before the size rule, and the short-tail merge applies only inside a
-day. That rule governs where a unit is cut, not what its record carries, so it
-survives the range's removal. Two sessions that overlap in time are ordered fact
-by fact through their units, not whole against whole.
+Every unit is dated wherever the source allows (ruled 2026-09-13): a chat unit
+by its turn's timestamp, a book or paper unit by the date of the work it lies
+in, read off the page when the page states it and otherwise found by a web
+search on the work's title and author, with the source of every date recorded
+in the document's flags. A volume that holds several works is dated work by
+work, and a unit never spans two dates. A unit is null only when no source gave
+its work a date, and the flags say so. The date is one string in one of these
+forms: `YYYY`, `YYYY-MM`, `YYYY-MM-DD`, a timestamp `YYYY-MM-DDThh:mm:ss`, a
+year before the common era as a signed year counting a year zero (405 BC is
+`-0404`), a trailing `~` for an approximate date, and a range as its two ends
+joined by `/`. Sort by the first year read as a signed integer, not by the
+string. A unit carries one time and not a range (ruled 2026-09-09): across every
+unit of every release, the two ends of the old range had been equal or both null
+and had never differed. Two sessions that overlap in time are ordered fact by
+fact through their units, not whole against whole.
 
 The split plan is the piece table: one row per natural piece the loader cut
 (a chapter, a turn, a section), with its range, its unit, its `kind`, its
 `author` when the file names a speaker (the role prefix on a chat turn), and
-its time when the file carries one. Written by code at load, never by the
-model. Unit ranges and the day cut derive from it. It is also where voice
-lives: a fact's voice at read time is the `author` of the piece holding its
-quote, else the document's `author`, else unknown, the same shape as the
-ordering rule for time.
+its date, the same date as its unit. Written by code at load, never by the
+model. Unit ranges derive from it. It is also where voice lives: a fact's voice
+at read time is the `author` of the piece holding its quote, else the
+document's `author`, else unknown, the same shape as the ordering rule for
+time.
+
+A chat session is one document, and each turn that says something is one piece
+and one unit of its own (ruled 2026-09-10), so a chat unit has one speaker and
+one time. A session that a benchmark places in several histories is a separate
+document in each, dated as that history dates it (2026-09-13).
 
 ## The entity side
 
     node      node_id, name, kind, created_from_unit, provenance
-    alias     alias, node_id, first_seen_unit, evidence_quote
-    mention   mention_id, node_id?, unit_id, start, end, surface, resolved_by
+    alias     alias, node_id, first_seen_unit
 
-Mentions are what resolution measurements read: duplicate counting needs the
-node link, cluster purity needs the full set per node, and coreference scoring
-against gold needs the character span. Without spans, that whole class of test
-requires a re-ingest, which is why the field exists from day one. `node_id`
-is null when the mention names a minor entity: the mention keeps its surface
-and span inside its document and never enters the merge. A minor is minor
-because the text gave too little to disambiguate it, so tracking it across
-documents would mean merging hundreds of names per work on no evidence.
+Mentions are not written as records (ruled 2026-09-08). A node is a name and its
+kind; an alias is a surface form and the unit it was first seen in; a fact's
+span comes through its quote offsets. Only a count of mentions is kept. A minor
+entity has no node at all: it is minor because the text gave too little to
+disambiguate it, so tracking it across documents would mean merging hundreds of
+names per work on no evidence.
 
 There is no profile record (dropped 2026-09-09). It had held attributes the
 model inferred rather than read -- gender, age band, animacy, role -- and it was
@@ -110,9 +123,9 @@ document, so nothing unsourced can exist in the store.
     contradiction  node_id, note, from_facts, holds, because
 
 A fact carries its unit's `occurred_at`, copied down: when it was said. `valid_from` is when it began to be true, and only when the
-text states it. There is no `valid_to` (ruling of 2026-09-09): facts are kept as
-instances, as they occur in the document, and nothing here decides that one stopped
-being true. The read rule below has always ordered facts by "its unit's
+text states it. There is no `valid_to` (held 2026-09-09, dropped 2026-09-10):
+facts are kept as instances, as they occur in the document, and nothing here
+decides that one stopped being true. The read rule below has always ordered facts by "its unit's
 `occurred_at`"; the record line simply never listed the field, and the code
 followed the record line (corrected 2026-09-07).
 
@@ -161,9 +174,13 @@ perfectly real quote.
 Salience decides a major entity and nothing else does (ruled 2026-09-07).
 It is decided per unit -- major only if the entity would appear in a
 two-sentence summary of that unit -- and a unit's judgement stands for the
-document: if any unit called it major it is a document-major, and nothing
-demotes it. Being named in the document abstract does not promote, and neither
-does carrying a proper name.
+document: if any unit called it major it is a document-major. Being named in
+the document abstract does not promote, and neither does carrying a proper
+name. One thing demotes: a major with no facts and no cells, nothing to
+summarise, falls to minor (decision 52, 2026-09-07). A fact whose subject is
+minor in every unit is not stored, and the completion record keeps the count
+(ruled 2026-09-11). In a chat the user is a standing major on every user turn
+(2026-09-10), and the global layer will not make a `user` entity.
 
 Until 2026-09-07 the abstract was the ONLY route -- "an entity named in the
 abstract is major, with unit count and fact count as tie-breakers" -- which made
@@ -190,12 +207,13 @@ nothing is clustered.
    offsets where it was found. A fact whose quote does not is dropped and
    logged, never stored. The gate proves the quote exists, not that it
    supports the fact.
-4. Splitting passes three gates per document. Count: pieces (chapters, turns, sections) match the table of
-   contents where one exists, else markers are monotonic with no gaps, else
-   the document is one piece. Units are size-bounded runs of pieces, cut
-   only at piece boundaries, never a lone turn, never across a day change
-   when the file carries times, a short tail merged into the unit before it. Coverage: the unit ranges tile the body, between
-   its start and end markers where the file has them, with no gaps and no overlaps, and no single unit
+4. Splitting passes three gates per document. Count: pieces (chapters, turns,
+   sections) match the table of contents where one exists, else markers are
+   monotonic with no gaps, else the document is one piece. Units are
+   size-bounded runs of pieces, cut only at piece boundaries, never across a
+   change of kind or of date; in a chat each turn is a unit of its own.
+   Coverage: the unit ranges tile the body, between its start and end markers
+   where the file has them, with no gaps and no overlaps, and no single unit
    holds a wildly disproportionate share. Round-trip: every unit's slice of
    the document text is identical to what the splitter cut.
 5. An abstract is a fold over its cells and facts; it is rebuilt whenever
