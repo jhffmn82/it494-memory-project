@@ -89,12 +89,12 @@ The dataset contract, row by row, is `docs/evaluation-corpus.md`. The slate:
 
 | Measurement | Against | Cost |
 |---|---|---|
-| GraphRAG-Bench novels: full system, no-context control, flat retrieval, then the resolution ablation (co-occurrence and profile signals off, name matching alone) | 9 published gpt-4o-mini baselines, gold answers and evidence, 2,010 questions | the main paid run; the ablation is a replay, since per-signal candidate scores are logged at ingest |
+| GraphRAG-Bench novels: full system, no-context control, flat retrieval, then the resolution ablation (co-occurrence signal off, name matching alone) | 9 published gpt-4o-mini baselines, gold answers and evidence, 2,010 questions | the main paid run; the ablation is a replay, since per-signal candidate scores are logged at ingest |
 | Hand-labeled alias set, one novel | gold-pair candidate recall first, then merge precision and recall, from the first ingest | half an hour of labeling |
 | NarrativeQA, the 319 questions over 11 works we own | reference answers; same three arms | cheap secondary run |
 | LongMemEval: full-context parity arm, then the 78-question knowledge-update band | Zep's 63.8 over a 55.4 full-context baseline (gpt-4o-mini, original `_s` file) | ~$9 parity, one paid run |
 | Read cost, refold cost, coverage difference | MemTree's published 3,750 / 3,850 / 3.27 calls per insertion; no gold answers needed | free |
-| The free instruments: rejection rate per stage per tier, duplicate mints per chunk, predicate sprawl, quote-gate pass rate, chunk-versus-cell summary agreement, token cost per arm, and the long-tail count: surface forms occurring in N or more distinct documents that resolve to no node, at N = 2, 3, 5 | our own run logs and the mention table | free |
+| The free instruments: rejection rate per stage per tier, duplicate mints per unit, predicate sprawl, quote-gate pass rate, unit-versus-cell summary agreement, token cost per arm, and the long-tail count: surface forms occurring in N or more distinct documents that resolve to no node, at N = 2, 3, 5 | our own run logs and the node and alias records | free |
 
 GraphRAG-Bench carries the argument in its own baseline table: the cheapest
 system spends 879 tokens per question, the strongest graph system 1,008, and
@@ -147,20 +147,22 @@ Never presented as results.
 
 | Fixture | Shows |
 |---|---|
-| Tip becomes Ozma, Oz book 2 | aliasing, merge, supersession, time-scoped truth, at document 2 |
+| Tip becomes Ozma, Oz book 2 | aliasing, within-document reconciliation, supersession, time-scoped truth, at document 2 |
 | Watson's wound, shoulder then leg | contradiction inside one author, no reconciling reading |
 | The deerstalker probe | Doyle never wrote one; assembled pages cannot contain it, generated pages can |
 | Helen at Troy, Homer vs Euripides | source disagreement rendered inline |
 
 ## What a run costs
 
-Rates fetched 2026-08-27 and perishable. Per chunk the pipeline makes one
-entity pass, one fact pass, and N cell calls, each re-sending the chunk text;
-batching the cell calls is 2.3x on total input and 5x on the dominant part,
-so it is built in from the start. Full four-corpus run (costed before the Chinese corpus left), batched: $2.30 on the
-cheapest model, $34 to $168 across the three mainline tiers, $335 at the top,
-a 146-fold spread, which is why tier sensitivity gets measured rather than
-assumed. The pilot is about $2.
+Measured, not estimated, as of 2026-09-13. Step 0 (extractor 1.8) read the
+whole raw dataset, 24,071 documents, for $8.24 on gpt-5.6-luna at the Flex
+tier; a chat costs no model call there. Step 1 (ingestor 1.7) reads a chat
+session in one Luna call, then one support call, then verification, at $0.0042
+to $0.0045 a session, about $100 to $107 for the 23,882 chats. Books and papers
+take the full path (per unit entities, facts and cells; reconcile with a judge
+on gpt-5.6-terra; fold; adjudicate; verify). The frozen 1.7 run of 2026-09-13
+ingested 81 documents for $5.57 over 1,696 calls. Tier sensitivity is still to be
+measured rather than assumed.
 Set the spending stop before every run; the prototype ran out of credit
 mid-pass twice. Money is not the constraint; hours are.
 
@@ -259,8 +261,10 @@ exports carry no stable conversation id, so a re-export mints duplicates
 wholesale and content-hash idempotence alone will not save you. Only the
 newest takeout per vendor gets parsed today, so older archives with unique
 conversations are silently skipped; state the denominator on every corpus
-statistic. The LongMemEval loader is fall work and settled: a session is a document,
-unpacked once to one JSON file per distinct non-empty session. The prototype also
+statistic. The LongMemEval loader is fall work and settled: block 0 of the extractor
+unpacks the benchmark file into one folder per question history, copying each
+session under that history's date, and every session is a document in each history
+that lists it (500 histories, 23,882 chat documents in Step 0 1.8). The prototype also
 retired one entity layer for being rebuilt nightly and consumed by nothing; an
 entity index earns trust only after it is built from the ledger and wired into
 a recall surface. Re-ingesting the personal archive is the eventual goal and
@@ -278,8 +282,9 @@ problem, evidence, artifact.
 
 1. Endorsement email to Dr. Fang. The only item depending on another person.
 2. Read Story Ribbons and Narrative World Model in full before writing.
-3. Regenerate `data/clean/` from committed code; the old spike never met the
-   contract and was deleted.
+3. `data/clean/` is an empty untracked stub (`data/clean/oz/`, no files); the
+   old spike never met the contract and its files were deleted. Split output
+   now lives in the Step 0 dataset, not in the repo.
 4. Verify the 8-hours-a-week assumption against one real week before trusting
    the calendar.
 5. Rebuild `papers/MANIFEST.md`; it predates half the corpus.
