@@ -141,10 +141,7 @@ global layer, the store and the embedding exist over a test set of packages
 the harness runs a question end to end through them on both corpora, and
 testing begins. In the exam block the pipeline is tuned on that test set until
 it is ready, and only then does the full corpus go through it, in batches,
-while I write. A first draft of the paper is due in mid-October with whatever
-numbers exist by then; the build stops October 31; a second draft goes to Dr.
-Fang by November 3; the dataset gets its DOI by November 10; the paper freezes
-November 15 and the preprint goes to arXiv the next day.
+while I write. A first draft of the paper is due in mid-October with whatever numbers exist by then; the build stops October 25; the paper is complete by October 30 with the dataset's DOI; it is submitted to the ECIR 2027 resource track on November 2 and posted to arXiv the next day. The ECIR decision comes December 7; if it is rejected, an EACL 2027 workshop takes it on December 15.
 
 The spring semester wraps the proven methodology in the desktop product,
 points it at real chat exports, and ships something a person can install.

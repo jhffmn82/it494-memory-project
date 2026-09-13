@@ -80,11 +80,10 @@ stretch between them is three weeks of exams and nothing gets scheduled there.
 | Sep 20 | The global layer (first cut), the store to the schema it decides, and the embedding sidecar exist over the test packages (71 chat sessions, three Oz books, five papers, two plays); the schema written down |
 | Sep 27 | The design lock: the harness runs a question end to end through store, parents, vectors and query on a novel and a chat history; testing begins; open block ends |
 | Sep 28 to Oct 18 | Exams. The pipeline tuned on the test packages until ready; only then the full corpus through the ingestor in Kaggle batches, unattended, while the paper is written. Oct 11: results-independent sections drafted. **Oct 15: first draft of the paper**, with whatever numbers exist. Oct 18: GraphRAG-Bench scored on all 20 novels |
-| Oct 25 | Both benchmark numbers exist, each with its denominator |
-| Oct 31 | Build stop |
-| Nov 3 | Second draft to Dr. Fang |
-| Nov 10 | Dataset DOI minted |
-| Nov 15 | Paper frozen; arXiv submission the next day |
+| Oct 25 | Build stop: both benchmark numbers exist, each with its denominator; the wiki pages over document clusters |
+| Oct 30 | The paper complete in ECIR format; the dataset DOI minted |
+| Nov 2 | Submitted to the ECIR 2027 resource track; arXiv preprint the next day; Dr. Fang gets the submitted paper |
+| Dec 7 | ECIR decision; if rejected, an EACL 2027 workshop by Dec 15, PVLDB by Jan 1 |
 
 The plan behind this calendar, with the build order, the gates, the rulings it needs and the
 feasibility tracker, is `docs/execution-plan.md` (ruled 2026-09-13).
