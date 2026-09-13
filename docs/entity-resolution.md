@@ -11,6 +11,13 @@ the splitting direction and one person becomes twenty nodes and no narrative hol
 
 ## Three signals, cheapest first
 
+As designed on 2026-08-28. What the ingestor does today (1.7): within a document,
+a pair of unit-local entities is nominated by a shared surface form, a shared name
+word, or a fact saying one is the other, scored 0.7 name and 0.3 co-occurrence,
+and judged same, different or unsure when the score reaches 0.35. The profile
+signal below was dropped on 2026-09-09 (see the settled section), so the N+P and
+N+C+P arms are no longer available.
+
 1. **Name.** Embedding cosine over the alias table. What everyone already does.
 2. **Co-occurrence.** Score a candidate higher when the current chunk also contains entities already
    linked to it. "The boy" appears alongside Mombi and Jack Pumpkinhead, both already linked to Tip.
@@ -168,7 +175,8 @@ Three rules, and everything else is a consequence of them.
 
 1. **A fact, a relationship edge and a child node each belong to exactly one document.**
 2. **A parent node holds no asserted content.** It carries three derived fields and nothing else:
-   a name, a profile of what it is, and an abstract. Every one of them is recomputed from its
+   a name, a kind, and an abstract (the profile record was dropped on 2026-09-09; kind is what
+   it had carried that was worth keeping). Every one of them is recomputed from its
    children and none of them is ever the source of a fact or citable as evidence.
 3. **A parent owns no edges.** Documents point up at it. The up-edge belongs to the child's
    document, like every other edge.
@@ -189,7 +197,7 @@ whether the claim itself is a count.
 An entity mentioned in a paper's abstract yields exactly three things: its name, that it is an LLM
 model, and that it was used for benchmarking in that paper. Nothing else is knowable from a
 mention, and nothing else belongs on the parent. They map one to one: the name feeds the parent's
-name, the kind feeds its profile, the role feeds one line of its abstract.
+name, the kind feeds its kind, the role feeds one line of its abstract.
 
 That also says which fields should agree and which should vary. Name and kind should agree across
 every child, so **disagreement between children is the attachment alarm** rather than a tie to
