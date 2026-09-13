@@ -213,7 +213,7 @@ labelled as such.
   venue whose deadline and notification fit PhD application timelines, with arXiv on Nov 16
   as the citable preprint beside it. Which venue is a ruling that needs a deadline table first:
   resource, demonstration and in-use tracks and the agent-memory and KG workshops with
-  deadlines between November and January. To be checked this week and brought as one question.
+  deadlines between November and January. Checked on 09-13 (`log/2026-09-13/venues.md`). Recommendation: ECIR 2027 resource track, deadline Nov 2 (notification Dec 7, before every application deadline; single-blind; arXiv allowed; 12 pages), which pulls the freeze to about Oct 25; if it is rejected, an EACL 2027 workshop by Dec 15 (list out Oct 2; notification Jan 5) or PVLDB's Jan 1 rolling deadline. The arXiv preprint needs a personal endorser (Dr. Fang) under the January 2026 policy, since automatic endorsement requires a prior arXiv paper; that is the endorsement email's real content.
 - Zenodo DOI for the Step 0 dataset by Nov 10.
 - Kaggle housekeeping (questions 3 and 4 of `log/2026-09-13/questions.md`).
 
