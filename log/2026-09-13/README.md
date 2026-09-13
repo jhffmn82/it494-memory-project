@@ -99,3 +99,17 @@ Done, each as its own commit on `claude/kg-rag-cc-corpus`:
   the project measured against his August goals; `docs/execution-plan.md` (PROPOSED), the slate,
   the build order, the calendar to the paper and the feasibility tracker; then an adversarial
   review of the repository and of the assessment, with its accepted findings folded in.
+
+## The walkthrough (night, local)
+
+Justin walked the academic audit one point at a time and ruled: plan on the design lock landing,
+the draft is the research paper with the resource content as its floor (point 1); the fall scope
+runs through test and assessment plus wiki pages over document clusters, maintenance and
+deployment are spring (point 2); on point 3 he corrected the audit from the 09-08 records:
+co-occurrence is the global layer's second signal and the basis of the document clusters, so the
+resolution ablation is a fall measurement at the up-edge and the Oz alias set is written in week
+2; and he stated goal 9, a peer-reviewed publication for PhD admission. A venue search followed
+(`venues.md`) and he ruled ECIR 2027's resource track, Nov 2, with build stop Oct 25, the paper
+complete Oct 30, arXiv after submission, and an EACL workshop and PVLDB as fallbacks. The
+suggestions he asked for are `suggestions.md`. Every master document, the plan and the ledger
+carry these.
