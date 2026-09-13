@@ -31,3 +31,8 @@ data/export/
 data/packages/
 data/packages-test/
 
+
+# Reference PDFs for the reading list: per-paper licenses, most not redistributable. Untracked since
+# 2026-09-13 (they remain in git history before that date). Fetch with scripts/fetch_papers.py.
+papers/*.pdf
+papers/_unused/*.pdf
