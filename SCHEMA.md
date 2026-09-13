@@ -114,7 +114,7 @@ document, so nothing unsourced can exist in the store.
 
 ## The record side
 
-        fact      fact_id, subject, predicate, object, object_is_node, direction,
+    fact      fact_id, subject, predicate, object, object_is_node, direction,
               qualifiers, rank, unit_id, quote, quote_start, quote_end,
               valid_from, occurred_at, tier, author, provenance
     adjudicated_fact  node_id, predicate, object, qualifiers, from_facts, tier
