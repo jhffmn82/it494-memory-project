@@ -103,6 +103,11 @@ benchmark's rule. Gate: the four arms scored on ten histories held out from tuni
 
 ### 2e. Kaggle changes before any scaled run (2 to 4 hours)
 
+The cost and time figures in this plan ($0.0042 to $0.0045 a session, 36 to 48 kernel hours
+for all chats) are from the frozen version's runs of 09-12 and 09-13 on the 1.7 export. Justin
+reports the version now running on the 1.8 export is much cheaper and faster; its receipt
+replaces these figures the moment it lands, and every batch estimate below scales with it.
+
 - Packages are written two files per document, 48,000 files for all chats; 25,000 output files
   already made one notebook impossible to list or download. Before the full run: one JSONL per
   history (or a zip per block) in the output.
