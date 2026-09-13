@@ -60,10 +60,12 @@
 #                 and leave those units out
 #     for each unit kept, WORKERS at a time:
 #         entities    ask for the entities in the unit, each with its surface forms
-#                     keep an entity only if one of its forms is found in the unit text
+#                     keep an entity only if one of its forms is found in the unit text;
+#                     on a user's turn in a chat, the user is always an entity, and a major one
 #         facts       ask for facts about those entities, each with a verbatim quote
 #                     keep a fact only if its quote is located in the unit text;
-#                     a quote that crosses a change of speaker is cut into one fact per voice
+#                     a quote that crosses a change of speaker is cut into one fact per voice;
+#                     on a user's turn, each detail the user states is also kept as user stated "..."
 #         cells       ask for a unit summary and one narrative cell per major entity
 #     reconcile   unit-local entities become document entities:
 #                     same proper name and kind: united at once, no call
@@ -71,11 +73,13 @@
 #                     said to be the other) are scored and queued, strongest first;
 #                     round by round the judge answers same / different / unsure, ten pairs a call
 #     fold        the abstract is a summary of the unit summaries;
-#                 every major entity gets its own abstract
+#                 every major entity gets its own abstract; in a chat, its own cells are its
+#                 abstract, with no call
 #     adjudicate  each major with 4 or more facts: one call consolidates them into facts,
 #                 attributes and contradictions, each pointing at the raw facts behind it;
 #                 majors with fewer facts keep their raw facts, and all those facts are
-#                 checked against their passages in one call
+#                 checked against their passages in one call; in a chat nothing is consolidated:
+#                 every fact stands as said and is checked in that one call
 #     verify      every fact a check flagged gets a second look: it stands, is reworded to what
 #                 its passage does say, or is dropped; what is kept is checked once more
 #     write       the package, then the roll-up
@@ -131,7 +135,7 @@ from datetime import datetime, timezone
 from contextlib import redirect_stdout
 from pathlib import Path
 
-INGESTOR = "threadatlas-ingestor 0.9"
+INGESTOR = "threadatlas-ingestor 1.7"
 KAGGLE_EXPORTS = (Path("/kaggle/input/datasets/jhffmn/it494-threadatlas-step0"), Path("/kaggle/input/it494-threadatlas-step0"))
 LOCAL_EXPORT = Path("data/export")
 KAGGLE_OUT, LOCAL_OUT = Path("/kaggle/working/packages"), Path("data/packages")
@@ -291,8 +295,9 @@ import urllib.request
 from concurrent.futures import ThreadPoolExecutor
 
 LUNA = "gpt-5.6-luna"                      # derive, support checks, corrections
-TERRA = "gpt-5.6-terra"                    # judge, folds, adjudication
-PRICE = {LUNA: (0.20, 1.20), TERRA: (2.00, 12.00)}          # $ per million tokens in, out
+TERRA = "gpt-5.6-terra"                    # adjudication, and the judge and folds of all but chats
+SERVICE_TIER = "flex"                      # the same models at half price, slower, sometimes refused (tried 09-11)
+PRICE = {"flex": {LUNA: (0.10, 0.60), TERRA: (1.00, 6.00)}, "default": {LUNA: (0.20, 1.20), TERRA: (2.00, 12.00)}}          # $ per million tokens in, out, by the tier that served the call
 SPEND_STOP = float(os.environ.get("SPEND_STOP", "25"))     # a run block's budget, counted from start_block
 BLOCK_START = 0.0                                          # what had been spent when the block began
 WORKERS = int(os.environ.get("WORKERS", "4"))
@@ -388,7 +393,7 @@ def check_schema(value, schema, path="$"):
 def post(url, payload):
     data = json.dumps(payload).encode("utf-8")
     request = urllib.request.Request(url, data=data, headers={"Authorization": f"Bearer {KEY}", "Content-Type": "application/json"})
-    with urllib.request.urlopen(request, timeout=300) as response:
+    with urllib.request.urlopen(request, timeout=900) as response:   # Flex can take minutes
         return response.status, response.read().decode("utf-8")
 
 
@@ -405,7 +410,7 @@ def call(url, payload, model, stage, ctx, prompt_chars):
     spent = spend()[0] - BLOCK_START
     if spent >= SPEND_STOP:
         raise SpendStop(f"spending stop: ${spent:.2f} of ${SPEND_STOP:.2f} for this block")
-    price_in, price_out = PRICE[model]
+    price_in, price_out = PRICE[SERVICE_TIER][model]
     started = time.time()
     for attempt in range(3):
         try:
@@ -431,9 +436,11 @@ def call(url, payload, model, stage, ctx, prompt_chars):
             raise RuntimeError(f"OpenAI {status}: {text}")
         break
     body = json.loads(text)
+    tier = body.get("service_tier") or SERVICE_TIER       # the tier that actually served the call
+    price_in, price_out = PRICE.get(tier, PRICE["default"])[model]
     usage = body.get("usage", {})
     tokens_in, tokens_out = usage.get("prompt_tokens", 0), usage.get("completion_tokens", 0)
-    log_call({"stage": stage, "model": body.get("model", model), "in": tokens_in, "out": tokens_out,
+    log_call({"stage": stage, "model": body.get("model", model), "tier": tier, "in": tokens_in, "out": tokens_out,
               "seconds": round(time.time() - started, 1), "cost": (tokens_in * price_in + tokens_out * price_out) / 1e6, **ctx})
     return body
 
@@ -443,7 +450,7 @@ def generate(prompt, schema, stage, model=LUNA, effort="low", ctx=None):
     ctx = ctx or {}
     for attempt in range(2):
         body = call("https://api.openai.com/v1/chat/completions",
-                    {"model": model, "reasoning_effort": effort, "response_format": {"type": "json_object"},
+                    {"model": model, "reasoning_effort": effort, "service_tier": SERVICE_TIER, "response_format": {"type": "json_object"},
                      "messages": [{"role": "user", "content": prompt}]}, model, stage, ctx, len(prompt))
         try:
             message = body["choices"][0]["message"]
@@ -461,7 +468,7 @@ def generate(prompt, schema, stage, model=LUNA, effort="low", ctx=None):
     return None
 
 
-print(f"models {LUNA} (derive), {TERRA} (judge and fold); key {'present' if KEY else 'MISSING'}")
+print(f"models {LUNA} (derive; judge and fold on chats), {TERRA} (the rest); {SERVICE_TIER} tier; key {'present' if KEY else 'MISSING'}")
 
 # %% [markdown]
 # ## Block 3: connection test
@@ -879,7 +886,7 @@ Return JSON {{"facts": [{{"subject", "predicate", "object", "qualifiers", "quote
 - predicate: a lowercase_snake_case relation in the present tense, named the way the text gives it; use is_a for what kind of thing the subject is
 - object: another entity's name exactly as written when the fact relates two entities, else a short literal value that does not repeat the predicate; never a bare true or false
 - qualifiers: one short phrase for role, manner or condition, as a string, else null; never an object
-- quote: one verbatim substring of the text that STATES the fact, copied exactly as it appears, punctuation and all; an ellipsis (...) may skip words between two verbatim pieces. {QUOTE_RULE}. Quote enough to carry the claim: for a table value, quote the heading it sits under as well as the value
+- quote: one continuous verbatim passage of the text that STATES the fact, copied exactly as it appears, punctuation and all, with nothing skipped; never use an ellipsis. {QUOTE_RULE}. Quote enough to carry the claim: for a table value, quote the heading it sits under as well as the value
 - valid_from: an ISO date (YYYY, YYYY-MM or YYYY-MM-DD) only when the quote itself states when the fact began; otherwise null. Never infer a date.
 - each fact is atomic: one attribute or one relationship, with a bare value rather than a phrase
 - a relationship between a major entity and a minor one is stated once, under the major entity; only between two major entities may it be stated from both sides
@@ -1331,15 +1338,15 @@ def dossier(members):
         f"units: {', '.join(str(u) for u in sorted({l['ui'] for l in members}))}"])
 
 
-def judge(batch, locals_, clusters, ctx):
-    """One Terra call over up to PAIRS_PER_CALL pairs of cluster roots, every dossier sent once;
+def judge(batch, locals_, clusters, ctx, model=TERRA):
+    """One call, on Terra or for a chat on Luna, over up to PAIRS_PER_CALL pairs of cluster roots, every dossier sent once;
     ({pair number: (verdict, reason)} in batch order, how many numbers were out of range)."""
     roots = sorted({r for pair in batch for r in pair})
     number = {r: n for n, r in enumerate(roots, 1)}
     members = clusters.members(locals_)
     dossiers = "\n\n".join(f"[{number[r]}]\n{dossier(members[r])}" for r in roots)
     pairs = "\n".join(f"PAIR {n}: [{number[a]}] and [{number[b]}]" for n, (a, b) in enumerate(batch, 1))
-    reply = generate(JUDGE_PROMPT + "\nDOSSIERS\n" + dossiers + "\n\nPAIRS\n" + pairs, JUDGE_SCHEMA, "judge", model=TERRA, effort="medium", ctx=ctx)
+    reply = generate(JUDGE_PROMPT + "\nDOSSIERS\n" + dossiers + "\n\nPAIRS\n" + pairs, JUDGE_SCHEMA, "judge", model=model, effort="medium", ctx=ctx)
     verdicts, misnumbered = {}, 0
     for v in (reply or {}).get("verdicts", []):
         numbered = valid_numbers([v.get("pair")], len(batch))
@@ -1365,6 +1372,7 @@ def reconcile(records, ctx, watch=False):
     """The document's entities from its unit-locals: (entities, ledger, candidates, stats)."""
     locals_ = locals_of(records)
     clusters = Clusters(len(locals_))
+    judge_model = LUNA if any(r["kind"] in TURNS for r in records) else TERRA   # a chat is judged on Luna (09-11)
     ledger, candidates, ruled_apart = [], [], set()
 
     # 1. the same proper name and kind, nothing in their is_a conflicting: one entity, no judge
@@ -1390,7 +1398,7 @@ def reconcile(records, ctx, watch=False):
     stats = {"locals": len(locals_), "candidate_pairs": 0, "judged_pairs": 0, "judge_calls": 0, "judge_rounds": 0, "judge_misnumbered": 0}
 
     def decide(batch, final):
-        verdicts, misnumbered = judge(batch, locals_, clusters, ctx)
+        verdicts, misnumbered = judge(batch, locals_, clusters, ctx, judge_model)
         stats["judge_calls"] += 1
         stats["judged_pairs"] += len(batch)
         stats["judge_misnumbered"] += misnumbered
@@ -1523,10 +1531,10 @@ def one_reading(doc):
     return sum(1 for u in doc["units"] if u["kind"] not in BOILERPLATE and not empty_turn(doc, u)) == 1
 
 
-def summarise(what, children, ctx, stage="fold"):
+def summarise(what, children, ctx, stage="fold", model=TERRA):
     """(summary, the word limit it was asked for); the summary None when the model did not answer."""
     limit = min(400, max(20, sum(word_count(c) for c in children) // 2))
-    reply = generate(fold_prompt(what, children, limit), FOLD_SCHEMA, stage, model=TERRA, ctx=ctx)
+    reply = generate(fold_prompt(what, children, limit), FOLD_SCHEMA, stage, model=model, ctx=ctx)
     return (" ".join(reply["summary"].split()) if reply else None), limit
 
 
@@ -1534,12 +1542,14 @@ def fold_document(records, entities, ctx, light=False):
     """The abstract, the majors and minors, each major's cells and its abstract."""
     out = {"abstract": None, "majors": [], "minors": [], "entity_abstracts": [], "demoted": [], "cells_of": {}}
     summarised = [r for r in records if r["summary"]]
+    chat = any(r["kind"] in TURNS for r in records)   # a chat: its abstract on Luna (09-11), each major's from its cells
+    fold_model = LUNA if chat else TERRA
     if len(summarised) == 1:                      # one summarised unit: its summary is the abstract, no call
         out["abstract"] = {"text": summarised[0]["summary"], "limit": None, "tier": LUNA}
     elif summarised:
-        text, limit = summarise("one document", [f"[{r['label']}] {r['summary']}" for r in summarised], ctx)
+        text, limit = summarise("one document", [f"[{r['label']}] {r['summary']}" for r in summarised], ctx, model=fold_model)
         if text:
-            out["abstract"] = {"text": text, "limit": limit, "tier": TERRA}
+            out["abstract"] = {"text": text, "limit": limit, "tier": fold_model}
 
     # each major's cells and facts, by entity index (two clusters may share a name)
     member_of = {(ui, local_name): e["index"] for e in entities for ui, local_name in e["members"]}
@@ -1559,7 +1569,6 @@ def fold_document(records, entities, ctx, light=False):
             out["demoted"].append(e["name"])
         (out["majors"] if e["major"] else out["minors"]).append(e)
 
-    chat = any(r["kind"] in TURNS for r in records)   # a chat's majors are small: no abstract call
 
     def abstract_of(e):
         """(text, kind, tier). Two records or fewer stand as the abstract without a call; on the
@@ -2452,8 +2461,9 @@ def draw_graph(path):
 # %% [markdown]
 # ## Block 12: run, one user's chat history
 #
-# Every session of one LongMemEval haystack, the whole history one question is asked over. Each
-# session is still its own document and its own package.
+# Every session of one LongMemEval haystack, the whole history one question is asked over, and
+# six answer sessions of other questions. Each session is still its own document and its own
+# package.
 
 # %%
 # Block 12: the run, one user's whole chat history, in place of the 200 random sessions run
@@ -2479,12 +2489,20 @@ SESSIONS = [
     "answer_6a3b5c13_4", "ultrachat_221073", "ultrachat_385963", "sharegpt_HxOhjmq_29",
     "ea336da0",
 ]
+# Six answer sessions of other questions, added 09-11 (Justin), each its own document like the
+# rest: the one session of three single-session-assistant questions, whose answer is in an
+# assistant turn (4c36ccef, 0e5e2d1a, e8a79c70), and, from two harder questions, both sessions
+# of a knowledge update (6a1eabeb) and the one session of a temporal question (gpt4_b5700ca9).
+SESSIONS += [
+    "answer_ultrachat_448704", "answer_ultrachat_113156", "answer_ultrachat_13075",
+    "answer_a25d4a91_1", "answer_a25d4a91_2", "answer_a17423e7_1",
+]
 CHAT_AT_ONCE, BUDGET = 16, 15.00
 
 if __name__ == "__main__" and SESSIONS:
     chats = sorted(u for u in BY_URI if BY_URI[u]["title"] in SESSIONS)
     start_block(BUDGET)
-    print(f"chats: haystack {HAYSTACK}, {len(chats)} of its {len(SESSIONS)} sessions,"
+    print(f"chats: haystack {HAYSTACK} and six answer sessions, {len(chats)} of {len(SESSIONS)} found,"
           f" {CHAT_AT_ONCE} at a time; budget ${BUDGET:.2f} for this block")
     run_and_roll_up(chats, at_once=CHAT_AT_ONCE)
 
