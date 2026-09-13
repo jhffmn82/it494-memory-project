@@ -61,10 +61,11 @@ their saved outputs as run.
   and [build-0.8-worklist.md](2026-09-07/build-0.8-worklist.md); the notebook as run is
   `threadatlas-ingestor-as-run.{py,ipynb}`. Merged to master 2026-09-08.
   Design: the scope question in [entity-resolution.md](../docs/entity-resolution.md) is settled.
-  Nothing is ever merged; it is a tree. A parent holds no asserted content, only a derived name,
-  profile and abstract, and every sentence on it must be reducible to "N of M children say X".
+  Nothing is ever merged; it is a tree. A parent holds no asserted content, only derived fields
+  (a name, a kind and an abstract since the profile was dropped on 09-09), and every sentence on it
+  must be reducible to "N of M children say X".
   Insertion becomes append-only, deletion becomes a delete, and provenance becomes total.
-- [2026-09-08](2026-09-08/review.md): the housekeeping pass after the tree decision, three reviews,
+- [2026-09-08](2026-09-08/README.md): the housekeeping pass after the tree decision, three reviews,
   and the forward plan. Housekeeping: master fast-forwarded 137 commits, the ingestor 0.9 notebook
   synced, SCHEMA/BUILD brought level with the code and stripped of changelog meta, docs/extractor.md
   and docs/ingestor.md written. [review.md](2026-09-08/review.md) (drift and schema, ten rulings),
@@ -72,3 +73,29 @@ their saved outputs as run.
   reviewer's ten questions), [forward-plan.md](2026-09-08/forward-plan.md) (the execution timeline,
   build and write tracks on one calendar). [wiki-projection.md](2026-09-08/wiki-projection.md)
   (Justin's design note: the wiki as a projection of the retrieval structure, the related-work score). [threadatlas-decision.md](2026-09-08/threadatlas-decision.md) (the rename to ThreadAtlas and the narrative-cell / portal architecture direction, from the 9 Sep project review).
+- [2026-09-09](2026-09-09/README.md), written 09-13 from the commits: the rename applied to every
+  artifact; the profile record dropped and the pair score renormalised; the 100 CC-BY papers
+  replacing the private mount, `attribution.jsonl` replacing `papers.jsonl`, raw dataset v3; fold-09
+  onto master and the ruling that block 13 runs three Oz books; the Step 0 docs rewritten twice and
+  the 1.6 version published; the two rulings (`occurred_until` dropped, a chat's title is its
+  session id); the weekly report to Fang.
+- [2026-09-10](2026-09-10/chat-rulings.md): the chat design ruled wrong and rebuilt one question at a
+  time (a session is a document titled by its session id, a turn is a unit), with the LongMemEval
+  measurements behind it; [decisions-ingestor-1.7.md](2026-09-10/decisions-ingestor-1.7.md), the
+  Step 1 rulings (`valid_to` dropped, chats on the full path, block 12 one whole history);
+  [step0-changes-since-factledger-1.5.md](2026-09-10/step0-changes-since-factledger-1.5.md), the
+  counted diff of Step 0 1.5 to 1.7. Extractor 1.7 ran and was published that day.
+- [2026-09-11](2026-09-11/README.md), written 09-13: the first full Step 1 run read (63 documents,
+  $15.68), the audit answered, twelve rulings (minor-subject facts not stored, six answer sessions
+  added, the Flex tier with the judge and fold on Luna for chats, the complexity audit approved,
+  the six chat edits confirmed as rulings, skipped flagged facts dropped), the prune steps built,
+  the Flex run started.
+- [2026-09-12](2026-09-12/README.md), written 09-13: the Flex run read (chats $0.020 a session),
+  seven rulings ending in a chat read in one Luna call per session and Step 1 frozen, the two
+  chats-only test runs (all 14 answer questions stored at $0.0045 a session).
+- [2026-09-13](2026-09-13/README.md): the frozen full run on 1.7; the dates rebuild and extractor
+  1.8 (every unit dated, LongMemEval unpacked per history, 24,071 documents, $8.24, published); git
+  caught up with everything since fa48997; the first Step 1 run on 1.8; the repository cleanup.
+  [project-state.md](2026-09-13/project-state.md) is the audit of where the project stands;
+  [questions.md](2026-09-13/questions.md) the rulings left open by the cleanup. Scripts:
+  `check_flex_run.py` (the Step 1 answer check) and `extractor/` (the 1.8 build and verification).
