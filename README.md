@@ -1,6 +1,6 @@
 # IT 494: a memory backend for a desktop assistant
 
-The end state is a backend that bolts onto a desktop AI client. It ingests what
+The end state, ThreadAtlas, is a backend that bolts onto a desktop AI client. It ingests what
 a person accumulates, chat logs above all, builds a knowledge graph of entities,
 dated facts, and per-entity narratives, and feeds that structure to the client
 as RAG context. The first intended user is the author's own desktop assistant.
@@ -13,7 +13,8 @@ methodology in the desktop product and points it at real chat logs.
 ## Why literature comes first
 
 You cannot publish measurements taken on a private life. So the fall runs on
-three public-domain literature corpora, on one hypothesis: works of fiction fed
+public text (three public-domain literature corpora, the 20 GraphRAG-Bench
+novels, 100 CC-BY papers, and the LongMemEval chat sessions), on one hypothesis: works of fiction fed
 in narrative order behave like a life recorded in chat. Characters accumulate
 aliases, facts get superseded, threads interleave, and what is true depends on
 when you ask. Tip becoming Ozma at the end of the second Oz book is the same
@@ -26,7 +27,7 @@ myth for cross-source disagreement and free entity-resolution labels.
 
 ## The visible artifact
 
-From the ingested corpora we assemble a wiki. Pages are composed mechanically
+From the ingested corpora we will assemble a wiki. Pages are composed mechanically
 from the store: the infobox from fact rows, the lead from the entity summary,
 the biography from narrative cells, every claim traceable to a verbatim quote.
 A second version is then written by a strong model doing RAG over the same
@@ -40,9 +41,9 @@ up, we caught the model's weights leaking into the record.
 | Borrowed | Built here | Measured against |
 |---|---|---|
 | SQLite and FTS5 | corpus loaders and the split gates | 9 published GraphRAG-Bench baselines, gpt-4o-mini |
-| an embedding model for candidate lookup | resolution by name, co-occurrence, and profile | full-context and flat-retrieval arms |
+| an embedding model for candidate lookup | resolution by name and co-occurrence | full-context and flat-retrieval arms |
 | GraphRAG-Bench, LongMemEval, NarrativeQA | fact extraction behind the quote gate | Zep's LongMemEval numbers, parity arm first |
-| Gutenberg texts | narrative cells and summary folding | MemTree's published refold costs |
+| Gutenberg texts | narrative cells and summary folding, for books and papers | MemTree's published refold costs |
 | hierarchical summaries (GraphRAG, RAPTOR), dated facts (Zep), per-character summaries (EntSUM) | the assembled wiki renderer | NarrativeQA reference answers on 11 owned works |
 
 The schema is in `SCHEMA.md`, the pipeline rules in `BUILD.md`, and the claim,
@@ -71,7 +72,7 @@ stretch between them is three weeks of exams and nothing gets scheduled there.
 | Sep 1 | Repo public; endorsement email to Dr. Fang sent |
 | Sep 2 | One chapter of Oz book 1 ingested end to end for Dr. Fang: split, cast, entities, facts, summary, rendered graph |
 | Sep 8 | One-semester proposal form filed |
-| Sep 14 | All four corpora split and gated; dataset published. Oz, Holmes, and Greek landed Sep 1 (kaggle.com/datasets/jhffmn/it494-narrative-corpora-units); Chinese remains. Superseded Sep 4: one general extractor over one raw dataset holding every source (Oz, Holmes, Greek, GraphRAG-Bench, LongMemEval sessions, arXiv PDFs), documents carrying their text and units as ranges; see `log/2026-09-04/` |
+| Sep 14 | All four corpora split and gated; dataset published. Oz, Holmes, and Greek landed Sep 1 (kaggle.com/datasets/jhffmn/it494-narrative-corpora-units, since superseded); Chinese remains. Superseded Sep 4: one general extractor over one raw dataset holding every source (Oz, Holmes, Greek, GraphRAG-Bench, LongMemEval sessions, paper PDFs), documents carrying their text and units as ranges; see `log/2026-09-04/`. Done Sep 13: extractor 1.8 over the whole raw dataset, 24,071 documents (23,882 chats in 500 LongMemEval histories, 89 texts, 100 PDFs) for $8.24, published at kaggle.com/datasets/jhffmn/it494-threadatlas-step0 |
 | Sep 21 | Store and pipeline working over Oz book 1 |
 | Sep 27 | Three-tier pilot done; open block ends |
 | Oct 19-26 | GraphRAG-Bench arms and the ablation; NarrativeQA arm; LongMemEval parity and update band |
@@ -89,7 +90,7 @@ slate, priced:
 
 | Work | Hours |
 |---|---|
-| Splitting, gates, dataset publish | 8-12 |
+| The extractor (Step 0): split, gates, dataset publish; done Sep 13 | 8-12 |
 | Store, ingest, organize, maintain | 20-40 |
 | Hand-labeled alias set | 1 |
 | GraphRAG-Bench: three arms, scorer wiring, plain-RAG parity check | 8-12 |
@@ -104,7 +105,7 @@ slate, priced:
 That sums to 69 to 118 against 64, so the cut order is decided now, not in
 November, and a lost week deletes from the bottom:
 
-1. Protected: splitting, the store, the alias set, the GraphRAG-Bench arms
+1. Protected: the extractor, the store, the alias set, the GraphRAG-Bench arms
    with their parity check, the resolution ablation, the instruments, the
    cost curves, the two wiki pages, and the paper.
 2. First cut: the LongMemEval parity arm and update band; the dataset and
@@ -133,7 +134,7 @@ return only if the folder does.
     docs/*.json              survey bibliography, with citation corrections
     advisor-meeting-2026-08-19.md  the meeting record that set the direction
     build/                   the delivered research package and proposal
-    data/raw/                the three literature corpora and their manifests
+    data/raw/                the raw corpora (three literature corpora, GraphRAG-Bench novels, kg-rag-cc papers, LongMemEval) and their manifests
     data/benchmarks/         GraphRAG-Bench, LongMemEval, NarrativeQA subset
     dataset/step0/           the published Step 0 dataset's docs, kept byte-identical to Kaggle
     notebooks/               the extractor and ingestor, as script and notebook
