@@ -128,6 +128,7 @@ author's machine, untracked.
     BUILD.md                 how the pipeline code behaves
     RESEARCH.md              framing, prior art, measurements, open items
     docs/rulings.md          every design ruling, its date, its log, and what superseded it
+    docs/execution-plan.md   the slate, the build order, the calendar to the paper, the feasibility tracker
     docs/proposal.md         the three-page project explanation
     docs/extractor.md        Step 0 algorithm and data contract
     docs/ingestor.md         Step 1 algorithm and package contract

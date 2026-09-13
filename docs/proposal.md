@@ -1,6 +1,8 @@
 # Persistent memory for a desktop assistant
 
-Justin Hoffman. IT 494, Fall 2026. Supervisor: Dr. Xing Fang. Draft.
+Justin Hoffman. IT 494, Fall 2026. Supervisor: Dr. Xing Fang. Draft of
+August 31, brought to the project as it stands on September 13; the version
+filed with the advisor is the August 31 draft.
 
 ## The problem
 
@@ -30,7 +32,11 @@ and chat logs, and from them builds three layers: entities with their aliases,
 dated facts with verbatim supporting quotes, and a running narrative of each
 entity across the source material. A client reads those layers as context.
 Facts are never overwritten. A new fact supersedes an old one at read time,
-and the superseding is itself part of what the system knows.
+and the superseding is itself part of what the system knows. Across sources
+nothing is merged: each document keeps its own version of an entity, and an
+edge attaches it to a parent that holds only a derived name, kind and
+summary and asserts nothing of its own, so re-deciding an identity re-points
+an edge instead of rewriting records (settled September 7).
 
 The fall semester builds and tests the methodology on literature rather than
 on private data, for one reason: you cannot publish measurements taken on a
@@ -94,8 +100,10 @@ best system spends about a thousand tokens per question and the most
 expensive spends over three hundred thousand, so accuracy per token is where
 a serverless design can show up.
 
-Second, resolution accuracy against a hand-labeled alias set over one novel,
-built in the first week and scored from the very first ingest.
+Second, resolution accuracy against a hand-labeled alias set over one novel.
+It was to be built in the first week and scored from the first ingest; as of
+September 13 it is not yet written, and it is the first thing the global
+layer needs.
 
 Third, question answering on NarrativeQA, which happens to include 319 human-written questions over eleven books already in my corpora, run through the same three arms.
 
@@ -112,11 +120,14 @@ the full-context arm first to prove my harness reproduces their baseline,
 then the 78 questions that test knowledge updates, which is supersession
 under its benchmark name. The full comparison belongs to spring.
 
-Every model call in the pipeline goes through two narrow interfaces, so
-models swap freely and every run records which tier ran each stage. The
-pipeline is my code end to end; the model is the only black box. Judged
-scoring, where unavoidable, runs on a model tier that never writes anything
-in the pipeline, calibrated against a hand-labeled sample first.
+Every model call in the pipeline goes through one narrow interface,
+`generate(prompt, schema)`, and every run records which model and tier ran
+each call and what it cost; an embedding interface joins it when retrieval is
+built. The pipeline is code I direct, review and answer for end to end,
+drafted with AI assistance under my rulings and checked by an offline test
+battery; the model is the only black box. Judged scoring, where unavoidable,
+runs on a model tier that never writes anything in the pipeline, calibrated
+against a hand-labeled sample first.
 
 ## The fall calendar
 

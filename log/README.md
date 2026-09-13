@@ -99,6 +99,8 @@ machine), so a script an entry names may no longer be in its folder.
 - [2026-09-13](2026-09-13/README.md): the frozen full run on 1.7; the dates rebuild and extractor
   1.8 (every unit dated, LongMemEval unpacked per history, 24,071 documents, $8.24, published); git
   caught up with everything since fa48997; the first Step 1 run on 1.8; the repository cleanup.
-  [project-state.md](2026-09-13/project-state.md) is the audit of where the project stands;
-  [questions.md](2026-09-13/questions.md) the rulings left open by the cleanup. Scripts:
+  [project-state.md](2026-09-13/project-state.md) is the audit of what exists and what is
+  verified; [academic-audit.md](2026-09-13/academic-audit.md) reviews the proposal and measures
+  the project against Justin's goals; [questions.md](2026-09-13/questions.md) the rulings left
+  open by the cleanup. The plan that follows from the audit is `docs/execution-plan.md`. Scripts:
   `check_flex_run.py` (the Step 1 answer check) and `extractor/` (the 1.8 build and verification).

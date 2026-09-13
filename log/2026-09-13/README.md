@@ -91,4 +91,11 @@ Done, each as its own commit on `claude/kg-rag-cc-corpus`:
   evaluation-corpus, references, reports/pipeline-and-outline, the data/raw docs and the Step 0
   docs brought to the code. No em dash in any master document.
 - `archive/`: the private-papers scripts moved; the 150 reference PDFs untracked and ignored.
-- `project-state.md`: the audit. `questions.md`: nine rulings left open.
+- `project-state.md`: what exists and what is verified. `questions.md`: nine rulings left open,
+  all answered yes the same evening.
+- Evening, on Justin's asks: the repository reduced to what a person reads (working tooling
+  untracked on disk); `docs/proposal.md` corrected (the alias set is unwritten, one model
+  interface, the tree, the authorship sentence); `academic-audit.md`, the proposal reviewed and
+  the project measured against his August goals; `docs/execution-plan.md` (PROPOSED), the slate,
+  the build order, the calendar to the paper and the feasibility tracker; then an adversarial
+  review of the repository and of the assessment, with its accepted findings folded in.
