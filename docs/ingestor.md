@@ -1,62 +1,108 @@
 # The ingestor: algorithm and data contract
 
-`threadatlas-ingestor 0.9`. One document at a time, from the extractor's export to a **document
-package**: the entities the document is about, facts with a verbatim quote at document offsets,
-a cell per entity per unit, the document's abstract, and an abstract per major. It never looks at
-a second document. Store fields are in [`SCHEMA.md`](../SCHEMA.md).
+`threadatlas-ingestor 1.7`, the frozen Step 1 (ruled 2026-09-12; block 12 rewritten for the 1.8
+export on 09-13). Its first run on the 1.8 export is in progress on 2026-09-13. One document at a
+time, from the extractor's export to a **document package**: the entities the document is about,
+every fact with a verbatim quote located at document offsets, a narrative cell per entity per
+unit, the document's abstract, and an abstract per major entity. Nothing here looks at a second
+document. The input's field schema: [`dataset/step0/SCHEMA.md`](../dataset/step0/SCHEMA.md).
 
 ## Input
 
-The extractor's three files ([`docs/extractor.md`](extractor.md)): `documents.jsonl` (text once,
-`null` for a withheld paper), `units.jsonl` (character ranges), `pieces.jsonl` (the split plan,
-with a chat turn's author). `papers.jsonl` rebuilds a withheld paper's text from its PDF.
+The extractor's three files ([`docs/extractor.md`](extractor.md)): `documents.jsonl` (every
+document with its whole text), `units.jsonl` (character ranges, each dated; a chat's unit is one
+turn), `pieces.jsonl` (the split plan, with a chat turn's author). A chat is any document whose
+units are of kind `user` or `assistant`.
 
 ## Algorithm
 
-A document of many units:
+A document of many units (a book or a paper):
 
 ```
-triage     one call: which unit kinds are not the work (front matter, references); leave them out
-per unit:  entities   kept only if a surface form is found in the unit text
-           facts      each with a verbatim quote; kept only if the quote is located;
-                      a quote crossing a change of speaker is cut into one fact per voice
-           cells      a unit summary and one narrative cell per major
-reconcile  same proper name and kind unite with no call; other pairs (shared form, shared name
-           word, one said to be the other) are scored and judged round by round, strongest first,
-           same / different / unsure, ten pairs a call; every verdict and scored pair is logged
-fold       the abstract summarises the unit summaries; every major gets its own abstract
-adjudicate a major with >= 4 facts: one call consolidates them into facts, attributes and
-           contradictions, each citing the raw facts behind it; a major with fewer keeps its raw
-           facts, and all such facts are checked against their passages in one call
-verify     every flagged fact is looked at again: stand, reword to what its passage states, or
-           drop; what is kept is checked once more
-write      the package, then the roll-up
+triage      one call: which kinds of unit are not the work; front matter and license go by
+            rule; an answer that would leave out more than half the document is ignored
+per unit,   entities   each with its surface forms; kept only if a form is found in the unit
+WORKERS=4   facts      each with a verbatim quote; kept only if the quote is located
+at a time   cells      a unit summary and one narrative cell per major
+reconcile   same proper name and kind unite with no call, unless their is_a conflict; other
+            pairs (a shared surface form, one said to be the other, a shared name word) are
+            scored 0.7 name + 0.3 co-occurrence, dropped under SIMILAR_ENOUGH (0.35), judged
+            round by round on Terra, ten pairs a call: same / different / unsure; every
+            verdict is a ledger row, every scored pair a candidate row
+fold        the abstract summarises the unit summaries on Terra; every major gets its own
+            abstract; a major with no facts and no cells is demoted (decision 52)
+adjudicate  a major with ADJUDICATE_MIN_FACTS (4) or more: one Terra call consolidates them
+            into facts, attributes and contradictions, each citing the raw facts behind it;
+            a major with fewer keeps its raw facts, checked against their passages in one
+            support call, VERIFY_BATCH (60) facts a call
+verify      every flagged fact is looked at again on Luna: stand, reword to what its passage
+            states, or drop; a rewording is checked once more; a flagged fact no verdict
+            reaches is dropped
+write       the package, then the roll-up
 ```
 
-A document of one unit (a chat session): triage by rule, the unit's entities then facts and cells
-together, nothing to reconcile, the unit summary is the abstract, one support call, verify, write.
-About four calls instead of twenty-five.
+A document of one unit: no triage call, the unit's entities then facts and cells together,
+nothing to reconcile, the unit summary is the abstract and a major's own cells its abstract, every
+fact checked in one support call, verify, write. About four calls instead of twenty-five.
+
+A chat session: one Luna call over all its turns (`read_session`, medium reasoning effort), a
+session over `SESSION_WINDOW` (40,000 characters) read in stretches of whole turns. Each fact names
+its turn and is kept only if its quote is located in that turn and its subject is the user,
+appears in the turn, or shares a word with it. Every subject the reading used is an entity and a
+major; the same name in two turns is one entity, no judge. The reading's summary is the abstract.
+No judge, no cells, no fold, no entity abstracts. Then one support call over every fact, verify,
+write.
+
+Models: `gpt-5.6-luna` derives units, reads a chat, and runs the support checks and corrections;
+`gpt-5.6-terra` judges, folds and adjudicates books and papers. `SERVICE_TIER` is `flex`, priced by
+the tier that served the call (Luna 0.10/0.60, Terra 1.00/6.00 per million tokens in and out on
+Flex; 0.20/1.20 and 2.00/12.00 standard). No embedder; no vectors are stored.
 
 ## Rules
 
-- **Quote gate.** A stored quote is a verbatim slice of the document. Located as `exact`,
-  `normalised`, `unwrapped`, or `words`; rejected as `paraphrase`, `not_found`, or `empty`.
-- **Salience.** A unit that calls an entity major makes it a document-major; nothing else promotes
-  or demotes, except a major with nothing to summarise (no facts, no cells) falls to minor.
-- **Minors have no node.** A minor's fact rides to the major it concerns: the subject major
-  (forward) or the major it points at (inverse); a minor's fact tied to no major is dropped.
-- **Mentions are not written.** A node id is a moniker and its first mention; a fact's span comes
-  through them; nothing else needs the record.
-- Predicates stay as the model wrote them; a controlled list is Step 2's.
+- **Quote gate.** A stored quote is a verbatim slice of the document, no ellipsis. Located as
+  `exact`, `normalised`, `unwrapped` or `words`; rejected as `paraphrase`, `not_found`, `empty`,
+  `duplicate`, `self_reference` or `unlisted_subject`.
+- **Salience.** A unit's call makes an entity major for the document; abstract naming and proper
+  names do not promote. A major with nothing to summarise (no facts, no cells) is demoted.
+- **Minors have no node.** A fact lands on the major that is its subject (forward), or under the
+  major it points at (inverse), with the lesser thing's name as its value. A fact between two
+  lesser things is not stored.
+- **Stated facts.** From a user turn: what the user says of their own life, plus one `stated` fact
+  per user sentence that states a detail, the whole sentence as its object and its quote. From an
+  assistant turn: the specific names, numbers, amounts, steps and options it gives the user.
+  `drop_repeated_stated` drops a stated fact whose span another kept fact already holds. Books
+  and papers keep the general fact instruction.
+- **Dates.** `valid_from` only when the quote itself states it; no `valid_to`. A fact carries
+  `occurred_at` copied from its unit. `rank` is `active`.
+- **Contradictions are resolved within a document only.** A contradiction record names which of
+  its source facts holds at the document's end; both facts stay active. Across documents nothing
+  is resolved.
+- No profile record; no mention records (mentions are counted, not written). Predicates stay as
+  the model wrote them, in snake_case.
+
+## Run configuration
+
+Blocks 12 to 15 are the run. Block 12: one LongMemEval history, `gpt4_2ba83207` (53 sessions),
+plus the answer sessions of 13 other questions covering the six question types; sessions are
+chosen by path since 1.8, never by title; 16 at a time, budget $15. Block 13: the first three Oz
+books, $12. Block 14: five of the 100 kg-rag-cc papers, drawn with seed 494, $8. Block 15: the
+Bacchae and Dandy Dick, $6. A block's budget ends it past that many dollars of its own spending.
 
 ## Output
 
 One package per document at `packages/<corpus>/<file>/<file>.jsonl`, one record a line under a
 `record` field: `document`, `unit`, `piece`, `node`, `alias`, `edge` (`appears_in`, `has_unit`),
-`profile`, `cell`, `abstract`, `adjudicated_fact`, `attribute`, `contradiction`, `fact`,
-`rejection`, `ledger`, `candidate`, and a `completion` with the counts. A `roll-up.txt` is written
-beside it. Run logs at the output root: `calls.jsonl` (every call with its cost), `retries.jsonl`,
-`rejections.jsonl`, `ingest.log`, `receipt.json`.
+`cell`, `abstract`, `adjudicated_fact`, `attribute`, `contradiction`, `fact`, `rejection`,
+`ledger`, `candidate`, and a final `completion` with the counts. A `roll-up.txt` is written beside
+it. Run logs at the output root: `calls.jsonl` (every call with its cost), `retries.jsonl` and
+`rejections.jsonl` (replies that did not fit their shape), `ingest.log`, `receipt.json`.
 
-Ids are readable: `<doc_id[:8]>:doc` for the document node, `:n<index>` for an entity, `:u<unit>:f<n>`
-for a fact. All offsets are document offsets. A finished package is skipped on a rerun.
+Ids are readable: `<doc_id[:8]>:doc` for the document node, `:n<index>` for an entity node,
+`:u<unit position>:f<n>` for a fact. All offsets are document offsets. A finished package is
+skipped on a rerun; to continue a stopped run, make a dataset from the output and attach it.
+
+## Measured cost
+
+A chat costs $0.0042 to $0.0045 a session on the one-call design, about $100 to $107 for the
+23,882 chats. The frozen full run of 09-13 on 1.7: 81 documents, $5.57, 1,696 calls, 0 quotes off.
