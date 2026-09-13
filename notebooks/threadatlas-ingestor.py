@@ -136,6 +136,7 @@ KAGGLE_EXPORTS = (Path("/kaggle/input/datasets/jhffmn/it494-threadatlas-step0"),
 LOCAL_EXPORT = Path("data/export")
 KAGGLE_OUT, LOCAL_OUT = Path("/kaggle/working/packages"), Path("data/packages")
 BOILERPLATE = ("front_matter", "license")   # never the work, whatever the document
+TURNS = ("user", "assistant")                # a conversation's turns: always the work, each with one speaker
 
 if hasattr(sys.stdout, "reconfigure"):            # a console that is not UTF-8 must not end the run
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
@@ -861,10 +862,17 @@ Return JSON {{"entities": [{{"name", "named", "kind", "salience", "surface_forms
 
 
 def fact_prompt(unit, names, majors):
+    speaker = ""
+    if unit["kind"] in TURNS:                     # a chat turn: who is speaking, and whose record this is
+        speaker = f"""
+
+This unit is one turn of a conversation between a user and an assistant, spoken by the {unit['kind']}. The record is the user's memory. What the user says about themselves, the people in their life, and their plans, preferences and decisions are facts. What the assistant says is the assistant's: record what it recommends or tells the user as its recommendation, never as what a thing is or has. Options it lists and general knowledge are not facts."""
+    if unit["kind"] == "user":                    # and, in addition, every detail the user states, as said
+        speaker += """ In addition to those facts, record each detail the user states about themselves, their life, and the people and things in it as one more fact with subject user, predicate stated, and object the detail in the user's own words, keeping its amounts, places and times; for these facts only, the object is that phrase rather than a bare value. A question or request to the assistant is not a detail, though a detail stated inside one is."""
     return f"""TEXT ({unit['label']}):
 {unit['text']}
 
-Above is one unit of a longer document; below, the entities identified in it. For each entity, distill every durable fact the text states about it: what it is, its attributes, its states, its situation, its parts and possessions, its relationships to the other listed entities. Not moment-to-moment actions or passing remarks; a lasting disposition, habit, or position counts.
+Above is one unit of a longer document; below, the entities identified in it. For each entity, distill every durable fact the text states about it: what it is, its attributes, its states, its situation, its parts and possessions, its relationships to the other listed entities. Not moment-to-moment actions or passing remarks; a lasting disposition, habit, or position counts.{speaker}
 
 Return JSON {{"facts": [{{"subject", "predicate", "object", "qualifiers", "quote", "valid_from"}}]}} where:
 - subject: a name from ENTITIES, exactly as written
@@ -1085,6 +1093,12 @@ def derive_unit(doc, unit, ctx, light=False):
         claimed.update(spans)
         rec["entities"].append({"name": name, "named": bool(e["named"]), "kind": str(e["kind"]).lower(),
                                 "major": str(e.get("salience") or "").strip().casefold() == "major", "forms": forms, "mentions": len(spans)})
+    if unit["kind"] == "user":                    # a chat turn by the user: the user is always an entity, and a major one
+        mine = next((e for e in rec["entities"] if e["name"].casefold() == "user"), None)
+        if mine:
+            mine.update(named=True, kind="person", major=True)
+        else:
+            rec["entities"].append({"name": "user", "named": True, "kind": "person", "major": True, "forms": ["user"], "mentions": 1})
     names = [e["name"] for e in rec["entities"]]
     if not names:
         rec["empty"] = True
@@ -1545,12 +1559,14 @@ def fold_document(records, entities, ctx, light=False):
             out["demoted"].append(e["name"])
         (out["majors"] if e["major"] else out["minors"]).append(e)
 
+    chat = any(r["kind"] in TURNS for r in records)   # a chat's majors are small: no abstract call
+
     def abstract_of(e):
         """(text, kind, tier). Two records or fewer stand as the abstract without a call; on the
-        one-reading path the entity's own cell is its abstract, and an entity with only facts
-        gets none, since a run of predicate strings is not a summary of anything (09-07)."""
+        one-reading path, and for a chat, the entity's own cells are its abstract, and an entity
+        with only facts gets none, since a run of predicate strings is not a summary of anything (09-07)."""
         cells = cells_of.get(e["index"], [])
-        if light:
+        if light or chat:
             if not cells and len(e["children"]) > 2:
                 return None, None, LUNA
             return " ".join(c.split("] ", 1)[-1] for c in cells or e["children"]) or None, None, LUNA
@@ -1610,12 +1626,14 @@ def adjudicate(records, folded, ctx, watch=False, light=False):
     raw fact ids, the raw facts set aside as unsupported, and how the major was handled."""
     landed, cells_of = landings(records, folded), folded["cells_of"]
     out, standing, to_judge = {}, [], []
+    chat = any(r["kind"] in TURNS for r in records)   # a chat's facts stand as said: nothing is consolidated
     for e in folded["majors"]:
         raws = landed[e["index"]]
         out[e["index"]] = {"facts": [], "attributes": [], "contradictions": [], "unsupported": [], "dropped": 0,
                            "raw": len(raws), "skipped": None, "rejected": False, "support_calls": 0}
-        if light:
-            out[e["index"]]["skipped"] = "one reading: the facts stand, verified in one pass"
+        if light or chat:
+            out[e["index"]]["skipped"] = ("one reading: the facts stand, verified in one pass" if light
+                                          else "a chat: the facts stand as said, verified in one pass")
             standing.append(e)
         elif not raws:
             continue
@@ -1992,12 +2010,15 @@ RESULTS = []                                  # (source_uri, records, counts, st
 
 
 def triage(doc, ctx):
-    """Which kinds of unit are not the work: ({kind: reason}, flags). Boilerplate goes by rule.
+    """Which kinds of unit are not the work: ({kind: reason}, flags). Boilerplate goes by rule,
+    and a conversation's turns are always read.
     A document with more than one kind left after that asks the judge; the answer stands, short
     of leaving out more than half the document."""
     excluded = {u["kind"]: f"{u['kind'].replace('_', ' ')}: not the work itself" for u in doc["units"] if u["kind"] in BOILERPLATE}
     kinds = {}
     for u in doc["units"]:
+        if u["kind"] in TURNS:                    # a turn is the conversation itself: never offered to be left out
+            continue
         text = doc["text"][u["start"]:u["end"]]
         kinds.setdefault(u["kind"], []).append((u["position"], u["label"], word_count(text), first_line(text)))
     if one_reading(doc):                          # one unit to read: no choice to make, the boilerplate goes by rule
@@ -2181,6 +2202,9 @@ def one_document(uri):
         return {"text": f"{uri}  ERROR {type(e).__name__}: {e}"}
 
 
+RUN_TIMES = {}                                   # when the last run started and finished, for the receipt
+
+
 def run(uris, at_once=None):
     """Every document named, DOCS_AT_ONCE at a time and reported in the order they were named.
     While more than one runs the per-unit trace is stilled: eight interleaved traces are not a
@@ -2195,6 +2219,8 @@ def run(uris, at_once=None):
     width = max(at_once or DOCS_AT_ONCE, 1)
     watching, WATCH = WATCH, WATCH and width == 1
     done = skipped = 0
+    started = time.time()
+    RUN_TIMES["started_at"] = datetime.now(timezone.utc).isoformat(timespec="seconds")
     try:
         for at in range(0, len(todo), width):
             results = in_parallel(one_document, todo[at:at + width], width=width)
@@ -2207,13 +2233,17 @@ def run(uris, at_once=None):
                 break
     finally:
         WATCH = watching
-    print(f"done {done}  skipped (already complete) {skipped}  spent ${spend()[0]:.2f} this session")
+        RUN_TIMES["finished_at"] = datetime.now(timezone.utc).isoformat(timespec="seconds")
+        RUN_TIMES["minutes"] = round((time.time() - started) / 60, 1)
+    print(f"done {done}  skipped (already complete) {skipped}  spent ${spend()[0]:.2f} this session"
+          f"  in {RUN_TIMES['minutes']} minutes ({RUN_TIMES['started_at']} to {RUN_TIMES['finished_at']})")
     return done, skipped
 
 
 def receipt():
     """Sums over every package on disk, plus the calls this session logged."""
     rec = {"ingestor": INGESTOR, "documents": 0, "by_group": {}, "counts": {}, "matched_by": {}, "rejected_by": {}, "cost_of_packages": 0.0,
+           "started_at": RUN_TIMES.get("started_at"), "finished_at": RUN_TIMES.get("finished_at"), "minutes": RUN_TIMES.get("minutes"),
            "cost_this_session": round(spend()[0], 4), "calls_this_session": len(CALLS), "calls_by_stage": tally(c["stage"] for c in CALLS),
            "schema_rejections_this_session": MISSES["rejections"], "schema_retries_this_session": MISSES["retries"]}
     for path in sorted(OUT.rglob("*.jsonl")):
