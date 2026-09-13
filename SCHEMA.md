@@ -177,9 +177,11 @@ two-sentence summary of that unit -- and a unit's judgement stands for the
 document: if any unit called it major it is a document-major. Being named in
 the document abstract does not promote, and neither does carrying a proper
 name. One thing demotes: a major with no facts and no cells, nothing to
-summarise, falls to minor (decision 52, 2026-09-07). A fact whose subject is
-minor in every unit is not stored, and the completion record keeps the count
-(ruled 2026-09-11). In a chat the user is a standing major on every user turn
+summarise, falls to minor (decision 52, 2026-09-07). A fact lands on the major
+that is its subject, or under the major it points at with the minor's name as
+its value; a fact whose subject is minor in every unit and which points at no
+major is not stored, and the completion record keeps the count (ruled
+2026-09-11; riding to a related major was dropped on 2026-09-07). In a chat the user is a standing major on every user turn
 (2026-09-10), and the global layer will not make a `user` entity.
 
 Until 2026-09-07 the abstract was the ONLY route -- "an entity named in the
