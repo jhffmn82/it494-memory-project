@@ -253,7 +253,9 @@ the full data through the ingestor only when the whole pipeline is ready for tes
 batches, with the run's kernel time used for writing; both benchmarks stay; a first draft of the
 paper in mid-October, the second to Dr. Fang by November 3.
 
-What that does to the findings above. The verdict stands. The feasibility changes shape: the
+Justin's reading of the verdict, on walking through it: "unproven" describes the evidence on hand tonight, not the odds. Every stage so far has shipped and each one improved the plan, so the plan assumes the design lock lands and the mid-October draft is written as the research paper, with the resource content as its floor rather than its frame; the gates re-price, they do not pre-cut.
+
+What that does to the findings above. The verdict stands as a statement of evidence. The feasibility changes shape: the
 design lock (global layer, store, embedding, query path, 25 to 37 hours by the plan's prices)
 must land in the two weeks to September 27, which is impossible at eight hours a week and
 plausible at the pace the repository records; the week of September 20 says which. The
