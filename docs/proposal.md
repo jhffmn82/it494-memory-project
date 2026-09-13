@@ -1,8 +1,8 @@
 # Persistent memory for a desktop assistant
 
-Justin Hoffman. IT 494, Fall 2026. Supervisor: Dr. Xing Fang. Draft of
-August 31, brought to the project as it stands on September 13; the version
-filed with the advisor is the August 31 draft.
+Justin Hoffman. IT 494, Fall 2026. Supervisor: Dr. Xing Fang. Revision of
+September 13, replacing the draft of August 31 that was filed with the
+advisor; the changes are listed at the end.
 
 ## The problem
 
@@ -22,8 +22,8 @@ transcript. It works well enough to use every day and it taught me where the
 real problems are: deciding that two names refer to one thing, keeping facts
 current without destroying the record of what was believed before, and
 compressing a long history into something a model can actually be handed. That
-system was built to prove the idea. This project builds the real one, with my
-own code, and measures it.
+system was built to prove the idea. This project builds the real one and
+measures it.
 
 ## What gets built
 
@@ -36,122 +36,131 @@ and the superseding is itself part of what the system knows. Across sources
 nothing is merged: each document keeps its own version of an entity, and an
 edge attaches it to a parent that holds only a derived name, kind and
 summary and asserts nothing of its own, so re-deciding an identity re-points
-an edge instead of rewriting records (settled September 7).
+an edge instead of rewriting records.
 
-The fall semester builds and tests the methodology on literature rather than
-on private data, for one reason: you cannot publish measurements taken on a
-personal life. The working hypothesis is that fiction fed in narrative order
-behaves like a life recorded in chat. Characters accumulate names, facts
-change while old ones stay true of their time, and many threads run through
-one document. In the second Oz book a boy named Tip is revealed to be the
-transformed princess Ozma. Everything asserted about Tip stays true of the
-period it was asserted in, and everything after must attach to the same
-entity under a new name. That is the same event, structurally, as a course
-pivoting or a colleague changing jobs, and it arrives with ground truth
-attached.
+The pipeline has five stages, and the first two are built and measured:
 
-Three public-domain corpora are already assembled, 69 files and about 5.2 million words: the Oz canon, the complete Sherlock Holmes, and the major Greek mythological sources. Beside them the raw dataset carries the 20 GraphRAG-Bench novels, 100 CC-BY papers on knowledge graphs and retrieval, and the LongMemEval chat sessions. Oz supplies the
-supersession fixture and a mid-canon change of author. Holmes contributes a
-contradiction Doyle never reconciled and a contamination probe:
-the deerstalker cap belongs to the illustrations, not the text, so if an
-induced description of Holmes contains one, the description came from the
-model's training and not from my store. The Greek corpus supplies
-irreconcilable disagreement between sources and hundreds of free
-entity-resolution test pairs, since Ovid names in Latin what Homer names in
-Greek.
+1. **The extractor** reads a raw file and nothing else, sniffs its format from
+   the bytes, and has a model point at every boundary by line number while
+   code verifies the copy. Every unit is dated: a chat turn by its timestamp,
+   a book or paper by when the work was written. It ran over the whole corpus
+   on September 13 for $8.24 and is published with its data.
+2. **The ingestor** turns one document into a package: entities, facts behind
+   a quote gate (a fact whose quote is not found verbatim in its unit is never
+   stored), a narrative cell per entity per unit for books and papers, and an
+   abstract. A chat session is read in one call, each fact tied to its turn.
+   Frozen on September 12; a chat session costs under half a cent.
+3. **The global layer** attaches each document's entities to silent parents.
+   It is built first in the remaining weeks, because the database schema and
+   the embedding follow from it.
+4. **The store and the query path**: SQLite with full-text search, a local
+   embedding sidecar (a small model run on the user's own machine), and
+   retrieval that returns whole items with their dates and sources.
+5. **The harness** that runs a benchmark's questions through the query path
+   and scores them with the benchmark's own evaluator.
 
-The visible artifact is a wiki assembled mechanically from the store: infobox
-from fact rows, lead paragraph from the entity summary, biography from the
-narrative layer, every claim traceable to a verbatim quote. A second version
-of each page is then written freely by a strong model reading the same store.
-The assembled page cannot contain anything the text never said; the generated
-page can; the difference between them is a fabrication measurement a reader
-can check by eye.
+The fall builds and tests this on public text rather than on private data, for
+one reason: you cannot publish measurements taken on a personal life. The
+working hypothesis is that fiction fed in narrative order behaves like a life
+recorded in chat, and that a benchmark of simulated chat histories behaves
+like the real thing. The corpus, all of it public and licensed for
+redistribution: three public-domain literature corpora (the Oz canon, the
+complete Sherlock Holmes, the major Greek and Roman sources; 69 files), the
+20 GraphRAG-Bench novels, 100 CC-BY research papers on knowledge graphs and
+retrieval, and the 500 chat histories of LongMemEval, 24,071 documents in all.
+Oz supplies the supersession fixture (a boy named Tip is revealed to be the
+princess Ozma, and everything asserted about Tip stays true of its period);
+Holmes a contradiction Doyle never reconciled; the Greek corpus disagreement
+between sources and free entity-resolution pairs; the chat histories the
+shape of the end product's real input.
 
 ## What gets measured
 
 I checked twelve candidate ideas against published work and every one of them
-is already taken, including the ones I thought were mine. That settles what
-kind of paper this is. The venues that fit this work say novelty is optional
-and rigorous measurement is the price, so the paper is: here is a working
-system, and here is what each part of it is worth. I build it, switch parts
-off one at a time, and report what each costs. The class project and the
-paper are the same work.
+is already taken. That settles what kind of paper this is: here is a working
+system, and here is what each part of it is worth, measured. Novelty is
+conceded in the introduction; rigor is the price.
 
-One question in the design is genuinely open. Every system I would compare
-against resolves entities using name similarity, embeddings, or a model's
-verdict. Mine also scores co-occurrence, whether the surrounding cast matches.
-Collective entity
-resolution established the idea in 2007; whether the relational signal still
-pays when the base matcher is an embedding and a language model is unmeasured,
-and one of the systems in my comparison table asks for exactly this in its
-future work. That is the measurement I most want to land.
+Three measurements are committed for the fall.
 
-Five measurements are committed for the semester.
+First, question answering on GraphRAG-Bench: 2,010 questions with gold
+answers over twenty pre-1900 novels, where nine systems have published
+numbers under one reader model. Arms: no context, flat retrieval over the raw
+text, and the full system; the benchmark's own plain-retrieval baseline is
+reproduced on my harness before any comparison is claimed. Their results give
+the target: the best system spends about a thousand tokens per question and
+the most expensive over three hundred thousand, so accuracy per token is
+where a serverless design can show up.
 
-First, question answering on GraphRAG-Bench, a benchmark of 2,010 questions
-with gold answers and gold evidence over twenty pre-1900 novels, where nine
-systems have published numbers under the same reader model. I run the full
-system, a no-context control, and flat retrieval, then once more with the
-co-occurrence resolution signal switched off, which isolates
-what my one open question is worth. The per-entity narrative ablation runs
-after it if hours allow. Their own results give the target: the
-best system spends about a thousand tokens per question and the most
-expensive spends over three hundred thousand, so accuracy per token is where
-a serverless design can show up.
+Second, question answering on LongMemEval, the chat-memory benchmark where
+the nearest commercial system published its numbers. One history is one
+graph. Arms: full context, flat retrieval over raw turns, the full system, and
+the full system with the parent join switched off, which measures what the
+global layer buys instead of asserting it. The questions used to tune the
+ingestor are excluded from every reported number. The knowledge-update
+questions are reported as accuracy; no read-time supersession mechanism is
+claimed this fall.
 
-Second, resolution accuracy against a hand-labeled alias set over one novel.
-It was to be built in the first week and scored from the first ingest; as of
-September 13 it is not yet written, and it is the first thing the global
-layer needs.
+Third, the instruments that fall out of running the pipeline at all: the rate
+at which extracted quotes fail to appear verbatim in their source, rejections
+per stage and model tier, token cost per stage, duplicate parents per history,
+and agreement between unit summaries and entity narratives, which describe
+the same text independently and catch each other's omissions.
 
-Third, question answering on NarrativeQA, which happens to include 319 human-written questions over eleven books already in my corpora, run through the same three arms.
+Every model call goes through one narrow interface, `generate(prompt,
+schema)`, and every run records which model and tier ran each call and what
+it cost; an embedding interface joins it with the store. The pipeline is code
+I direct, review and answer for end to end, drafted with AI assistance under
+my rulings and checked by an offline test battery; the model is the only black
+box. Each benchmark is scored with its own published evaluator, on one reader
+model for every arm.
 
-Fourth, the instruments that fall out of running the pipeline at all:
-duplicate entities minted per chapter, the rate at which extracted quotes
-fail to appear verbatim in their source, predicate sprawl, token cost per
-stage and per model tier, agreement between the chapter-level and
-entity-level summaries, which describe the same text independently and catch
-each other's omissions, and the cost of keeping summaries current as the
-corpus grows, set against published figures for full-rebuild systems.
+Deferred to spring, with reasons recorded: NarrativeQA; the assembled wiki
+and its fabrication probe; the narrative-cell ablation; the resolution
+ablation, whose signal now acts only inside a document; and the three-tier
+model-sensitivity pilot.
 
-Fifth, LongMemEval, the chat-memory benchmark where the nearest commercial system published its numbers, unpacked per question history with each session a document. I run
-the full-context arm first to prove my harness reproduces their baseline,
-then the 78 questions that test knowledge updates, which is supersession
-under its benchmark name. The full comparison belongs to spring.
+## The calendar
 
-Every model call in the pipeline goes through one narrow interface,
-`generate(prompt, schema)`, and every run records which model and tier ran
-each call and what it cost; an embedding interface joins it when retrieval is
-built. The pipeline is code I direct, review and answer for end to end,
-drafted with AI assistance under my rulings and checked by an offline test
-battery; the model is the only black box. Judged scoring, where unavoidable,
-runs on a model tier that never writes anything in the pipeline, calibrated
-against a hand-labeled sample first.
+Dr. Fang approved the topic change in person on August 28. The semester has
+two open blocks, now through September 27 and October 19 through November 15,
+with three exam weeks between them.
 
-## The fall calendar
-
-Dr. Fang approved the topic change in person on August 28; the one-semester
-form is the remaining paperwork. The semester has two open blocks, now
-through September 27 and October 19 through November 15, with three exam
-weeks between them where nothing gets scheduled.
-
-By September 2 a single chapter runs end to end: split, cast identified,
-entities and facts extracted behind the quote gate, chapter and entity
-summaries written, and a small graph rendered. By September 14 the raw dataset is split into dated, verified units and published as a public dataset (kaggle.com/datasets/jhffmn/it494-threadatlas-step0, 24,071 documents, published September 13), which is the reproducibility piece: everything in it is public domain, MIT-licensed, or CC-BY with attribution, so anyone can rerun the study. By September 27 the store and pipeline have run
-over the first Oz book at three model tiers and the alias set is scored. The
-benchmark arms and the ablation run October 19 to 26, right after the exam
-block. The dataset gets its DOI by November 10, the paper freezes November
-15, and the preprint goes to arXiv the next day. The wiki demonstration
-stands up alongside the writing.
+By September 13 the extractor had run over the whole corpus and the dataset
+was published; the ingestor was frozen and measured. By September 20 the
+global layer, the store and the embedding exist over a test set of packages
+(71 chat sessions, three Oz books, five papers, two plays). By September 27
+the harness runs a question end to end through them on both corpora, and
+testing begins. In the exam block the pipeline is tuned on that test set until
+it is ready, and only then does the full corpus go through it, in batches,
+while I write. A first draft of the paper is due in mid-October with whatever
+numbers exist by then; the build stops October 31; a second draft goes to Dr.
+Fang by November 3; the dataset gets its DOI by November 10; the paper freezes
+November 15 and the preprint goes to arXiv the next day.
 
 The spring semester wraps the proven methodology in the desktop product,
 points it at real chat exports, and ships something a person can install.
-That work is out of scope for the fall.
 
-Hours are the binding constraint; the compute is a few dollars to a few
-hundred at Flex rates for the full run (the extractor read every document for
-$8.24; the ingestor's chats cost about $100 to $107). The plan in the
-repository prices every slate item against the open weeks and carries a cut
-order decided now rather than in November. When something slips, I cut from
-the bottom of that order and keep the committed measurements.
+Hours are the binding constraint. Compute is measured, not estimated: $8.24
+for the extractor over everything, about $100 for the ingestor over every
+chat on the frozen version and less on the current one, tens of dollars for
+the novels, under $20 to answer 500 questions three ways. The plan in the
+repository (`docs/execution-plan.md`) prices every remaining step, sets the
+gates, and carries the cut order; when something slips, I cut from the bottom
+and keep the committed measurements.
+
+## Changes since the filed draft of August 31
+
+- The corpus: the Chinese classics are out (licensing), and the OCR and
+  translation controls with them; GraphRAG-Bench, the CC-BY papers and
+  LongMemEval are in. The private reference papers are not part of the corpus.
+- The measurements: GraphRAG-Bench and LongMemEval are the two committed
+  benchmarks; NarrativeQA, the wiki, the cells ablation and the resolution
+  ablation are deferred; the profile signal was dropped on September 9.
+- The design: nothing is merged across documents (the tree, September 7);
+  chats are read in one call and carry no narrative cells (September 12).
+- The interfaces: one today, `generate`; the embedding interface arrives with
+  the store.
+- The milestone of September 27 (store and pipeline over Oz book 1 at three
+  tiers, alias set scored) is replaced by the design lock above.
+- Authorship is stated as it is.
