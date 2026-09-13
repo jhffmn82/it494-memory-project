@@ -224,7 +224,7 @@ def demo_package(out_dir):
         {"record": "attribute", "node_id": e, "attribute": "shape", "value": "round", "from_facts": ["demo:u0:f0"], "tier": "demo"},
         {"record": "fact", "fact_id": "demo:u0:f0", "subject": e, "predicate": "is_colored", "object": "blue",
          "object_is_node": False, "direction": "forward", "qualifiers": None, "rank": "active", "unit_id": "demo:u0",
-         "quote": "the widget is blue", "quote_start": 0, "quote_end": 18, "valid_from": None, "valid_to": None,
+         "quote": "the widget is blue", "quote_start": 0, "quote_end": 18, "valid_from": None,
          "occurred_at": "2026", "tier": "demo", "author": "A. Author",
          "provenance": {"subject_name": "Widget", "matched_by": "exact"}},
         {"record": "completion", "doc_id": "demo", "ingestor": "demo", "counts": {"units": 1}, "empty": False},

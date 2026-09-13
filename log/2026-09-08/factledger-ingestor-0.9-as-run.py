@@ -1,5 +1,5 @@
 # %% [markdown]
-# # ThreadAtlas ingestor
+# # FactLedger ingestor
 #
 # One document at a time, from the extractor's export to a **document package**: the entities
 # the document is about, every fact with a verbatim quote located at document offsets, a
@@ -9,7 +9,7 @@
 # ## What comes in
 #
 # The export folder (`EXPORT`, the Kaggle dataset, or `data/export`) holds three JSONL files,
-# one row per line, written by the extractor.
+# one row per line, written by the extractor. A fourth is optional.
 #
 # `documents.jsonl`, one row per document:
 #
@@ -20,21 +20,21 @@
 # | `sha256`, `title`, `author`, `source_class`, `occurred_at`, `loader`, `ingested_at`, `flags` | what the extractor knew about the file |
 # | `text` | the whole text of the document |
 #
-# `units.jsonl`, one row per unit, the size-bounded runs the extractor cut the text into (a chat's unit is one turn):
+# `units.jsonl`, one row per unit, the size-bounded runs the extractor cut the text into:
 #
 # | field | meaning |
 # |---|---|
 # | `unit_id`, `doc_id`, `position` | its id, its document, its place in reading order |
-# | `label` | a human label: a chapter title, or a chat turn's opening line `SESSION <id> TURN <n> <date>` |
+# | `label` | a human label, such as a chapter title or a range of turns |
 # | `start`, `end` | character offsets into the document text |
-# | `occurred_at` | when it was said, when the file carries times |
+# | `occurred_at`, `occurred_until` | when it was said, when the file carries times |
 #
 # `pieces.jsonl`, one row per natural piece (a chapter, a turn, a section) inside a unit:
 #
 # | field | meaning |
 # |---|---|
 # | `doc_id`, `unit_id`, `position`, `start`, `end` | where it is |
-# | `kind` | `body`, `front_matter`, `license`, `references`, `user`, `assistant`, and so on; a unit's kind is the kind of most of its characters |
+# | `kind` | `body`, `front_matter`, `license`, `references`, `turn`, and so on; a unit's kind is the kind of most of its characters |
 # | `author` | the speaker of a chat turn, else `null` |
 # | `occurred_at` | the time of a turn, else `null` |
 #
@@ -62,7 +62,8 @@
 #         entities    ask for the entities in the unit, each with its surface forms
 #                     keep an entity only if one of its forms is found in the unit text
 #         facts       ask for facts about those entities, each with a verbatim quote
-#                     keep a fact only if its quote is located in the unit text
+#                     keep a fact only if its quote is located in the unit text;
+#                     a quote that crosses a change of speaker is cut into one fact per voice
 #         cells       ask for a unit summary and one narrative cell per major entity
 #     reconcile   unit-local entities become document entities:
 #                     same proper name and kind: united at once, no call
@@ -80,7 +81,7 @@
 #     write       the package, then the roll-up
 # ```
 #
-# ## The algorithm for a document of one unit
+# ## The algorithm for a document of one unit (a chat session)
 #
 # ```
 # ingest(doc):
@@ -94,23 +95,10 @@
 # ```
 # About four calls a document instead of twenty-five.
 #
-# ## The algorithm for a chat session
-#
-# ```
-# ingest(chat):
-#     read        one Luna call over all of its turns, a very long session in stretches: what the
-#                 user says of their own life, the specifics the assistant gives, and a summary;
-#                 a fact is kept only if its quote is located in its own turn
-#     entities    one per name the reading used; the same name in two turns is one entity, no judge
-#     abstract    the reading's summary, no call
-#     adjudicate  nothing is consolidated: every fact is checked in one support call
-#     verify      as above
-#     write       the package
-# ```
-#
 # ## On Kaggle
 #
-# Attach the export dataset (`jhffmn/it494-threadatlas-step0`). Attach
+# Attach the export dataset (`jhffmn/it494-factledger-step0`) and, for the reference papers
+# whose text it withholds, the private PDFs (`jhffmn/it494-reference-papers`). Attach
 # `OPENAI_API_KEY` under Add-ons > Secrets, turn Internet on, run block 3 to see the connection
 # work, then the run blocks. The packages land under `/kaggle/working/packages`. To continue a
 # stopped run, make a dataset from that output and attach it: finished packages are copied in
@@ -119,17 +107,23 @@
 # %% [markdown]
 # ## Block 1: files
 #
-# The export is read from the first of these that exists: the `EXPORT` environment variable,
-# the Kaggle dataset, the local folder. `documents.jsonl` is indexed once (doc_id, title, byte
-# offset), so `load_document(uri)` reads a document back with one seek, with its units (each
-# stamped with its kind) and its pieces. A previous run's packages, if attached, are copied in
-# first, so they are skipped rather than paid for again.
+# Finds the export, the output folder and the papers folder, indexes `documents.jsonl` by byte
+# offset so a document is read back with one seek, and loads the units and pieces grouped by
+# document. `load_document(uri)` returns one document with its text, its units (each stamped
+# with its kind) and its pieces. A reference paper's text is rebuilt from its PDF the way the
+# extractor read it.
 
 # %%
 # Block 1: where things are, and how a document is read.
+#
+# The export is read from the first of these that exists: the EXPORT environment variable,
+# the Kaggle dataset, the local folder. documents.jsonl is indexed once (doc_id, title, byte
+# offset) and a document is read back with one seek. The public export withholds the
+# reference papers' text; it is rebuilt from the PDF exactly as the extractor read it.
 import hashlib
 import json
 import os
+import re
 import shutil
 import sys
 import time
@@ -138,12 +132,11 @@ from datetime import datetime, timezone
 from contextlib import redirect_stdout
 from pathlib import Path
 
-INGESTOR = "threadatlas-ingestor 1.7"
-KAGGLE_EXPORTS = (Path("/kaggle/input/datasets/jhffmn/it494-threadatlas-step0"), Path("/kaggle/input/it494-threadatlas-step0"))
+INGESTOR = "factledger-ingestor 0.9"
+KAGGLE_EXPORTS = (Path("/kaggle/input/datasets/jhffmn/it494-factledger-step0"), Path("/kaggle/input/it494-factledger-step0"))
 LOCAL_EXPORT = Path("data/export")
 KAGGLE_OUT, LOCAL_OUT = Path("/kaggle/working/packages"), Path("data/packages")
 BOILERPLATE = ("front_matter", "license")   # never the work, whatever the document
-TURNS = ("user", "assistant")                # a conversation's turns: always the work, each with one speaker
 
 if hasattr(sys.stdout, "reconfigure"):            # a console that is not UTF-8 must not end the run
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
@@ -201,23 +194,19 @@ def index_documents():
     return index
 
 
-def row_position(row):
-    return row["position"]
-
-
 def by_document(rows):
     """{doc_id: rows in position order}."""
     grouped = {}
     for row in rows:
         grouped.setdefault(row["doc_id"], []).append(row)
     for group in grouped.values():
-        group.sort(key=row_position)
+        group.sort(key=lambda r: r["position"])
     return grouped
 
 
 def unit_kind(pieces, unit):
     """The kind of most of the unit's characters, from its pieces; 'body' when it has none.
-    Triage reads it to decide which kinds to leave out, and a chat turn's kind is its speaker."""
+    Code never branches on it: it is shown to the judge that decides which kinds to read."""
     chars = {}
     for p in pieces:
         if p["unit_id"] == unit["unit_id"]:
@@ -235,7 +224,9 @@ def load_document(uri):
     doc["units"] = [dict(u) for u in UNITS.get(doc["doc_id"], [])]
     doc["pieces"] = PIECES.get(doc["doc_id"], [])
     if doc["text"] is None:
-        raise ValueError(f"{uri}: the export carries no text for this document")
+        raise ValueError(f"{uri}: the export carries no text for this document."
+                         " Every document's text is in documents.jsonl since 2026-09-09;"
+                         " nothing is withheld and no PDF is read here.")
     if doc["units"] and doc["units"][-1]["end"] != len(doc["text"]):
         raise ValueError(f"{uri}: the text is {len(doc['text']):,} chars but the units end at"
                          f" {doc['units'][-1]['end']:,}; the export's offsets do not match its text")
@@ -244,6 +235,20 @@ def load_document(uri):
         assert doc["text"][u["start"]:u["end"]].strip(), (uri, u["position"])
         u["kind"] = unit_kind(doc["pieces"], u)
     return doc
+
+
+def find_document(name):
+    """The source_uri of the document called `name`: by title (an exact title first, then a
+    title containing it), else by the end of its source_uri; None when nothing matches."""
+    wanted = name.casefold()
+    exact = [uri for uri, e in BY_URI.items() if (e["title"] or "").casefold() == wanted]
+    partial = [uri for uri, e in BY_URI.items() if wanted in (e["title"] or "").casefold()]
+    matches = exact or partial
+    if len(matches) > 1:
+        print(f"{name!r} matches {len(matches)} titles; taking the first: {[BY_URI[u]['title'] for u in matches]}")
+    if matches:
+        return matches[0]
+    return next((uri for uri in BY_URI if uri.endswith(name)), None)
 
 
 EXPORT = first_existing("EXPORT", *KAGGLE_EXPORTS, LOCAL_EXPORT)
@@ -263,28 +268,31 @@ if SEEDED:
 # %% [markdown]
 # ## Block 2: the model
 #
-# `generate(prompt, schema, stage)` is the one way the notebook talks to a model: raw HTTP, the
-# key from the `OPENAI_API_KEY` environment variable or the Kaggle secret of that name. The API
-# rejects `temperature`, so `reasoning_effort` steers it. A reply that does not fit its shape is
-# asked for once more with the error appended, then rejected (`retries.jsonl`,
-# `rejections.jsonl`). A timeout, a 429 or a 5xx is retried three times; exhausted quota ends
-# the run like the spend stop. Every call is logged to `calls.jsonl` with its tier, tokens,
-# latency and cost; `spend()` reads it back, `start_block(budget)` sets one run block's
-# spending stop, and `in_parallel` runs independent calls `WORKERS` at a time.
+# `generate(prompt, schema, stage)` is the one way the notebook talks to a model. It posts the
+# prompt, checks the reply against the shape it must have, asks once more with the error
+# appended if it does not fit, and returns `None` if it still does not. Every call is logged to
+# `calls.jsonl` with its cost. `spend()` reads that log back. `start_block(budget)` sets a
+# spending stop for one run block. `in_parallel` runs independent calls `WORKERS` at a time.
 
 # %%
 # Block 2: the model interface: generate(prompt, schema).
+#
+# The key comes from the OPENAI_API_KEY environment variable, else from the Kaggle secret of
+# that name. Raw HTTP. The API rejects temperature, so reasoning_effort steers it. Every call
+# is logged to calls.jsonl the moment it returns, with model, tokens, latency and cost. A
+# reply that does not fit its schema is asked for once more with the error appended, then
+# rejected; the first miss is logged in retries.jsonl. A timeout, a 429 or a 5xx is retried
+# three times; a 429 for exhausted quota ends the run like the spend stop, which is checked
+# before every call. Independent calls run WORKERS at a time; the logs take one lock.
 import http.client
 import threading
 import urllib.error
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor
 
-LUNA = "gpt-5.6-luna"                      # derive, a chat's one reading, support checks, corrections
+LUNA = "gpt-5.6-luna"                      # derive, support checks, corrections
 TERRA = "gpt-5.6-terra"                    # judge, folds, adjudication
-SERVICE_TIER = "flex"                      # the same models at half price, slower, sometimes refused (tried 09-11)
-PRICE = {"flex": {LUNA: (0.10, 0.60), TERRA: (1.00, 6.00)},       # $ per million tokens in, out,
-         "default": {LUNA: (0.20, 1.20), TERRA: (2.00, 12.00)}}   # by the tier that served the call
+PRICE = {LUNA: (0.20, 1.20), TERRA: (2.00, 12.00)}          # $ per million tokens in, out
 SPEND_STOP = float(os.environ.get("SPEND_STOP", "25"))     # a run block's budget, counted from start_block
 BLOCK_START = 0.0                                          # what had been spent when the block began
 WORKERS = int(os.environ.get("WORKERS", "4"))
@@ -380,7 +388,7 @@ def check_schema(value, schema, path="$"):
 def post(url, payload):
     data = json.dumps(payload).encode("utf-8")
     request = urllib.request.Request(url, data=data, headers={"Authorization": f"Bearer {KEY}", "Content-Type": "application/json"})
-    with urllib.request.urlopen(request, timeout=900) as response:   # Flex can take minutes
+    with urllib.request.urlopen(request, timeout=300) as response:
         return response.status, response.read().decode("utf-8")
 
 
@@ -397,7 +405,7 @@ def call(url, payload, model, stage, ctx, prompt_chars):
     spent = spend()[0] - BLOCK_START
     if spent >= SPEND_STOP:
         raise SpendStop(f"spending stop: ${spent:.2f} of ${SPEND_STOP:.2f} for this block")
-    price_in, price_out = PRICE[SERVICE_TIER][model]
+    price_in, price_out = PRICE[model]
     started = time.time()
     for attempt in range(3):
         try:
@@ -423,11 +431,9 @@ def call(url, payload, model, stage, ctx, prompt_chars):
             raise RuntimeError(f"OpenAI {status}: {text}")
         break
     body = json.loads(text)
-    tier = body.get("service_tier") or SERVICE_TIER       # the tier that actually served the call
-    price_in, price_out = PRICE.get(tier, PRICE["default"])[model]
     usage = body.get("usage", {})
     tokens_in, tokens_out = usage.get("prompt_tokens", 0), usage.get("completion_tokens", 0)
-    log_call({"stage": stage, "model": body.get("model", model), "tier": tier, "in": tokens_in, "out": tokens_out,
+    log_call({"stage": stage, "model": body.get("model", model), "in": tokens_in, "out": tokens_out,
               "seconds": round(time.time() - started, 1), "cost": (tokens_in * price_in + tokens_out * price_out) / 1e6, **ctx})
     return body
 
@@ -437,7 +443,7 @@ def generate(prompt, schema, stage, model=LUNA, effort="low", ctx=None):
     ctx = ctx or {}
     for attempt in range(2):
         body = call("https://api.openai.com/v1/chat/completions",
-                    {"model": model, "reasoning_effort": effort, "service_tier": SERVICE_TIER, "response_format": {"type": "json_object"},
+                    {"model": model, "reasoning_effort": effort, "response_format": {"type": "json_object"},
                      "messages": [{"role": "user", "content": prompt}]}, model, stage, ctx, len(prompt))
         try:
             message = body["choices"][0]["message"]
@@ -455,8 +461,7 @@ def generate(prompt, schema, stage, model=LUNA, effort="low", ctx=None):
     return None
 
 
-print(f"models {LUNA} (derive, and a chat's one reading), {TERRA} (judge, folds, adjudication);"
-      f" {SERVICE_TIER} tier; key {'present' if KEY else 'MISSING'}")
+print(f"models {LUNA} (derive), {TERRA} (judge and fold); key {'present' if KEY else 'MISSING'}")
 
 # %% [markdown]
 # ## Block 3: connection test
@@ -469,26 +474,32 @@ if __name__ == "__main__":
     if not KEY:
         print("no key: attach OPENAI_API_KEY under Add-ons > Secrets, then rerun this cell")
     else:
-        ping = generate('Reply with exactly the JSON object {"ok": true}.', {"type": "object", "required": ["ok"]}, "ping",
-                        ctx={"doc": "connection test"})
+        ping = generate('Reply with exactly the JSON object {"ok": true}.', {"type": "object", "required": ["ok"]}, "ping", ctx={"doc": "connection test"})
         print(f"chat reply {ping}; {len(CALLS)} calls, ${spend()[0]:.5f}")
 
 # %% [markdown]
 # ## Block 4: text helpers and the quote gate
 #
 # Small string helpers (`norm`, `snake_case`, `loose_name`, `name_words`) and the gate every
-# quote must pass. `locate(unit_text, quote)` says where the quote is in the unit and how it was
-# found, each way named so the receipt counts them: `exact`, as written; `normalised`, after both
-# sides are normalised (one space for any whitespace, NFKC, straight quotes, one dash, a
-# hyphenated line break closed, case folded) on a copy that maps every character back to its
-# offset; `unwrapped`, once the model's own quotation marks come off, as whole words; `words`,
-# the shortest passage holding at least `WORDS_NEEDED` of the quote's words in order, within
-# three words of its length. Anything else is `paraphrase` (most of its words are there, in
-# order) or `not_found`. The stored quote is always a verbatim slice of the document.
-# `surface_spans` finds every whole-word occurrence of an entity's name.
+# quote must pass: `locate(text, quote)` returns where the quote is in the unit and how it was
+# found (`exact`, `normalised`, `unwrapped`, `words`), or why it was not (`paraphrase`,
+# `not_found`, `empty`). `surface_spans` finds every whole-word occurrence of an entity's name.
+# The stored quote is always a verbatim slice of the document.
 
 # %%
 # Block 4: text helpers, and the quote gate.
+#
+# locate(unit_text, quote) says where the quote is inside the unit, or why it is not. The ways
+# it can match, each named so the receipt says how many quotes needed which: `exact`, the
+# substring as written; `normalised`, the same after both sides are normalised (one space for
+# any whitespace, NFKC, straight quotes, one dash, a hyphenated line break closed, case
+# folded), matched on a copy that maps every character back to its original offset;
+# `unwrapped`, once the quotation marks the model wrapped it in come off, as whole words;
+# `words`, the shortest passage holding at least WORDS_NEEDED of the quote's words in order,
+# within three words of the quote's length, so a citation the model reworded at the edges
+# still lands and the stored quote is the text's own words. Anything else is `paraphrase`
+# (most of its words are there, in order, somewhere) or `not_found`. Stored offsets always
+# index the original.
 
 REPLACEMENTS = {"‘": "'", "’": "'", "“": '"', "”": '"', "–": "-", "—": "-", "‒": "-", "−": "-", "‐": "-", "‑": "-", "­": "", " ": " "}
 QUOTE_PAIRS = {"“": "”", '"': '"', "‘": "’", "'": "'"}
@@ -747,17 +758,27 @@ def locate(text, quote, cache=None):
         return start, end, "words"
     return None, None, how
 
+
+def occurrences(text, found):
+    """Every offset at which the located string recurs verbatim, the first one included."""
+    starts, i = [], text.find(found) if found else -1
+    while i >= 0:
+        starts.append(i)
+        i = text.find(found, i + 1)
+    return starts
+
 # %% [markdown]
 # ## Block 5: prompts
 #
-# Every prompt the notebook sends and the shape each reply must have: one triage per document
-# (which kinds of unit to read); three per unit (entities with surface forms and salience, facts
-# with quotes, a summary and cells); the judge over entity pairs; the fold; one adjudication per
-# major; one support check over the facts left standing; one correction pass over the facts it
-# flagged. No prompt but a chat's one reading sees more than one unit.
+# Every prompt the notebook sends and the shape each reply must have. Nothing here knows what
+# kind of document it is reading, and no prompt sees more than one unit.
 
 # %%
-# Block 5: the prompts.
+# Block 5: the prompts. One triage per document (which kinds of unit to read), three per unit
+# (entities with surface forms and salience; facts with quotes; summary and cells),
+# one judge over entity pairs, one fold, one adjudication per major, one support check over
+# the facts left standing, one correction pass over the facts the check flagged. None of them
+# knows what kind of document it is reading, and none sees another unit.
 
 ENTITY_SCHEMA = {"type": "object", "required": ["entities"], "properties": {"entities": {"type": "array", "items": {
     "type": "object", "required": ["name", "named", "kind", "surface_forms"], "properties": {
@@ -769,7 +790,7 @@ FACT_SCHEMA = {"type": "object", "required": ["facts"], "properties": {"facts": 
     "type": "object", "required": ["subject", "predicate", "object", "quote"], "properties": {
         "subject": {"type": "string"}, "predicate": {"type": "string"}, "object": {"type": "string"},
         "qualifiers": {"type": ["string", "null"]}, "quote": {"type": "string"},
-        "valid_from": {"type": ["string", "null"]}}}}}}
+        "valid_from": {"type": ["string", "null"]}, "valid_to": {"type": ["string", "null"]}}}}}}
 
 CELLS_SCHEMA = {"type": "object", "required": ["summary", "cells"], "properties": {
     "summary": {"type": "string"},
@@ -788,15 +809,14 @@ ENTITY_ABSTRACT_SCHEMA = {"type": "object", "required": ["summary", "kind"], "pr
 TRIAGE_SCHEMA = {"type": "object", "required": ["exclude"], "properties": {"exclude": {"type": "array", "items": {
     "type": "object", "required": ["kind", "reason"], "properties": {"kind": {"type": "string"}, "reason": {"type": "string"}}}}}}
 
-# only the reply's outer shape: each item is read on its own below, so one malformed entry costs
-# one fact rather than the batch
+# only the shape the reply must have. Each item is judged on its own below, so one malformed
+# entry costs one fact instead of voiding the batch and dumping every fact in it (fixed 09-08).
 SUPPORT_SCHEMA = {"type": "object", "required": ["unsupported"], "properties": {"unsupported": {"type": "array"}}}
 CORRECT_SCHEMA = {"type": "object", "required": ["corrections"], "properties": {"corrections": {"type": "array"}}}
 ADJUDICATE_SCHEMA = {"type": "object", "required": ["facts", "attributes", "contradictions"], "properties": {
     "unsupported": {"type": "array"},
     "facts": {"type": "array", "items": {"type": "object", "required": ["predicate", "object", "from"], "properties": {
-        "predicate": {"type": "string"}, "object": {"type": "string"}, "qualifiers": {"type": ["string", "null"]},
-        "from": {"type": "array"}}}},
+        "predicate": {"type": "string"}, "object": {"type": "string"}, "qualifiers": {"type": ["string", "null"]}, "from": {"type": "array"}}}},
     "attributes": {"type": "array", "items": {"type": "object", "required": ["attribute", "value", "from"], "properties": {
         "attribute": {"type": "string"}, "value": {"type": ["string", "null"]}, "from": {"type": "array"}}}},
     "contradictions": {"type": "array", "items": {"type": "object", "required": ["note", "from"], "properties": {
@@ -837,7 +857,8 @@ Return JSON {{"entities": [{{"name", "named", "kind", "salience", "surface_forms
 - named: true if the text gives it a proper name
 - kind: determine the kind classification of this entity, as one lowercase word; examples of kind include but are not limited to person, group, place, object, topic, event
 - salience: "major" only if it would appear in a two-sentence summary of this text, else "minor"
-- surface_forms: every distinct verbatim string the text uses to refer to it, copied exactly, bare pronouns excluded; a string that refers to two different entities in this text is listed under only one of them"""
+- surface_forms: every distinct verbatim string the text uses to refer to it, copied exactly, bare pronouns excluded; a string that refers to two different entities in this text is listed under only one of them
+- salience is the last field: nothing here is inferred, only read"""
 
 
 def fact_prompt(unit, names, majors):
@@ -846,13 +867,13 @@ def fact_prompt(unit, names, majors):
 
 Above is one unit of a longer document; below, the entities identified in it. For each entity, distill every durable fact the text states about it: what it is, its attributes, its states, its situation, its parts and possessions, its relationships to the other listed entities. Not moment-to-moment actions or passing remarks; a lasting disposition, habit, or position counts.
 
-Return JSON {{"facts": [{{"subject", "predicate", "object", "qualifiers", "quote", "valid_from"}}]}} where:
+Return JSON {{"facts": [{{"subject", "predicate", "object", "qualifiers", "quote", "valid_from", "valid_to"}}]}} where:
 - subject: a name from ENTITIES, exactly as written
 - predicate: a lowercase_snake_case relation in the present tense, named the way the text gives it; use is_a for what kind of thing the subject is
 - object: another entity's name exactly as written when the fact relates two entities, else a short literal value that does not repeat the predicate; never a bare true or false
 - qualifiers: one short phrase for role, manner or condition, as a string, else null; never an object
-- quote: one continuous verbatim passage of the text that STATES the fact, copied exactly as it appears, punctuation and all, with nothing skipped; never use an ellipsis. {QUOTE_RULE}. Quote enough to carry the claim: for a table value, quote the heading it sits under as well as the value
-- valid_from: an ISO date (YYYY, YYYY-MM or YYYY-MM-DD) only when the quote itself states when the fact began; otherwise null. Never infer a date.
+- quote: one verbatim substring of the text that STATES the fact, copied exactly as it appears, punctuation and all; an ellipsis (...) may skip words between two verbatim pieces. {QUOTE_RULE}. Quote enough to carry the claim: for a table value, quote the heading it sits under as well as the value
+- valid_from, valid_to: an ISO date (YYYY, YYYY-MM or YYYY-MM-DD) only when the quote itself states when the fact began or ended; otherwise null. Never infer a date.
 - each fact is atomic: one attribute or one relationship, with a bare value rather than a phrase
 - a relationship between a major entity and a minor one is stated once, under the major entity; only between two major entities may it be stated from both sides
 
@@ -909,7 +930,7 @@ RECORDS:
 
 
 def adjudicate_prompt(name, kinds, facts, cells):
-    return f"""Below is everything one document says about one entity, {name} ({', '.join(kinds)}): its facts, numbered, each with the unit it came from and the words it rests on, then its narrative cells in reading order. The units were read one at a time, so the facts repeat, overlap and sometimes disagree, and some are stated from the side of a lesser thing (marked inverse: the entity is the object of that statement).
+    return f"""Below is everything one document says about one entity, {name} ({', '.join(kinds)}): its facts, numbered, each with the unit it came from and the words it rests on, then its narrative cells in reading order. The units were read one at a time, so the facts repeat, overlap and sometimes disagree, and some are stated from the side of a lesser thing (marked inverse: the entity is the object of that statement). A line marked (about X) is what the document says of a lesser thing X that another line ties to the entity; it is not a fact of the entity itself: fold it into the object or qualifiers of the fact or attribute that names X, so that what the document says of X qualifies the entity's own statement, and point "from" at it as well.
 
 Write the entity's consolidated record:
 - "facts": each durable relationship or fact stated once, with "predicate" (lowercase_snake_case, present tense, as the listed facts name it), "object" (a string), "qualifiers" (one short phrase for role, manner or condition, as a string, else null; never an object), and "from": the numbers of every listed fact it is drawn from. A fact drawn from nothing listed is not allowed.
@@ -944,7 +965,7 @@ def correct_prompt(facts):
 
 Answer for EVERY statement, with a "verdict":
 - "stands": the passage does state the statement as written. This is the right answer whenever the claim is there, even if the passage says it in other words or says more besides.
-- "corrected": the passage states something about the same subject, but not this. Give the "predicate" (lowercase_snake_case, present tense) and "object" it does state, with "qualifiers" or null. Keep the subject. The object is another entity's name exactly as the passage writes it, or a short value in the passage's own words, never in snake_case; the qualifiers are one short phrase or null, never a remark about the passage.
+- "corrected": the passage states something about the same subject, but not this. Give the "predicate" (lowercase_snake_case, present tense) and "object" it does state, with "qualifiers" or null. Keep the subject.
 - "drop": the passage says nothing durable about that subject at all.
 
 Return JSON {{"corrections": [{{"number", "verdict", "predicate", "object", "qualifiers"}}]}}, where "number" is the number of the statement you are answering, as it is printed below.
@@ -952,46 +973,22 @@ Return JSON {{"corrections": [{{"number", "verdict", "predicate", "object", "qua
 STATEMENTS:
 {chr(10).join(facts)}"""
 
-
-SESSION_SCHEMA = {"type": "object", "required": ["summary", "facts"],
-                  "properties": {"summary": {"type": "string"}, "facts": {"type": "array"}}}
-SESSION_WINDOW = 40000                        # characters of chat read in one call; a longer session is read in stretches
-
-
-def session_prompt(turns_text):
-    return f"""TEXT (a conversation between a user and an assistant; each turn opens with its SESSION ... TURN n line):
-{turns_text}
-
-Above is one conversation, or a stretch of one. The record is the user's memory. Record two kinds of fact, and nothing else:
-- From the user's turns: what the user says about themselves, the people and things in their life, and their plans, preferences and decisions. In addition, for every sentence in which the user states a detail about themselves, their life, or the people and things in it, record one more fact with subject user, predicate stated, the whole sentence in the user's own words as its object, and the whole sentence as its quote; for these facts only, the object is that sentence rather than a bare value. A question or request to the assistant is not a detail, though a detail stated inside one is.
-- From the assistant's turns: each specific name, number, amount, ratio, step or option the assistant gives this user, with the thing it is about as the subject. No descriptions or attributes of things, no definitions, nothing said in general.
-
-Return JSON {{"summary": "...", "facts": [{{"turn", "subject", "predicate", "object", "qualifiers", "quote", "valid_from"}}]}} where:
-- summary: the conversation in 3-5 concrete sentences, naming what the user said about themselves
-- turn: the number in the TURN line of the turn the fact comes from
-- subject: user for what the user says of themselves; otherwise the thing the fact is about, named as that turn names it
-- predicate: a lowercase_snake_case relation in the present tense, named the way the text gives it
-- object: a short literal value that does not repeat the predicate, or the name of another subject; never a bare true or false
-- qualifiers: one short phrase for role, manner or condition, as a string, else null; never an object
-- quote: one continuous verbatim passage of that turn that STATES the fact, copied exactly as it appears, punctuation and all, with nothing skipped; never use an ellipsis. {QUOTE_RULE}
-- valid_from: an ISO date (YYYY, YYYY-MM or YYYY-MM-DD) only when the quote itself states when the fact began; otherwise null. Never infer a date.
-- each fact other than a stated fact is atomic: one attribute or one relationship"""
-
 # %% [markdown]
 # ## Block 6: one unit
 #
-# `derive_unit(doc, unit)` reads one unit in three calls, `unit_entities`, `unit_facts` and
-# `unit_cells`, every gate applied by code, and returns one record of what was kept, what was
-# rejected and why. An entity is kept only if a
-# surface form is found in the unit; when two entities claim the same occurrence, the first one
-# listed keeps it. A fact is kept only if its quote is located. Offsets are document offsets. A
-# fact's id is `<doc tag>:u<unit position>:f<n>`, n counting the facts kept in that unit.
-# Nothing from another unit is seen. A chat session is read differently: `read_session` sends all
-# of its turns in one call (a very long session in stretches of `SESSION_WINDOW` characters) and
-# ties each fact to its turn by a quote located in that turn.
+# `derive_unit(doc, unit)`: three calls (entities, facts, cells) with every gate applied by code.
+# An entity is kept only if a surface form is found; a fact only if its quote is located, and it
+# is cut into one fact per voice if the quote crosses a change of speaker. Returns one record
+# holding what was kept and what was rejected, with the reason.
 
 # %%
-# Block 6: derive one unit.
+# Block 6: derive one unit. Three calls, every gate applied by code, and one record back with
+# everything the model said and everything code kept or rejected. Offsets are document
+# offsets: the unit's start is added to every span. A span is one mention: when two entities
+# claim the same occurrence, the first one listed keeps it. Nothing from another unit is seen.
+#
+# Ids are readable and local to the document: a fact is `<doc tag>:u<unit position>:f<n>`, its
+# number counting the facts kept in that unit.
 
 
 def doc_tag(doc):
@@ -1017,6 +1014,28 @@ def author_at(doc, offset):
     return doc.get("author")
 
 
+def voice_spans(doc, base, text, start, end):
+    """A quote may not span a change of speaker (decision 46): the located span cut where the
+    speaker changes, each cut trimmed of whitespace, as offsets into the unit. A boundary
+    between two pieces of one author is not a change of speaker and is not a cut."""
+    pieces = sorted(doc["pieces"], key=lambda p: p["start"])
+    cuts = [start]
+    for before, after in zip(pieces, pieces[1:]):
+        at = after["start"] - base
+        if start < at < end and before.get("author") != after.get("author"):
+            cuts.append(at)
+    cuts.append(end)
+    spans = []
+    for s0, e0 in zip(cuts, cuts[1:]):
+        while s0 < e0 and text[s0].isspace():
+            s0 += 1
+        while e0 > s0 and text[e0 - 1].isspace():
+            e0 -= 1
+        if e0 > s0:
+            spans.append((s0, e0))
+    return spans
+
+
 def stated_date(value, quote):
     """An ISO date the model claims the quote states, kept only when its year is in the quote."""
     if not isinstance(value, str):
@@ -1038,54 +1057,50 @@ def listed_names(names):
     return {loose_name(n): n for n in names if loose[loose_name(n)] == 1}
 
 
-def drop_repeated_stated(facts):
-    """(kept, repeated): a "stated" fact whose span is another kept fact's span is repeated;
-    every other fact is kept, in order."""
-    others = {(f["quote_start"], f["quote_end"]) for f in facts if f["predicate"] != "stated"}
-    kept, repeated = [], []
-    for f in facts:
-        if f["predicate"] == "stated" and (f["quote_start"], f["quote_end"]) in others:
-            repeated.append(f)
-        else:
-            kept.append(f)
-    return kept, repeated
+def derive_unit(doc, unit, ctx, light=False):
+    text, base, cache, tag = unit["text"], unit["start"], {}, doc_tag(doc)
+    rec = {"unit_id": unit["unit_id"], "position": unit["position"], "label": unit["label"], "kind": unit["kind"],
+           "entities": [], "dropped_entities": [], "facts": [], "rejected_facts": [],
+           "summary": None, "cells": [], "empty": False}
 
-
-def unit_entities(unit, ctx, cache):
-    """(entities, dropped): the entities the model names in the unit, each kept only with a surface
-    form found in the unit text; when two claim the same occurrence, the first one listed keeps it."""
+    # 1. entities, each surface form located; a form that is not in the unit is dropped
     reply = generate(entity_prompt(unit), ENTITY_SCHEMA, "entities", ctx=ctx)
-    entities, dropped, claimed = [], [], set()      # claimed: every (start, end) an earlier entity got
+    claimed = set()                               # every (start, end) an earlier entity got
     for e in (reply or {}).get("entities", []):
         name = " ".join(e["name"].split())
-        if not name or name in {x["name"] for x in entities}:
+        if not name or name in {x["name"] for x in rec["entities"]}:
             continue
         forms, spans, found_any = [], [], False
         for surface in dict.fromkeys([s for s in e["surface_forms"] if isinstance(s, str)] + [name]):
-            hits = surface_spans(unit["text"], surface, cache)
+            hits = surface_spans(text, surface, cache)
             found_any = found_any or bool(hits)
             free = [span for span in hits if span not in claimed and span not in spans]
             if free:
                 forms.append(surface)
                 spans.extend(free)
         if not spans:
-            dropped.append({"name": name, "category": "span_claimed" if found_any else "no_surface_form",
-                            "why": "every span already claimed by an earlier entity" if found_any else "no surface form in unit",
-                            "forms": e["surface_forms"][:5]})
+            rec["dropped_entities"].append({"name": name, "category": "span_claimed" if found_any else "no_surface_form",
+                                            "why": "every span already claimed by an earlier entity" if found_any else "no surface form in unit",
+                                            "forms": e["surface_forms"][:5]})
             continue
         claimed.update(spans)
-        entities.append({"name": name, "named": bool(e["named"]), "kind": str(e["kind"]).lower(),
-                         "major": str(e.get("salience") or "").strip().casefold() == "major", "forms": forms, "mentions": len(spans)})
-    return entities, dropped
+        rec["entities"].append({"name": name, "named": bool(e["named"]), "kind": str(e["kind"]).lower(),
+                                "major": str(e.get("salience") or "").strip().casefold() == "major", "forms": forms, "mentions": len(spans)})
+    names = [e["name"] for e in rec["entities"]]
+    if not names:
+        rec["empty"] = True
+        return rec
+    majors = [e["name"] for e in rec["entities"] if e["major"]]
+    listed = listed_names(names)
 
-
-def unit_facts(doc, unit, names, majors, listed, ctx, cache):
-    """(facts, rejected): the facts the model states about the unit's entities, each kept only if its
-    quote is located in the unit. A subject or object written loosely (case, a leading article) is
-    the listed entity."""
-    text, base, tag = unit["text"], unit["start"], doc_tag(doc)
-    reply = generate(fact_prompt(unit, names, majors), FACT_SCHEMA, "facts", ctx=ctx)
-    facts, rejected, seen = [], [], set()
+    # 2. facts, each quote located inside the unit; a subject or object written loosely (case, a
+    #    leading article) is the listed entity. Facts and cells take only the entity list, so on
+    #    the one-reading path they are asked together; a many-unit document already runs its
+    #    units WORKERS at a time
+    ask_facts = lambda: generate(fact_prompt(unit, names, majors), FACT_SCHEMA, "facts", ctx=ctx)
+    ask_cells = lambda: generate(cells_prompt(unit, majors), CELLS_SCHEMA, "cells", ctx=ctx)
+    reply, cells_reply = in_parallel(lambda ask: ask(), [ask_facts, ask_cells]) if light else (ask_facts(), None)
+    seen = set()
     for f in (reply or {}).get("facts", []):
         written = str(f["subject"]).strip()
         subject = written if written in names else listed.get(loose_name(written))
@@ -1101,152 +1116,62 @@ def unit_facts(doc, unit, names, majors, listed, ctx, cache):
             rejection["category"] = "self_reference"
         elif start is None:
             rejection["category"] = how
-        elif (subject, predicate, norm(obj)) in seen:
-            rejection["category"] = "duplicate"
         else:
-            seen.add((subject, predicate, norm(obj)))
-            quote = text[start:end]
-            facts.append({"fact_id": f"{tag}:u{unit['position']}:f{len(facts) + 1}",
-                          "subject": subject, "predicate": predicate, "object": obj, "object_is_entity": obj in names,
-                          "qualifiers": f.get("qualifiers") or None, "unit_id": unit["unit_id"], "quote": quote,
-                          "quote_start": base + start, "quote_end": base + end, "matched_by": how,
-                          "valid_from": stated_date(f.get("valid_from"), quote),
-                          "author": author_at(doc, base + start), "tier": LUNA})
-            continue
-        rejected.append(rejection)
-    facts, repeated = drop_repeated_stated(facts)
-    rejected += [{"subject": f["subject"], "predicate": f["predicate"], "object": f["object"],
-                  "quote": f["quote"][:160], "category": "duplicate"} for f in repeated]
-    return facts, rejected
+            stored = 0                                   # one fact per voice the span covers
+            for s0, e0 in voice_spans(doc, base, text, start, end):
+                quote, author = text[s0:e0], author_at(doc, base + s0)
+                if (subject, predicate, norm(obj), author) in seen:
+                    continue
+                seen.add((subject, predicate, norm(obj), author))
+                voices = {author_at(doc, base + at) for at in occurrences(text, quote)}
+                rec["facts"].append({"fact_id": f"{tag}:u{unit['position']}:f{len(rec['facts']) + 1}",
+                                     "subject": subject, "predicate": predicate, "object": obj, "object_is_entity": obj in names,
+                                     "qualifiers": f.get("qualifiers") or None, "unit_id": unit["unit_id"], "quote": quote,
+                                     "quote_start": base + s0, "quote_end": base + e0, "matched_by": how,
+                                     "valid_from": stated_date(f.get("valid_from"), quote), "valid_to": stated_date(f.get("valid_to"), quote),
+                                     "author": None if len(voices) > 1 else author,    # the same words in two voices: no voice is claimed
+                                     "voice_ambiguous": len(voices) > 1, "tier": LUNA})
+                stored += 1
+            if stored:
+                continue
+            rejection["category"] = "duplicate"
+        rec["rejected_facts"].append(rejection)
 
-
-def unit_cells(unit, majors, listed, ctx):
-    """(summary, cells): the unit in a few sentences, and a narrative cell for each of its majors
-    (the model's own salience call)."""
-    reply = generate(cells_prompt(unit, majors), CELLS_SCHEMA, "cells", ctx=ctx)
-    if not reply:
-        return None, []
-    cells = []
-    for c in reply["cells"]:
-        written = str(c["entity"]).strip()
-        entity = written if written in majors else listed.get(loose_name(written))
-        if entity in majors and c["text"].strip():
-            cells.append({"entity": entity, "text": " ".join(c["text"].split())})
-    return " ".join(reply["summary"].split()), cells
-
-
-def derive_unit(doc, unit, ctx):
-    """One unit, read on its own: its entities, then its facts, then its cells, in one record."""
-    cache = {}
-    entities, dropped = unit_entities(unit, ctx, cache)
-    rec = {"unit_id": unit["unit_id"], "position": unit["position"], "label": unit["label"], "kind": unit["kind"],
-           "entities": entities, "dropped_entities": dropped, "facts": [], "rejected_facts": [],
-           "summary": None, "cells": [], "empty": not entities}
-    if not entities:
-        return rec
-    names = [e["name"] for e in entities]
-    majors = [e["name"] for e in entities if e["major"]]
-    listed = listed_names(names)
-    rec["facts"], rec["rejected_facts"] = unit_facts(doc, unit, names, majors, listed, ctx, cache)
-    rec["summary"], rec["cells"] = unit_cells(unit, majors, listed, ctx)
+    # 3. summary and cells, one call, for the unit's major entities (the model's salience call)
+    reply = cells_reply if light else ask_cells()
+    if reply:
+        rec["summary"] = " ".join(reply["summary"].split())
+        for c in reply["cells"]:
+            written = str(c["entity"]).strip()
+            entity = written if written in majors else listed.get(loose_name(written))
+            if entity in majors and c["text"].strip():
+                rec["cells"].append({"entity": entity, "text": " ".join(c["text"].split())})
     rec["empty"] = not rec["facts"] and not rec["cells"]
     return rec
-
-
-def session_windows(units):
-    """The kept turns in reading order, cut into stretches of at most SESSION_WINDOW characters."""
-    windows, current, size = [], [], 0
-    for u in units:
-        if current and size + len(u["text"]) > SESSION_WINDOW:
-            windows.append(current)
-            current, size = [], 0
-        current.append(u)
-        size += len(u["text"])
-    if current:
-        windows.append(current)
-    return windows
-
-
-def read_session(doc, units, ctx):
-    """(records, summary): a chat session read in one Luna call per stretch of turns, each fact tied
-    to its turn. A fact is kept only if its quote is located in that turn and its subject is the user,
-    appears in that turn, or shares a word with it. One record per turn, the shape derive_unit gives, so the rest of
-    the pipeline reads a chat like any document."""
-    tag, by_turn = doc_tag(doc), {int(u["label"].split(" ")[3]): u for u in units}
-    records = {u["unit_id"]: {"unit_id": u["unit_id"], "position": u["position"], "label": u["label"], "kind": u["kind"],
-                              "entities": [], "dropped_entities": [], "facts": [], "rejected_facts": [],
-                              "summary": None, "cells": [], "empty": True} for u in units}
-    summaries, seen, caches = [], set(), {}
-    for window in session_windows(units):
-        prompt = session_prompt("".join(u["text"] for u in window))
-        reply = generate(prompt, SESSION_SCHEMA, "session", model=LUNA, effort="medium", ctx=ctx)
-        if not reply:
-            continue
-        summaries.append(" ".join(str(reply["summary"]).split()))
-        for item in reply["facts"]:
-            if not isinstance(item, dict) or not all(isinstance(item.get(k), str) for k in ("subject", "predicate", "object", "quote")):
-                continue
-            turn = item.get("turn")
-            unit = by_turn.get(turn) if isinstance(turn, int) else None
-            written, obj = item["subject"].strip(), item["object"].strip()
-            predicate = snake_case(item["predicate"]) or "related_to"
-            rejection = {"subject": written, "predicate": predicate, "object": obj, "quote": item["quote"][:160]}
-            if unit is None:                          # a turn the session does not have
-                rejection["category"] = "not_found"
-                records[window[0]["unit_id"]]["rejected_facts"].append(rejection)
-                continue
-            rec, text = records[unit["unit_id"]], unit["text"]
-            subject = "user" if written.casefold() == "user" else written
-            start, end, how = locate(text, item["quote"], caches.setdefault(unit["unit_id"], {}))
-            if subject != "user" and subject.casefold() not in text.casefold() and not name_words(subject) & name_words(text):
-                rejection["category"] = "unlisted_subject"
-            elif norm(obj) == norm(subject):
-                rejection["category"] = "self_reference"
-            elif start is None:
-                rejection["category"] = how
-            elif (unit["unit_id"], subject, predicate, norm(obj)) in seen:
-                rejection["category"] = "duplicate"
-            else:
-                seen.add((unit["unit_id"], subject, predicate, norm(obj)))
-                quote, qualifiers = text[start:end], item.get("qualifiers")
-                qualifiers = " ".join(qualifiers.split()) or None if isinstance(qualifiers, str) else None
-                rec["facts"].append({"fact_id": f"{tag}:u{unit['position']}:f{len(rec['facts']) + 1}",
-                                     "subject": subject, "predicate": predicate, "object": obj, "object_is_entity": False,
-                                     "qualifiers": qualifiers, "unit_id": unit["unit_id"], "quote": quote,
-                                     "quote_start": unit["start"] + start, "quote_end": unit["start"] + end, "matched_by": how,
-                                     "valid_from": stated_date(item.get("valid_from"), quote),
-                                     "author": author_at(doc, unit["start"] + start), "tier": LUNA})
-                continue
-            rec["rejected_facts"].append(rejection)
-    subjects = {f["subject"] for r in records.values() for f in r["facts"]}
-    for rec in records.values():
-        rec["facts"], repeated = drop_repeated_stated(rec["facts"])
-        rec["rejected_facts"] += [{"subject": f["subject"], "predicate": f["predicate"], "object": f["object"],
-                                   "quote": f["quote"][:160], "category": "duplicate"} for f in repeated]
-        for f in rec["facts"]:
-            f["object_is_entity"] = f["object"] in subjects
-        rec["entities"] = [{"name": n, "named": True, "kind": "person" if n == "user" else "thing", "major": True,
-                            "forms": [n], "mentions": 1} for n in dict.fromkeys(f["subject"] for f in rec["facts"])]
-        rec["empty"] = not rec["facts"]
-    return [records[u["unit_id"]] for u in units], " ".join(summaries) or None
 
 # %% [markdown]
 # ## Block 7: reconcile
 #
-# `reconcile(records)` turns the unit-local entities into document entities, bottom up, at the
-# end. Two named locals with the same name and kind are one entity, no judge. Every other pair
-# nominated by a shared surface form, a fact stating one is the other, or a shared name word,
-# with at least one unit-major in it and never a possession against its own anchor, is scored
-# (the nomination's tier, then 0.7 name and 0.3 co-occurrence) and queued strongest first. Round
-# by round the entities in consideration are paired off, one pair to an entity; the judge takes
-# ten pairs a call on Terra, every cluster's dossier sent once. Same unites,
-# different stays apart, unsure waits for one last look, where unsure means apart. Every
-# decision is a ledger row with its evidence, and every scored pair a candidate row. A chat skips
-# all this (`session_entities`): its one reading names each thing once, so the same name in two
-# turns is one entity.
+# `reconcile(records)` turns the unit-local entities into document entities. Locals with the same
+# proper name and kind unite without a call. Other pairs are nominated by a shared surface form,
+# a shared name word, or a fact saying one is the other, scored, and paired off round by round,
+# strongest first, one pair to an entity; the judge takes ten pairs a call. Every decision is a
+# ledger row with its evidence, and every scored pair is a candidate row.
 
 # %%
-# Block 7: reconcile the document's unit-local entities into document entities.
+# Block 7: reconcile the document's unit-local entities into document entities, bottom up, at
+# the end.
+#
+# Every local starts alone. Two named locals with the same name and kind are one entity with
+# no judge (an instant match needs both sides named). Every other pair nominated by a shared
+# surface form, a fact stating one is the other, or a shared name word, with at least one
+# unit-major in it (never minor against minor) and never a possession against its own anchor,
+# goes into a priority queue, strongest first: the nomination's tier, then the name,
+# co-occurrence scores. Round by round the entities in consideration are paired off,
+# strongest first and one pair to an entity; the judge takes ten pairs a call,
+# every cluster's dossier sent once; same unites, different stays apart, unsure waits for one
+# last look against the finished clusters, where unsure means apart. Every decision is a
+# ledger row with its evidence.
 import difflib
 
 TIER = {"shared_surface": 1.0, "is_a_link": 0.85, "shared_word": 0.5}
@@ -1302,7 +1227,10 @@ def candidate_reason(a, b):
 
 def score_pair(a, b, reason):
     """(name, co-occurrence, combined): the queue's order within a tier. The weights sum to one,
-    so SIMILAR_ENOUGH is a share of a perfect match (ruling of 09-09)."""
+    so SIMILAR_ENOUGH means the same thing it meant when a profile term carried 0.15 of it
+    (ruling of 09-09): dropping that term without renormalising would have tightened the
+    threshold by about a fifth, and unevenly, since the term was a flat 0.15 between two people
+    and a flat 0.075 between anything else."""
     name = 1.0 if reason == "shared_surface" else difflib.SequenceMatcher(None, norm(a["name"]), norm(b["name"])).ratio()
     both = a["cooc"] | b["cooc"]
     cooc = len(a["cooc"] & b["cooc"]) / len(both) if both else 0.0
@@ -1348,11 +1276,6 @@ def ineligible(members, ra, rb, ruled_apart):
     return any(frozenset((x["id"], y["id"])) in ruled_apart for x in here for y in there)
 
 
-def strongest_first(entry):
-    """A scored pair's place in the queue: its tier, then its combined score, both descending."""
-    return -entry[0], -entry[1]
-
-
 def pair_up(locals_, clusters, ruled_apart, seen_pairs):
     """One round of the clustering: every entity still in consideration is scored against every
     other, the pairs at or above SIMILAR_ENOUGH are filtered by eligibility, and the strongest is
@@ -1372,7 +1295,7 @@ def pair_up(locals_, clusters, ruled_apart, seen_pairs):
             if scores[-1] < SIMILAR_ENOUGH or ineligible(members, ra, rb, ruled_apart):
                 continue
             scored.append((TIER[reason], scores[-1], b["id"], a["id"], reason, scores))
-    scored.sort(key=strongest_first)
+    scored.sort(key=lambda entry: (-entry[0], -entry[1]))
     taken, queue = set(), []
     for entry in scored:
         ra, rb = clusters.find(entry[2]), clusters.find(entry[3])
@@ -1403,8 +1326,7 @@ def judge(batch, locals_, clusters, ctx):
     members = clusters.members(locals_)
     dossiers = "\n\n".join(f"[{number[r]}]\n{dossier(members[r])}" for r in roots)
     pairs = "\n".join(f"PAIR {n}: [{number[a]}] and [{number[b]}]" for n, (a, b) in enumerate(batch, 1))
-    prompt = JUDGE_PROMPT + "\nDOSSIERS\n" + dossiers + "\n\nPAIRS\n" + pairs
-    reply = generate(prompt, JUDGE_SCHEMA, "judge", model=TERRA, effort="medium", ctx=ctx)
+    reply = generate(JUDGE_PROMPT + "\nDOSSIERS\n" + dossiers + "\n\nPAIRS\n" + pairs, JUDGE_SCHEMA, "judge", model=TERRA, effort="medium", ctx=ctx)
     verdicts, misnumbered = {}, 0
     for v in (reply or {}).get("verdicts", []):
         numbered = valid_numbers([v.get("pair")], len(batch))
@@ -1461,14 +1383,10 @@ def reconcile(records, ctx, watch=False):
         stats["judge_misnumbered"] += misnumbered
         rank = {"different": 0, "same": 1, "unsure": 2}
         answered = [(n, ra, rb, *verdicts.get(n, ("unsure", "no verdict returned"))) for n, (ra, rb) in enumerate(batch)]
-
-        def differents_first(answer):
-            return rank.get(answer[3], 2), answer[0]
-
-        for n, ra, rb, verdict, reason in sorted(answered, key=differents_first):
+        for n, ra, rb, verdict, reason in sorted(answered, key=lambda a: (rank.get(a[3], 2), a[0])):
             how = "judged again" if final else "judged"
             if verdict == "same" and ineligible(clusters.members(locals_), clusters.find(ra), clusters.find(rb), ruled_apart):
-                # the pairing rules should prevent this, yet it fired once in the run of 09-11
+                # a guard the pairing rules should make unreachable: one pair to an entity a round
                 how, reason = "refused", reason + "; would join locals a unit kept apart or the judge ruled different"
                 apart.append((ra, rb))
                 ruled_apart.add(frozenset((ra, rb)))
@@ -1516,23 +1434,13 @@ def reconcile(records, ctx, watch=False):
                                "round": stats["judge_rounds"], "tier": tier, "reason": reason, "name_score": round(name, 3),
                                "cooc_score": round(cooc, 3), "combined": round(combined, 3)})
         if watch:
-            print(f"judge round {stats['judge_rounds']}: {eligible} eligible pairs, {len(fresh)} taken (one to an entity),"
-                  f" {PAIRS_PER_CALL} a call")
+            print(f"judge round {stats['judge_rounds']}: {eligible} eligible pairs, {len(fresh)} taken (one to an entity), {PAIRS_PER_CALL} a call")
         judge_all(fresh, final=False)
 
     # 4. the deferred pairs' last look against the finished clusters
     last_look, deferred = list(deferred), []
     judge_all(last_look, final=True)
     return cluster_entities(locals_, clusters), ledger, candidates, stats
-
-
-def canonical_name(counts):
-    """The most used of a cluster's names, the longest on a tie, the first seen on a full tie."""
-    best = None
-    for name in counts:
-        if best is None or (counts[name], len(name)) > (counts[best], len(best)):
-            best = name
-    return best
 
 
 def cluster_entities(locals_, clusters):
@@ -1548,8 +1456,8 @@ def cluster_entities(locals_, clusters):
             for form in l["forms"]:
                 first_unit_of.setdefault(form, l["unit_id"])
         kinds = tally(l["kind"] for l in members)
-        entities.append({"index": index, "name": canonical_name(counts),
-                         "kinds": [k for n, k in sorted((-n, k) for k, n in kinds.items())], "named": any(l["named"] for l in members),
+        entities.append({"index": index, "name": max(counts, key=lambda n: (counts[n], len(n))),
+                         "kinds": sorted(kinds, key=lambda k: (-kinds[k], k)), "named": any(l["named"] for l in members),
                          "major": any(l["major"] for l in members),      # major in some unit: a major of the document (ruling of 09-07)
                          "units": sorted({l["ui"] for l in members}), "unit_ids": unit_ids,
                          "names": sorted({l["name"] for l in members}), "surfaces": sorted({s for l in members for s in l["surfaces"]}),
@@ -1557,66 +1465,47 @@ def cluster_entities(locals_, clusters):
                          "n_facts": sum(l["n_facts"] for l in members), "is_a": sorted({x for l in members for x in l["is_a"]})})
     return entities
 
-
-def session_entities(records):
-    """(entities, ledger, stats) for a chat: one entity per name its reading used. The same name in
-    two turns is one entity, with no judge, since one reply named them all."""
-    locals_ = locals_of(records)
-    clusters, first, ledger = Clusters(len(locals_)), {}, []
-    for l in locals_:
-        earlier = first.setdefault(norm(l["name"]), l)
-        if earlier is not l:
-            clusters.unite(earlier["id"], l["id"])
-            ledger.append(ledger_row(locals_, earlier["id"], l["id"], "same", "same_name", f"both named {l['name']!r} by one reading"))
-    stats = {"locals": len(locals_), "candidate_pairs": 0, "judged_pairs": 0, "judge_calls": 0, "judge_rounds": 0, "judge_misnumbered": 0}
-    return cluster_entities(locals_, clusters), ledger, stats
-
 # %% [markdown]
 # ## Block 8: fold, adjudicate, verify
 #
-# `fold_document` writes the abstract, a summary of the unit summaries in at most half their
-# words and no more than 400 (Terra), and each major's abstract; a chat's abstract is the summary
-# its one reading returns, and its majors get none. Salience decides a major and nothing else does: a unit
-# called it major, so it is a major of the document (ruling of 09-07), unless it has nothing to
-# summarise, no facts and no cells (decision 52). `adjudicate` consolidates, in one Terra call
-# per major with at least `ADJUDICATE_MIN_FACTS` facts, the facts, attributes and
-# contradictions, each pointing at the raw facts behind it. The facts of every other major, and
-# all of a chat's or a one-reading document's, stand as said and are read against their
-# passages together in one pass. `verify` gives every flagged fact a second look: it stands, is
-# reworded to what the passage does state, or is dropped; a rewording is checked once more.
+# `fold_document` writes the abstract and each major's abstract. `adjudicate` consolidates the
+# facts of each major with enough of them, and checks the facts of the rest against their
+# passages in one call. `verify` gives every flagged fact a second look (stand, reword, drop)
+# and checks what is kept once more.
 
 # %%
 # Block 8: fold the document, adjudicate its majors, and check the facts against their passages.
+#
+# The abstract is a summary of the unit summaries, asked for in at most half their words and
+# no more than 400, and it stands as written (decision 65). Salience decides a major and
+# nothing else does (ruling of 09-07): a unit called it major, so it is a major of the document.
+# The one exception is a major with nothing to summarise, no facts and no cells, which falls to
+# minor (decision 52). Majors get their own abstract.
+#
+# Adjudication is one Terra call per major with enough facts: the consolidated facts,
+# attributes and contradictions, each pointing at the raw facts it is drawn from. A major with
+# fewer than ADJUDICATE_MIN_FACTS facts, and every major of a one-reading document, keeps its
+# raw facts as they are; those facts are read against their passages together, in one pass
+# (ruling of 09-08). A fact that pass flags gets a second look: it stands, is reworded to what
+# the passage does state, or is dropped; a rewording is checked once more before it is kept.
 ADJUDICATE_MIN_FACTS = 4                      # fewer than this: nothing to consolidate
 VERIFY_BATCH = 60                             # facts to a support or correction call
 
 
-def empty_turn(doc, unit):
-    """True for a chat turn with nothing said in it: its opening line, the speaker's "role:",
-    then only blanks or a zero-width space. The 1.7 export has 55, in 48 sessions. It is not a
-    unit to read, so no call is spent on it."""
-    if unit["kind"] not in ("user", "assistant"):
-        return False
-    text = doc["text"][unit["start"]:unit["end"]]
-    said = text.split("\n", 1)[1] if "\n" in text else ""
-    said = said.split(":", 1)[1] if ":" in said else said
-    return said.replace("\N{ZERO WIDTH SPACE}", "").strip() == ""
-
-
 def one_reading(doc):
-    """True when setting the boilerplate and the empty turns aside leaves a single unit to read.
-    Such a document has nothing to merge, so it takes the short path (ruling of 09-07)."""
-    return sum(1 for u in doc["units"] if u["kind"] not in BOILERPLATE and not empty_turn(doc, u)) == 1
+    """True when setting the boilerplate aside leaves a single unit to read. Such a document has
+    nothing to merge, so it takes the short path (ruling of 09-07)."""
+    return sum(1 for u in doc["units"] if u["kind"] not in BOILERPLATE) == 1
 
 
-def summarise(what, children, ctx, stage="fold", model=TERRA):
+def summarise(what, children, ctx, stage="fold"):
     """(summary, the word limit it was asked for); the summary None when the model did not answer."""
     limit = min(400, max(20, sum(word_count(c) for c in children) // 2))
-    reply = generate(fold_prompt(what, children, limit), FOLD_SCHEMA, stage, model=model, ctx=ctx)
+    reply = generate(fold_prompt(what, children, limit), FOLD_SCHEMA, stage, model=TERRA, ctx=ctx)
     return (" ".join(reply["summary"].split()) if reply else None), limit
 
 
-def fold_document(records, entities, ctx, light=False, chat=False):
+def fold_document(records, entities, ctx, light=False):
     """The abstract, the majors and minors, each major's cells and its abstract."""
     out = {"abstract": None, "majors": [], "minors": [], "entity_abstracts": [], "demoted": [], "cells_of": {}}
     summarised = [r for r in records if r["summary"]]
@@ -1645,14 +1534,11 @@ def fold_document(records, entities, ctx, light=False, chat=False):
             out["demoted"].append(e["name"])
         (out["majors"] if e["major"] else out["minors"]).append(e)
 
-
     def abstract_of(e):
         """(text, kind, tier). Two records or fewer stand as the abstract without a call; on the
-        one-reading path the entity's own cells are its abstract, a chat's entities get none, and an entity
-        with only facts gets none, since a run of predicate strings is not a summary of anything (09-07)."""
+        one-reading path the entity's own cell is its abstract, and an entity with only facts
+        gets none, since a run of predicate strings is not a summary of anything (09-07)."""
         cells = cells_of.get(e["index"], [])
-        if chat:
-            return None, None, LUNA
         if light:
             if not cells and len(e["children"]) > 2:
                 return None, None, LUNA
@@ -1708,7 +1594,7 @@ def unsupported_of(facts, ctx, stage="support"):
     return flagged, refused, calls
 
 
-def adjudicate(records, folded, ctx, watch=False, light=False, chat=False):
+def adjudicate(records, folded, ctx, watch=False, light=False):
     """{major index: its consolidated record}: facts, attributes and contradictions pointing at
     raw fact ids, the raw facts set aside as unsupported, and how the major was handled."""
     landed, cells_of = landings(records, folded), folded["cells_of"]
@@ -1717,9 +1603,8 @@ def adjudicate(records, folded, ctx, watch=False, light=False, chat=False):
         raws = landed[e["index"]]
         out[e["index"]] = {"facts": [], "attributes": [], "contradictions": [], "unsupported": [], "dropped": 0,
                            "raw": len(raws), "skipped": None, "rejected": False, "support_calls": 0}
-        if light or chat:
-            out[e["index"]]["skipped"] = ("one reading: the facts stand, verified in one pass" if light
-                                          else "a chat: the facts stand as said, verified in one pass")
+        if light:
+            out[e["index"]]["skipped"] = "one reading: the facts stand, verified in one pass"
             standing.append(e)
         elif not raws:
             continue
@@ -1733,12 +1618,8 @@ def adjudicate(records, folded, ctx, watch=False, light=False, chat=False):
         raws, result = landed[e["index"]], out[e["index"]]
         listing = []
         for n, (f, direction, label) in enumerate(raws, 1):
-            if direction == "forward":
-                head = f"{e['name']} {f['predicate']} {f['object']}"
-            else:
-                head = f"(inverse) {f['subject']} {f['predicate']} {e['name']}"
-            qualifiers = f" [{f['qualifiers']}]" if f["qualifiers"] else ""
-            listing.append(f"{n}. {head}{qualifiers}  ({label}: \"{' '.join(f['quote'].split())}\")")
+            head = f"{e['name']} {f['predicate']} {f['object']}" if direction == "forward" else f"(inverse) {f['subject']} {f['predicate']} {e['name']}"
+            listing.append(f"{n}. {head}" + (f" [{f['qualifiers']}]" if f["qualifiers"] else "") + f"  ({label}: \"{' '.join(f['quote'].split())}\")")
         reply = generate(adjudicate_prompt(e["name"], e["kinds"], listing, cells_of.get(e["index"], [])), ADJUDICATE_SCHEMA, "adjudicate",
                          model=TERRA, effort="medium", ctx={**ctx, "entity": e["name"]})
         result["rejected"] = reply is None
@@ -1761,11 +1642,11 @@ def adjudicate(records, folded, ctx, watch=False, light=False, chat=False):
 
     if to_judge:
         if watch:
-            print(f"adjudicate: {len(to_judge)} majors, {WORKERS} at a time; {len(standing)} with fewer than"
-                  f" {ADJUDICATE_MIN_FACTS} facts stand, checked together after")
+            print(f"adjudicate: {len(to_judge)} majors, {WORKERS} at a time; {len(standing)} with fewer than {ADJUDICATE_MIN_FACTS} facts stand, checked together after")
         in_parallel(adjudicate_one, to_judge)
 
-    # the facts left to stand are checked in one pass over the whole document (ruling of 09-08)
+    # the facts left to stand are checked in ONE pass over the document. A call an entity was a
+    # quarter of a paper's spending to ask the same question of four facts at a time (09-08).
     facts = [(f, f["fact_id"]) for e in standing for f, direction, label in landed[e["index"]]]
     if facts:
         if watch:
@@ -1788,31 +1669,25 @@ def flagged_facts(records, folded, adjudicated):
 
 
 def one_phrase(value):
-    """A qualifier as one short phrase, or None. Nothing types this field in CORRECT_SCHEMA, so a
-    list is joined, and a dict, the printed form of one, or a remark about the passage is refused."""
-    if value is None or isinstance(value, dict):
+    """A qualifier as one short phrase or None. CORRECT_SCHEMA asks only for an array of answers,
+    so that one bad item cannot void a batch, which means nothing types this field: a model that
+    answers with a list put a list in the package and the roll-up fell over (fixed 09-08)."""
+    if value is None or value == "":
         return None
     if isinstance(value, (list, tuple)):
-        value = ", ".join(str(x).strip() for x in value if str(x).strip())
-    phrase = str(value).strip()
-    if phrase[:1] in ("{", "[") or phrase.casefold().startswith("the passage"):
-        return None
-    return phrase or None
+        parts = [str(x).strip() for x in value if str(x).strip()]
+        return ", ".join(parts) or None
+    return str(value).strip() or None
 
 
-def corrected_fact(f, item, listed=None):
+def corrected_fact(f, item):
     """(the corrected statement, None) when the correction passes the checks a fact must still
     pass without the gate, else (None, why). It must say something, its object may restate
     neither its subject nor its predicate, it may not be a bare boolean, and it may not move the
-    subject: the subject decided which node the fact landed on, and this runs after landing. An
-    object written in snake_case gets its spaces back, and one naming an entity of its unit
-    (`listed`, from listed_names) becomes that entity's name."""
+    subject: the subject decided which node the fact landed on, and this runs after landing."""
     subject = str(item.get("subject") or f["subject"]).strip()
     predicate = snake_case(str(item.get("predicate") or "")) or f["predicate"]
     obj = str(item.get("object") or "").strip()
-    if "_" in obj and " " not in obj:
-        obj = obj.replace("_", " ")
-    obj = (listed or {}).get(loose_name(obj), obj)
     if not obj:
         return None, "no object"
     if obj.casefold() in ("true", "false"):
@@ -1833,26 +1708,20 @@ def statement_number(item, n):
         if key not in item:
             continue
         value = item[key]
-        if isinstance(value, str):                   # the digits it opens with: "3." and "3)" are three
-            digits = ""
-            for ch in value.strip():
-                if not ch.isdigit():
-                    break
-                digits += ch
-            value = digits
+        if isinstance(value, str):
+            value = re.match(r"\s*(\d*)", value).group(1)
         found = valid_numbers([value], n)
         if found:
             return found[0]
     return None
 
 
-def corrections_of(flagged, ctx, watch=False, listed_of=None):
+def corrections_of(flagged, ctx, watch=False):
     """({fact id: the corrected statement, or None to keep it as written}, calls, notes). The
     second look at what the support check flagged: a fact whose passage does state it stands
     unchanged, one whose passage states something else is rewritten to that, and one whose
-    passage carries nothing is left out of the result and so dropped, as is one whose rewording
-    the checks refuse (ruling of 09-08). A refused call is not evidence against a fact: its batch
-    stands. A fact the reply leaves out is dropped (ruling of 09-11)."""
+    passage carries nothing is left out of the result and so dropped. A refused call is not
+    evidence against a fact: its batch stands. A fact the reply leaves out is dropped."""
     items, out, calls, notes, told_to_drop = sorted(flagged.items()), {}, 0, {"offered": 0}, set()
     if watch and items:
         print(f"correct: {len(items)} facts their passage does not state, on {LUNA}")
@@ -1882,17 +1751,17 @@ def corrections_of(flagged, ctx, watch=False, listed_of=None):
                 if verdict != "stands":
                     notes["no verdict"] = notes.get("no verdict", 0) + 1
             else:
-                fixed, why = corrected_fact(f, item, (listed_of or {}).get(f.get("unit_id")))
-                if fixed is None:                           # no rewording the checks accept: dropped
+                fixed, why = corrected_fact(f, item)
+                if fixed is None:
                     notes[why] = notes.get(why, 0) + 1
-                    told_to_drop.add(fid)
-                elif fixed["predicate"] == f["predicate"] and norm(fixed["object"]) == norm(f["object"]).replace("_", " "):
+                elif (fixed["predicate"], norm(fixed["object"])) == (f["predicate"], norm(f["object"])):
                     out[fid] = None                         # the same fact back again: it stands
                 else:
                     out[fid] = fixed
     unanswered = [fid for fid, f in items if fid not in out and fid not in told_to_drop]
-    if unanswered:                                  # no verdict reached it: dropped (ruling of 09-11)
+    if unanswered:
         notes["unanswered"] = len(unanswered)
+        out.update({fid: None for fid in unanswered})      # no verdict reached it: the fact stands
     if watch:
         unchanged = sum(1 for v in out.values() if v is None)
         print(f"    {len(items)} flagged, {notes['offered']} answered: {unchanged} unchanged, {len(out) - unchanged} reworded,"
@@ -1909,8 +1778,7 @@ def verify(records, folded, adjudicated, ctx, watch=False):
     flagged = flagged_facts(records, folded, adjudicated)
     if not flagged:
         return {}, {}, 0, {}
-    listed_of = {r["unit_id"]: listed_names([e["name"] for e in r["entities"]]) for r in records or []}
-    corrections, calls, notes = corrections_of(flagged, ctx, watch=watch, listed_of=listed_of)
+    corrections, calls, notes = corrections_of(flagged, ctx, watch=watch)
     if corrections:
         checked = [({**flagged[fid], **(fix or {})}, fid) for fid, fix in corrections.items()]
         failed, refused, more = unsupported_of(checked, ctx, stage="verify")
@@ -1922,23 +1790,25 @@ def verify(records, folded, adjudicated, ctx, watch=False):
         if watch:
             print(f"    {len(checked)} kept facts checked against their passages once more; {len(checked) - len(corrections)} dropped")
     if watch:
-        print(f"    {len(corrections)} of {len(flagged)} stand or are corrected against their passage;"
-              f" {len(flagged) - len(corrections)} dumped")
+        print(f"    {len(corrections)} of {len(flagged)} stand or are corrected against their passage; {len(flagged) - len(corrections)} dumped")
     return flagged, corrections, calls, notes
 
 # %% [markdown]
 # ## Block 9: the package
 #
-# `write_package` writes one JSONL file per document, every line one record with a `record`
-# field, ending in the completion record. Minors have no node. A fact lands on the major that is
-# its subject (forward), or on the major a lesser thing's fact points at (inverse); a fact
-# between two lesser things is not stored (ruling of 09-11). Mentions are counted, not written
-# (ruling of 09-08). Node ids are `<doc tag>:doc` and `<doc tag>:n<index>`, the index being the
-# entity's number in reconcile's order. `completed(doc)` says whether a finished package over
-# these units exists, whatever version wrote it, so a rerun skips it.
+# `write_package` lays out every record in order and ends with the completion record.
+# `completed(doc)` says whether a finished package by this ingestor over these units already
+# exists, so a rerun skips it.
 
 # %%
-# Block 9: the package.
+# Block 9: the package. One JSONL file per document mirroring the raw layout, every line one
+# record with a "record" field, ending in a completion record. Minors have no node. A fact
+# lands on the major that is its subject (forward), or on the major a minor's fact points at
+# (inverse); a fact of a minor tied to no major is not stored. Mentions are not written: they
+# were 53% of the package and nothing read them (ruling of 09-08).
+#
+# Node ids are `<doc tag>:doc` for the document and `<doc tag>:n<index>` for a major, the index
+# being the entity's number in reconcile's order; a cell has no id of its own.
 
 
 def package_path(doc):
@@ -1953,13 +1823,18 @@ def node_id(doc, entity):
     return f"{doc_tag(doc)}:n{entity['index']}"
 
 
-def graph_lines(doc, folded, doc_node):
-    """(lines, node_of): the document's node, each major's node, aliases and edge, then the
-    document's edges to its units; node_of maps a unit-local name, (unit position, name), to its node."""
-    position_of = {u["unit_id"]: u["position"] for u in doc["units"]}
-    lines = [{"record": "node", "node_id": doc_node, "name": doc.get("title") or doc["source_uri"], "kind": "document",
-              "created_from_unit": doc["units"][0]["unit_id"] if doc["units"] else None, "provenance": {"ingestor": INGESTOR}}]
-    node_of = {}
+def write_package(doc, records, entities, folded, adjudicated, ledger, candidates, excluded, stats, flagged, corrections):
+    path = package_path(doc)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    written_at, doc_node = datetime.now(timezone.utc).isoformat(timespec="seconds"), f"{doc_tag(doc)}:doc"
+    lines = [{"record": "document", **{k: doc[k] for k in ("doc_id", "source_uri", "sha256", "title", "author", "source_class", "ingested_at", "occurred_at", "loader")},
+              "flags": doc.get("flags", []), "text_length": len(doc["text"])}]
+    lines += [{"record": "unit", **u} for u in doc["units"]] + [{"record": "piece", **p} for p in doc["pieces"]]
+    lines.append({"record": "node", "node_id": doc_node, "name": doc.get("title") or doc["source_uri"], "kind": "document",
+                  "created_from_unit": doc["units"][0]["unit_id"] if doc["units"] else None, "provenance": {"ingestor": INGESTOR}})
+
+    # nodes, aliases and edges for the majors; the map from a unit-local name to its node
+    node_of, position_of = {}, {u["unit_id"]: u["position"] for u in doc["units"]}
     for e in folded["majors"]:
         nid = node_id(doc, e)
         node_of.update({(ui, local_name): nid for ui, local_name in e["members"]})
@@ -1968,14 +1843,10 @@ def graph_lines(doc, folded, doc_node):
                       "provenance": {"ingestor": INGESTOR, "names": e["names"][:12]}})
         lines += [{"record": "alias", "alias": form, "node_id": nid, "first_seen_unit": uid} for form, uid in e["first_unit_of"].items()]
         lines.append({"record": "edge", "predicate": "appears_in", "subject": nid, "object": doc_node, "units": e["unit_ids"]})
-    lines += [{"record": "edge", "predicate": "has_unit", "subject": doc_node, "object": u["unit_id"], "position": u["position"]}
-              for u in doc["units"]]
-    return lines, node_of
+    lines += [{"record": "edge", "predicate": "has_unit", "subject": doc_node, "object": u["unit_id"], "position": u["position"]} for u in doc["units"]]
 
-
-def cell_lines(records, node_of, doc_node):
-    """Per unit: the summary cell on the document's node, and each major's cells on its node."""
-    lines = []
+    # per unit: the summary cell and the entity cells. No profile record: it asserted something
+    # about the world with no quote behind it, and it was the last one that did (ruling of 09-09)
     for r in records:
         if r["summary"]:
             lines.append({"record": "cell", "node_id": doc_node, "unit_id": r["unit_id"], "text": r["summary"], "tier": LUNA,
@@ -1985,17 +1856,12 @@ def cell_lines(records, node_of, doc_node):
             if node_of.get((r["position"], c["entity"])):
                 cells_by_node.setdefault(node_of[(r["position"], c["entity"])], []).append(c)
         for nid, cells in cells_by_node.items():
-            text = " ".join(c["text"] for c in cells)
-            lines.append({"record": "cell", "node_id": nid, "unit_id": r["unit_id"], "text": text, "tier": LUNA,
+            lines.append({"record": "cell", "node_id": nid, "unit_id": r["unit_id"], "text": " ".join(c["text"] for c in cells), "tier": LUNA,
                           "provenance": {"ingestor": INGESTOR, "entity_names": [c["entity"] for c in cells]}})
-    return lines
 
-
-def consolidated_lines(doc, folded, adjudicated, dumped_ids):
-    """Each major's consolidated facts, attributes and contradictions. An item may not cite a fact
-    this package will not carry, so the dumped facts come out of its sources first, and an item
-    left with none goes."""
-    lines = []
+    # the adjudicated record of each major. An item may not cite a fact this package will not
+    # carry, so the dumped facts come out of its sources first, and an item left with none goes
+    dumped_ids = set(flagged) - set(corrections)
     for e in folded["majors"]:
         nid, result = node_id(doc, e), adjudicated[e["index"]]
         for item in result["facts"]:
@@ -2006,8 +1872,7 @@ def consolidated_lines(doc, folded, adjudicated, dumped_ids):
         for item in result["attributes"]:
             sources = [i for i in item["from_facts"] if i not in dumped_ids]
             if sources:
-                lines.append({"record": "attribute", "node_id": nid, "attribute": item["attribute"], "value": item["value"],
-                              "from_facts": sources, "tier": TERRA})
+                lines.append({"record": "attribute", "node_id": nid, "attribute": item["attribute"], "value": item["value"], "from_facts": sources, "tier": TERRA})
         for item in result["contradictions"]:
             # the document's own resolution, recorded here and not on the fact: both facts stay
             # active, and the global layer sees that this document said both things (R4, 09-07)
@@ -2016,16 +1881,19 @@ def consolidated_lines(doc, folded, adjudicated, dumped_ids):
                 holds = item.get("holds_fact") if item.get("holds_fact") in sources else None
                 lines.append({"record": "contradiction", "node_id": nid, "note": item["note"], "from_facts": sources,
                               "holds": holds, "because": (item.get("because") or None) if holds else None})
-    return lines
 
+    # the document level: abstracts, the ledger, the candidates
+    if folded["abstract"]:
+        lines.append({"record": "abstract", "node_id": doc_node, "text": folded["abstract"]["text"], "tier": folded["abstract"]["tier"], "updated_at": written_at})
+    lines += [{"record": "abstract", "node_id": f"{doc_tag(doc)}:n{a['index']}", "text": a["text"], "tier": a["tier"], "updated_at": written_at}
+              for a in folded["entity_abstracts"]]
+    lines += [{"record": "ledger", **entry} for entry in ledger] + [{"record": "candidate", **entry} for entry in candidates]
 
-def fact_lines(doc, records, folded, node_of, corrections, dumped_ids):
-    """(facts, dumped): each kept fact under the major it lands on. A fact whose passage does not
-    state it is written only if it was corrected against that passage; otherwise it is dumped and
-    recorded as a rejection, never written with a flag (R3, ruling of 09-07)."""
-    position_of = {u["unit_id"]: u["position"] for u in doc["units"]}
-    when_of = {u["unit_id"]: u.get("occurred_at") for u in doc["units"]}
-    landed, facts, dumped = landings(records, folded), [], []
+    # facts, each under the major it lands on. A fact whose passage does not state it is written
+    # only if it was corrected against that passage; otherwise it is dumped and recorded as a
+    # rejection, never written with a flag (R3, ruling of 09-07)
+    when_of = {u["unit_id"]: (u.get("occurred_at"), u.get("occurred_until")) for u in doc["units"]}
+    landed, stored, dumped = landings(records, folded), 0, []
     for e in folded["majors"]:
         nid = node_id(doc, e)
         for f, direction, label in landed[e["index"]]:
@@ -2034,82 +1902,59 @@ def fact_lines(doc, records, folded, node_of, corrections, dumped_ids):
                                "subject": f["subject"], "predicate": f["predicate"], "object": f["object"], "quote": f["quote"],
                                "why": "the passage does not state it and it could not be corrected"})
                 continue
+            stored += 1
             fix = corrections.get(f["fact_id"])
             object_node = node_of.get((position_of[f["unit_id"]], f["object"])) if f["object_is_entity"] else None
             # a correction may move the predicate, the qualifiers and the object, never the
             # subject; on an inverse landing the object slot holds the other entity's name
             if direction == "inverse":
                 obj, is_node = f["subject"], False
-            elif fix:                                     # a corrected object naming a major is its node
-                fixed_node = node_of.get((position_of[f["unit_id"]], fix["object"]))
-                obj, is_node = fixed_node or fix["object"], fixed_node is not None
+            elif fix:
+                obj, is_node = fix["object"], False
             else:
                 obj, is_node = object_node or f["object"], object_node is not None
-            facts.append({"record": "fact", "fact_id": f["fact_id"], "subject": nid,
+            when = when_of.get(f["unit_id"], (None, None))
+            lines.append({"record": "fact", "fact_id": f["fact_id"], "subject": nid,
                           "predicate": fix["predicate"] if fix else f["predicate"], "object": obj, "object_is_node": is_node,
                           "direction": direction, "qualifiers": fix["qualifiers"] if fix else f["qualifiers"], "rank": "active",
                           "unit_id": f["unit_id"], "quote": f["quote"], "quote_start": f["quote_start"], "quote_end": f["quote_end"],
-                          "valid_from": f["valid_from"],                          # when it began, if the text says
-                          "occurred_at": when_of.get(f["unit_id"]),               # when it was said (R2, 09-07)
+                          "valid_from": f["valid_from"], "valid_to": f["valid_to"],       # when it is true
+                          "occurred_at": when[0], "occurred_until": when[1],                # when it was said (R2, 09-07)
                           "tier": f["tier"], "author": f["author"],
                           "provenance": {"ingestor": INGESTOR, "matched_by": f["matched_by"], "subject_name": f["subject"],
+                                         "voice_ambiguous": f["voice_ambiguous"],
                                          "corrected_from": {k: f[k] for k in ("predicate", "object", "qualifiers")} if fix else None}})
-    return facts, dumped
-
-
-def package_counts(records, entities, folded, adjudicated, excluded, lines, stored, dumped, flagged, corrections):
-    """The completion record's counts, over the lines written before it."""
-    kept = sum(len(r["facts"]) for r in records)
-    written = tally(l["record"] for l in lines)
-    return {"units": len(records), "entities": len(entities), "majors": len(folded["majors"]), "minors": len(folded["minors"]),
-            "mentions": sum(e["mentions"] for r in records for e in r["entities"]),
-            "facts_kept": kept, "facts_stored": stored, "facts_no_major": kept - stored - len(dumped),
-            "facts_rejected": sum(len(r["rejected_facts"]) for r in records) + len(dumped),
-            "cells": written.get("cell", 0), "empty_units": sum(r["empty"] for r in records), "units_excluded": len(excluded),
-            "demoted": len(folded["demoted"]), "adjudicated_facts": written.get("adjudicated_fact", 0),
-            "attributes": written.get("attribute", 0), "contradictions": written.get("contradiction", 0),
-            "contradictions_resolved": sum(1 for l in lines if l["record"] == "contradiction" and l["holds"]),
-            "adjudications_rejected": sum(1 for a in adjudicated.values() if a["rejected"]),
-            "support_calls": sum(a["support_calls"] for a in adjudicated.values()),
-            "facts_flagged": len(flagged), "facts_upheld": sum(1 for v in corrections.values() if v is None),
-            "facts_corrected": sum(1 for v in corrections.values() if v is not None), "facts_dumped": len(dumped),
-            "has_abstract": folded["abstract"] is not None}
-
-
-def write_package(doc, records, entities, folded, adjudicated, ledger, candidates, excluded, stats, flagged, corrections):
-    """The document's package, in order: the document and its layout, the graph, the cells, the
-    consolidated records, the abstracts, the ledger and the candidates, the facts, the rejections,
-    and the completion record with the counts."""
-    path = package_path(doc)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    written_at, doc_node = datetime.now(timezone.utc).isoformat(timespec="seconds"), f"{doc_tag(doc)}:doc"
-    dumped_ids = set(flagged) - set(corrections)
-    fields = ("doc_id", "source_uri", "sha256", "title", "author", "source_class", "ingested_at", "occurred_at", "loader")
-    lines = [{"record": "document", **{k: doc[k] for k in fields}, "flags": doc.get("flags", []), "text_length": len(doc["text"])}]
-    lines += [{"record": "unit", **u} for u in doc["units"]] + [{"record": "piece", **p} for p in doc["pieces"]]
-    graph, node_of = graph_lines(doc, folded, doc_node)
-    lines += graph + cell_lines(records, node_of, doc_node) + consolidated_lines(doc, folded, adjudicated, dumped_ids)
-    if folded["abstract"]:
-        lines.append({"record": "abstract", "node_id": doc_node, "text": folded["abstract"]["text"],
-                      "tier": folded["abstract"]["tier"], "updated_at": written_at})
-    lines += [{"record": "abstract", "node_id": f"{doc_tag(doc)}:n{a['index']}", "text": a["text"], "tier": a["tier"],
-               "updated_at": written_at} for a in folded["entity_abstracts"]]
-    lines += [{"record": "ledger", **entry} for entry in ledger] + [{"record": "candidate", **entry} for entry in candidates]
-    facts, dumped = fact_lines(doc, records, folded, node_of, corrections, dumped_ids)
-    lines += facts + dumped
+    lines += dumped
     for r in records:
         lines += [{"record": "rejection", "stage": "facts", "unit_id": r["unit_id"], **x} for x in r["rejected_facts"]]
         lines += [{"record": "rejection", "stage": "entities", "unit_id": r["unit_id"], **x} for x in r["dropped_entities"]]
-    counts = package_counts(records, entities, folded, adjudicated, excluded, lines, len(facts), dumped, flagged, corrections)
+
+    kept = sum(len(r["facts"]) for r in records)
+    written = tally(l["record"] for l in lines)
+    counts = {"units": len(records), "entities": len(entities), "majors": len(folded["majors"]), "minors": len(folded["minors"]),
+              "mentions": sum(e["mentions"] for r in records for e in r["entities"]),
+              "facts_kept": kept, "facts_stored": stored, "facts_no_major": kept - stored - len(dumped),
+              "facts_rejected": sum(len(r["rejected_facts"]) for r in records) + len(dumped),
+              "cells": written.get("cell", 0), "empty_units": sum(r["empty"] for r in records), "units_excluded": len(excluded),
+              "demoted": len(folded["demoted"]), "adjudicated_facts": written.get("adjudicated_fact", 0),
+              "attributes": written.get("attribute", 0), "contradictions": written.get("contradiction", 0),
+              "contradictions_resolved": sum(1 for l in lines if l["record"] == "contradiction" and l["holds"]),
+              "adjudications_rejected": sum(1 for a in adjudicated.values() if a["rejected"]),
+              "support_calls": sum(a["support_calls"] for a in adjudicated.values()),
+              "facts_flagged": len(flagged), "facts_upheld": sum(1 for v in corrections.values() if v is None),
+              "facts_corrected": sum(1 for v in corrections.values() if v is not None), "facts_dumped": len(dumped),
+              "has_abstract": folded["abstract"] is not None}
     lines.append({"record": "completion", "doc_id": doc["doc_id"], "ingestor": INGESTOR, "counts": counts, "stats": stats,
-                  "empty": not facts and counts["cells"] == 0, "excluded": excluded, "demoted": folded["demoted"]})
+                  "empty": stored == 0 and counts["cells"] == 0, "excluded": excluded, "demoted": folded["demoted"]})
     path.write_text("\n".join(json.dumps(l, ensure_ascii=False) for l in lines) + "\n", encoding="utf-8", newline="\n")
     return path, counts
 
 
 def completed(doc):
-    """Is there already a finished package for this document, over these units? The version that
-    wrote it is not part of the question, so a version bump re-buys nothing (ruling of 09-08)."""
+    """Is there already a finished package for this document, over these units? The ingestor
+    version is NOT part of the question: a package does not stop being finished because the code
+    that wrote it moved on, and a corpus run over several days must not re-buy a day's work for a
+    version bump (ruling of 09-08)."""
     path = package_path(doc)
     rows = read_jsonl(path, tolerant=True) if path.exists() else []
     if not rows or rows[-1].get("record") != "completion":
@@ -2119,29 +1964,29 @@ def completed(doc):
 # %% [markdown]
 # ## Block 10: the pipeline
 #
-# `ingest(doc)` runs the steps in order: triage (which kinds of unit to read), `derive_unit` for
-# each unit kept, then, all at the end, reconcile, fold, adjudicate, verify and write.
-# `run(uris)` ingests a list of documents, several at a time when asked, skips any with a
-# finished package, and appends an entry per document to `ingest.log`. `receipt()` sums every
+# `ingest(doc)` runs the steps in order. `run(uris)` ingests a list of documents, several at a
+# time when asked, and appends a line per document to `ingest.log`. `receipt()` sums every
 # package on disk. `WATCH` turns the per-stage narration on and off.
 
 # %%
 # Block 10: the pipeline as one function, ingest(doc).
+#
+# The steps in order: triage (which kinds of unit to read), derive_unit for each unit kept,
+# then, all at the end, reconcile, fold_document, adjudicate, verify, write_package. WATCH says
+# whether the run narrates each stage. A finished package for the same input is skipped. Every
+# document appends an entry to ingest.log; the receipt sums the packages on disk.
 LOG = OUT / "ingest.log"
 WATCH = True                                  # narrate each stage as the run goes
 RESULTS = []                                  # (source_uri, records, counts, stats) for every document this session ingested
 
 
 def triage(doc, ctx):
-    """Which kinds of unit are not the work: ({kind: reason}, flags). Boilerplate goes by rule,
-    and a conversation's turns are always read.
+    """Which kinds of unit are not the work: ({kind: reason}, flags). Boilerplate goes by rule.
     A document with more than one kind left after that asks the judge; the answer stands, short
     of leaving out more than half the document."""
     excluded = {u["kind"]: f"{u['kind'].replace('_', ' ')}: not the work itself" for u in doc["units"] if u["kind"] in BOILERPLATE}
     kinds = {}
     for u in doc["units"]:
-        if u["kind"] in TURNS:                    # a turn is the conversation itself: never offered to be left out
-            continue
         text = doc["text"][u["start"]:u["end"]]
         kinds.setdefault(u["kind"], []).append((u["position"], u["label"], word_count(text), first_line(text)))
     if one_reading(doc):                          # one unit to read: no choice to make, the boilerplate goes by rule
@@ -2179,7 +2024,7 @@ def show_unit(rec, unit, unit_cost, total_cost):
         print(f"    DROPPED {d['name'][:34]}: {d['why']} {d['forms'][:3]}")
     for f in rec["facts"]:
         print(f"    {f['subject']} -{f['predicate']}-> {f['object']}{' [' + f['qualifiers'] + ']' if f['qualifiers'] else ''}"
-              f"  ({f['matched_by']})  \"{' '.join(f['quote'].split())[:90]}\"")
+              f"  ({f['matched_by']}{', voice ambiguous' if f['voice_ambiguous'] else ''})  \"{' '.join(f['quote'].split())[:90]}\"")
     for x in rec["rejected_facts"]:
         print(f"    REJECTED {x['category']}: {x['subject']} -{x['predicate']}-> {x['object']}  \"{' '.join(x['quote'].split())[:90]}\"")
     if rec["summary"]:
@@ -2193,8 +2038,7 @@ def show_document(entities, ledger, stats, folded, adjudicated):
     print(f"reconcile: {stats['locals']} unit-locals -> {len(entities)} document entities; ledger {counts_text(by_how)};"
           f" {stats['candidate_pairs']} pairs queued over {stats['judge_rounds']} rounds, {stats['judged_pairs']} judged in {stats['judge_calls']} calls")
     if folded["abstract"]:
-        abstract = folded["abstract"]
-        print(f"abstract ({word_count(abstract['text'])} words, limit {abstract['limit']}): {abstract['text']}")
+        print(f"abstract ({word_count(folded['abstract']['text'])} words, limit {folded['abstract']['limit']}): {folded['abstract']['text']}")
     else:
         print("abstract: none (no unit summaries)")
     print(f"salience: {len(folded['majors'])} major, {len(folded['minors'])} minor, {len(folded['demoted'])} demoted for want of anything to summarise;"
@@ -2224,52 +2068,39 @@ def ingest(doc, ctx=None):
     ctx = {"doc": doc["source_uri"], **(ctx or {})}
     logged_before = len(CALLS)                  # this document's own calls start here
     light = one_reading(doc)                    # one unit to read: nothing to merge, so the short path
-    chat = any(u["kind"] in TURNS for u in doc["units"])   # a chat: one reading over all its turns, nothing consolidated
 
-    # which kinds of unit to read, and which turns say nothing
+    # which kinds of unit to read
     excluded, flags = triage(doc, ctx)
-    kept = [u for u in doc["units"] if u["kind"] not in excluded and not empty_turn(doc, u)]
-    left_out = [{"position": u["position"], "kind": u["kind"], "label": u["label"],
-                 "reason": excluded.get(u["kind"], "nothing said in the turn")}
-                for u in doc["units"] if u["kind"] in excluded or empty_turn(doc, u)]
+    kept = [u for u in doc["units"] if u["kind"] not in excluded]
+    left_out = [{"position": u["position"], "kind": u["kind"], "label": u["label"], "reason": excluded[u["kind"]]} for u in doc["units"] if u["kind"] in excluded]
     if WATCH:
-        kinds = counts_text(tally(u["kind"] for u in doc["units"]))
-        print(f"triage: {kinds}; " + (f"left out {len(left_out)} unit(s)" if left_out else "nothing left out"))
+        print(f"triage: {counts_text(tally(u['kind'] for u in doc['units']))}; " + (f"left out {len(left_out)} unit(s)" if left_out else "nothing left out"))
         for kind, reason in excluded.items():
             print(f"    {kind}: {reason}")
         for flag in flags:
             print(f"    FLAG {flag}")
 
-    if chat:                                    # a chat: every turn in one reading, each fact tied to its turn
-        turns = [{**u, "text": doc["text"][u["start"]:u["end"]]} for u in kept]
-        records, summary = read_session(doc, turns, ctx)
-        entities, ledger, stats = session_entities(records)
-        candidates = []
-    else:
-        # the units, each on its own, WORKERS at a time, landing in reading order
-        def derive_one(unit):
-            try:
-                return derive_unit(doc, unit, {**ctx, "unit": unit["position"]})
-            except SpendStop as stop:
-                return stop          # raised once the rest of the batch has landed
+    # the units, each on its own, WORKERS at a time, landing in reading order
+    def derive_one(unit):
+        try:
+            return derive_unit(doc, unit, {**ctx, "unit": unit["position"]}, light=light)
+        except SpendStop as stop:
+            return stop          # raised once the rest of the batch has landed
 
-        records, width = [], max(WORKERS, 1)
-        for at in range(0, len(kept), width):
-            batch = [{**u, "text": doc["text"][u["start"]:u["end"]]} for u in kept[at:at + width]]
-            for unit, rec in zip(batch, in_parallel(derive_one, batch)):
-                if isinstance(rec, SpendStop):
-                    raise rec
-                records.append(rec)
-                if WATCH:
-                    show_unit(rec, unit, spend(doc["source_uri"], unit["position"])[0], spend(doc["source_uri"], since=logged_before)[0])
-        entities, ledger, candidates, stats = reconcile(records, ctx, watch=WATCH)
-        summary = None
+    records, width = [], max(WORKERS, 1)
+    for at in range(0, len(kept), width):
+        batch = [{**u, "text": doc["text"][u["start"]:u["end"]]} for u in kept[at:at + width]]
+        for unit, rec in zip(batch, in_parallel(derive_one, batch)):
+            if isinstance(rec, SpendStop):
+                raise rec
+            records.append(rec)
+            if WATCH:
+                show_unit(rec, unit, spend(doc["source_uri"], unit["position"])[0], spend(doc["source_uri"], since=logged_before)[0])
 
-    # the document, all at the end: fold, adjudicate, verify, write
-    folded = fold_document(records, entities, ctx, light=light, chat=chat)
-    if summary:                                 # a chat's abstract is its reading's summary: no fold call
-        folded["abstract"] = {"text": summary, "limit": None, "tier": LUNA}
-    adjudicated = adjudicate(records, folded, ctx, watch=WATCH, light=light, chat=chat)
+    # the document, all at the end: reconcile, fold, adjudicate, verify, write
+    entities, ledger, candidates, stats = reconcile(records, ctx, watch=WATCH)
+    folded = fold_document(records, entities, ctx, light=light)
+    adjudicated = adjudicate(records, folded, ctx, watch=WATCH, light=light)
     if WATCH:
         show_document(entities, ledger, stats, folded, adjudicated)
     flagged, corrections, correct_calls, notes = verify(records, folded, adjudicated, ctx, watch=WATCH)
@@ -2291,6 +2122,25 @@ def note(text):
         f.write(text + "\n\n")
 
 
+def one_reading_report(records, folded):
+    """A one-reading document's majors, each with its abstract and the facts it was given: the
+    whole of what can be read as the run goes, since the trace is stilled while documents run
+    together."""
+    said = {a["index"]: a["text"] for a in folded["entity_abstracts"]}
+    stated = {}
+    for r in records:
+        for f in r["facts"]:
+            stated.setdefault(f["subject"], []).append(f"{f['predicate']} -> {f['object']}" + (f" [{f['qualifiers']}]" if f["qualifiers"] else ""))
+    lines = []
+    for e in folded["majors"]:
+        lines.append(f"    {e['name'][:44]:<46} {e['kind'][:16]}")
+        if said.get(e["index"]):
+            lines.append(f"        {said[e['index']][:400]}")
+        for one in dict.fromkeys(x for ui, local_name in e["members"] for x in stated.get(local_name, [])):
+            lines.append(f"        - {one[:150]}")
+    return lines
+
+
 def one_document(uri):
     """One document, start to finish, and what to say about it. Every outcome is returned rather
     than raised, so a batch of documents running together all report."""
@@ -2308,16 +2158,15 @@ def one_document(uri):
                  f"  cells {counts['cells']}  calls {stats['calls']}  ${stats['cost']:.3f}",
                  f"    matched {stats['matched_by']}  rejected {stats['rejected_by']}  locals {stats['locals']}"
                  f" pairs {stats['candidate_pairs']} judged {stats['judged_pairs']}", f"    abstract: {abstract}"]
-        entry += [f"    {e['name'][:36]:<36} {'/'.join(e['kinds'])[:16]:<16} units {len(e['units']):>3} facts {e['n_facts']:>3}"
-                  for e in folded["majors"][:12]]
+        if stats["one_reading"]:
+            entry += one_reading_report(records, folded)
+        else:
+            entry += [f"    {e['name'][:36]:<36} {'/'.join(e['kinds'])[:16]:<16} units {len(e['units']):>3} facts {e['n_facts']:>3}" for e in folded["majors"][:12]]
         return {"done": True, "text": "\n".join(entry + [f"    -> {path}"])}
     except SpendStop as e:
         return {"stop": True, "text": f"{uri}: {e} after ${spend(uri)[0]:.3f} on this document; the run stops here"}
     except Exception as e:
         return {"text": f"{uri}  ERROR {type(e).__name__}: {e}"}
-
-
-RUN_TIMES = {}                                   # when the last run started and finished, for the receipt
 
 
 def run(uris, at_once=None):
@@ -2334,8 +2183,6 @@ def run(uris, at_once=None):
     width = max(at_once or DOCS_AT_ONCE, 1)
     watching, WATCH = WATCH, WATCH and width == 1
     done = skipped = 0
-    started = time.time()
-    RUN_TIMES["started_at"] = datetime.now(timezone.utc).isoformat(timespec="seconds")
     try:
         for at in range(0, len(todo), width):
             results = in_parallel(one_document, todo[at:at + width], width=width)
@@ -2348,17 +2195,13 @@ def run(uris, at_once=None):
                 break
     finally:
         WATCH = watching
-        RUN_TIMES["finished_at"] = datetime.now(timezone.utc).isoformat(timespec="seconds")
-        RUN_TIMES["minutes"] = round((time.time() - started) / 60, 1)
-    print(f"done {done}  skipped (already complete) {skipped}  spent ${spend()[0]:.2f} this session"
-          f"  in {RUN_TIMES['minutes']} minutes ({RUN_TIMES['started_at']} to {RUN_TIMES['finished_at']})")
+    print(f"done {done}  skipped (already complete) {skipped}  spent ${spend()[0]:.2f} this session")
     return done, skipped
 
 
 def receipt():
     """Sums over every package on disk, plus the calls this session logged."""
     rec = {"ingestor": INGESTOR, "documents": 0, "by_group": {}, "counts": {}, "matched_by": {}, "rejected_by": {}, "cost_of_packages": 0.0,
-           "started_at": RUN_TIMES.get("started_at"), "finished_at": RUN_TIMES.get("finished_at"), "minutes": RUN_TIMES.get("minutes"),
            "cost_this_session": round(spend()[0], 4), "calls_this_session": len(CALLS), "calls_by_stage": tally(c["stage"] for c in CALLS),
            "schema_rejections_this_session": MISSES["rejections"], "schema_retries_this_session": MISSES["retries"]}
     for path in sorted(OUT.rglob("*.jsonl")):
@@ -2396,12 +2239,31 @@ def run_and_roll_up(uris, top=5, at_once=None):
 # %% [markdown]
 # ## Block 11: reading a package back
 #
-# `rollup(path)` writes the roll-up beside the package: the abstract, the unit summaries in
-# order, the majors, then everything known about the top five. `draw_graph(path)` draws the
-# majors as a graph, the 09-02 demo's way.
+# `targets(names)` turns titles or file names into source uris. `rollup(path)` writes the
+# roll-up beside the package: the abstract, the unit summaries, the majors, and everything
+# known about the top five. `draw_graph(path)` draws the majors as a graph.
 
 # %%
-# Block 11: reading a package back.
+# Block 11: naming documents, and reading a package back.
+#
+# targets(names) turns what a run names into source_uris: "all" for the export, or a list of
+# titles or source_uri endings. rollup(path) writes the roll-up of one package beside it: the
+# abstract, the unit summaries in order, the major entities, then everything known about the
+# top five. draw_graph(path) draws the majors as the 09-02 demo did.
+import random
+
+
+def targets(spec):
+    if spec == "all":
+        return sorted(BY_URI)
+    uris = []
+    for name in spec:
+        uri = find_document(name)
+        if uri is None:
+            print(f"no document called {name!r}")
+        else:
+            uris.append(uri)
+    return uris
 
 
 def read_package(path):
@@ -2419,17 +2281,12 @@ def grouped(rows, key):
     return out
 
 
-def most_units_then_facts(item):
-    return -item[0], -item[1]
-
-
 def ranked_majors(by):
     """The package's major nodes, most units first, then most raw facts: [(units, facts, node)]."""
     units_of = {e["subject"]: len(e["units"]) for e in by.get("edge", []) if e["predicate"] == "appears_in"}
     facts_of = grouped(by.get("fact", []), "subject")
-    ranked = [(units_of.get(n["node_id"], 0), len(facts_of.get(n["node_id"], [])), n)
-              for n in by.get("node", []) if n["kind"] != "document"]
-    return sorted(ranked, key=most_units_then_facts)
+    ranked = [(units_of.get(n["node_id"], 0), len(facts_of.get(n["node_id"], [])), n) for n in by.get("node", []) if n["kind"] != "document"]
+    return sorted(ranked, key=lambda item: (-item[0], -item[1]))
 
 
 def rollup(path, top=5):
@@ -2441,7 +2298,9 @@ def rollup(path, top=5):
             with redirect_stdout(handle):
                 rollup_text(path, top=top)
     except Exception as e:
-        # a view of the data may not end the run that produced it: every package is already written
+        # a view of the data may not destroy the run that produced it: every package in a block
+        # is already written when this runs, and a roll-up that falls over took a 28-minute chat
+        # block down with it (fixed 09-08)
         print(f"roll-up failed for {path}: {type(e).__name__}: {e}")
         return
     print(f"roll-up ({written.stat().st_size:,} bytes) -> {written}")
@@ -2450,7 +2309,7 @@ def rollup(path, top=5):
 def rollup_text(path, top=5):
     """The roll-up itself, printed."""
     by = read_package(path)
-    doc, units = by["document"][0], sorted(by.get("unit", []), key=row_position)
+    doc, units = by["document"][0], sorted(by.get("unit", []), key=lambda u: u["position"])
     label_of = {u["unit_id"]: f"[{u['position']}] {u['label']}" for u in units}
     position = {u["unit_id"]: u["position"] for u in units}
     doc_node = next(n["node_id"] for n in by["node"] if n["kind"] == "document")
@@ -2459,9 +2318,6 @@ def rollup_text(path, top=5):
     adjudicated_of, attributes_of = grouped(by.get("adjudicated_fact", []), "node_id"), grouped(by.get("attribute", []), "node_id")
     contradictions_of, aliases_of = grouped(by.get("contradiction", []), "node_id"), grouped(by.get("alias", []), "node_id")
     name_of = {n["node_id"]: n["name"] for n in by.get("node", [])}
-
-    def reading_order(cell):
-        return position.get(cell["unit_id"], 0)
 
     print(f"\n{'#' * 8} ROLL-UP: {doc['title'] or doc['source_uri']}  ({doc['source_uri']}; {len(units)} units)")
     print("\nABSTRACT")
@@ -2488,13 +2344,12 @@ def rollup_text(path, top=5):
             print(f"abstract: {abstracts[nid]}")
         if cells_of.get(nid):
             print("narrative:")
-            for c in sorted(cells_of[nid], key=reading_order):
+            for c in sorted(cells_of[nid], key=lambda c: position.get(c["unit_id"], 0)):
                 print(f"    {label_of.get(c['unit_id'], c['unit_id'])}: {c['text']}")
         if adjudicated_of.get(nid):
             print(f"consolidated facts ({len(adjudicated_of[nid])}):")
             for a in adjudicated_of[nid]:
-                qualifiers = f" [{a['qualifiers']}]" if a.get("qualifiers") else ""
-                print(f"    {a['predicate']} -> {a['object']}{qualifiers}  <- {len(a['from_facts'])} raw")
+                print(f"    {a['predicate']} -> {a['object']}{' [' + a['qualifiers'] + ']' if a.get('qualifiers') else ''}  <- {len(a['from_facts'])} raw")
         if attributes_of.get(nid):
             print(f"attributes ({len(attributes_of[nid])}):")
             for a in attributes_of[nid]:
@@ -2505,13 +2360,8 @@ def rollup_text(path, top=5):
             print(f"raw facts ({len(facts_of[nid])}), each with its quote:")
             for f in facts_of[nid]:
                 who = f["provenance"].get("subject_name", "")
-                if f["direction"] == "forward":
-                    line = f"{f['predicate']} -> {name_of.get(f['object'], f['object'])}"
-                else:
-                    line = f"(inverse) {who} {f['predicate']} -> {n['name']}"
-                qualifiers = f" [{f['qualifiers']}]" if f.get("qualifiers") else ""
-                quote = " ".join(f["quote"].split())[:100]
-                print(f"    {line}{qualifiers}  {label_of.get(f['unit_id'], '')} \"{quote}\"")
+                line = f"{f['predicate']} -> {name_of.get(f['object'], f['object'])}" if f["direction"] == "forward" else f"(inverse) {who} {f['predicate']} -> {n['name']}"
+                print(f"    {line}{' [' + f['qualifiers'] + ']' if f.get('qualifiers') else ''}  {label_of.get(f['unit_id'], '')} \"{' '.join(f['quote'].split())[:100]}\"")
 
 
 def draw_graph(path):
@@ -2558,41 +2408,28 @@ def draw_graph(path):
     return G
 
 # %% [markdown]
-# ## Block 12: run, one user's chat history
+# ## Block 12: run, chat sessions
 #
-# One LongMemEval history whole, the sessions one question is asked over, and the answer sessions
-# of 13 other questions, each taken from its own question's history. Each session is its own
-# document and its own package.
+# A sample of LongMemEval sessions, sixteen at a time. Each is one reading, so it takes the short
+# path.
 
 # %%
-# Block 12: the run, one user's whole chat history. Since Step 0 1.8 each LongMemEval history is a
-# folder, chats/longmemeval/<question id>/, and a session several histories use has a copy in each,
-# dated for that history, under the same title; so a session is chosen by its path, never its title.
-# This is the history of question gpt4_2ba83207, a multi-session question: 53 sessions. To it are
-# added the answer sessions of 13 other questions (Justin, 09-11 and 09-12), one or more of each of
-# the six question types: single-session-assistant 4c36ccef, 0e5e2d1a, e8a79c70 and 7161e7e2;
-# knowledge update 6a1eabeb and 6aeb4375; temporal gpt4_b5700ca9 and gpt4_59149c77;
-# single-session-user e47becba and 118b2229; single-session-preference 8a2466db and 06878be2;
-# multi-session 0a995998. Each session is read in one call over all its turns (read_session).
-HISTORY = "gpt4_2ba83207"
-ANSWERS = [                                   # (question id, session id)
-    ("4c36ccef", "answer_ultrachat_448704"), ("0e5e2d1a", "answer_ultrachat_113156"),
-    ("e8a79c70", "answer_ultrachat_13075"), ("6a1eabeb", "answer_a25d4a91_1"), ("6a1eabeb", "answer_a25d4a91_2"),
-    ("gpt4_b5700ca9", "answer_a17423e7_1"), ("e47becba", "answer_280352e9"), ("118b2229", "answer_40a90d51"),
-    ("8a2466db", "answer_edb03329"), ("06878be2", "answer_555dfb94"), ("0a995998", "answer_afa9873b_1"),
-    ("0a995998", "answer_afa9873b_2"), ("0a995998", "answer_afa9873b_3"), ("gpt4_59149c77", "answer_d00ba6d0_1"),
-    ("gpt4_59149c77", "answer_d00ba6d0_2"), ("6aeb4375", "answer_3f9693b7_1"), ("6aeb4375", "answer_3f9693b7_2"),
-    ("7161e7e2", "answer_sharegpt_5Lzox6N_0"),
-]
-CHAT_AT_ONCE, BUDGET = 16, 15.00
+# Block 12: the run, a spread of chat sessions, first of all. Every one of the 19,206 sessions
+# is two units, one of them the session id, so each takes the one-reading path: no triage, no
+# entity abstract, no adjudication, and one verification pass over its facts. Four calls a
+# document instead of twenty-five. The seed is unchanged from the run of 09-07, so the first 40
+# of these 200 are the same 40 that run ingested on the full path, and the two are comparable.
+# Nothing here reaches across documents: each session is its own package, in its own folder.
+CHAT_SAMPLE, CHAT_SEED, CHAT_AT_ONCE = 200, 494, 16
+BUDGET = 5.00
 
-if __name__ == "__main__" and HISTORY:
-    history = f"chats/longmemeval/{HISTORY}/"
-    answers = {f"chats/longmemeval/{question}/{session}.json" for question, session in ANSWERS}
-    chats = sorted(u for u in BY_URI if u.startswith(history) or u in answers)
+if __name__ == "__main__" and CHAT_SAMPLE:
+    chats = sorted(u for u in BY_URI if "/longmemeval/" in u)
+    random.Random(CHAT_SEED).shuffle(chats)
+    chats = sorted(chats[:CHAT_SAMPLE])
     start_block(BUDGET)
-    print(f"chats: history {HISTORY} and the answer sessions of 13 other questions, {len(chats)} sessions"
-          f" ({len(answers)} answers asked for), {CHAT_AT_ONCE} at a time; budget ${BUDGET:.2f} for this block")
+    print(f"chats: {len(chats)} sessions sampled from {sum(1 for u in BY_URI if '/longmemeval/' in u):,},"
+          f" {CHAT_AT_ONCE} at a time; budget ${BUDGET:.2f} for this block")
     run_and_roll_up(chats, at_once=CHAT_AT_ONCE)
 
 # %% [markdown]
@@ -2605,8 +2442,9 @@ if __name__ == "__main__" and HISTORY:
 # works, which is what the Oz corpus is here to test, and contradictions between books are where
 # a document's own end state and the layer above it start to differ. WATCH in block 10 says
 # whether each stage narrates itself; BUDGET ends the block past that many dollars of its own
-# spending. Each document ends in its
-# roll-up.
+# spending. For reference, the 09-02 demo on Oz book 1: v3 632 entities, 969 facts, 53 dropped,
+# $1.26; the 0.4 run of 09-06: 358 entities (38 major), 869 facts, 74 rejected, $2.23. Each
+# document ends in its roll-up.
 OZ_BOOKS, BUDGET = 3, 12.00
 
 if __name__ == "__main__":
@@ -2619,18 +2457,16 @@ if __name__ == "__main__":
 # ## Block 14: run, five papers
 
 # %%
-# Block 14: the run, five of the 100 CC-BY papers on knowledge graphs and RAG (kg-rag-cc),
-# drawn with a fixed seed. Zep left with the private papers these replaced, so none is run
-# first. Their text is in the export like everything else; no private dataset is needed.
-import random
-
-PAPERS_TO_RUN, SEED = 5, 494
+# Block 14: the run, five papers, Zep first. Their text is in the export like everything else
+# since 09-09; nothing is withheld and no private dataset is needed.
+PAPERS_TO_RUN, SEED, ALWAYS = 5, 494, ["rasmussen2025-zep.pdf"]
 BUDGET = 8.00
 
 if __name__ == "__main__" and PAPERS_TO_RUN:
-    papers = sorted(u for u in BY_URI if "/kg-rag-cc/" in u)
-    random.Random(SEED).shuffle(papers)
-    chosen = sorted(papers[:PAPERS_TO_RUN])
+    chosen = [find_document(name) for name in ALWAYS]
+    others = sorted(u for u in BY_URI if u.endswith(".pdf") and u not in chosen)
+    random.Random(SEED).shuffle(others)
+    chosen += others[:PAPERS_TO_RUN - len(chosen)]
     start_block(BUDGET)
     print(f"papers: {[BY_URI[u]['title'] or u for u in chosen]}; budget ${BUDGET:.2f} for this block")
     run_and_roll_up(chosen)
@@ -2645,7 +2481,7 @@ OTHERS = ["/greek/22_35173.txt", "/graphrag-bench/Novel-40700.txt"]
 BUDGET = 6.00
 
 if __name__ == "__main__" and OTHERS:
-    chosen = sorted(u for u in BY_URI if u.endswith(tuple(OTHERS)))
+    chosen = [u for u in (find_document(name) for name in OTHERS) if u]
     start_block(BUDGET)
     print(f"others: {[BY_URI[u]['title'] or u for u in chosen]}; budget ${BUDGET:.2f} for this block")
     run_and_roll_up(chosen)
@@ -2653,13 +2489,14 @@ if __name__ == "__main__" and OTHERS:
 # %% [markdown]
 # ## Block 16: graphs
 #
-# One graph per book or paper ingested this session, saved beside its package; a chat gets none.
+# One graph per document ingested this session, saved beside its package.
 
 # %%
-# Block 16: the graphs, drawn the 09-02 demo's way. Needs networkx and matplotlib, which Kaggle has.
+# Block 16: the graphs. One knowledge graph per document ingested this session, drawn the
+# 09-02 demo's way and saved beside the packages. Needs networkx and matplotlib, which Kaggle has.
 if __name__ == "__main__":
     for uri, records_, counts_, stats_ in RESULTS:
-        if len(records_) < 2 or any(r["kind"] in TURNS for r in records_):   # one reading, or a chat: no graph
+        if len(records_) < 2:              # a chat session is one reading: a graph of it says nothing
             continue
         if package_path({"source_uri": uri}).exists():
             draw_graph(package_path({"source_uri": uri}))
