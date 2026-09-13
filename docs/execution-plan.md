@@ -27,8 +27,11 @@ solution, the full data, digested in Kaggle batches (about 36 kernel hours for a
 Step 1 thread's estimate, less on the version now running; the other corpora are much smaller
 and go first). Until the harness passes, every step works on the test packages already on disk:
 the 71 sessions, three Oz books, five papers, the Bacchae and Dandy Dick of the frozen run, and
-their 1.8 counterparts when that run lands. Testing begins by the end of September so October is
-refinement and dataset building. Both benchmarks stay. Which is scored first is a
+their 1.8 counterparts when that run lands. The full data goes through the ingestor only after
+the whole pipeline (global layer, store, embedding, query, harness) has been tested and tuned
+on those packages to the point it is ready for testing; the tuning happens first, on the small
+set, and the kernel time of the full run is writing time. Testing begins by the end of
+September so October is refinement and dataset building. Both benchmarks stay. Which is scored first is a
 sequencing choice, not a slate choice: GraphRAG-Bench needs no global layer and has its own
 scorer, so it can be scored the week the query path works; LongMemEval scores as its batches
 land. Cut from the fall: NarrativeQA, the wiki, the cells ablation, the resolution ablation (its
