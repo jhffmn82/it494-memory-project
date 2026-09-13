@@ -10,7 +10,7 @@
 
 # Raw corpora: where each text came from, and why it is here
 
-The three literature corpora here (`oz/`, `holmes/`, `greek/`) are verbatim downloads from Project Gutenberg or, where no Gutenberg edition exists, from an institutional scan on Archive.org. `graphrag-bench/` and `longmemeval/` are unpacked by script from their benchmark JSON: one text file per context, written as-is, and one JSON file per distinct non-empty session (session id, date, and turns as role and content; the `has_answer` flag is question data and is dropped). The 142 paper PDFs are raw too, but travel in a private Kaggle dataset. Nothing has been cleaned or normalised; the only split is the unpack of the two benchmark JSON files into per-context and per-session files, which rewrites no text. That is deliberate: the raw layer is the write-ahead log for
+The three literature corpora here (`oz/`, `holmes/`, `greek/`) are verbatim downloads from Project Gutenberg or, where no Gutenberg edition exists, from an institutional scan on Archive.org. `graphrag-bench/` and `longmemeval/` are unpacked by script from their benchmark JSON: one text file per context, written as-is, and one JSON file per distinct non-empty session (session id, date, and turns as role and content; the `has_answer` flag is question data and is dropped). `longmemeval/` also carries `longmemeval_s.json`, the benchmark file itself, which the extractor unpacks per question history. `kg-rag-cc/` holds 100 CC-BY paper PDFs under `pdf/`, with a manifest recording each paper's license. Nothing has been cleaned or normalised; the only split is the unpack of the two benchmark JSON files into per-context and per-session files, which rewrites no text. That is deliberate: the raw layer is the write-ahead log for
 everything downstream, so it stays byte-identical to what the source served and every later
 artifact can be rebuilt from it. Preprocessing into homogeneous datasets is a separate step
 and does not belong in this folder.
@@ -37,8 +37,8 @@ what the surrounding culture believes, which turns it into a contamination probe
 
 **Greek adds disagreement between authors.** The same figures appear across independent sources
 written centuries apart, in two languages, that contradict each other on matters of fact. It
-also breaks the single time axis: source position and story time come apart, which forces the
-bitemporal distinction rather than allowing it to be optional.
+also breaks the single time axis: source position and story time come apart, which is why a
+unit is dated by when its work was written, never by its position in the collection.
 
 **Chinese was to add mixed source quality and one real hole; the folder is out of the dataset and the fall work as of 2026-09-04.** Three Kingdoms is complete, but three
 of its five files are OCR from page scans rather than proofread transcription, and Water Margin
@@ -48,7 +48,7 @@ has no public domain English translation in existence. It was last because it is
 
 L. Frank Baum's fourteen canonical Oz novels, 1900 to 1920, all public domain in the United
 States by expiry of term. Files are numbered by publication order, which is also narrative
-order, so the file ordinal is directly usable as the `asserted_at` position.
+order, so the file ordinal is also the reading order.
 
 | # | Work | Gutenberg |
 |---|---|---|
@@ -266,14 +266,14 @@ corpus is used.
 
 ## Copyright basis
 
-The literature here is public domain in the United States by expiry of term. `graphrag-bench/` and `longmemeval/` come from MIT-licensed benchmarks and each folder carries the copied LICENSE for attribution; the public dataset as a whole is MIT. The papers carry per-paper arXiv licenses, most not redistributable, which is why the PDFs sit in a private dataset. Project Gutenberg is
+The literature here is public domain in the United States by expiry of term. `graphrag-bench/` and `longmemeval/` come from MIT-licensed benchmarks and each folder carries the copied LICENSE for attribution. The papers in `kg-rag-cc/` are CC-BY, recorded per paper in the manifest, and are redistributed with attribution. The public dataset is labelled "other" because its licenses are layered; the packaging and the manifests are MIT. Project Gutenberg is
 United States based and conservative about status, so its hosting a text is itself a reasonable
 signal. This matters because the downstream artifacts are public: a preprint, a Kaggle notebook,
 a distributable harness, and a symposium demonstration.
 
-Two things were considered and excluded. Harry Potter is under copyright and cannot appear in
-any published artifact, though it remains the strongest candidate for a private working corpus
-because its community wiki is the best scoring target available. Robert E. Howard's Conan
+Two things were considered and excluded. Copyrighted modern fiction cannot appear in any
+published artifact, however good its community wiki would be as a scoring target, so none of
+it is here. Robert E. Howard's Conan
 stories were excluded because their public domain status rests on copyright non-renewal rather
 than expiry of term, which is a per-story question requiring records research, the character
 name is separately trademarked and actively enforced, and much of the circulating text is a
@@ -281,16 +281,16 @@ later edited version carrying its own copyright.
 
 ---
 
-## The collection as it stands, 2026-09-04
+## The collection as it stands, 2026-09-13
 
 Per-file provenance for every file, including the ones added after the sections above were written, lives in each folder's `manifest.json`, built by the fetch and unpack scripts: ordinal, source URL, title, author, year, translator, quality flags, license, byte count, and sha256. The counts:
 
-**oz** — 29 files: 1 Wonderful Wizard of Oz, 2 Marvelous Land of Oz, 3 Ozma of Oz, 4 Dorothy and the Wizard in Oz, 5 Road to Oz, 6 Emerald City of Oz, 7 Patchwork Girl of Oz, 8 Tik-Tok of Oz, 9 Scarecrow of Oz, 10 Rinkitink in Oz, 11 Lost Princess of Oz, 12 Tin Woodman of Oz, 13 Magic of Oz, 14 Glinda of Oz, 15 Sea Fairies, 16 Sky Island, 17 Little Wizard Stories, 18 Santa Claus, 19 Royal Book of Oz, 20 Kabumpo in Oz, 21 Cowardly Lion of Oz, 22 Grampa in Oz, 23 Lost King of Oz, 24 Hungry Tiger of Oz, 25 Gnome King of Oz, 26 Giant Horse of Oz, 27 Jack Pumpkinhead of Oz, 28 Yellow Knight of Oz, 29 Woggle-Bug.
+**oz** (29 files): 1 Wonderful Wizard of Oz, 2 Marvelous Land of Oz, 3 Ozma of Oz, 4 Dorothy and the Wizard in Oz, 5 Road to Oz, 6 Emerald City of Oz, 7 Patchwork Girl of Oz, 8 Tik-Tok of Oz, 9 Scarecrow of Oz, 10 Rinkitink in Oz, 11 Lost Princess of Oz, 12 Tin Woodman of Oz, 13 Magic of Oz, 14 Glinda of Oz, 15 Sea Fairies, 16 Sky Island, 17 Little Wizard Stories, 18 Santa Claus, 19 Royal Book of Oz, 20 Kabumpo in Oz, 21 Cowardly Lion of Oz, 22 Grampa in Oz, 23 Lost King of Oz, 24 Hungry Tiger of Oz, 25 Gnome King of Oz, 26 Giant Horse of Oz, 27 Jack Pumpkinhead of Oz, 28 Yellow Knight of Oz, 29 Woggle-Bug.
 
-**holmes** — 9 files: 1 Study in Scarlet, 2 Sign of the Four, 3 Adventures of Sherlock Holmes, 4 Memoirs of Sherlock Holmes, 5 Hound of the Baskervilles, 6 Return of Sherlock Holmes, 7 Valley of Fear, 8 His Last Bow, 9 Case-Book of Sherlock Holmes.
+**holmes** (9 files): 1 Study in Scarlet, 2 Sign of the Four, 3 Adventures of Sherlock Holmes, 4 Memoirs of Sherlock Holmes, 5 Hound of the Baskervilles, 6 Return of Sherlock Holmes, 7 Valley of Fear, 8 His Last Bow, 9 Case-Book of Sherlock Holmes.
 
-**greek** — 31 files: 1 Iliad, 2 Odyssey, 3 Homeric Hymns, 4 Sophocles, 5 Seven Plays, 6 House of Atreus, 7 Euripides, 8 Metamorphoses, 9 Metamorphoses, 10 Aeschylus, 11 Argonautica, 12 Aeneid, 13 Age of Fable, 14 Fall of Troy, 15 Pausanias, 16 Pausanias, 17 Pindar, 18 Alcestis, 19 Electra, 20 Hecuba, 21 Medea, 22 Bacchae, 23 Trojan Women, 24 Iphigenia, 25 Rhesus, 26 Hippolytus, 27 library, 28 library, 30 Heroides, 31 Diodorus, 32 Diodorus. Ordinal 29 was Statius's Thebaid, removed 2026-09-04 on OCR quality; see the Greek section.
+**greek** (31 files): 1 Iliad, 2 Odyssey, 3 Homeric Hymns, 4 Sophocles, 5 Seven Plays, 6 House of Atreus, 7 Euripides, 8 Metamorphoses, 9 Metamorphoses, 10 Aeschylus, 11 Argonautica, 12 Aeneid, 13 Age of Fable, 14 Fall of Troy, 15 Pausanias, 16 Pausanias, 17 Pindar, 18 Alcestis, 19 Electra, 20 Hecuba, 21 Medea, 22 Bacchae, 23 Trojan Women, 24 Iphigenia, 25 Rhesus, 26 Hippolytus, 27 library, 28 library, 30 Heroides, 31 Diodorus, 32 Diodorus. Ordinal 29 was Statius's Thebaid, removed 2026-09-04 on OCR quality; see the Greek section.
 
-**chinese** — out of the dataset as of 2026-09-04 (was 11 files: 1 San Kuo, 2 San Kuo, 3 mission to heaven, 4 三國, 5 three kingdoms, 6 Hung Lou Meng, 7 Hung Lou Meng, 8 水滸, 9 西遊, 10 紅樓夢, 11 封神); see the Chinese section.
+**chinese**: out of the dataset as of 2026-09-04 (was 11 files: 1 San Kuo, 2 San Kuo, 3 mission to heaven, 4 三國, 5 three kingdoms, 6 Hung Lou Meng, 7 Hung Lou Meng, 8 水滸, 9 西遊, 10 紅樓夢, 11 封神); see the Chinese section.
 
-69 literature files in all: oz 29, holmes 9, greek 31. Beside them in the public dataset sit `graphrag-bench/` (20 text files) and `longmemeval/` (about 18,800 session files), both unpacked by script; the 142 paper PDFs travel in a private dataset.
+69 literature files in all: oz 29, holmes 9, greek 31. Beside them in the public dataset (version 4, 2026-09-13) sit `graphrag-bench/` (20 text files) and `longmemeval/` (19,206 session files plus `longmemeval_s.json`), both unpacked by script, and `kg-rag-cc/` (100 CC-BY paper PDFs).

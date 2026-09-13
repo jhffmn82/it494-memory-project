@@ -177,7 +177,7 @@ to exist and has not been checked.
 | Oz | 29 | ~1.28M | Baum's 14, five companions, the Woggle-Bug Book, Thompson 1921-1930 |
 | Holmes | 9 | ~0.69M | The complete canon of sixty |
 | Greek | 31 | ~3.19M | Every major narrative source in public domain English |
-| Chinese | 0 | — | Out of the dataset since 2026-09-04; 11 files acquired, complete in Chinese, permanently partial in English |
+| Chinese | 0 | 0 | Out of the dataset since 2026-09-04; 11 files acquired, complete in Chinese, permanently partial in English |
 
 ### Blocked: no public domain English source exists
 

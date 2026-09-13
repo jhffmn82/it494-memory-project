@@ -19,7 +19,7 @@ Chinese, the fourth, left it on 2026-09-04 and returns only if the folder does.
 |---|---|---|
 | **Oz** | Nothing adversarial. One world, one continuous canon | Build the pipeline. Establish that ingest, organize and maintain work at all |
 | **Holmes** | Contradiction inside one author, plus a contamination probe | Test supersession where no reconciling reading exists. Detect the store being bypassed |
-| **Greek** | Contradiction between independent authors, and two clocks | Test corroboration and source weighting. Force the bitemporal model |
+| **Greek** | Contradiction between independent authors, and two clocks | Test corroboration and source weighting. Force dating by work, not by position |
 | **Chinese** (out since 2026-09-04) | Mixed source quality, and a non-English option | Measure OCR and translation error. Test the model-agnostic claim. Both wait on the folder's return |
 
 Work in that order. A pipeline that cannot handle Oz will not produce interpretable results on
@@ -92,8 +92,9 @@ confidently wrong answer here, and the error is detectable rather than theoretic
 war, Ovid retells events across the whole span, the tragedians revisit Homeric characters after
 Homer, and Apollodorus and Diodorus systematise all of it centuries later. There is no single
 ordinal that orders both *when a thing happened* and *when a source asserted it*. This corpus
-therefore makes the valid-time and transaction-time distinction mandatory rather than optional.
-It cannot be faked with one number, which is exactly why it is here.
+is therefore why a unit's date is the date its work was written, never its position in the
+collection or the date of its translation, and why a volume of several works is dated work by
+work. Position alone cannot supply that, which is exactly why it is here.
 
 **Bulfinch is not a primary source and is present on purpose.** *The Age of Fable* is a 19th
 century synthesis that compiles and reconciles the primary sources into unified narrative
