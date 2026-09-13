@@ -2560,59 +2560,39 @@ def draw_graph(path):
 # %% [markdown]
 # ## Block 12: run, one user's chat history
 #
-# Every session of one LongMemEval haystack, the whole history one question is asked over, and
-# six answer sessions of other questions. Each session is still its own document and its own
-# package.
+# One LongMemEval history whole, the sessions one question is asked over, and the answer sessions
+# of 13 other questions, each taken from its own question's history. Each session is its own
+# document and its own package.
 
 # %%
-# Block 12: the run, one user's whole chat history, in place of the 200 random sessions run
-# before. A LongMemEval question is asked over a haystack of 39 to 66 sessions, 50 on average;
-# this is the haystack of question gpt4_2ba83207, a multi-session question: 53 sessions, 502
-# turns. Its four answer sessions are dated. 7 of its sessions are ones the benchmark places on
-# several dates, which the export leaves undated because that date belongs to the question
-# (ruling of 09-10). The list is copied from longmemeval_s.json; the export does not carry it.
-# Each session is read in one call over all its turns (read_session), every fact tied to its
-# turn. Nothing here reaches across documents: each session is its own package.
-HAYSTACK = "gpt4_2ba83207"
-SESSIONS = [
-    "8fd5852e", "b0855671_3", "sharegpt_gQsEPQ6_67", "33028509_2", "1fcb4134_1", "fda75251_2",
-    "654a70b7_1", "sharegpt_wIkETEO_27", "ultrachat_554682", "eb409031_3", "ultrachat_48248",
-    "sharegpt_t2Mp1pw_0", "ultrachat_224880", "cc3c5fa9_2", "7a0de364", "41dc5d45_4",
-    "325c2005", "ultrachat_568233", "sharegpt_u1DIJRf_0", "bc6de190_1", "ultrachat_333617",
-    "sharegpt_oADGRO3_0", "ultrachat_227874", "sharegpt_WRwHw6I_0", "sharegpt_S9w4KiZ_0",
-    "ultrachat_19446", "ultrachat_84545", "131ff17e", "ultrachat_492298", "sharegpt_iwYf36y_5",
-    "answer_6a3b5c13_3", "43668d77_5", "answer_6a3b5c13_1", "ultrachat_94578",
-    "sharegpt_mfMYumL_0", "c3052781", "ultrachat_500140", "4ad63a03_2", "f379d356_2",
-    "sharegpt_kK91pas_0", "34a3fe2c_2", "sharegpt_JXREDs0_4", "ultrachat_293558",
-    "sharegpt_yy5YePJ_0", "answer_6a3b5c13_2", "sharegpt_EpJp627_15", "e40c7fd3_3", "58d66fec",
-    "answer_6a3b5c13_4", "ultrachat_221073", "ultrachat_385963", "sharegpt_HxOhjmq_29",
-    "ea336da0",
-]
-# Six answer sessions of other questions, added 09-11 (Justin), each its own document like the
-# rest: the one session of three single-session-assistant questions, whose answer is in an
-# assistant turn (4c36ccef, 0e5e2d1a, e8a79c70), and, from two harder questions, both sessions
-# of a knowledge update (6a1eabeb) and the one session of a temporal question (gpt4_b5700ca9).
-SESSIONS += [
-    "answer_ultrachat_448704", "answer_ultrachat_113156", "answer_ultrachat_13075",
-    "answer_a25d4a91_1", "answer_a25d4a91_2", "answer_a17423e7_1",
-]
-# Eight more answer questions, added 09-12 (Justin), 12 sessions: single-session-user e47becba and
-# 118b2229, single-session-preference 8a2466db and 06878be2, multi-session 0a995998 (three
-# sessions), temporal gpt4_59149c77 (two), knowledge update 6aeb4375 (two), and
-# single-session-assistant 7161e7e2. Each type's first questions in the benchmark file that are not
-# abstentions and whose answer sessions are all in the export.
-SESSIONS += [
-    "answer_280352e9", "answer_40a90d51", "answer_edb03329", "answer_555dfb94",
-    "answer_afa9873b_1", "answer_afa9873b_2", "answer_afa9873b_3", "answer_d00ba6d0_1", "answer_d00ba6d0_2",
-    "answer_3f9693b7_1", "answer_3f9693b7_2", "answer_sharegpt_5Lzox6N_0",
+# Block 12: the run, one user's whole chat history. Since Step 0 1.8 each LongMemEval history is a
+# folder, chats/longmemeval/<question id>/, and a session several histories use has a copy in each,
+# dated for that history, under the same title; so a session is chosen by its path, never its title.
+# This is the history of question gpt4_2ba83207, a multi-session question: 53 sessions. To it are
+# added the answer sessions of 13 other questions (Justin, 09-11 and 09-12), one or more of each of
+# the six question types: single-session-assistant 4c36ccef, 0e5e2d1a, e8a79c70 and 7161e7e2;
+# knowledge update 6a1eabeb and 6aeb4375; temporal gpt4_b5700ca9 and gpt4_59149c77;
+# single-session-user e47becba and 118b2229; single-session-preference 8a2466db and 06878be2;
+# multi-session 0a995998. Each session is read in one call over all its turns (read_session).
+HISTORY = "gpt4_2ba83207"
+ANSWERS = [                                   # (question id, session id)
+    ("4c36ccef", "answer_ultrachat_448704"), ("0e5e2d1a", "answer_ultrachat_113156"),
+    ("e8a79c70", "answer_ultrachat_13075"), ("6a1eabeb", "answer_a25d4a91_1"), ("6a1eabeb", "answer_a25d4a91_2"),
+    ("gpt4_b5700ca9", "answer_a17423e7_1"), ("e47becba", "answer_280352e9"), ("118b2229", "answer_40a90d51"),
+    ("8a2466db", "answer_edb03329"), ("06878be2", "answer_555dfb94"), ("0a995998", "answer_afa9873b_1"),
+    ("0a995998", "answer_afa9873b_2"), ("0a995998", "answer_afa9873b_3"), ("gpt4_59149c77", "answer_d00ba6d0_1"),
+    ("gpt4_59149c77", "answer_d00ba6d0_2"), ("6aeb4375", "answer_3f9693b7_1"), ("6aeb4375", "answer_3f9693b7_2"),
+    ("7161e7e2", "answer_sharegpt_5Lzox6N_0"),
 ]
 CHAT_AT_ONCE, BUDGET = 16, 15.00
 
-if __name__ == "__main__" and SESSIONS:
-    chats = sorted(u for u in BY_URI if BY_URI[u]["title"] in SESSIONS)
+if __name__ == "__main__" and HISTORY:
+    history = f"chats/longmemeval/{HISTORY}/"
+    answers = {f"chats/longmemeval/{question}/{session}.json" for question, session in ANSWERS}
+    chats = sorted(u for u in BY_URI if u.startswith(history) or u in answers)
     start_block(BUDGET)
-    print(f"chats: haystack {HAYSTACK} plus 13 other questions' answers, {len(chats)} of {len(SESSIONS)} found,"
-          f" {CHAT_AT_ONCE} at a time; budget ${BUDGET:.2f} for this block")
+    print(f"chats: history {HISTORY} and the answer sessions of 13 other questions, {len(chats)} sessions"
+          f" ({len(answers)} answers asked for), {CHAT_AT_ONCE} at a time; budget ${BUDGET:.2f} for this block")
     run_and_roll_up(chats, at_once=CHAT_AT_ONCE)
 
 # %% [markdown]
