@@ -20,11 +20,15 @@ Two benchmarks are on the table. What each costs on the path from the 1.8 packag
 | standing with the advisor | the first committed measurement in the filed proposal | a stretch item in the filed proposal, the spine of the last four days' build |
 
 **Ruled 2026-09-13 (Justin, evening):** the global layer is built regardless of which benchmark
-needs it. The order is the global layer, the store, the embedding sidecar and the query path
-first, because together they lock the design; the moment they exist, chat digestion starts and
-runs in Kaggle batches (about 36 kernel hours for all chats by the Step 1 thread's estimate; the
-other corpora are much smaller and go first), and testing begins by the end of September so
-October is refinement and dataset building. Both benchmarks stay. Which is scored first is a
+needs it, and it comes first because the database schema and the embedding follow from it. The
+chain is: the global layer; then the store schema and the embedding sidecar it implies; then the
+query path; then a harness that runs the tests against the query path; and only when each has a
+solution, the full data, digested in Kaggle batches (about 36 kernel hours for all chats by the
+Step 1 thread's estimate, less on the version now running; the other corpora are much smaller
+and go first). Until the harness passes, every step works on the test packages already on disk:
+the 71 sessions, three Oz books, five papers, the Bacchae and Dandy Dick of the frozen run, and
+their 1.8 counterparts when that run lands. Testing begins by the end of September so October is
+refinement and dataset building. Both benchmarks stay. Which is scored first is a
 sequencing choice, not a slate choice: GraphRAG-Bench needs no global layer and has its own
 scorer, so it can be scored the week the query path works; LongMemEval scores as its batches
 land. Cut from the fall: NarrativeQA, the wiki, the cells ablation, the resolution ablation (its
@@ -39,9 +43,12 @@ one arm.
 ## 2. What the spine needs, in build order
 
 Prices are revised upward from the first draft, which had halved the 09-08 estimates with no
-build in between. Each step names its input, output, hours and gate.
+build in between. Each step names its input, output, hours and gate. The order is the ruled
+chain: 2b (global) first, then 2a (the store, whose schema the global layer decides) and 2b2
+(embedding), then 2c (query), then 2d (the harness), then 2e and 2f (the full data). The
+section numbers are kept from the first draft so the attack reports still read.
 
-### 2a. The store (6 to 10 hours)
+### 2a. The store (6 to 10 hours; built after 2b, to the schema 2b decides)
 
 - In: the packages of the 1.8 run.
 - Out: one SQLite file per graph, built by one script: document, unit, piece, node, alias, fact,
@@ -51,9 +58,14 @@ build in between. Each step names its input, output, hours and gate.
 - Gate: a store built from one novel's package and from history gpt4_2ba83207's 53 packages;
   every quote slices to its text; counts equal the completion records.
 
-### 2b. The global layer, first cut (8 to 12 hours; LongMemEval only)
+### 2b. The global layer, first cut (8 to 12 hours; the first step)
 
-- Out: a `parent` table (id, name, kind, abstract) and an `instance_of` edge per node, owned by
+- In: the test packages on disk (one history's 53 sessions plus the answer sessions, three Oz
+  books, five papers, two plays and novels), read straight from their JSONL.
+- Out (the design output, before any code): what a parent is, what draws the up-edge, what a
+  parent's name and abstract are computed from, and what the store must hold to answer a
+  question through a parent. That decides the store schema in 2a and what gets embedded in 2b2.
+- Out (the code): a `parent` table (id, name, kind, abstract) and an `instance_of` edge per node, owned by
   the node's document. First cut: nodes unite under one parent when their case-folded name and
   their case-folded kind string agree; a shared name with a kind conflict stays apart and is
   logged as a candidate; every edge carries its reason. The parent's name is its most frequent
@@ -154,9 +166,9 @@ end of September) assumes the measured pace, and the gates below say by Sep 20 w
 
 | week | dates | build | write | gate |
 |---|---|---|---|---|
-| 1 | Sep 14 to 20 | read the 1.8 run's receipt; 2a (the store) on one novel and one history; 2b (the global layer, first cut) on the history; 2e (the Kaggle output shape and budget) so batches can start | the addendum to Dr. Fang; the endorsement email if unsent; ask what IT 494 grades | **Sep 20**: the store and the first-cut parents exist; the first chat batch and the 20 novels are launched on Kaggle |
-| 2 | Sep 21 to 27 | 2b2 (the embedding sidecar); 2c (the query path) to the first answered question on a novel and on the history; 2d GraphRAG-Bench on one novel with the parity check | nothing | **Sep 27, the design lock**: one question answered end to end through store, parents, vectors and query on both corpora; testing can start |
-| exams | Sep 28 to Oct 18 | Kaggle in batches, unattended: the remaining chat histories (about 36 kernel hours in all); refinement of the query path on what the batches show, in evenings | the skeleton: introduction, related work, method, dataset, contamination; the ASKS comparison and the tree search first (2 hours of reading) | **Oct 18**: skeleton drafted; the chat packages on disk; the GraphRAG-Bench arms scored on all 20 novels |
+| 1 | Sep 14 to 20 | read the 1.8 run's receipt; 2b (the global layer: the design, then the first cut) on the test packages; 2a (the store) to the schema 2b decides; 2b2 (the embedding sidecar) | the addendum to Dr. Fang; the endorsement email if unsent; ask what IT 494 grades | **Sep 20**: parents, store and vectors exist over the test packages, and the schema is written down |
+| 2 | Sep 21 to 27 | 2c (the query path) to the first answered question on a novel and on the history; 2d (the harness) on the 14 known questions and one novel, with the parity check; 2e (the Kaggle output shape and budget) | nothing | **Sep 27, the design lock**: the harness runs the tests end to end through store, parents, vectors and query on both corpora; testing can start, and the full data may run |
+| exams | Sep 28 to Oct 18 | Kaggle in batches, unattended, only after the Sep 27 gate: the 20 novels, then the chat histories; refinement of the query path on what the batches show, in evenings | the skeleton: introduction, related work, method, dataset, contamination; the ASKS comparison and the tree search first (2 hours of reading) | **Oct 18**: skeleton drafted; the packages on disk; the GraphRAG-Bench arms scored on all 20 novels |
 | 3 | Oct 19 to 25 | 2d LongMemEval over every history ingested; 2f the bands | tables as they land | **Oct 25**: both numbers exist, each with its denominator |
 | 4 | Oct 26 to 31 | 2g; the parent-off arm; what the batches showed folded into the dataset | results | **Oct 31: build stop** |
 | 5 | Nov 1 to 8 | none | full draft to Dr. Fang by **Nov 5** (the first draft's Nov 3 had no writing hours behind it) | draft sent |
