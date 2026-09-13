@@ -36,3 +36,26 @@ data/packages-test/
 # 2026-09-13 (they remain in git history before that date). Fetch with scripts/fetch_papers.py.
 papers/*.pdf
 papers/_unused/*.pdf
+
+# LongMemEval oracle split: not used (ruling of 2026-09-04); scripts/fetch_benchmarks.py fetches it
+data/benchmarks/longmemeval/longmemeval_oracle.json
+
+# 2026-09-13: the public tree holds only what a person reads. Working tooling stays on disk, untracked:
+archive/
+papers/
+tests/
+scripts/py_to_ipynb.py
+scripts/check_cell_order.py
+reading/*.json
+reading/paper-manifest.md
+log/**/*.jsonl
+
+# 2026-09-13: the public tree holds only what a person reads. Working tooling stays on disk, untracked:
+archive/
+papers/
+tests/
+scripts/py_to_ipynb.py
+scripts/check_cell_order.py
+reading/*.json
+reading/paper-manifest.md
+log/**/*.jsonl

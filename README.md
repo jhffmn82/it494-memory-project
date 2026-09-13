@@ -119,27 +119,26 @@ return only if the folder does.
 
 ## Repo map
 
+The tree holds what a person reads: the plan by stage, the rulings, the logs, the datasets, the
+notebooks. Working tooling (test batteries, build scripts, the reference PDFs) stays on the
+author's machine, untracked.
+
     README.md                this plan
     SCHEMA.md                the record types and their rules
     BUILD.md                 how the pipeline code behaves
     RESEARCH.md              framing, prior art, measurements, open items
+    docs/rulings.md          every design ruling, its date, its log, and what superseded it
     docs/proposal.md         the three-page project explanation
-    docs/extractor.md        Step 0 algorithm and data contract (human-readable)
-    docs/ingestor.md         Step 1 algorithm and package contract (human-readable)
+    docs/extractor.md        Step 0 algorithm and data contract
+    docs/ingestor.md         Step 1 algorithm and package contract
     docs/evaluation-corpus.md  every dataset and what the build owes it
-    docs/entity-resolution.md  the resolution design and its guards
+    docs/entity-resolution.md  the resolution design, its guards, and the tree
     docs/references.md       sources behind the schema decisions
-    docs/digest.md           one verified paragraph per reference work
-    docs/related-work/       drafted related-work prose, by theme
-    docs/*.json              survey bibliography, with citation corrections
-    advisor-meeting-2026-08-19.md  the meeting record that set the direction
-    build/                   the delivered research package and proposal
-    data/raw/                the raw corpora (three literature corpora, GraphRAG-Bench novels, kg-rag-cc papers, LongMemEval) and their manifests
-    data/benchmarks/         GraphRAG-Bench, LongMemEval, NarrativeQA subset
+    notebooks/               the extractor and ingestor, as script and notebook, as they run on Kaggle
     dataset/step0/           the published Step 0 dataset's docs, kept byte-identical to Kaggle
-    notebooks/               the extractor and ingestor, as script and notebook
-    papers/                  the reference library, indexed by MANIFEST.md
-    summaries/               one-pagers for the reference library
-    reading-list.md          what to read and in what order
-    scripts/                 corpus, paper, and benchmark fetchers
-    log/                     dated working log: decisions, notebooks as run, saved outputs
+    data/raw/                the raw corpora (three literature corpora, GraphRAG-Bench novels, kg-rag-cc papers, LongMemEval) and their manifests
+    data/benchmarks/         GraphRAG-Bench, LongMemEval, NarrativeQA gold files
+    scripts/                 the fetchers and unpackers that built the raw dataset, the Step 0 packer, the package renderer
+    reading/                 the reading list, one-pagers, the digest, related-work drafts, the advisor meeting record
+    reports/                 the weekly reports to the advisor
+    log/                     dated working log: one folder per day, notebooks as run, receipts

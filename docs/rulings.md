@@ -177,4 +177,9 @@ here on 2026-09-13); its status. A new ruling is a new line, never an edit of an
 | 09-12 | The main thread does the git work; a Step 1 thread adds its version after its run. | log/2026-09-12/README.md ruling 2 | stands |
 | 09-13 | The logs are snapshots in time, never corrected or annotated; the master documents (SCHEMA, BUILD, docs/, dataset/step0/, README) carry current truth; this ledger records how each ruling changed. | chat; log/2026-09-13/README.md | stands |
 | 09-13 | Every fact in the record is stored as it was true; recency on contradictions forms the global truth. The narrative of a ruling is tracked so that a past mistake is not revisited. | chat | stands |
+| 09-13 | The PROPOSED SCHEMA.md and BUILD.md of the cleanup are accepted. | log/2026-09-13/questions.md 1 | stands |
+| 09-13 | The reference PDFs stay in git history; they are untracked at HEAD and no history is rewritten. | questions.md 2 | stands |
+| 09-13 | The global merge reads one LongMemEval history: the packages whose `source_uri` starts with that history's folder. Block 12's other answer sessions are Step 1's check, not the graph's input. | questions.md 5 | stands |
+| 09-13 | Merged branches are deleted; the dated logs keep their em dashes; the two root files may move with the reading apparatus. | questions.md 6 to 8 | stands |
+| 09-13 | The public repository holds only what a person reads: the plan by stage, the rulings, the logs, the datasets, the notebooks, the reading apparatus. Test batteries, build tooling, the reference PDFs and the archive of superseded scripts stay on the author's machine, untracked. | chat; log/2026-09-13/README.md | stands |
 | standing | No em dashes in any document. No copyrighted modern fiction is named in any public artifact. No lambdas in drafted code. Nothing is published to Kaggle and nothing leaves git history without Justin's yes. | chat | stands |

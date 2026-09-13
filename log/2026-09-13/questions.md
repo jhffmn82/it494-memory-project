@@ -1,5 +1,12 @@
 # Questions left open by the cleanup of 2026-09-13
 
+**Answered the same evening: yes to all nine** (Justin). Done on the spot: the SCHEMA and BUILD
+commits stand; history is not rewritten; the five merged local branches and their two remote
+copies are deleted (two locals stay because worktrees hold them); the one-history rule is in
+`docs/rulings.md`; the root files moved with the reading apparatus. Left for Justin's own CLI:
+questions 3 and 4 (Kaggle). Then a further ruling: the repository is reduced to what a person
+reads, with the working tooling untracked on disk (see `docs/rulings.md`).
+
 For Justin, one at a time, each with a recommendation. Nothing below was acted on. The
 cleanup itself (the missing logs, the index, the rulings ledger, the master documents, the
 archive) is committed on `claude/kg-rag-cc-corpus`; SCHEMA.md and BUILD.md carry PROPOSED

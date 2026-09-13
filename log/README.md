@@ -1,7 +1,10 @@
 # Working log
 
 One folder per entry: what was done, where it is, what it showed, with the notebooks and
-their saved outputs as run.
+their saved outputs as run. Each entry is a snapshot of its day and is never edited; current
+truth is in the master documents and `docs/rulings.md`. On 2026-09-13 the test, repro and
+review scripts that had sat beside the entries left the public tree (they stay on the author's
+machine), so a script an entry names may no longer be in its folder.
 
 - [2026-09-02](2026-09-02/README.md): corpus published; Oz book 1 ingested end to end
   (entities, quote-backed facts, bottom-up reconciliation, predicate consolidation, store,

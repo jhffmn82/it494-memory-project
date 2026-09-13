@@ -1,8 +1,8 @@
 # Research notes
 
 What the paper claims, what it measures, and what stands in its way. Per-work
-detail is in `docs/digest.md`, drafted related-work prose in
-`docs/related-work/`, the full dataset contract in `docs/evaluation-corpus.md`,
+detail is in `reading/digest.md`, drafted related-work prose in
+`reading/related-work/`, the full dataset contract in `docs/evaluation-corpus.md`,
 the resolution design in `docs/entity-resolution.md`, schema sources in
 `docs/references.md`, and bibliographic corrections in the two survey JSONs.
 
@@ -287,7 +287,7 @@ problem, evidence, artifact.
    now lives in the Step 0 dataset, not in the repo.
 4. Verify the 8-hours-a-week assumption against one real week before trusting
    the calendar.
-5. Rebuild `papers/MANIFEST.md`; it predates half the corpus.
+5. Rebuild the paper manifest (on disk, untracked); it predates half the corpus.
 6. The resolution ablation is committed, because it is the measurement the
    position claims and the replay design makes it cheap. Cells is next in
    line if hours appear, and GraphRAG-Bench's own graph-versus-RAG splits

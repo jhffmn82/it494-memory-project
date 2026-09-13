@@ -80,5 +80,5 @@ and there is no procedural memory at all. Adopting it would add a field that nev
 
 ---
 
-`papers/MANIFEST.md` predates roughly half the current corpus and needs rebuilding before it is used
+The paper manifest (on disk, untracked) predates roughly half the current corpus and needs rebuilding before it is used
 as an inventory.
