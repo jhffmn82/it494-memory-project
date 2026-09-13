@@ -10,10 +10,10 @@ taste. Each citation below was read out of the PDF, not recalled.
 | Decision | Source | Why |
 |---|---|---|
 | A table of which relationship types may join which entity types | Angles 2018, Definition 2 | Catches a made-up relationship that carries a real quote, which the quote check cannot see |
-| Date ranges are `[from, to)`, upper bound excluded | Rost et al. 2021, pp. 6-7 | Free correctness wherever two ranges meet |
+| Date ranges are `[from, to)`, upper bound excluded | Rost et al. 2021, pp. 6-7 | Free correctness wherever two ranges meet. Dropped 2026-09-09 and 09-10: no unit, piece or fact carries a range; a fact carries `occurred_at` from its unit, and `valid_from` only when the quote states it |
 | Validity lives on the fact, not on the property | Rost et al. 2021 | Already covered here, since our facts *are* the properties. Recorded so it is not re-opened |
 | Qualifiers carry roles and timing, not just dates | Vrandečić and Krötzsch 2014, p. 82 | Stops "as Chancellor" becoming a new invented predicate |
-| Facts carry preferred / normal / deprecated | Wikidata *Help:Ranking* | Supersession handles "the world changed". This handles "we were wrong", where no later event exists and deleting would break append-only |
+| Facts carry preferred / normal / deprecated | Wikidata *Help:Ranking* | Supersession handles "the world changed". This handles "we were wrong", where no later event exists and deleting would break append-only. Not in use as of 2026-09-13: every fact's rank is `active` |
 | Provenance on every record, permissions applied at read time | Rezazadeh et al. 2025 | Makes multi-user a later config change rather than a rewrite |
 
 ---

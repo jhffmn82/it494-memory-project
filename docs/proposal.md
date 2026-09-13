@@ -44,7 +44,7 @@ entity under a new name. That is the same event, structurally, as a course
 pivoting or a colleague changing jobs, and it arrives with ground truth
 attached.
 
-Three public-domain corpora are already assembled, 69 files and about 5.2 million words: the Oz canon, the complete Sherlock Holmes, and the major Greek mythological sources. Oz supplies the
+Three public-domain corpora are already assembled, 69 files and about 5.2 million words: the Oz canon, the complete Sherlock Holmes, and the major Greek mythological sources. Beside them the raw dataset carries the 20 GraphRAG-Bench novels, 100 CC-BY papers on knowledge graphs and retrieval, and the LongMemEval chat sessions. Oz supplies the
 supersession fixture and a mid-canon change of author. Holmes contributes a
 contradiction Doyle never reconciled and a contamination probe:
 the deerstalker cap belongs to the illustrations, not the text, so if an
@@ -74,8 +74,8 @@ paper are the same work.
 
 One question in the design is genuinely open. Every system I would compare
 against resolves entities using name similarity, embeddings, or a model's
-verdict. Mine also scores co-occurrence, whether the surrounding cast matches,
-and a low-confidence profile inferred from context. Collective entity
+verdict. Mine also scores co-occurrence, whether the surrounding cast matches.
+Collective entity
 resolution established the idea in 2007; whether the relational signal still
 pays when the base matcher is an embedding and a language model is unmeasured,
 and one of the systems in my comparison table asks for exactly this in its
@@ -87,7 +87,7 @@ First, question answering on GraphRAG-Bench, a benchmark of 2,010 questions
 with gold answers and gold evidence over twenty pre-1900 novels, where nine
 systems have published numbers under the same reader model. I run the full
 system, a no-context control, and flat retrieval, then once more with the
-co-occurrence and profile resolution signals switched off, which isolates
+co-occurrence resolution signal switched off, which isolates
 what my one open question is worth. The per-entity narrative ablation runs
 after it if hours allow. Their own results give the target: the
 best system spends about a thousand tokens per question and the most
@@ -107,7 +107,7 @@ entity-level summaries, which describe the same text independently and catch
 each other's omissions, and the cost of keeping summaries current as the
 corpus grows, set against published figures for full-rebuild systems.
 
-Fifth, LongMemEval, the chat-memory benchmark where the nearest commercial system published its numbers, one session per document. I run
+Fifth, LongMemEval, the chat-memory benchmark where the nearest commercial system published its numbers, unpacked per question history with each session a document. I run
 the full-context arm first to prove my harness reproduces their baseline,
 then the 78 questions that test knowledge updates, which is supersession
 under its benchmark name. The full comparison belongs to spring.
@@ -127,7 +127,7 @@ weeks between them where nothing gets scheduled.
 
 By September 2 a single chapter runs end to end: split, cast identified,
 entities and facts extracted behind the quote gate, chapter and entity
-summaries written, and a small graph rendered. By September 14 the three corpora are split into clean, verified units and published as a public dataset under MIT, which is the reproducibility piece: everything in it is public domain or MIT-licensed, so anyone can rerun the study. By September 27 the store and pipeline have run
+summaries written, and a small graph rendered. By September 14 the raw dataset is split into dated, verified units and published as a public dataset (kaggle.com/datasets/jhffmn/it494-threadatlas-step0, 24,071 documents, published September 13), which is the reproducibility piece: everything in it is public domain, MIT-licensed, or CC-BY with attribution, so anyone can rerun the study. By September 27 the store and pipeline have run
 over the first Oz book at three model tiers and the alias set is scored. The
 benchmark arms and the ablation run October 19 to 26, right after the exam
 block. The dataset gets its DOI by November 10, the paper freezes November
@@ -139,7 +139,8 @@ points it at real chat exports, and ships something a person can install.
 That work is out of scope for the fall.
 
 Hours are the binding constraint; the compute is a few dollars to a few
-hundred at batch rates for the full three-corpus run. The plan in the
+hundred at Flex rates for the full run (the extractor read every document for
+$8.24; the ingestor's chats cost about $100 to $107). The plan in the
 repository prices every slate item against the open weeks and carries a cut
 order decided now rather than in November. When something slips, I cut from
 the bottom of that order and keep the committed measurements.
