@@ -125,6 +125,11 @@ fact sets, and the inherited facts then look like independent corroboration.
 
 ## How it gets tested
 
+As designed on 2026-08-28. Where it stands on 2026-09-13: the four arms below are spring. Nothing
+is merged across documents (the settled section), the profile signal is gone, and the fall's
+measurement of this design is one level up, the same retrieval with and without the parent join
+on LongMemEval (`docs/execution-plan.md`). The Tip fixture stays as the regression check.
+
 Four arms, same corpus, same model, everything else held constant:
 
 | Arm | Signals |

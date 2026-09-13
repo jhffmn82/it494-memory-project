@@ -27,7 +27,8 @@ myth for cross-source disagreement and free entity-resolution labels.
 
 ## The visible artifact
 
-From the ingested corpora we will assemble a wiki. Pages are composed mechanically
+From the ingested corpora we will assemble a wiki (spring; the fall ships the
+store, the query path and the numbers). Pages are composed mechanically
 from the store: the infobox from fact rows, the lead from the entity summary,
 the biography from narrative cells, every claim traceable to a verbatim quote.
 A second version is then written by a strong model doing RAG over the same
@@ -40,11 +41,13 @@ up, we caught the model's weights leaking into the record.
 
 | Borrowed | Built here | Measured against |
 |---|---|---|
-| SQLite and FTS5 | corpus loaders and the split gates | 9 published GraphRAG-Bench baselines, gpt-4o-mini |
-| an embedding model for candidate lookup | resolution by name and co-occurrence | full-context and flat-retrieval arms |
-| GraphRAG-Bench, LongMemEval, NarrativeQA | fact extraction behind the quote gate | Zep's LongMemEval numbers, parity arm first |
-| Gutenberg texts | narrative cells and summary folding, for books and papers | MemTree's published refold costs |
-| hierarchical summaries (GraphRAG, RAPTOR), dated facts (Zep), per-character summaries (EntSUM) | the assembled wiki renderer | NarrativeQA reference answers on 11 owned works |
+| SQLite and FTS5 | the extractor and its gates; the ingestor and its quote gate | 9 published GraphRAG-Bench baselines, one reader model for every arm |
+| a small local embedding model (bge-small through fastembed) | the global layer: silent parents over document-local entities | the same retrieval with the parent join off, on LongMemEval |
+| GraphRAG-Bench, LongMemEval, each with its own published evaluator | the store, the embedding sidecar, the query path, the harness | full-context and flat-retrieval arms; Zep's LongMemEval numbers, parity arm first |
+| hierarchical summaries (GraphRAG, RAPTOR), dated facts (Zep), per-character summaries (EntSUM) | narrative cells and summary folding, for books and papers | the instruments: quote-gate and rejection rates, cost per stage and tier, duplicate parents |
+
+Deferred to spring: NarrativeQA, the assembled wiki and its fabrication probe, the cells and
+resolution ablations, the three-tier model-sensitivity pilot.
 
 The schema is in `SCHEMA.md`, the pipeline rules in `BUILD.md`, and the claim,
 prior art, and measurement plan in `RESEARCH.md`.
@@ -73,54 +76,48 @@ stretch between them is three weeks of exams and nothing gets scheduled there.
 | Sep 2 | One chapter of Oz book 1 ingested end to end for Dr. Fang: split, cast, entities, facts, summary, rendered graph |
 | Sep 8 | One-semester proposal form filed |
 | Sep 14 | All four corpora split and gated; dataset published. Oz, Holmes, and Greek landed Sep 1 (kaggle.com/datasets/jhffmn/it494-narrative-corpora-units, since superseded); Chinese remains. Superseded Sep 4: one general extractor over one raw dataset holding every source (Oz, Holmes, Greek, GraphRAG-Bench, LongMemEval sessions, paper PDFs), documents carrying their text and units as ranges; see `log/2026-09-04/`. Done Sep 13: extractor 1.8 over the whole raw dataset, 24,071 documents (23,882 chats in 500 LongMemEval histories, 89 texts, 100 PDFs) for $8.24, published at kaggle.com/datasets/jhffmn/it494-threadatlas-step0 |
-| Sep 21 | Store and pipeline working over Oz book 1 |
-| Sep 27 | Three-tier pilot done; open block ends |
-| Oct 19-26 | GraphRAG-Bench arms and the ablation; NarrativeQA arm; LongMemEval parity and update band |
+| Sep 20 | The global layer (first cut), the store to the schema it decides, and the embedding sidecar exist over the test packages (71 chat sessions, three Oz books, five papers, two plays); the schema written down |
+| Sep 27 | The design lock: the harness runs a question end to end through store, parents, vectors and query on a novel and a chat history; testing begins; open block ends |
+| Sep 28 to Oct 18 | Exams. The pipeline tuned on the test packages until ready; only then the full corpus through the ingestor in Kaggle batches, unattended, while the paper is written. Oct 11: results-independent sections drafted. **Oct 15: first draft of the paper**, with whatever numbers exist. Oct 18: GraphRAG-Bench scored on all 20 novels |
+| Oct 25 | Both benchmark numbers exist, each with its denominator |
+| Oct 31 | Build stop |
+| Nov 3 | Second draft to Dr. Fang |
 | Nov 10 | Dataset DOI minted |
-| Nov 15 | Paper frozen; wiki demo standing; arXiv submission the next day |
+| Nov 15 | Paper frozen; arXiv submission the next day |
+
+The plan behind this calendar, with the build order, the gates, the rulings it needs and the
+feasibility tracker, is `docs/execution-plan.md` (ruled 2026-09-13).
 
 Hours are the scarce resource. The author directs, reviews and answers for the
 code, which is drafted with AI assistance under his rulings and checked by a
 test battery; nothing ships unexamined.
 
-## The bill, priced now
+## The bill, priced 2026-09-13
 
-Superseded 2026-09-13 by `docs/execution-plan.md` (PROPOSED), which re-prices
-the slate below against the hours that remain and sets the cut order. The
-August pricing is kept here for the record.
-
-The two open blocks hold roughly 64 hours at eight a week, and the
-8-hours-a-week assumption is itself unverified against a real week. The
-slate, priced:
+Done and measured: the extractor ($8.24 over the whole corpus) and the ingestor
+(a chat session under half a cent on the frozen version, less on the current
+one; the ten test books and papers about $5). Remaining, priced in
+`docs/execution-plan.md`:
 
 | Work | Hours |
 |---|---|
-| The extractor (Step 0): split, gates, dataset publish; done Sep 13 | 8-12 |
-| Store, ingest, organize, maintain | 20-40 |
-| Hand-labeled alias set | 1 |
-| GraphRAG-Bench: three arms, scorer wiring, plain-RAG parity check | 8-12 |
-| Resolution ablation, replayed from logged scores | 2-3 |
-| Cost curves: read, refold, coverage | 3-5 |
-| NarrativeQA evaluator and arms | 3-5 |
-| Wiki: the Tip and Ozma page, the Holmes page, the ship checks | 4-8 |
-| Cells ablation | 2 |
-| LongMemEval loader, parity arm, update band | 8-15 |
-| Paper writing | 10-15 |
+| The global layer: the design note, then the first cut | 8-12 |
+| The store, to the schema the global layer decides | 6-10 |
+| The embedding sidecar | 3-5 |
+| The query path | 8-10 |
+| The two harnesses (each benchmark's own evaluator) | 12-18 |
+| Kaggle changes before the full run (output shape, block budget) | 2-4 |
+| Scale, bands, instruments, tables | 6-8 |
+| Debugging and Kaggle friction | 6-8 |
+| The paper: first draft mid-October, second draft Nov 3 | 10-15 |
 
-That sums to 69 to 118 against 64, so the cut order is decided now, not in
-November, and a lost week deletes from the bottom:
-
-1. Protected: the extractor, the store, the alias set, the GraphRAG-Bench arms
-   with their parity check, the resolution ablation, the instruments, the
-   cost curves, the two wiki pages, and the paper.
-2. First cut: the LongMemEval parity arm and update band; the dataset and
-   session loader are protected with the extractor.
-3. Then: the cells ablation.
-4. Then: the wiki beyond its two showpiece pages.
-5. Then: NarrativeQA.
-
-The OCR and translation controls left the slate with `chinese/` on Sep 4 and
-return only if the folder does.
+The design lock (the first four rows) must land by September 27. The plan
+prices at eight hours a week and re-prices after the first week's real hours;
+the repository's own record says the real pace is well above eight. The cut
+order, if a week is lost: the LongMemEval bands, then the parent-off arm, then
+the second benchmark's scale; the design lock, one benchmark number, the
+instruments and the paper are never cut. Money is not a constraint: the whole
+fall is under $300.
 
 ## Repo map
 

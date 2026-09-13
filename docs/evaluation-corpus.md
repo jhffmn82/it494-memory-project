@@ -1,19 +1,21 @@
 # The datasets, and what each demands of the build
 
-**2026-08-28, amended 2026-08-30 and 2026-09-04.** Three are downloaded and verified. This is the list every build step gets checked
-against: if a stage cannot serve a row here, it is not done.
+**2026-08-28, amended 2026-08-30, 2026-09-04 and 2026-09-13.** Three are downloaded and verified. This is the list every build step gets checked
+against: if a stage cannot serve a row here, it is not done. The fall slate was ruled on
+2026-09-13 (`docs/execution-plan.md`): GraphRAG-Bench and LongMemEval, with the instruments;
+everything else in the table is spring.
 
 ## The handle
 
 | Dataset | Status | What it tests | What the build must support |
 |---|---|---|---|
-| **GraphRAG-Bench** novels | in repo, verified | QA accuracy against 9 published baselines, token cost, the cells ablation, resolution arms downstream | plain-text loader, splitting per the unit contract, the retrieval and answer path |
-| **Hand-labelled aliases**, one novel | **does not exist. Build first** | gold-pair candidate recall, then merge precision and recall, from the very first ingest | nothing special; it is the day-one smoke test |
-| **Our 69-work corpus** | in repo | the fixtures: Tip becoming Ozma, Watson's wound, the deerstalker, Helen and Troy | supersession, contradiction records, the quote gate |
-| **BookCoref** | **not fetched** | coreference F1 against published numbers on full books | a character offset into the source per entity appearance (no mention record exists today; dropped 2026-09-08), plus a CoNLL scorer |
-| **CORE-KG's pipeline** on our corpus | not attempted | duplication rate head to head, same corpus and model | their code, GraphRAG 0.3.2, their seven prompts retyped for narrative |
-| **LongMemEval** | `_s` is the source, unpacked by the extractor into one folder per question history, one file per session; oracle unused | Zep parity, 78 knowledge-update questions, 133 temporal-reasoning | chat loader, `Document.occurred_at` populated, speaker recoverable from unit text |
-| **NarrativeQA subset** | in repo, verified | QA over 11 works we already hold, 319 questions with reference answers | nothing beyond the GraphRAG-Bench paths; same three arms |
+| **GraphRAG-Bench** novels | in repo, verified; in the 1.8 export; fall | QA accuracy against 9 published baselines with the benchmark's own scorer, token cost; the parity check on their plain-RAG baseline first | one document per graph; the store, the query path and the harness; one reader model for every arm |
+| **LongMemEval** | `_s` is the source, unpacked by the extractor into one folder per question history, one file per session; oracle unused; fall | four arms (full context, flat retrieval, the full system, the parent join off) scored by the benchmark's own evaluator; the 78 knowledge-update questions reported as accuracy, no supersession mechanism claimed; the 14 tuning questions excluded | one history per graph; the global layer; every scored history ingested whole |
+| **Our 69-work corpus** | in repo, in the 1.8 export | the fixtures: Tip becoming Ozma, Watson's wound, the deerstalker, Helen and Troy (checked by eye, never presented as results) | supersession, contradiction records, the quote gate |
+| **Hand-labelled aliases**, one novel | **does not exist**; spring unless a spare hour appears (plan ruling 4) | gold-pair candidate recall, then attachment accuracy at the up-edge | the candidate log the global layer writes |
+| **BookCoref** | not fetched; spring | coreference F1 against published numbers on full books | a character offset into the source per entity appearance (no mention record exists today; dropped 2026-09-08), plus a CoNLL scorer |
+| **CORE-KG's pipeline** on our corpus | not attempted; spring | duplication rate head to head, same corpus and model | their code, GraphRAG 0.3.2, their seven prompts retyped for narrative |
+| **NarrativeQA subset** | in repo; spring | QA over 11 works we already hold, 319 questions with reference answers (the tracked CSVs still hold 12 works and 345 questions and need filtering) | nothing beyond the GraphRAG-Bench paths; same three arms |
 | **The personal archive** | in another repo | nothing. Design rationale only, never evidence | not an input |
 
 ## What that implies for the code
@@ -30,9 +32,13 @@ is why none of them can be deferred to an evaluation phase.
 | Per-stage call and token counts by tier | the cost result, requirement 6 | re-run everything |
 | Fetch and unpack scripts and the evaluator as the only dataset-aware code; the loader sniffs the format from the bytes | all six | dataset logic leaks into the pipeline and every new set touches the middle |
 
-**The order this forces.** The alias set and the fixtures run against the first working ingest. The
-GraphRAG-Bench numbers come next because everything else is scoped by whether the QA path works at
-all. BookCoref and the CORE-KG run are additive and can slip. LongMemEval is fall: its session loader is the one to get exactly right, and the parity arm is scored at the evaluation step.
+**The order this forces** (ruled 2026-09-13). The global layer first, because the store schema and
+the embedding follow from it; then the store and the embedding sidecar; then the query path; then
+the harness that runs each benchmark's questions through it. Each is built and tuned on the test
+packages already on disk (71 chat sessions, three Oz books, five papers, two plays), and only when
+each has a solution does the full corpus go through the ingestor, in Kaggle batches. GraphRAG-Bench
+is scored the week the query path works, since it needs no global layer; LongMemEval as its batches
+land. BookCoref, the CORE-KG run, the alias set and NarrativeQA are spring.
 
 ---
 
@@ -94,7 +100,13 @@ supersession directly**, which GraphRAG-Bench cannot: that one is static QA over
 
 **Run the full-context arm first.** If it reproduces their 55.4%, our harness matches theirs and our
 number is comparable to their 63.8%. If it does not, we cannot claim parity, and that is worth
-knowing before claiming it. Cost is about $9 on gpt-4o-mini.
+knowing before claiming it. Cost is about $9 on gpt-4o-mini. Three conditions, added 2026-09-13:
+parity needs gpt-4o-mini to be callable, and every arm of the benchmark answers with the same
+reader model; the benchmark's own evaluator scores every arm; and the 14 questions used to tune
+the ingestor on 09-12 are excluded from every reported number, with a history scored only when
+ingested whole. The benchmark has been public since 2024, inside the training window of every
+model here, so arm-versus-arm comparisons stand and the comparison to Zep's run carries that
+caveat.
 
 ## Fixtures, from our own corpora
 

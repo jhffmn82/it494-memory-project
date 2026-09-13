@@ -219,7 +219,7 @@ labelled as such.
 
 | risk | effect | answer |
 |---|---|---|
-| the pace is really 8 a week | LongMemEval is gone; the spine is tight | week 1's real hours re-price the plan on Sep 20 |
+| the pace is really 8 a week | the design lock slips past Sep 27 and the second benchmark loses its scale | week 1's real hours re-price the plan on Sep 20 |
 | gpt-4o-mini is not callable | no parity; ratios only | check in week 1; say so in the paper |
 | the 1.8 Step 1 run fails or its packages differ from the 1.7 runs | week 1 starts with a debug | read its receipt first |
 | Kaggle output files and the block budget | the full chat ingest cannot be downloaded or stops early | 2e before any scaled run |
@@ -235,11 +235,11 @@ Update weekly: real hours, what landed, the re-priced remainder. The build stop 
 
 | week ending | planned hours | real hours | landed | remaining build (priced) | note |
 |---|---|---|---|---|---|
-| Sep 13 | | | Step 0 1.8; Step 1 frozen; the cleanup; this plan | spine 30 to 42; LongMemEval 18 to 28 | baseline |
+| Sep 13 | | | Step 0 1.8; Step 1 frozen; the cleanup; this plan | design lock 25 to 37; harnesses, scale and instruments 26 to 38 | baseline |
 | Sep 20 | 8 | | | | re-price here |
 | Sep 27 | 8 | | | | |
 | Oct 18 | 0 to 8 | | | | |
 | Oct 25 | 8 | | | | |
 | Oct 31 | 8 | | | | build stop |
-| Nov 8 | 8 | | | | draft to Fang Nov 5 |
+| Nov 8 | 8 | | | | second draft to Fang Nov 3 |
 | Nov 15 | 8 | | | | freeze |

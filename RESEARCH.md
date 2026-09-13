@@ -68,6 +68,14 @@ merge black holes, and the citations are in `docs/entity-resolution.md`; the
 Walmart report (2607.26298) that argues against our soft-veto choice gets
 cited against ourselves.
 
+Where this stands on 2026-09-13: nothing is merged across documents any more
+(the tree, ruled 09-07), so the co-occurrence signal nominates pairs inside a
+document only and the profile signal is gone (09-09). The measurement the fall
+can own is one level up: the same retrieval with and without the parent join,
+on LongMemEval, which says what the global layer buys. The resolution ablation
+itself is spring, restated at the up-edge as attachment accuracy once a gold
+set exists.
+
 ## What the field says is unsolved
 
 Each row cites published work saying so. The two-year prototype deployment
@@ -87,13 +95,15 @@ corroborates every row and authorizes none of them.
 
 The dataset contract, row by row, is `docs/evaluation-corpus.md`. The slate:
 
+Ruled 2026-09-13 (`docs/execution-plan.md`): two benchmarks and the instruments are the fall;
+the rest is spring.
+
 | Measurement | Against | Cost |
 |---|---|---|
-| GraphRAG-Bench novels: full system, no-context control, flat retrieval, then the resolution ablation (co-occurrence signal off, name matching alone) | 9 published gpt-4o-mini baselines, gold answers and evidence, 2,010 questions | the main paid run; the ablation is a replay, since per-signal candidate scores are logged at ingest |
-| Hand-labeled alias set, one novel | gold-pair candidate recall first, then merge precision and recall, from the first ingest | half an hour of labeling |
-| NarrativeQA, the 319 questions over 11 works we own | reference answers; same three arms | cheap secondary run |
-| LongMemEval: full-context parity arm, then the 78-question knowledge-update band | Zep's 63.8 over a 55.4 full-context baseline (gpt-4o-mini, original `_s` file) | ~$9 parity, one paid run |
-| Read cost, refold cost, coverage difference | MemTree's published 3,750 / 3,850 / 3.27 calls per insertion; no gold answers needed | free |
+| GraphRAG-Bench novels: no-context control, flat retrieval over raw units, the full system; the benchmark's own scorer; the plain-RAG parity check first | 9 published gpt-4o-mini baselines, gold answers and evidence, 2,010 questions | tens of dollars to ingest the 20 novels; the arms under $20 |
+| LongMemEval, one history per graph: full context (truncation rule stated), flat retrieval over raw turns, the full system, the full system with the parent join off; the benchmark's own evaluator; the 14 questions used to tune the ingestor excluded; the knowledge-update questions reported as accuracy, no supersession mechanism claimed | Zep's 63.8 over a 55.4 full-context baseline (gpt-4o-mini, original `_s` file), only if that model is callable; otherwise ratios between our own arms | about $107 to ingest every chat on the frozen version, less on the current one; the arms under $20 |
+| The parent-off arm | what the global layer buys, measured rather than asserted | a replay of the LongMemEval arm |
+| Deferred to spring: the hand-labeled alias set and the resolution ablation (the co-occurrence signal now nominates pairs inside a document only), NarrativeQA (319 questions over 11 works we hold), the cells ablation, the wiki and its fabrication probe, the three-tier pilot, the refold cost against MemTree's published figures | | |
 | The free instruments: rejection rate per stage per tier, duplicate mints per unit, predicate sprawl, quote-gate pass rate, unit-versus-cell summary agreement, token cost per arm, and the long-tail count: surface forms occurring in N or more distinct documents that resolve to no node, at N = 2, 3, 5 | our own run logs and the node and alias records | free |
 
 GraphRAG-Bench carries the argument in its own baseline table: the cheapest
@@ -194,7 +204,8 @@ patterns, a contamination any mention of the archive must carry.
 
 Ask Dr. Fang for an arXiv cs.CL endorsement now; first-time submitters cannot
 post without one and an ISU address does not grant it. Repo public September 1,
-which starts the six-month JOSS clock. Dataset DOI via Zenodo by November 10.
+which starts the six-month JOSS clock. First draft of the paper in mid-October,
+second draft to Dr. Fang by November 3. Dataset DOI via Zenodo by November 10.
 arXiv submission November 16, cs.CL, as a resource-and-experience paper,
 avoiding November 23 to 27. On the CV it goes under preprints, with the dataset under research artifacts;
 miscategorizing a preprint as a publication is the mistake committees notice. Deliberately not adopted, with
@@ -288,7 +299,10 @@ problem, evidence, artifact.
 4. Verify the 8-hours-a-week assumption against one real week before trusting
    the calendar.
 5. Rebuild the paper manifest (on disk, untracked); it predates half the corpus.
-6. The resolution ablation is committed, because it is the measurement the
-   position claims and the replay design makes it cheap. Cells is next in
-   line if hours appear, and GraphRAG-Bench's own graph-versus-RAG splits
-   already sketch what it would show.
+6. The resolution ablation is spring (ruled 2026-09-13): the signal it would
+   switch off no longer acts across documents, and the up-edge it would be
+   restated at needs a gold set that does not exist. The fall's owned
+   measurement is the parent-off arm.
+7. A first draft of the paper is due in mid-October (tentative); the
+   results-independent sections are written in the exam block while the full
+   corpus runs through the ingestor in batches.

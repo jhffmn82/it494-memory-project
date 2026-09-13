@@ -231,8 +231,10 @@ specification must say, which is what the 09-08 record's strategy called for.
 
 ## 6. What must change, in order
 
-1. Decide the slate now, not in November: LongMemEval as the spine, GraphRAG-Bench as the
-   stretch, the rest cut. Tell the advisor.
+1. Decide the slate now, not in November. Ruled the same night: both benchmarks, the rest
+   spring; the global layer first regardless, then the store and embedding it decides, the
+   query path, the harness, and only then the full data; a first draft of the paper in
+   mid-October. Tell the advisor.
 2. Build the first-cut global layer this week on one history and answer one question end to end.
    Everything the paper claims runs through that path.
 3. Write the thirty judge labels, the Oz alias set (if Oz is measured at all), and the
@@ -241,3 +243,23 @@ specification must say, which is what the 09-08 record's strategy called for.
    Before any prose.
 5. Send the endorsement email if it is unsent, and ask what the course itself grades.
 6. State the authorship model plainly everywhere the proposal's sentence appears.
+
+## 7. After the rulings of the evening
+
+Justin ruled, after this audit and the attack on it: the global layer is built first regardless
+of which benchmark needs it, because the store schema and the embedding follow from it; then the
+query path; then a harness that tests it; every step tuned on the test packages already on disk;
+the full data through the ingestor only when the whole pipeline is ready for testing, in Kaggle
+batches, with the run's kernel time used for writing; both benchmarks stay; a first draft of the
+paper in mid-October, the second to Dr. Fang by November 3.
+
+What that does to the findings above. The verdict stands. The feasibility changes shape: the
+design lock (global layer, store, embedding, query path, 25 to 37 hours by the plan's prices)
+must land in the two weeks to September 27, which is impossible at eight hours a week and
+plausible at the pace the repository records; the week of September 20 says which. The
+mid-October draft means the results-independent sections are written before most numbers
+exist, which is the right order for a resource paper and the only order that meets the date.
+The academic risks that remain are the ones in section 4: one reader model and the benchmark's
+own evaluator (rulings 2 and 3 of the plan), the tuning questions excluded, no supersession
+claim without a mechanism, the ASKS comparison and the tree search before any prose, the
+authorship sentence everywhere, and the course's own deliverables, still unasked.
