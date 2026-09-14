@@ -121,3 +121,5 @@ resolution ablation is a fall measurement at the up-edge and the Oz alias set is
 complete Oct 30, arXiv after submission, and an EACL workshop and PVLDB as fallbacks. The
 suggestions he asked for are `suggestions.md`. Every master document, the plan and the ledger
 carry these.
+
+Late: questions 3 and 4 done from this session (the units dataset marked superseded on Kaggle; the Step 0 docs pushed as a docs-only version). `handoff.md` is the note for the global-merge thread.
