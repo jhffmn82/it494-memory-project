@@ -7,7 +7,7 @@ Only the named signals may put a parent over the offer floor; every score is log
 so the log replays under any arm.
 
 Documents are taken by date then source_uri, undated last; within a document, children by
-first unit. A chat's children first pass a salience call; the rest become leaves. Each child is
+first unit (a chat's salience is decided at Step 1 since ingestor 1.8). Each child is
 offered the parents over the floor (at most K, by vector similarity) and the judge rules
 attach or not on texts alone; a child with nothing offered founds a parent as a copy of itself.
 An attach rewrites the parent (name, kind, one summary line for this document) in one call and
@@ -174,22 +174,7 @@ def rare_jaccard(a, b, rarity):
 
 # ---------------------------------------------------------------- the prompts (rules only)
 
-SALIENCE = """You are sorting the entities a reading found in one chat session between a user and an assistant.
-Keep an entity when a person who owns this chat history would want it found again in a later session:
-a named person, place, organisation, store, product, work, event, project, or a specific thing the user
-owns, plans, attends or returns to. Leave an entity when it is the scaffolding of this one conversation:
-a generic category, a section of the assistant's answer, an option among options, a step in a list, an
-abstract topic, or anything that would mean nothing without this session around it. When in doubt, leave.
-
-The session's summary:
-{abstract}
-
-The entities, each with the facts the reading attached to it:
-{entities}
-
-Reply with a JSON object: {{"keep": [<entity name>, ...]}} using the names exactly as given."""
-
-JUDGE = """You are deciding whether an entity found in one document is an instance of a global entity that other
+JUDGE ="""You are deciding whether an entity found in one document is an instance of a global entity that other
 documents have already established, or something else with a similar name. Both are described only by
 what their documents say. Attach when the two descriptions are of the same person, place, thing or
 concept, even under different names, spellings or roles, and even when one document knows it under a
@@ -329,15 +314,7 @@ def run(store, signals):
     for n, doc_id in enumerate(order):
         doc = corpus.docs[doc_id]
         children = corpus.children(doc_id)
-        if corpus.is_chat(doc_id) and children:
-            abstract = db.execute("select text from abstract where doc_id = ? and node_id like '%:doc'", (doc_id,)).fetchone()
-            listing = "\n".join(f"- {c[1]['name']}: " + "; ".join(c[1]["facts"][:6]) for c in children)
-            reply = llm.generate(SALIENCE.format(abstract=abstract[0] if abstract else "", entities=listing),
-                                 {"keep": list}, "salience", model=llm.LUNA, effort="low", ctx={"doc": doc_id[:8]})
-            keep = {fold(k) for k in reply["keep"]} if reply else set()
-            kept = [c for c in children if fold(c[1]["name"]) in keep]
-            leaves.extend((doc_id, c[0], "salience") for c in children if fold(c[1]["name"]) not in keep)
-            children = kept
+        # a chat's salience is decided at Step 1 since ingestor 1.8: its minors have no node here
         # children with identity links go after the others (they may point at a sibling not yet placed)
         children.sort(key=identity_last)
         placed_here = set()

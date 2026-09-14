@@ -63,3 +63,23 @@ The design note carries these as its amendments section.
   beside the store, row map and header inside it in one transaction. Run: 12,876 vectors
   (6,576 fact lines, 3,861 cell sentences, 2,439 abstract sentences); rebuilt twice with the same
   bytes; a scan of the Tip question puts the book 2 Tip abstract and cells first.
+
+## Later on 09-14: ingestor 1.8, the Step 1 dataset's version 2, the notebook build
+
+- The ingestor thread's 1.8 run (all 81 documents, $5.47, 1,784 calls, about 2.8 kernel hours)
+  replaced the 09-13 packages. Verified here: 81 complete packages, 324 quote-less document
+  facts (title, author, date, source class, history), 1,113 `mentioned` facts, 0 `thing` kinds,
+  643 chat entity nodes (from 1,061), 53 chat kinds.
+- The packer and the store skip the quote check on a document fact and prove every other quote:
+  6,605 checked, all slice. `dataset/step1/` rewritten for 1.8 (version 2 of the dataset), pushed
+  to `jhffmn/it494-threadatlas-step1` at Justin's word.
+- The store and the sidecar rebuilt from version 2: 6,929 facts, 13,330 vectors. The embedder
+  renders a `mentioned` fact with the minor's name as its subject.
+- The global layer's own chat salience call was removed from `threadatlas/attach.py`; Step 1
+  carries salience now.
+- `scripts/build_global_layer_notebook.py` assembles `notebooks/threadatlas-global-layer.ipynb`
+  from the four modules (model, embed, store, attach) plus a run cell, for Kaggle with the two
+  datasets attached and an `OPENAI_API_KEY` secret; pushed as the kernel
+  `jhffmn/threadatlas-global-layer` (private) so the attach step can run where the key is.
+- The as-run 1.8 notebook and its receipt are under `log/2026-09-14/ingestor/`; the notebook
+  and its script form replaced `notebooks/threadatlas-ingestor.*`.
