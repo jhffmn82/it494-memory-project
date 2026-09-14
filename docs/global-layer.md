@@ -138,6 +138,40 @@ From two adversarial reviews of the pipeline pseudocode and Justin's rulings on 
   the table is LongMemEval's multi-session questions, whose answer sessions form labelled
   clusters inside a history; not ruled.
 
+## The build for this fall: bottom up, in batches (Justin, 2026-09-14 afternoon)
+
+The incremental attach above (a child offered the parents that exist, the parent rewritten on
+every attach) is the shape for a nightly pull and is not built this fall. Justin's ruling for
+the build over a whole corpus, in his words: read everything into a pool of entities (the
+document entities aside), fill a heap with the eligible pairs best first, judge a batch in
+parallel, throw the results back into the pool, track the pairs judged different and never
+try to merge clusters that contain nodes judged different, repeat until no valid pairs remain;
+an is_a relationship drops straight into the heap. So:
+
+- **Nomination is child to child**, each pair once: the nearest other-document children by
+  vector (block matrix products over every child, never a scan in Python), every two children
+  sharing a name or a naming alias (an alias counts only when it names: a capitalised word
+  after any article), and every is_a link between two children of one document. Every pair is
+  scored on the four signals and logged in the `pair` table; it is offered when a named
+  signal clears its floor (a name match; the vector at 0.75, loose because the judge is the
+  gate; an is_a link with no floor).
+- **Clustering is the ingestor's reconciliation lifted to the corpus**: every child starts as
+  its own cluster; the offered pairs sit in a heap by tier (is_a, then a name match, then the
+  cosine); a batch of sixteen pops; a pair whose children already share a cluster is skipped; a
+  pair between two clusters that hold any pair ruled different is blocked; the rest are judged
+  in parallel, each side shown as its whole cluster (up to six instances, most facts first);
+  the pairs ruled same unite their clusters, which go back into the pool for the pairs still
+  queued; until the heap is empty.
+- **A parent is written once, at the end**: a cluster of one is a copy of its child, no call; a
+  cluster of two or more gets one Luna call that picks the name (refused unless an instance
+  carries it) and the kind and writes one line per instance. The `instances` and `first`
+  columns replace `version` and `founded_by`.
+- **The instruments**: every pair with its scores and verdict, the count of pairs blocked by a
+  constraint, and the size of every cluster (the largest in the receipt), since uniting is
+  transitive and one wrong "same" can chain two entities.
+- The judge sees texts and casts as names, never scores; the four signals stay separate in
+  the log so the clustering replays under any arm.
+
 ## Gate, Sep 20
 
 Parents over the test packages with the key scored; the store built from them; the sidecar rebuilt
