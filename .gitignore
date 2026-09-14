@@ -49,3 +49,7 @@ scripts/check_cell_order.py
 reading/*.json
 reading/paper-manifest.md
 log/**/*.jsonl
+
+# store and sidecar built locally from the Step 1 dataset
+*.sqlite
+*.npy

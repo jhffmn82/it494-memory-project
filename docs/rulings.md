@@ -162,6 +162,7 @@ here on 2026-09-13); its status. A new ruling is a new line, never an edit of an
 | 09-14 | Two entities of one document are never offered to each other as a pair at the global layer; each is offered parents, and both may land under the same parent, in the first pass or the second pass over founders. | chat; log/2026-09-14/global-layer.md | stands |
 | 09-14 | Packages are ingested in order, by the document's date then `source_uri`, and the rules must handle a document arriving out of order (the second pass re-offers every founder). | chat; log/2026-09-14/global-layer.md | stands |
 | 09-14 | The attachment ablation is built into the pipeline as arms and run on chosen test sets, never over the entire corpus; which sets is a later ruling. The gold for the document-cluster test is open (parked). | chat; log/2026-09-14/global-layer.md | stands |
+| 09-14 | The ingestor is unfrozen for one chat run (1.8): the session reading gives each entity a kind (never `thing`) and a salience mark; a minor's facts are stored on the session's document node with `direction` `mentioned` and the entity's name in `subject_name`. This reverses the 09-13 night line that left kind and salience to the global layer, and narrows the 09-11 minor-subject rule for chats. | chat; log/2026-09-14/note-to-ingestor-thread.md | stands |
 
 ## Time and supersession
 
