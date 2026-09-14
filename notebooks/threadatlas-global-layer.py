@@ -55,16 +55,15 @@
 #             alias match), vector (cosine of the two texts), cast (overlap of the names each
 #             appears beside), identity (the document says one is the other); a pair is
 #             OFFERED when a named signal clears its floor
-# cluster     bottom up, as the ingestor reconciles a document: every child starts as its own
-#             cluster in the pool; every offered pair goes into a heap by strength (an is_a
-#             link first, with no floor; then a name match; then the cosine); pop a batch,
-#             skip a pair whose children already share a cluster and a pair between two
-#             clusters that hold any pair ruled different, judge the rest in parallel (one
-#             call about the pair's two instances, each shown with what is already united
-#             with it as context: same or different, with a reason), unite the pairs ruled same
-#             and put the clusters back in the pool for the pairs still queued; until no valid
-#             pair remains; every pair and verdict is logged, and a pair ruled different is a
-#             constraint the clusters keep
+# cluster     log n bottom up: every child starts as its own cluster; the offered pairs are
+#             ranked by strength (an is_a link first, with no floor; then a name match; then
+#             the cosine); each round every cluster takes its best eligible partner, the pairs
+#             disjoint, the whole round is judged in parallel (one call about the pair's two
+#             instances, each shown with what is already united with it as context: same or
+#             different, with a reason), the pairs ruled same merge, and the next round is
+#             drawn from the merged pool; a pair whose children already share a cluster is
+#             skipped, a pair between clusters that hold any pair ruled different is blocked;
+#             until a round finds no pair; every pair and verdict is logged
 # write       a group of one is a parent copied from its child, no call; a group of two or
 #             more gets one call that picks the name and kind from what the instances carry
 #             (a name no instance carries is refused) and writes one line per instance
@@ -111,7 +110,7 @@ NEAREST = 8                # nearest other-document children by vector nominated
 FACTS_SHOWN = 12           # facts of a child shown to the judge and the parent writer
 SIDE_SHOWN = 6             # instances shown per side to the judge: the nominated one, then up to five united with it
 GROUP_SHOWN = 20           # instances shown to the call that writes a parent, most facts first
-WORKERS = 8                # judge calls in flight at once; a batch pops twice that many pairs from the queue
+WORKERS = 16               # judge calls in flight at once; a round is judged WORKERS at a time
 SIGNALS = set(os.environ.get("SIGNALS", "lexical,vector,cast,identity").split(","))
 SPEND_STOP = float(os.environ.get("SPEND_STOP", "25"))     # the test set judges about 2,500 pairs, most on Terra: near $3
 
@@ -870,11 +869,12 @@ def judge_pair(pair, side_a, side_b, children, docs):
 # %% [markdown]
 # ## Block 12: clustering
 #
-# Bottom up, the way the ingestor reconciles a document. Every child starts as its own cluster.
-# Every offered pair goes into a heap by strength. Pop a batch: a pair whose two children already
-# share a cluster is skipped; a pair between two clusters that hold any pair ruled different is
-# blocked; the rest are judged in parallel; the pairs ruled same unite their clusters, which go
-# back into the pool for the pairs still queued. Until no valid pair remains.
+# Log n bottom up. Every child starts as its own cluster. Each round, every cluster takes its
+# single best eligible partner (the offered pairs walked strongest first, a cluster in at most
+# one pair), the whole round is judged in parallel, the pairs ruled same merge, and the next
+# round is drawn from the merged pool, so the cluster count falls round by round. A pair whose
+# two children already share a cluster is skipped; a pair between two clusters that hold any
+# pair ruled different is blocked; a pair ruled different is never offered again.
 
 # %%
 class Clusters:
@@ -909,37 +909,36 @@ class Clusters:
         return groups
 
 
-def next_batch(heap, clusters):
-    """Up to two workers' worth of pairs still worth judging, popped strongest first."""
-    import heapq
-    batch, seen = [], set()
-    while heap and len(batch) < WORKERS * 2:
-        _, n, pair = heapq.heappop(heap)
+def next_round(offered, clusters):
+    """Each cluster's best eligible pair this round, the pairs disjoint: walking the offered
+    pairs strongest first, a pair is taken when neither of its clusters is taken yet."""
+    taken, batch = set(), []
+    for pair in offered:
+        if pair["verdict"] is not None:
+            continue
         la, lb = clusters.find(pair["a"]), clusters.find(pair["b"])
         if la == lb:
             pair["verdict"] = "skipped"                          # already one cluster through other pairs
         elif clusters.blocked(la, lb):
             pair["verdict"] = "blocked"                          # their clusters hold a pair ruled different
-        elif (min(la, lb), max(la, lb)) in seen:
-            heapq.heappush(heap, (-priority(pair) + 1e-6, n, pair))   # the same two clusters, judged once per batch
-            break
-        else:
-            seen.add((min(la, lb), max(la, lb)))
+        elif la not in taken and lb not in taken:
+            taken.add(la)
+            taken.add(lb)
             batch.append((pair, list(clusters.members[la]), list(clusters.members[lb])))
     return batch
 
 
 def cluster(keys, pairs, children, docs):
-    """Every child's cluster after the loop, keyed by its leader."""
-    import heapq
+    """Log n bottom up: round by round, every cluster meets its best eligible partner, the whole
+    round is judged in parallel, the pairs ruled same merge, and the next round is drawn from
+    the merged pool; until a round finds no pair. Every child's cluster, keyed by its leader."""
     clusters = Clusters(keys)
-    heap = [(-priority(p), n, p) for n, p in enumerate(pairs) if p["offered"]]
-    heapq.heapify(heap)
-    batches, judged, united = 0, 0, 0
-    while heap:
-        batch = next_batch(heap, clusters)
+    offered = sorted((p for p in pairs if p["offered"]), key=priority, reverse=True)
+    rounds, judged, united = 0, 0, 0
+    while True:
+        batch = next_round(offered, clusters)
         if not batch:
-            continue
+            break
         in_parallel(judge_pair, [(pair, a, b, children, docs) for pair, a, b in batch])
         for pair, _, _ in batch:
             la, lb = clusters.find(pair["a"]), clusters.find(pair["b"])
@@ -949,10 +948,10 @@ def cluster(keys, pairs, children, docs):
             elif pair["verdict"] == "different":
                 clusters.different.add((min(pair["a"], pair["b"]), max(pair["a"], pair["b"])))
         judged += len(batch)
-        batches += 1
-        if batches % 10 == 0:
-            print(f"  batch {batches}: {judged} judged, {united} united, {len(heap)} pairs left; ${SPENT:.2f}")
-    print(f"clustered in {batches} batches: {judged} judged, {united} united, {len(clusters.different)} ruled different; ${SPENT:.2f}")
+        rounds += 1
+        alive = len(clusters.members)
+        print(f"  round {rounds}: {len(batch)} pairs judged, {united} united so far, {alive} clusters; ${SPENT:.2f}")
+    print(f"clustered in {rounds} rounds: {judged} judged, {united} united, {len(clusters.different)} ruled different; ${SPENT:.2f}")
     return clusters.groups(keys)
 
 # %% [markdown]

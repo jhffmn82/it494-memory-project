@@ -184,3 +184,27 @@ one: yes, by his rule from the retrieval discussion (each sentence carries its e
 On version 8's clusters Justin: "it merged ozma the event with the person ... I think the judge
 is broken." The judge as run was: shown whole clusters, it answered about whichever two instances
 matched. The pair-focused prompt of version 9 is the fix and has not yet run with a key.
+
+## The pair-focused judge, run with the key (22:27 to 23:00 UTC, $2.43)
+
+2,241 Terra judge calls ($2.39), 318 Luna, 48 parent writers. 9,300 pairs nominated, 2,559
+judged: 79 same, 2,480 different, 453 blocked, 38 skipped. 1,316 parents, 48 with two or more
+instances, the largest 8 (the papers' Large Language Models). Read cluster by cluster: no chained
+cluster. Ozma holds exactly Tip and the two Ozmas (Justin thought the read-back showed the event
+merged with the person; it lists every parent named "Ozma...", each its own parent). Omby Amby
+unites the Soldier with the Green Whiskers and Ozma's private soldier; Guardian of the Gates
+across two books; Oz and the Wonderful Wizard; Saw-Horse and Sawhorse; the desert; the heart;
+the axe; Glinda's palace and the Castle of Glinda; Target, Amazon and Macy's across sessions;
+chicken breast, ground beef and olive oil across the grocery sessions; Llama2-7b and Llama-2
+(7B); Phi-2; Self-RAG. 13 clusters carry two kind labels, all label variance on one thing
+(place and place, creature and animal, object and model), none a wrong union. Version 8's 21
+chained clusters are gone; the fix was the prompt's question, not the floor or the signals.
+
+Justin then asked whether the clustering is "log n bottom up", and whether clusters re-enter
+the queue. The loop as run was one global queue popped sixteen at a time. Rewritten (version
+11): rounds; each round every cluster takes its single best eligible partner, the pairs
+disjoint, the whole round judged in parallel, the pairs ruled same merge, the next round drawn
+from the merged pool. Candidates are still nominated once, child to child, at the start; a
+merged cluster's candidates are its members' pairs, and no new pairs are nominated after a
+merge. Dry run: 115 rounds, the same unions as the batch loop; the tail is a few hub clusters
+working through their partners one per round.
