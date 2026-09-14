@@ -132,3 +132,8 @@ and Sawhorse 0.92, Glinda and Glinda the Good 0.91, Scarecrow and Scarecrow 0.96
 Dorothy 0.93, Tip and Ozma 0.78, Toto and Billina 0.76. The floor is set to 0.75: the judge is
 the gate, the floor only bounds the bill, and 0.75 puts both a true pair and a false pair in
 front of the judge. Kernel version 4.
+
+Correction, the same afternoon: kernel version 6 was pushed from a stale copy of the notebook
+and holds the incremental attach, not the batch build; the line above naming it version 6 is
+wrong. Version 7, verified to hold the batch build (`cluster()` present), was pushed at 19:1x
+UTC and queued behind it; Justin was asked to cancel version 6 in the editor.
