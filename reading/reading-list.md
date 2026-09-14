@@ -40,7 +40,9 @@ The advisor-meeting record of 2026-08-19 keeps the original 44 items with fuller
 23. Chang et al. 2024. BooookScore. ICLR 2024. arXiv:2310.00785 · chang2024-booookscore
 24. Kim et al. 2024. FABLES. COLM 2024. arXiv:2404.01261 · kim2024-fables
 
-## Knowledge graphs: foundations
+## Knowledge graphs
+
+0. Saeedi, Peukert and Rahm 2020. Incremental Multi-source Entity Resolution for Knowledge Graph Completion. ESWC 2020. PMC7250616 (added 2026-09-14: the closest published system to the identity tree; read before the global-layer writeup) · saeedi2020-famer: foundations
 
 25. Chen 1976. The Entity-Relationship Model. ACM TODS 1(1). *library* · chen1976-er-model
 26. Angles et al. 2017. Foundations of Modern Query Languages for Graph Databases. ACM CSUR 50(5). arXiv:1610.06264 · angles2017-graph-query-foundations

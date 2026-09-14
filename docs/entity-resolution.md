@@ -257,19 +257,29 @@ So in writing take the property and leave the name.
 adding an edge. Nothing is rewritten and nothing is combined, so there is no un-merge problem:
 re-deciding identity is re-pointing an edge.
 
-**Insertion is append-only, and the incremental-insertion problem is not solved but unposed.**
+**Insertion is append-only, and destructive incremental merging becomes revisable identity-edge
+maintenance.** (Softened 2026-09-14: incremental identity resolution still exists. A new child can
+show that two existing parents are one identity, and repairing that re-points edges, which is
+global maintenance, only far cheaper and safer than unmerging fused fact sets. FAMER (Saeedi,
+Peukert and Rahm, ESWC 2020) draws the same line between incremental assignment and later cluster
+repair.)
 RAPTOR, GraphRAG and Talebirad all leave insertion open because inserting means re-merging: a new
 document can change what an existing node *is*. Here a new document mints its own children and
 attaches edges, and no existing node changes.
 
-**Deletion is correct for free.** In a merged graph, "forget this conversation" is close to
+**Deletion is local and mechanically recomputable.** (Softened 2026-09-14: not free. The children
+and edges go; the parent's name, summary, instance list, vector and the document-cluster weights
+that touched it are regenerated from what remains.) In a merged graph, "forget this conversation" is close to
 impossible, because the merged node carries contributions from it that cannot be subtracted
 without re-deriving everything downstream. Here, deleting a document removes its children and its
 edges, including its claim on the parent; the parent survives with fewer children or is dropped.
 Nothing else is touched. For a backend meant to hold one person's archive, retention and
 forgetting become a delete rather than a research problem.
 
-**Provenance is total, and the synthesized layer disappears.** Every edge in the store answers
+**Provenance is total, and the global identity layer introduces no new factual assertions.**
+(Softened 2026-09-14: cells, abstracts, adjudicated facts, attributes and contradiction records are
+still model-written and still exist inside each document; what disappears is the global synthesized
+factual entity.) Every edge in the store answers
 "which document says so", including the identity claim. This matters because of a measured
 finding, not a hoped-for one: in the archive's own layer-seam audit, 39 node claims traced to raw
 gave 31 confirmed, 4 wrong and 4 unsupported, and *every* defect sat in the synthesized layer
@@ -349,8 +359,14 @@ consequences rather than separate rules. Numbering is from
 
 ### Not yet claimed as novel
 
-This resembles published things: Wikidata items whose statements carry references rather than
-being merged, cluster representatives in entity resolution, singleton and canopy models. Whether
+This resembles published things: Wikidata items whose statements carry references rather than being
+merged, cluster representatives in entity resolution, singleton and canopy models, and most closely
+FAMER's incremental multi-source resolution (Saeedi, Peukert and Rahm, ESWC 2020), which keeps the
+source-local members of a cluster and offers a fused representative as an option; ThreadAtlas's
+difference, if it holds up, is a representative that never fuses member properties and asserts
+nothing. That is the claim to search: a persistent memory representation where cross-source identity
+exists only as a revisable routing structure while every factual assertion stays owned by one
+source-local entity. Whether
 this exact formulation, a parent that holds nothing and edges that are all document-owned, is
 published is unsearched. It is written here as a design position that dissolves three open
 problems named in the reading list, which is worth recording whether or not it turns out to be

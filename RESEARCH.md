@@ -10,7 +10,12 @@ the resolution design in `docs/entity-resolution.md`, schema sources in
 
 Twelve candidate contributions were searched adversarially and all twelve are
 already published. Do not resurrect one, and do not add a thirteenth without
-searching it first; all twelve died by assuming nobody had done it.
+searching it first; all twelve died by assuming nobody had done it. This is
+internal discipline, not the paper's sentence. The paper says: the mechanisms
+underlying ThreadAtlas are established; the contribution is their
+provenance-preserving composition for longitudinal memory and the measurement of
+what each design choice costs and buys. The one formulation still unsearched is
+the identity tree against FAMER (see `docs/entity-resolution.md`).
 
 | The idea | Already published by |
 |---|---|
