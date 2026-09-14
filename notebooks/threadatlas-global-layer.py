@@ -109,6 +109,12 @@ SPEND_STOP = float(os.environ.get("SPEND_STOP", "10"))
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
+try:                                        # the embedder is not on Kaggle's image; fetched once, with Internet on
+    import fastembed
+except ImportError:
+    import subprocess
+    subprocess.run([sys.executable, "-m", "pip", "install", "-q", "fastembed"], check=True)
+
 
 def first_existing(variable, *candidates):
     """The folder the environment names, else the first candidate that exists, else None."""
