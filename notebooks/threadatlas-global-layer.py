@@ -100,7 +100,7 @@ KAGGLE_EXPORT = (Path("/kaggle/input/datasets/jhffmn/it494-threadatlas-step0"), 
 KAGGLE_OUT, LOCAL_OUT = Path("/kaggle/working"), Path("data/global")
 
 K = 5                      # parents offered to the judge at most, strongest first
-VECTOR_FLOOR = 0.85        # cosine over bge-small at which a parent is offered on the vector alone
+VECTOR_FLOOR = 0.75        # cosine over bge-small at which a parent is offered on the vector alone: loose, the judge is the gate
 BELOW_FLOOR_LOGGED = 3     # candidates under the floor logged per child, so the floor can be tuned
 FACTS_SHOWN = 12           # facts of a child shown to the judge and the rewrite
 SIGNALS = set(os.environ.get("SIGNALS", "lexical,vector,cast,identity").split(","))

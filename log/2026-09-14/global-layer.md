@@ -122,3 +122,13 @@ connection test early, like the ingestor. Done:
   completion records), the sidecar (13,330 vectors), and `receipt.json`; no parents, because no
   `OPENAI_API_KEY` secret is attached to the kernel. The attach step has still never run with a
   model; attaching the secret and rerunning is the next action, Justin's.
+
+## The offer floor, measured (Justin: "you need a looser threshold ... when we are supposedly using a judge")
+
+Over the 1,393 children of the local store, cross-document cosine of child texts, plus the 129
+with a cross-document name match: children reaching the judge at a floor of 0.70: 1,171; 0.75:
+793 (about $2.50 in judge calls a pass); 0.80: 422; 0.85: 205; 0.90: 137. Known pairs: Saw-Horse
+and Sawhorse 0.92, Glinda and Glinda the Good 0.91, Scarecrow and Scarecrow 0.96, Dorothy and
+Dorothy 0.93, Tip and Ozma 0.78, Toto and Billina 0.76. The floor is set to 0.75: the judge is
+the gate, the floor only bounds the bill, and 0.75 puts both a true pair and a false pair in
+front of the judge. Kernel version 4.
