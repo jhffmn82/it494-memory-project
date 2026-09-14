@@ -237,3 +237,13 @@ shared entities on the right linking to their wiki pages) and `write_portal` wri
 the entity pages beside it. On the clean run's store without a key: five collections, the Oz
 one "Works sharing Tin Woodman, Land of Oz, Ozma" over 28 shared entities; the counts-only
 portal is `docs/wiki/oz-portal-counts-only.html` until a keyed run names it. Kernel version 14.
+
+Refined minutes later (Justin): a collection only for a cluster of more than one document; the
+graph drawn as collection parents with documents as leaves, so a document may sit in more
+than one collection. Collections are therefore no longer connected components: every parent
+held by two or more documents seeds a group, groups whose document sets coincide at Jaccard
+0.5 or more merge into one collection, and a document belongs to every collection whose seeds
+it holds. On the clean store: eight collections (the papers; the Oz books over 25 seed parents;
+Target, Amazon and Macy's sessions as three; the grocery pair; the enchiladas pair; the closet
+pair), two documents in more than one. Block 17 draws the tree (`collection-tree.svg`); the
+blocks are 16 collections, 17 the tree, 18 the wiki page, 19 the portal. Kernel version 15.

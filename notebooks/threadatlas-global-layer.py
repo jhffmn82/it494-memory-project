@@ -1090,69 +1090,163 @@ if __name__ == "__main__" and STORE.exists():
     db.close()
 
 # %% [markdown]
-# ## Block 16: the document clusters
+# ## Block 16: collections, a parent for each body of work
 #
-# Documents joined by the parents they share, each shared parent weighted by its rarity (the
-# 09-08 formula: the log of documents over documents holding it, so a parent every document
-# holds counts for nothing). The graph is drawn with a spring layout and written as an SVG
-# beside the store; its connected components are the clusters, listed in a text file.
+# A collection is a parent over documents, the entry point of a portal in the wiki. It is
+# seeded by the entities: every parent held by two or more documents names a group of
+# documents; groups whose document sets mostly coincide (Jaccard at least `OVERLAP`) merge into
+# one collection; a document belongs to every collection whose seed parents it holds, so a
+# session about a store and a trip sits under both. A collection always has more than one
+# document. One call per collection names the body of work the way a reader would (a series,
+# a field, one person's history) and writes an abstract of what the documents are and which
+# entities span them, from the documents' abstracts and the shared parents; it asserts nothing
+# beyond them. Without a key the name is the top shared parents and the abstract the counts.
+# Tables: `collection` (id, name, abstract, documents, written_by) and `document_in`
+# (doc_id, collection_id), one row per membership.
 
 # %%
-def document_graph(db):
-    """docs, and edges (doc_a, doc_b) -> weight from shared parents."""
-    docs = {d: t for d, t in db.execute("select doc_id, title from document")}
+OVERLAP = 0.5              # two parents' document sets merge into one collection at this Jaccard or above
+
+COLLECTION = """Below are the documents of one body of work, found because they share the entities listed after
+them, and the abstract of each. Name the body of work the way a reader would look for it: a series by its
+series name, papers by their field, one person's chat sessions by what they are about. Then write an
+abstract of three to five sentences saying what the documents are, what they cover, and which entities
+recur across them. Say only what the abstracts below say; name nothing that is not in them.
+
+Documents:
+{documents}
+
+Entities shared across them, most distinctive first:
+{parents}
+
+Reply with a JSON object: {{"name": "<name>", "abstract": "<three to five sentences>"}}."""
+
+COLLECTION_SCHEMA = """
+drop table if exists collection;
+drop table if exists document_in;
+create table collection (collection_id integer primary key, name text, abstract text, documents integer, written_by text);
+create table document_in (doc_id text, collection_id integer, primary key (doc_id, collection_id));
+"""
+
+
+def parent_groups(db):
+    """parent_id -> the documents holding it, for parents held by two or more documents."""
     holders = {}
     for doc_id, parent_id in db.execute("select doc_id, parent_id from instance_of"):
         holders.setdefault(parent_id, set()).add(doc_id)
-    edges = {}
-    for parent_id, ds in holders.items():
-        if len(ds) < 2:
-            continue
-        weight = math.log(len(docs) / len(ds))
-        ds = sorted(ds)
-        for i, a in enumerate(ds):
-            for b in ds[i + 1:]:
-                edges[(a, b)] = edges.get((a, b), 0.0) + weight
-    return docs, edges
+    return {pid: ds for pid, ds in holders.items() if len(ds) > 1}
 
 
-def components(docs, edges):
-    """The connected components of the document graph, largest first."""
-    leader = {d: d for d in docs}
+def collection_groups(groups):
+    """Seed groups merged when their document sets mostly coincide; each collection as (seed parents, documents)."""
+    leader = {pid: pid for pid in groups}
 
-    def find(d):
-        while leader[d] != d:
-            leader[d] = leader[leader[d]]
-            d = leader[d]
-        return d
+    def find(pid):
+        while leader[pid] != pid:
+            leader[pid] = leader[leader[pid]]
+            pid = leader[pid]
+        return pid
 
-    for a, b in edges:
-        ra, rb = find(a), find(b)
-        if ra != rb:
-            leader[max(ra, rb)] = min(ra, rb)
-    groups = {}
-    for d in docs:
-        groups.setdefault(find(d), []).append(d)
-    return sorted(groups.values(), key=len, reverse=True)
+    pids = sorted(groups)
+    for i, a in enumerate(pids):
+        for b in pids[i + 1:]:
+            if len(groups[a] & groups[b]) / len(groups[a] | groups[b]) >= OVERLAP:
+                ra, rb = find(a), find(b)
+                if ra != rb:
+                    leader[max(ra, rb)] = min(ra, rb)
+    merged = {}
+    for pid in pids:
+        seeds, docs = merged.setdefault(find(pid), ([], set()))
+        seeds.append(pid)
+        docs |= groups[pid]
+    return sorted(merged.values(), key=collection_size, reverse=True)
 
 
+def collection_size(item):
+    return (len(item[1]), len(item[0]))
+
+
+def shared_parents(db, group):
+    """The parents held by two or more documents of the group, most distinctive first."""
+    placeholders = ", ".join("?" * len(group))
+    rows = db.execute(f"""select p.parent_id, p.name, p.kind, count(distinct i.doc_id) as n
+                          from instance_of i join parent p on p.parent_id = i.parent_id
+                          where i.doc_id in ({placeholders}) group by p.parent_id having n > 1""", list(group)).fetchall()
+    total = db.execute("select count(*) from document").fetchone()[0]
+    held = {pid: db.execute("select count(distinct doc_id) from instance_of where parent_id = ?", (pid,)).fetchone()[0] for pid, _, _, _ in rows}
+    return sorted(rows, key=weight_of(total, held), reverse=True)
+
+
+def weight_of(total, held):
+    def weight(row):
+        return row[3] * math.log(total / held[row[0]])
+    return weight
+
+
+def write_collection(db, group):
+    """One collection named and described; the counts when there is no key."""
+    group = sorted(group)
+    marks = ", ".join("?" * len(group))
+    titles = db.execute(f"select doc_id, title, occurred_at from document where doc_id in ({marks}) order by occurred_at", group).fetchall()
+    abstracts = dict(db.execute(f"select doc_id, text from abstract where node_id like '%:doc' and doc_id in ({marks})", group).fetchall())
+    parents = shared_parents(db, group)
+    listing = "\n\n".join(f"- {title} ({date}): {(abstracts.get(doc_id) or '')[:500]}" for doc_id, title, date in titles)
+    named = ", ".join(f"{name} ({kind}, in {n} of them)" for _, name, kind, n in parents[:15])
+    reply = None
+    if KEY:
+        reply = generate(COLLECTION.format(documents=listing, parents=named or "(none)"), {"name": str, "abstract": str}, "collection",
+                         effort="low", ctx={"documents": len(group)})
+    if reply:
+        return reply["name"], reply["abstract"], "call"
+    name = "Works sharing " + ", ".join(p[1] for p in parents[:3]) if parents else "Works"
+    abstract = f"{len(group)} documents, from {titles[0][2]} to {titles[-1][2]}, sharing {len(parents)} entities: {named}."
+    return name, abstract, "counts"
+
+
+def build_collections(store):
+    """The collections and their memberships, written from scratch."""
+    db = sqlite3.connect(store)
+    db.executescript(COLLECTION_SCHEMA)
+    collections = collection_groups(parent_groups(db))
+    for i, (seeds, docs) in enumerate(collections):
+        name, abstract, how = write_collection(db, docs)
+        db.execute("insert into collection values (?,?,?,?,?)", (i, name, abstract, len(docs), how))
+        db.executemany("insert into document_in values (?,?)", [(d, i) for d in sorted(docs)])
+        print(f"  collection {i}: {name} ({len(docs)} documents from {len(seeds)} seed parents, {how})")
+    db.commit()
+    shared = db.execute("select count(*) from (select doc_id from document_in group by doc_id having count(*) > 1)").fetchone()[0]
+    db.close()
+    print(f"collections: {len(collections)}; documents in more than one: {shared}; ${SPENT:.2f}")
+
+
+if __name__ == "__main__" and STORE.exists():
+    build_collections(STORE)
+
+# %% [markdown]
+# ## Block 17: the collection tree
+#
+# The collections drawn as parents with their documents as leaves; a document in two
+# collections sits between them with an edge to each. Documents in no collection are not
+# drawn. A spring layout in numpy; written as an SVG beside the store.
+
+# %%
 def spring_layout(nodes, edges, steps=300):
-    """Fruchterman and Reingold in numpy: connected documents pull together, all repel."""
+    """Fruchterman and Reingold in numpy: joined nodes pull together, all repel."""
     import numpy
     rng = numpy.random.default_rng(494)
     index = {d: i for i, d in enumerate(nodes)}
     pos = rng.uniform(-1, 1, (len(nodes), 2))
-    k = 1.0 / math.sqrt(len(nodes))
+    k = 1.0 / math.sqrt(max(len(nodes), 2))
     heat = 0.1
     for step in range(steps):
         delta = pos[:, None, :] - pos[None, :, :]
         dist = numpy.maximum(numpy.linalg.norm(delta, axis=2), 1e-3)
         move = ((delta / dist[:, :, None]) * (k * k / dist)[:, :, None]).sum(axis=1)
-        for (a, b), w in edges.items():
+        for a, b in edges:
             i, j = index[a], index[b]
             d = pos[i] - pos[j]
             length = max(float(numpy.linalg.norm(d)), 1e-3)
-            pull = d / length * (length * length / k) * min(w, 4) / 4
+            pull = d / length * (length * length / k)
             move[i] -= pull
             move[j] += pull
         length = numpy.maximum(numpy.linalg.norm(move, axis=1), 1e-3)[:, None]
@@ -1161,44 +1255,45 @@ def spring_layout(nodes, edges, steps=300):
     return pos
 
 
-def draw_document_clusters(store, out):
-    """The document graph as an SVG beside the store, and the clusters as a text list."""
+def draw_collection_tree(store, out):
+    """Collections as parents, documents as leaves, as an SVG beside the store."""
     import matplotlib
     matplotlib.use("Agg")
     from matplotlib import pyplot
     db = sqlite3.connect(store)
-    docs, edges = document_graph(db)
-    uris = dict(db.execute("select doc_id, source_uri from document"))
+    titles = dict(db.execute("select doc_id, title from document"))
+    names = dict(db.execute("select collection_id, name from collection"))
+    edges = [(f"collection:{c}", d) for d, c in db.execute("select doc_id, collection_id from document_in")]
     db.close()
-    nodes = sorted(docs)
+    nodes = sorted({n for e in edges for n in e})
+    if not nodes:
+        print("no collections to draw")
+        return
     pos = spring_layout(nodes, edges)
-    index = {d: i for i, d in enumerate(nodes)}
-    chat = {d for d in nodes if is_identifier(docs[d], uris[d])}
-    figure, axis = pyplot.subplots(figsize=(14, 14))
-    for (a, b), w in edges.items():
-        axis.plot([pos[index[a], 0], pos[index[b], 0]], [pos[index[a], 1], pos[index[b], 1]],
-                  color="#888", linewidth=min(0.3 + w / 3, 3), alpha=0.6, zorder=1)
-    axis.scatter(pos[:, 0], pos[:, 1], s=[40 if d in chat else 120 for d in nodes],
-                 c=["#7aa6c2" if d in chat else "#c27a7a" for d in nodes], zorder=2)
-    joined = {d for e in edges for d in e}
-    for d in nodes:
-        if d not in chat or d in joined:
-            axis.annotate(docs[d][:28], pos[index[d]], fontsize=7, xytext=(3, 3), textcoords="offset points")
+    index = {n: i for i, n in enumerate(nodes)}
+    figure, axis = pyplot.subplots(figsize=(14, 12))
+    for a, b in edges:
+        axis.plot([pos[index[a], 0], pos[index[b], 0]], [pos[index[a], 1], pos[index[b], 1]], color="#999", linewidth=0.8, zorder=1)
+    parents = [n for n in nodes if n.startswith("collection:")]
+    leaves = [n for n in nodes if not n.startswith("collection:")]
+    axis.scatter([pos[index[n], 0] for n in leaves], [pos[index[n], 1] for n in leaves], s=50, c="#7aa6c2", zorder=2)
+    axis.scatter([pos[index[n], 0] for n in parents], [pos[index[n], 1] for n in parents], s=320, c="#c27a7a", zorder=3)
+    for n in leaves:
+        axis.annotate(titles[n][:26], pos[index[n]], fontsize=7, xytext=(3, 3), textcoords="offset points")
+    for n in parents:
+        axis.annotate(names[int(n.split(":")[1])][:40], pos[index[n]], fontsize=9, fontweight="bold", xytext=(6, 6), textcoords="offset points")
     axis.set_axis_off()
-    axis.set_title("documents joined by shared parents, weighted by rarity (red: books and papers; blue: chat sessions)")
-    figure.savefig(out / "document-clusters.svg", bbox_inches="tight")
+    axis.set_title("collections (red) and their documents (blue); a document in two collections sits between them")
+    figure.savefig(out / "collection-tree.svg", bbox_inches="tight")
     pyplot.close(figure)
-    groups = [g for g in components(docs, edges) if len(g) > 1]
-    lines = [f"{len(g)} documents: " + "; ".join(docs[d][:40] for d in g[:12]) + (" ..." if len(g) > 12 else "") for g in groups]
-    (out / "document-clusters.txt").write_text("\n".join(lines), encoding="utf-8")
-    print(f"document graph: {len(nodes)} documents, {len(edges)} edges, {len(groups)} clusters of two or more, the largest {len(groups[0]) if groups else 1}")
+    print(f"collection tree: {len(parents)} collections, {len(leaves)} documents, {len(edges)} edges")
 
 
 if __name__ == "__main__" and STORE.exists():
-    draw_document_clusters(STORE, OUT)
+    draw_collection_tree(STORE, OUT)
 
 # %% [markdown]
-# ## Block 17: a wiki page
+# ## Block 18: a wiki page
 #
 # One function renders a page for any parent from the store: the parent's paragraph (its
 # summary lines) at the top; then a section per instance with the instance's abstract and its
@@ -1303,94 +1398,6 @@ def write_wiki_page(store, out, name, kind=None):
 
 if __name__ == "__main__" and STORE.exists():
     write_wiki_page(STORE, OUT, "Ozma", "person")
-
-# %% [markdown]
-# ## Block 18: collections, a parent for each document cluster
-#
-# Each cluster of the document graph becomes a collection: a parent over documents rather than
-# over entities, the entry point of a portal in the wiki. One call per cluster names the body
-# of work the way a reader would (a series, a field, one person's history) and writes an
-# abstract of what the documents are and which entities span them, from the documents'
-# abstracts and the parents they share; it asserts nothing beyond them. Without a key the name
-# is the top shared parents and the abstract the counts. Tables: `collection` (id, name,
-# abstract, documents) and `document_in` (doc_id, collection_id).
-
-# %%
-COLLECTION = """Below are the documents of one body of work, found because they share the entities listed after
-them, and the abstract of each. Name the body of work the way a reader would look for it: a series by its
-series name, papers by their field, one person's chat sessions by what they are about. Then write an
-abstract of three to five sentences saying what the documents are, what they cover, and which entities
-recur across them. Say only what the abstracts below say; name nothing that is not in them.
-
-Documents:
-{documents}
-
-Entities shared across them, most distinctive first:
-{parents}
-
-Reply with a JSON object: {{"name": "<name>", "abstract": "<three to five sentences>"}}."""
-
-COLLECTION_SCHEMA = """
-create table if not exists collection (collection_id integer primary key, name text, abstract text, documents integer, written_by text);
-create table if not exists document_in (doc_id text primary key, collection_id integer);
-"""
-
-
-def shared_parents(db, group):
-    """The parents held by two or more documents of the group, most distinctive first."""
-    placeholders = ", ".join("?" * len(group))
-    rows = db.execute(f"""select p.parent_id, p.name, p.kind, count(distinct i.doc_id) as n
-                          from instance_of i join parent p on p.parent_id = i.parent_id
-                          where i.doc_id in ({placeholders}) group by p.parent_id having n > 1""", group).fetchall()
-    total = db.execute("select count(*) from document").fetchone()[0]
-    held = {pid: db.execute("select count(distinct doc_id) from instance_of where parent_id = ?", (pid,)).fetchone()[0] for pid, _, _, _ in rows}
-    return sorted(rows, key=weight_of(total, held), reverse=True)
-
-
-def weight_of(total, held):
-    def weight(row):
-        return row[3] * math.log(total / held[row[0]])
-    return weight
-
-
-def write_collection(db, group):
-    """One cluster named and described; the counts when there is no key."""
-    titles = db.execute(f"select doc_id, title, occurred_at from document where doc_id in ({', '.join('?' * len(group))}) order by occurred_at", group).fetchall()
-    abstracts = dict(db.execute(f"select doc_id, text from abstract where node_id like '%:doc' and doc_id in ({', '.join('?' * len(group))})", group).fetchall())
-    parents = shared_parents(db, group)
-    listing = "\n\n".join(f"- {title} ({date}): {(abstracts.get(doc_id) or '')[:500]}" for doc_id, title, date in titles)
-    named = ", ".join(f"{name} ({kind}, in {n} of them)" for _, name, kind, n in parents[:15])
-    reply = None
-    if KEY:
-        reply = generate(COLLECTION.format(documents=listing, parents=named or "(none)"), {"name": str, "abstract": str}, "collection",
-                         effort="low", ctx={"documents": len(group)})
-    if reply:
-        return reply["name"], reply["abstract"], "call"
-    name = "Works sharing " + ", ".join(p[1] for p in parents[:3]) if parents else "Works"
-    abstract = f"{len(group)} documents, from {titles[0][2]} to {titles[-1][2]}, sharing {len(parents)} entities: {named}."
-    return name, abstract, "counts"
-
-
-def build_collections(store):
-    """A collection per document cluster of two or more; every other document stays uncollected."""
-    db = sqlite3.connect(store)
-    db.executescript(COLLECTION_SCHEMA)
-    db.execute("delete from collection")
-    db.execute("delete from document_in")
-    docs, edges = document_graph(db)
-    groups = [g for g in components(docs, edges) if len(g) > 1]
-    for i, group in enumerate(groups):
-        name, abstract, how = write_collection(db, group)
-        db.execute("insert into collection values (?,?,?,?,?)", (i, name, abstract, len(group), how))
-        db.executemany("insert into document_in values (?,?)", [(d, i) for d in group])
-        print(f"  collection {i}: {name} ({len(group)} documents, {how})")
-    db.commit()
-    db.close()
-    print(f"collections: {len(groups)}; ${SPENT:.2f}")
-
-
-if __name__ == "__main__" and STORE.exists():
-    build_collections(STORE)
 
 # %% [markdown]
 # ## Block 19: a portal page
