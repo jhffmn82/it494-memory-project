@@ -165,3 +165,22 @@ The fix, in version 8: the judge is asked about the pair's two instances, each s
 the instances already united with it listed underneath as context only, and the prompt says the
 question and the reason are about the two entities themselves; a part, a possession, a place or
 an event of a thing is named as different. The kinds rule stands: kind never blocks.
+
+## Evening: the script cut into fifteen blocks
+
+Justin: "the code blocks are massive, the organization sucks. Definately not human readable."
+The script is now fifteen blocks, one job each: files and settings; the model; the connection
+test; the store's schema; loading the store; what gets a vector; the embedding sidecar; reading
+the corpus; the two prompts; nominating pairs; the judge; clustering; writing the parents; run;
+reading it back. No function over forty lines; the clustering state is a small `Clusters` class
+(union-find, members, the pairs ruled different); the second sidecar pass appends the parents'
+rows to the array instead of rebuilding it (12 of the 46 minutes of the real run). Dry run with
+the stub judge: 317 seconds, the same counts as before, the sidecar loads verified.
+
+Justin also asked whether abstracts and narratives are split into sentences and embedded one by
+one: yes, by his rule from the retrieval discussion (each sentence carries its entity in front);
+1,826 cells give 3,921 vectors and 891 abstracts 2,480; a fact is one line, one vector.
+
+On version 8's clusters Justin: "it merged ozma the event with the person ... I think the judge
+is broken." The judge as run was: shown whole clusters, it answered about whichever two instances
+matched. The pair-focused prompt of version 9 is the fix and has not yet run with a key.
