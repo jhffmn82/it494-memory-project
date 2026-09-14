@@ -26,6 +26,7 @@ here on 2026-09-13); its status. A new ruling is a new line, never an edit of an
 | 09-09 | Block 13 runs the first three Oz books, not one. | log/2026-09-09/README.md | stands |
 | 09-10 | Block 12 runs one user's whole LongMemEval history (gpt4_2ba83207) as the test input for the global step. | log/2026-09-10/decisions-ingestor-1.7.md:14-15 | extended 09-11 and 09-12: the answer sessions of 13 other questions are loaded with it (71 sessions) |
 | 09-13 | Raw dataset v4 carries `longmemeval_s.json`; the extractor unpacks it itself. | log/2026-09-13/README.md | stands |
+| 09-13 | A Step 1 dataset is made from the ingestor's run and documented like Step 0: `dataset/step1/`, packed by `scripts/pack_step1_public.py`, published as `jhffmn/it494-threadatlas-step1`. | chat; log/2026-09-13/global-layer.md | stands |
 
 ## Step 0: what the extractor is
 
@@ -151,6 +152,16 @@ here on 2026-09-13); its status. A new ruling is a new line, never an edit of an
 | 09-07 | A node records whether its document named it (decision 61). | decisions-ingestor-0.7.md 61 | reversed hours later (dcd11c0 cut `named`) |
 | 09-07 | Contradictions are resolved within a document by the judge, which names in `holds` the fact true at the document's end; across documents nothing is resolved, a parent counts (R4). | decisions-ingestor-0.8.md R4; SCHEMA.md | stands |
 | 09-09 | The profile record is dropped and the pair score renormalised. | log/2026-09-09/README.md; 0b6cc81 | stands |
+| 09-13 | The first-cut attach rule of the plan (case-folded name and kind; a kind conflict stays apart; the parent named by its most frequent child name; a count-sentence abstract) is superseded by the global-layer design of that night. | chat; log/2026-09-13/global-layer.md; docs/global-layer.md | stands |
+| 09-13 | One graph over everything loaded; a test filters at retrieval time on a set of documents. The one-history rule is a retrieval filter, not a build rule. | chat; log/2026-09-13/global-layer.md | stands |
+| 09-13 | A parent is its own record, owned by no document: name, kind, the union of its children's aliases, a role summary (one line per document, each tied to a child id), and its instance list. It is rewritten by one model call on every attach, reading the parent as it stands and the new child; a founding child needs no call. The judge picks the name and kind from what the children carry. Kind is redefined at the global layer and never blocks an attachment. | chat; log/2026-09-13/global-layer.md | stands |
+| 09-13 | Nomination is a similarity search of the child's text against every parent's text, never an exact-string test; the nearest parents are offered with three logged scores (lexical, vector, cast overlap) and a document's own identity fact as the top nomination; the judge rules attach or found with a reason; the edge carries the reason and the scores. | chat; log/2026-09-13/global-layer.md | stands |
+| 09-13 | Co-occurrence is the ingestor's unit-cast Jaccard carried across documents (a rarity-weighted column logged beside it). It keeps same-name entities of different works apart and clusters documents (the 09-08 formula); it is not the uniter. | chat; log/2026-09-13/global-layer.md | stands |
+| 09-13 | Chats: one salience call per session at the global layer decides which entities are nominated; the rest stay leaves under the session document. Step 1 is not rerun. Nightly pulls go through the same path. | chat; log/2026-09-13/global-layer.md | stands |
+| 09-13 | The attachment key is Wikipedia's list of Baum's Oz characters (CC BY-SA 4.0) and the per-character articles, not hand labels; coverage of majors from the same roster; fact and narrative coverage later. | chat; log/2026-09-13/global-layer.md | stands |
+| 09-14 | Two entities of one document are never offered to each other as a pair at the global layer; each is offered parents, and both may land under the same parent, in the first pass or the second pass over founders. | chat; log/2026-09-14/global-layer.md | stands |
+| 09-14 | Packages are ingested in order, by the document's date then `source_uri`, and the rules must handle a document arriving out of order (the second pass re-offers every founder). | chat; log/2026-09-14/global-layer.md | stands |
+| 09-14 | The attachment ablation is built into the pipeline as arms and run on chosen test sets, never over the entire corpus; which sets is a later ruling. The gold for the document-cluster test is open (parked). | chat; log/2026-09-14/global-layer.md | stands |
 
 ## Time and supersession
 
@@ -160,6 +171,13 @@ here on 2026-09-13); its status. A new ruling is a new line, never an edit of an
 | 09-07 | A fact's ordering time is its `valid_from` when stated, else its unit's `occurred_at`, else the document's; an undated fact never supersedes a dated one. | SCHEMA.md (corrected 09-07) | stands as the read rule; no reader is built |
 | 09-09 | `valid_to` is held. | log/2026-09-09/README.md | dropped 09-10 |
 | 09-10 | `valid_to` is dropped: facts are instances as they occur; nothing decides that one stopped being true. | log/2026-09-10/decisions-ingestor-1.7.md:10 | stands |
+
+## Store and retrieval
+
+| date | ruling | recorded | status |
+|---|---|---|---|
+| 09-13 | Storage is SQLite; search is a linear scan of embeddings, no index (HNSW, IVF and a k-means tree were weighed and set aside). Vectors live in one float16 `.npy` beside the database, held in memory for the scan; the row map and header are in the database. | chat; log/2026-09-13/global-layer.md | stands |
+| 09-13 | Retrieval: two flat scans (facts as rendered lines; narratives as sentences prefixed with their entity and document), one hop of expansion along node, document and parent, rerank with a hop discount, whole items packed by rank; the parent-off arm drops the parent hop. | chat; log/2026-09-13/global-layer.md | stands |
 
 ## Records dropped
 
@@ -192,4 +210,5 @@ here on 2026-09-13); its status. A new ruling is a new line, never an edit of an
 | 09-08 | Co-occurrence survives as a signal at the global layer: the resolution ablation is restated at the up-edge as name-only against name plus co-occurrence as inputs to attachment, scored as attachment accuracy; document clusters and related works come from shared entities and meaningful co-occurrence over the document-entity graph. | log/2026-09-08/publishability-review.md:36-62; threadatlas-decision.md:107-121; wiki-projection.md:35-66 | stands; confirmed by Justin 09-13 on point 3 of the audit. The 09-13 line above that cut the resolution ablation was wrong and is superseded by this one. |
 | 09-13 | The paper's purpose is a publication for PhD admission to a good program: a peer-reviewed venue, or a submission under review there when applications are read; the arXiv preprint is beside it, not instead of it. | chat, on point 3 of the audit | stands; the venue is an open ruling |
 | 09-13 | The paper is submitted to the ECIR 2027 resource track on Nov 2 (build stop Oct 25, paper complete Oct 30, arXiv the day after submission); if rejected on Dec 7, an EACL 2027 workshop on Dec 15, then PVLDB's Jan 1 deadline. | chat; log/2026-09-13/venues.md | stands |
+| 09-14 | The parent is the entry point to a wiki page. Its summary is the model-written paragraph of the works the entity appeared in (the role summary, one line per instance, each carrying its child's id); below it the page lists the facts and narratives deterministically, each under the document that owns it. The count-line alternative (outside feedback of 09-14) is declined. | chat, on the global-layer question A | stands |
 | standing | No em dashes in any document. No copyrighted modern fiction is named in any public artifact. No lambdas in drafted code. Nothing is published to Kaggle and nothing leaves git history without Justin's yes. | chat | stands |
