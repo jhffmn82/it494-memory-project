@@ -110,3 +110,15 @@ connection test early, like the ingestor. Done:
 - Pushed to Kaggle as version 2 of the private kernel `jhffmn/threadatlas-global-layer`. It
   needs the `OPENAI_API_KEY` secret to build the parents; without it the store and the sidecar
   build and the receipt says so.
+
+## The notebook on Kaggle, three versions the same night
+
+- Version 2 failed at the sidecar: `fastembed` is not on Kaggle's image; the blocked script had
+  lost the install the generated notebook carried. Before that it had found both datasets at
+  the new mount (`/kaggle/input/datasets/jhffmn/<slug>`) and built the store with every quote
+  checked and FTS5.
+- Version 3 (block 1 installs `fastembed` when the import fails) completed in ten minutes: the
+  store (81 documents, 6,929 facts, 6,605 quotes checked, FTS5 built, counts equal to the
+  completion records), the sidecar (13,330 vectors), and `receipt.json`; no parents, because no
+  `OPENAI_API_KEY` secret is attached to the kernel. The attach step has still never run with a
+  model; attaching the secret and rerunning is the next action, Justin's.
