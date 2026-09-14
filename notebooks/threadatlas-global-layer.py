@@ -955,7 +955,6 @@ def write_tables(db, parents, keys):
     calls = sum(p["calls"] for p in parents)
     print(f"written: {len(parents)} parents ({calls} written by a call), {len(keys)} up-edges, {len(PAIRS)} pair rows; ${SPENT:.2f}")
 
-
 # %% [markdown]
 # ## Block 7: run
 #
