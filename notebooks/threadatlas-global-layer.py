@@ -1303,3 +1303,160 @@ def write_wiki_page(store, out, name, kind=None):
 
 if __name__ == "__main__" and STORE.exists():
     write_wiki_page(STORE, OUT, "Ozma", "person")
+
+# %% [markdown]
+# ## Block 18: collections, a parent for each document cluster
+#
+# Each cluster of the document graph becomes a collection: a parent over documents rather than
+# over entities, the entry point of a portal in the wiki. One call per cluster names the body
+# of work the way a reader would (a series, a field, one person's history) and writes an
+# abstract of what the documents are and which entities span them, from the documents'
+# abstracts and the parents they share; it asserts nothing beyond them. Without a key the name
+# is the top shared parents and the abstract the counts. Tables: `collection` (id, name,
+# abstract, documents) and `document_in` (doc_id, collection_id).
+
+# %%
+COLLECTION = """Below are the documents of one body of work, found because they share the entities listed after
+them, and the abstract of each. Name the body of work the way a reader would look for it: a series by its
+series name, papers by their field, one person's chat sessions by what they are about. Then write an
+abstract of three to five sentences saying what the documents are, what they cover, and which entities
+recur across them. Say only what the abstracts below say; name nothing that is not in them.
+
+Documents:
+{documents}
+
+Entities shared across them, most distinctive first:
+{parents}
+
+Reply with a JSON object: {{"name": "<name>", "abstract": "<three to five sentences>"}}."""
+
+COLLECTION_SCHEMA = """
+create table if not exists collection (collection_id integer primary key, name text, abstract text, documents integer, written_by text);
+create table if not exists document_in (doc_id text primary key, collection_id integer);
+"""
+
+
+def shared_parents(db, group):
+    """The parents held by two or more documents of the group, most distinctive first."""
+    placeholders = ", ".join("?" * len(group))
+    rows = db.execute(f"""select p.parent_id, p.name, p.kind, count(distinct i.doc_id) as n
+                          from instance_of i join parent p on p.parent_id = i.parent_id
+                          where i.doc_id in ({placeholders}) group by p.parent_id having n > 1""", group).fetchall()
+    total = db.execute("select count(*) from document").fetchone()[0]
+    held = {pid: db.execute("select count(distinct doc_id) from instance_of where parent_id = ?", (pid,)).fetchone()[0] for pid, _, _, _ in rows}
+    return sorted(rows, key=weight_of(total, held), reverse=True)
+
+
+def weight_of(total, held):
+    def weight(row):
+        return row[3] * math.log(total / held[row[0]])
+    return weight
+
+
+def write_collection(db, group):
+    """One cluster named and described; the counts when there is no key."""
+    titles = db.execute(f"select doc_id, title, occurred_at from document where doc_id in ({', '.join('?' * len(group))}) order by occurred_at", group).fetchall()
+    abstracts = dict(db.execute(f"select doc_id, text from abstract where node_id like '%:doc' and doc_id in ({', '.join('?' * len(group))})", group).fetchall())
+    parents = shared_parents(db, group)
+    listing = "\n\n".join(f"- {title} ({date}): {(abstracts.get(doc_id) or '')[:500]}" for doc_id, title, date in titles)
+    named = ", ".join(f"{name} ({kind}, in {n} of them)" for _, name, kind, n in parents[:15])
+    reply = None
+    if KEY:
+        reply = generate(COLLECTION.format(documents=listing, parents=named or "(none)"), {"name": str, "abstract": str}, "collection",
+                         effort="low", ctx={"documents": len(group)})
+    if reply:
+        return reply["name"], reply["abstract"], "call"
+    name = "Works sharing " + ", ".join(p[1] for p in parents[:3]) if parents else "Works"
+    abstract = f"{len(group)} documents, from {titles[0][2]} to {titles[-1][2]}, sharing {len(parents)} entities: {named}."
+    return name, abstract, "counts"
+
+
+def build_collections(store):
+    """A collection per document cluster of two or more; every other document stays uncollected."""
+    db = sqlite3.connect(store)
+    db.executescript(COLLECTION_SCHEMA)
+    db.execute("delete from collection")
+    db.execute("delete from document_in")
+    docs, edges = document_graph(db)
+    groups = [g for g in components(docs, edges) if len(g) > 1]
+    for i, group in enumerate(groups):
+        name, abstract, how = write_collection(db, group)
+        db.execute("insert into collection values (?,?,?,?,?)", (i, name, abstract, len(group), how))
+        db.executemany("insert into document_in values (?,?)", [(d, i) for d in group])
+        print(f"  collection {i}: {name} ({len(group)} documents, {how})")
+    db.commit()
+    db.close()
+    print(f"collections: {len(groups)}; ${SPENT:.2f}")
+
+
+if __name__ == "__main__" and STORE.exists():
+    build_collections(STORE)
+
+# %% [markdown]
+# ## Block 19: a portal page
+#
+# The collection's page, the entry point: its name and abstract, the documents in date order
+# with their abstracts, and the entities that span them, each linking to its wiki page. The
+# entity pages of a collection's shared parents are written beside it so the links resolve.
+
+# %%
+PORTAL = """<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>{name}</title>
+<style>
+body {{ font-family: Georgia, serif; margin: 0; color: #222; background: #fbfaf7; }}
+.wrap {{ display: flex; gap: 2rem; max-width: 1200px; margin: 0 auto; padding: 1.5rem; }}
+main {{ flex: 3; min-width: 0; }}
+aside {{ flex: 1.3; min-width: 260px; font-size: 0.9rem; border-left: 1px solid #ddd; padding-left: 1.2rem; }}
+h1 {{ font-size: 2rem; margin: 0 0 0.2rem; }} h2 {{ font-size: 1.2rem; border-bottom: 1px solid #ddd; margin-top: 2rem; }}
+.kind {{ color: #777; font-style: italic; }} .lead {{ font-size: 1.05rem; }}
+.doc {{ color: #666; font-size: 0.85rem; }} aside li {{ margin: 0.3rem 0; }} a {{ color: #35506b; }}
+</style></head><body><div class="wrap">
+<main>
+<h1>{name}</h1><div class="kind">a collection of {n} documents</div>
+<p class="lead">{abstract}</p>
+{sections}
+</main>
+<aside><h2 style="margin-top:0">Entities across these documents</h2><ul>{parents}</ul></aside>
+</div></body></html>
+"""
+
+
+def slug(name):
+    return re.sub(r"[^a-z0-9]+", "-", name.casefold()).strip("-")
+
+
+def portal_page(db, collection_id):
+    """The HTML of one collection's page."""
+    name, abstract, _ = db.execute("select name, abstract, documents from collection where collection_id = ?", (collection_id,)).fetchone()
+    group = [d for (d,) in db.execute("select doc_id from document_in where collection_id = ?", (collection_id,))]
+    docs = db.execute(f"select doc_id, title, occurred_at from document where doc_id in ({', '.join('?' * len(group))}) order by occurred_at", group).fetchall()
+    abstracts = dict(db.execute(f"select doc_id, text from abstract where node_id like '%:doc' and doc_id in ({', '.join('?' * len(group))})", group).fetchall())
+    sections = "".join(f"<h2>{escape(title)}</h2><div class=\"doc\">{escape(date)}</div><p>{escape(abstracts.get(doc_id) or '')}</p>"
+                       for doc_id, title, date in docs)
+    parents = shared_parents(db, group)
+    items = "".join(f'<li><a href="{slug(pname)}.html">{escape(pname)}</a> <span class="kind">{escape(kind)}, in {n} of {len(group)}</span></li>'
+                    for _, pname, kind, n in parents[:40])
+    return PORTAL.format(name=escape(name), n=len(group), abstract=escape(abstract), sections=sections, parents=items)
+
+
+def write_portal(store, out, collection_id, with_entities=25):
+    """The portal page and the pages of its most distinctive shared entities, under out/wiki."""
+    db = sqlite3.connect(store)
+    name = db.execute("select name from collection where collection_id = ?", (collection_id,)).fetchone()[0]
+    (out / "wiki").mkdir(exist_ok=True)
+    path = out / "wiki" / (slug(name) + ".html")
+    path.write_text(portal_page(db, collection_id), encoding="utf-8")
+    group = [d for (d,) in db.execute("select doc_id from document_in where collection_id = ?", (collection_id,))]
+    for pid, pname, _, _ in shared_parents(db, group)[:with_entities]:
+        (out / "wiki" / (slug(pname) + ".html")).write_text(wiki_page(db, pid), encoding="utf-8")
+    db.close()
+    print(f"wrote {path.name} and its entity pages")
+    return path
+
+
+if __name__ == "__main__" and STORE.exists():
+    db = sqlite3.connect(STORE)
+    largest = db.execute("select collection_id from collection order by documents desc").fetchall()
+    db.close()
+    for (cid,) in largest:
+        write_portal(STORE, OUT, cid)

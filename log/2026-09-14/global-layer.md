@@ -221,3 +221,19 @@ spring layout in numpy, an SVG and a cluster list beside the store) and `wiki_pa
 (the three Oz books; the five papers; the grocery sessions; six shopping sessions; two closet
 sessions). The Ozma page and the graph are the mock-up in `docs/wiki/`. Justin: "that looks
 great." Kernel version 13.
+
+## Collections (Justin, late 09-14): a parent for each document cluster
+
+"We need to create a parent entity for the document cluster, and it should have a name based
+on the body of work ie the works of Oz, and it should have an abstract talking about what's
+in it. Think of it as the entry point to the oz portals in the wiki." Built as blocks 18 and
+19: `build_collections` makes a `collection` row per cluster of two or more documents (name,
+abstract, document count, how it was written) and a `document_in` row per member; one Luna
+call per collection names the body of work and writes the abstract from the documents'
+abstracts and the parents that span them, asserting nothing beyond them; without a key the
+name is the top shared parents and the abstract the counts. `portal_page` renders the
+collection's page (name, abstract, the documents with their abstracts in date order, the
+shared entities on the right linking to their wiki pages) and `write_portal` writes it with
+the entity pages beside it. On the clean run's store without a key: five collections, the Oz
+one "Works sharing Tin Woodman, Land of Oz, Ozma" over 28 shared entities; the counts-only
+portal is `docs/wiki/oz-portal-counts-only.html` until a keyed run names it. Kernel version 14.
