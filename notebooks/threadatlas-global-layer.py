@@ -1088,3 +1088,218 @@ if __name__ == "__main__" and STORE.exists():
     for name, kind, summary in db.execute("select name, kind, summary from parent where name like 'Ozma%' or name = 'Tip'"):
         print(f"\n{name} ({kind})\n{summary}")
     db.close()
+
+# %% [markdown]
+# ## Block 16: the document clusters
+#
+# Documents joined by the parents they share, each shared parent weighted by its rarity (the
+# 09-08 formula: the log of documents over documents holding it, so a parent every document
+# holds counts for nothing). The graph is drawn with a spring layout and written as an SVG
+# beside the store; its connected components are the clusters, listed in a text file.
+
+# %%
+def document_graph(db):
+    """docs, and edges (doc_a, doc_b) -> weight from shared parents."""
+    docs = {d: t for d, t in db.execute("select doc_id, title from document")}
+    holders = {}
+    for doc_id, parent_id in db.execute("select doc_id, parent_id from instance_of"):
+        holders.setdefault(parent_id, set()).add(doc_id)
+    edges = {}
+    for parent_id, ds in holders.items():
+        if len(ds) < 2:
+            continue
+        weight = math.log(len(docs) / len(ds))
+        ds = sorted(ds)
+        for i, a in enumerate(ds):
+            for b in ds[i + 1:]:
+                edges[(a, b)] = edges.get((a, b), 0.0) + weight
+    return docs, edges
+
+
+def components(docs, edges):
+    """The connected components of the document graph, largest first."""
+    leader = {d: d for d in docs}
+
+    def find(d):
+        while leader[d] != d:
+            leader[d] = leader[leader[d]]
+            d = leader[d]
+        return d
+
+    for a, b in edges:
+        ra, rb = find(a), find(b)
+        if ra != rb:
+            leader[max(ra, rb)] = min(ra, rb)
+    groups = {}
+    for d in docs:
+        groups.setdefault(find(d), []).append(d)
+    return sorted(groups.values(), key=len, reverse=True)
+
+
+def spring_layout(nodes, edges, steps=300):
+    """Fruchterman and Reingold in numpy: connected documents pull together, all repel."""
+    import numpy
+    rng = numpy.random.default_rng(494)
+    index = {d: i for i, d in enumerate(nodes)}
+    pos = rng.uniform(-1, 1, (len(nodes), 2))
+    k = 1.0 / math.sqrt(len(nodes))
+    heat = 0.1
+    for step in range(steps):
+        delta = pos[:, None, :] - pos[None, :, :]
+        dist = numpy.maximum(numpy.linalg.norm(delta, axis=2), 1e-3)
+        move = ((delta / dist[:, :, None]) * (k * k / dist)[:, :, None]).sum(axis=1)
+        for (a, b), w in edges.items():
+            i, j = index[a], index[b]
+            d = pos[i] - pos[j]
+            length = max(float(numpy.linalg.norm(d)), 1e-3)
+            pull = d / length * (length * length / k) * min(w, 4) / 4
+            move[i] -= pull
+            move[j] += pull
+        length = numpy.maximum(numpy.linalg.norm(move, axis=1), 1e-3)[:, None]
+        pos += move / length * numpy.minimum(length, heat)
+        heat *= 0.99
+    return pos
+
+
+def draw_document_clusters(store, out):
+    """The document graph as an SVG beside the store, and the clusters as a text list."""
+    import matplotlib
+    matplotlib.use("Agg")
+    from matplotlib import pyplot
+    db = sqlite3.connect(store)
+    docs, edges = document_graph(db)
+    uris = dict(db.execute("select doc_id, source_uri from document"))
+    db.close()
+    nodes = sorted(docs)
+    pos = spring_layout(nodes, edges)
+    index = {d: i for i, d in enumerate(nodes)}
+    chat = {d for d in nodes if is_identifier(docs[d], uris[d])}
+    figure, axis = pyplot.subplots(figsize=(14, 14))
+    for (a, b), w in edges.items():
+        axis.plot([pos[index[a], 0], pos[index[b], 0]], [pos[index[a], 1], pos[index[b], 1]],
+                  color="#888", linewidth=min(0.3 + w / 3, 3), alpha=0.6, zorder=1)
+    axis.scatter(pos[:, 0], pos[:, 1], s=[40 if d in chat else 120 for d in nodes],
+                 c=["#7aa6c2" if d in chat else "#c27a7a" for d in nodes], zorder=2)
+    joined = {d for e in edges for d in e}
+    for d in nodes:
+        if d not in chat or d in joined:
+            axis.annotate(docs[d][:28], pos[index[d]], fontsize=7, xytext=(3, 3), textcoords="offset points")
+    axis.set_axis_off()
+    axis.set_title("documents joined by shared parents, weighted by rarity (red: books and papers; blue: chat sessions)")
+    figure.savefig(out / "document-clusters.svg", bbox_inches="tight")
+    pyplot.close(figure)
+    groups = [g for g in components(docs, edges) if len(g) > 1]
+    lines = [f"{len(g)} documents: " + "; ".join(docs[d][:40] for d in g[:12]) + (" ..." if len(g) > 12 else "") for g in groups]
+    (out / "document-clusters.txt").write_text("\n".join(lines), encoding="utf-8")
+    print(f"document graph: {len(nodes)} documents, {len(edges)} edges, {len(groups)} clusters of two or more, the largest {len(groups[0]) if groups else 1}")
+
+
+if __name__ == "__main__" and STORE.exists():
+    draw_document_clusters(STORE, OUT)
+
+# %% [markdown]
+# ## Block 17: a wiki page
+#
+# One function renders a page for any parent from the store: the parent's paragraph (its
+# summary lines) at the top; then a section per instance with the instance's abstract and its
+# cells as paragraphs, in unit order, a summary of the entity's part in that document; and, on
+# the right, every fact of every instance as a sentence in order of appearance, with its quote
+# beneath. Read only; nothing is written back. The run writes a sample page beside the store;
+# the Ozma page is the mock-up kept in the repository under `docs/wiki/`.
+
+# %%
+def sentence(fact, names):
+    """A fact as a sentence: subject, predicate, object, qualifiers."""
+    subject = names.get(fact["subject"], fact["subject"])
+    obj = names.get(fact["object"], fact["object"]) if fact["object_is_node"] else fact["object"]
+    line = f"{subject} {fact['predicate'].replace('_', ' ')} {obj}"
+    if fact["qualifiers"]:
+        line += f" ({fact['qualifiers']})"
+    return line[0].upper() + line[1:] + "."
+
+
+def escape(text):
+    return (text or "").replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+
+PAGE = """<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>{name}</title>
+<style>
+body {{ font-family: Georgia, serif; margin: 0; color: #222; background: #fbfaf7; }}
+.wrap {{ display: flex; gap: 2rem; max-width: 1200px; margin: 0 auto; padding: 1.5rem; }}
+main {{ flex: 3; min-width: 0; }}
+aside {{ flex: 1.3; min-width: 260px; font-size: 0.9rem; border-left: 1px solid #ddd; padding-left: 1.2rem; }}
+h1 {{ font-size: 2rem; margin: 0 0 0.2rem; }} h2 {{ font-size: 1.2rem; border-bottom: 1px solid #ddd; margin-top: 2rem; }}
+h3 {{ font-size: 0.95rem; color: #555; margin: 1.2rem 0 0.4rem; }}
+.kind {{ color: #777; font-style: italic; }} .lead {{ font-size: 1.05rem; }} .cell {{ margin: 0.6rem 0; }}
+.doc {{ color: #666; font-size: 0.85rem; margin-bottom: 0.4rem; }} .facts p {{ margin: 0.5rem 0; }}
+.quote {{ color: #777; font-size: 0.8rem; display: block; margin-top: 0.15rem; }}
+.aliases {{ color: #666; font-size: 0.85rem; }}
+</style></head><body><div class="wrap">
+<main>
+<h1>{name}</h1><div class="kind">{kind}, in {n} {documents}</div>
+<p class="aliases">Also called: {aliases}</p>
+<p class="lead">{lead}</p>
+{sections}
+</main>
+<aside><h2 style="margin-top:0">Facts, in order of appearance</h2><div class="facts">{facts}</div></aside>
+</div></body></html>
+"""
+
+
+def instance_section(db, doc_id, node_id, title, date, names):
+    """One instance: its abstract, then its cells in unit order."""
+    abstract = db.execute("select text from abstract where doc_id = ? and node_id = ?", (doc_id, node_id)).fetchone()
+    cells = db.execute("""select c.text from cell c join unit u on u.unit_id = c.unit_id
+                          where c.doc_id = ? and c.node_id = ? order by u.position""", (doc_id, node_id)).fetchall()
+    paragraphs = "".join(f'<p class="cell">{escape(text)}</p>' for (text,) in cells)
+    return (f"<h2>{escape(names.get(node_id, node_id))} in {escape(title)}</h2>"
+            f'<div class="doc">{escape(title)}, {escape(date)}</div>'
+            f"<p><em>{escape(abstract[0] if abstract else '')}</em></p>{paragraphs}")
+
+
+def instance_facts(db, doc_id, node_id, title, names):
+    """One instance's facts as sentences in order of appearance, each with its quote."""
+    rows = db.execute("""select f.subject, f.predicate, f.object, f.object_is_node, f.qualifiers, f.quote
+                         from fact f left join unit u on u.unit_id = f.unit_id
+                         where f.doc_id = ? and f.subject = ? and f.quote is not null order by u.position, f.fact_id""", (doc_id, node_id)).fetchall()
+    parts = [f"<h3>{escape(title)}</h3>"]
+    for subject, predicate, obj, is_node, qualifiers, quote in rows:
+        fact = {"subject": subject, "predicate": predicate, "object": obj, "object_is_node": is_node, "qualifiers": qualifiers}
+        parts.append(f'<p>{escape(sentence(fact, names))}<span class="quote">&ldquo;{escape(quote[:200])}&rdquo;</span></p>')
+    return "".join(parts)
+
+
+def wiki_page(db, parent_id):
+    """The HTML of one parent's page."""
+    name, kind, aliases, summary = db.execute("select name, kind, aliases, summary from parent where parent_id = ?", (parent_id,)).fetchone()
+    instances = db.execute("""select i.doc_id, i.node_id, d.title, d.occurred_at from instance_of i join document d on d.doc_id = i.doc_id
+                              where i.parent_id = ? order by d.occurred_at, d.source_uri""", (parent_id,)).fetchall()
+    names = dict(db.execute("select node_id, name from node"))
+    lead = " ".join(line.split("] ", 1)[1] if "] " in line else line for line in summary.split("\n"))
+    sections = "".join(instance_section(db, d, n, title, date, names) for d, n, title, date in instances)
+    facts = "".join(instance_facts(db, d, n, title, names) for d, n, title, _ in instances)
+    return PAGE.format(name=escape(name), kind=escape(kind), n=len(instances), documents="document" if len(instances) == 1 else "documents",
+                       aliases=escape(", ".join(json.loads(aliases))), lead=escape(lead), sections=sections, facts=facts)
+
+
+def write_wiki_page(store, out, name, kind=None):
+    """The page for the parent of that name (and kind, when given), written under out/wiki."""
+    db = sqlite3.connect(store)
+    query = "select parent_id from parent where name = ?" + (" and kind = ?" if kind else "") + " order by instances desc"
+    row = db.execute(query, (name, kind) if kind else (name,)).fetchone()
+    if row is None:
+        db.close()
+        print(f"no parent named {name}")
+        return None
+    html = wiki_page(db, row[0])
+    db.close()
+    (out / "wiki").mkdir(exist_ok=True)
+    path = out / "wiki" / (re.sub(r"[^a-z0-9]+", "-", name.casefold()).strip("-") + ".html")
+    path.write_text(html, encoding="utf-8")
+    print(f"wrote {path.name}: {len(html)} characters")
+    return path
+
+
+if __name__ == "__main__" and STORE.exists():
+    write_wiki_page(STORE, OUT, "Ozma", "person")

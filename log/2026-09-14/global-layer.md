@@ -208,3 +208,16 @@ from the merged pool. Candidates are still nominated once, child to child, at th
 merged cluster's candidates are its members' pairs, and no new pairs are nominated after a
 merge. Dry run: 115 rounds, the same unions as the batch loop; the tail is a few hub clusters
 working through their partners one per round.
+
+## Night: the document clusters and the wiki page (blocks 16 and 17)
+
+Justin asked for a wiki page for Ozma read from the graph, as a function that renders any
+entity: the parent paragraph at the top, a section per instance with its abstract and its
+cells as paragraphs, and a right-hand panel of the instance's facts as sentences in order of
+appearance; and a graph of the document clusters. Built as blocks 16 and 17 after the
+read-back: `draw_document_clusters` (documents joined by shared parents weighted by rarity, a
+spring layout in numpy, an SVG and a cluster list beside the store) and `wiki_page` /
+`write_wiki_page`. Rendered from the clean run's store: 81 documents, 23 edges, five clusters
+(the three Oz books; the five papers; the grocery sessions; six shopping sessions; two closet
+sessions). The Ozma page and the graph are the mock-up in `docs/wiki/`. Justin: "that looks
+great." Kernel version 13.
