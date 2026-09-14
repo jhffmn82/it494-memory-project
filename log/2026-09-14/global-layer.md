@@ -83,3 +83,30 @@ The design note carries these as its amendments section.
   `jhffmn/threadatlas-global-layer` (private) so the attach step can run where the key is.
 - The as-run 1.8 notebook and its receipt are under `log/2026-09-14/ingestor/`; the notebook
   and its script form replaced `notebooks/threadatlas-ingestor.*`.
+
+## Night: the pipeline rebuilt as one blocked notebook
+
+The first Kaggle run of the generated notebook failed on its input path: Kaggle now mounts a
+dataset at `/kaggle/input/datasets/jhffmn/<slug>`, which the ingestor already handles with a
+candidate list and the generated notebook did not. Justin: the code "looks horrible", does not
+match the spec, and should be "simple, easy to read, broken into chunks, general and not over
+engineered, and documented", with the schema and the algorithm's pseudocode up top and a
+connection test early, like the ingestor. Done:
+
+- `notebooks/threadatlas-global-layer.py` is the one source, in the ingestor's `# %%` form,
+  eight blocks: the introduction (what comes in and out, the store's tables, the sidecar, the
+  algorithm as pseudocode, how to run), files and settings, the model, the connection test, the
+  store, the sidecar, the global layer, run, reading it back. `scripts/py_to_ipynb.py` makes the
+  notebook. The `threadatlas/` package and the notebook builder are removed.
+- Dry run with the model stubbed (every judge says nothing): store 6,929 facts with 6,605
+  quotes checked; sidecar 13,330 vectors, 15,992 with the parents' summaries; 1,393 children,
+  1,393 founders, both passes, 11,947 offer rows, 411 seconds. A real run would make about
+  1,460 judge calls at this floor (a name or alias match, a vector at 0.85, or an is_a link).
+- Two defects the dry run showed and the rebuild fixed: the offer floor at 0.80 with a
+  substring match would have sent almost every child to the judge (2,785 calls, about $7); and
+  a lexical match through descriptive aliases ("the girl", "the creature") paired Princess Ozma
+  with Saw-Horse and the great spider, so only a name or an alias that names (a capitalised
+  word after any article) counts as a lexical hit.
+- Pushed to Kaggle as version 2 of the private kernel `jhffmn/threadatlas-global-layer`. It
+  needs the `OPENAI_API_KEY` secret to build the parents; without it the store and the sidecar
+  build and the receipt says so.
