@@ -25,9 +25,9 @@ chain is: the global layer; then the store schema and the embedding sidecar it i
 query path; then a harness that runs the tests against the query path; and only when each has a
 solution, the full data, digested in Kaggle batches (about 36 kernel hours for all chats by the
 Step 1 thread's estimate, less on the version now running; the other corpora are much smaller
-and go first). Until the harness passes, every step works on the test packages already on disk:
-the 71 sessions, three Oz books, five papers, the Bacchae and Dandy Dick of the frozen run, and
-their 1.8 counterparts when that run lands. The full data goes through the ingestor only after
+and go first). Until the harness passes, every step works on the test packages already on disk: the 71
+sessions, three Oz books, five papers, the Bacchae and Dandy Dick, as read by ingestor 1.8 on
+09-14 (`%TEMP%/f18b/packages`; the 09-13 packages are replaced, not mixed in). The full data goes through the ingestor only after
 the whole pipeline (global layer, store, embedding, query, harness) has been tested and tuned
 on those packages to the point it is ready for testing; the tuning happens first, on the small
 set, and the kernel time of the full run is writing time. Testing begins by the end of September so October is refinement and dataset building. Added the same night: **a first draft of the paper is due in mid-October** (tentative), so the results-independent sections are written in the exam block while the pipeline is tuned and the batches run, and the mid-October draft carries whatever numbers exist by then, each with its denominator. Both benchmarks stay. Which is scored first is a
@@ -66,8 +66,14 @@ section numbers are kept from the first draft so the attack reports still read.
 - Out (the design output, before any code): what a parent is, what draws the up-edge, what a
   parent's name and abstract are computed from, and what the store must hold to answer a
   question through a parent. That decides the store schema in 2a and what gets embedded in 2b2.
-- Out (the code): a `parent` table (id, name, kind, abstract) and an `instance_of` edge per node, owned by
-  the node's document. First cut: nodes unite under one parent when their case-folded name and their case-folded kind string agree; a shared name with a kind conflict stays apart and is logged as a candidate; every edge carries its reason. Second signal, from the 09-08 review: for every candidate parent the child could attach to (a shared name or name word), a co-occurrence score, the overlap between the entities the child appears beside in its document and the entities the parent's children appear beside in theirs; both scores are logged per candidate so the attachment can be replayed name-only and name plus co-occurrence. The same graph (documents joined by shared parents, weighted by co-occurrence, generic parents down-weighted) is what clusters documents for the wiki pages. The parent's name is its most frequent
+- Out (the code): superseded on 09-13 night by `docs/global-layer.md` (PROPOSED, from the
+  global thread's discussion with Justin): a parent record owned by no document (name, kind, the
+  union of its children's aliases, a role summary of one line per instance with the child's id,
+  the instance list); nomination by similarity search over parents plus lexical, cast and
+  identity-fact signals, every score logged per candidate; a Terra judge that attaches or founds;
+  the parent rewritten by a Luna call on every attach under two rejection rules; a chat salience
+  call before nomination (now done inside ingestor 1.8). The first-cut text that follows is kept
+  only so the 09-13 attack reports still read. First cut: nodes unite under one parent when their case-folded name and their case-folded kind string agree; a shared name with a kind conflict stays apart and is logged as a candidate; every edge carries its reason. Second signal, from the 09-08 review: for every candidate parent the child could attach to (a shared name or name word), a co-occurrence score, the overlap between the entities the child appears beside in its document and the entities the parent's children appear beside in theirs; both scores are logged per candidate so the attachment can be replayed name-only and name plus co-occurrence. The same graph (documents joined by shared parents, weighted by co-occurrence, generic parents down-weighted) is what clusters documents for the wiki pages. The parent's name is its most frequent
   child name; its abstract is the count sentence until a fold is written. Kind is an open
   vocabulary, so near-synonym kinds will split parents; the split count is an instrument.
 - Gate (one that can fail): a hand check of 30 parents drawn at random from the history, with

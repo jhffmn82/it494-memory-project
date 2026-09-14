@@ -1,7 +1,9 @@
 # The ingestor: algorithm and data contract
 
-`threadatlas-ingestor 1.7`, the frozen Step 1 (ruled 2026-09-12; block 12 rewritten for the 1.8
-export on 09-13). Its first run on the 1.8 export is in progress on 2026-09-13. One document at a
+`threadatlas-ingestor 1.8`. Step 1 was frozen at 1.7 on 2026-09-12 and unfrozen for one chat
+run on 2026-09-14, after the 1.8-export run's chat packages showed every entity as kind `thing`
+and every subject a major; 1.8 adds a salience call for chats and the document's own facts, and
+ran over all 81 test documents on 2026-09-14 (`log/2026-09-14/ingestor-1.8.md`). One document at a
 time, from the extractor's export to a **document package**: the entities the document is about,
 every fact with a verbatim quote located at document offsets, a narrative cell per entity per
 unit, the document's abstract, and an abstract per major entity. Nothing here looks at a second
@@ -48,10 +50,15 @@ fact checked in one support call, verify, write. About four calls instead of twe
 A chat session: one Luna call over all its turns (`read_session`, medium reasoning effort), a
 session over `SESSION_WINDOW` (40,000 characters) read in stretches of whole turns. Each fact names
 its turn and is kept only if its quote is located in that turn and its subject is the user,
-appears in the turn, or shares a word with it. Every subject the reading used is an entity and a
-major; the same name in two turns is one entity, no judge. The reading's summary is the abstract.
-No judge, no cells, no fold, no entity abstracts. Then one support call over every fact, verify,
-write.
+appears in the turn, or shares a word with it. Every subject the reading used is an entity; the
+same name in two turns is one entity, no judge. Then one more Luna call, `salience`, sees the
+session's summary and every entity with its facts and gives each entity a kind (one lowercase
+word, never `thing`; a `thing` is refused and left null) and a salience: major, or minor. The user
+stays a major person; an entity the reply leaves out is minor. A major becomes a node with its
+facts; a minor gets no node, and its facts are kept on the session's document node with direction
+`mentioned` and the entity's name in `provenance.subject_name`. The reading's summary is the
+abstract. No judge, no cells, no fold, no entity abstracts. Then one support call over every fact,
+verify, write.
 
 Models: `gpt-5.6-luna` derives units, reads a chat, and runs the support checks and corrections;
 `gpt-5.6-terra` judges, folds and adjudicates books and papers. `SERVICE_TIER` is `flex`, priced by
@@ -67,7 +74,13 @@ Flex; 0.20/1.20 and 2.00/12.00 standard). No embedder; no vectors are stored.
   names do not promote. A major with nothing to summarise (no facts, no cells) is demoted.
 - **Minors have no node.** A fact lands on the major that is its subject (forward), or under the
   major it points at (inverse), with the lesser thing's name as its value. A fact between two
-  lesser things is not stored.
+  lesser things is not stored, except in a chat, where a minor's facts are kept on the session's
+  document node as `mentioned` (1.8).
+- **Every document node carries the document's own facts**, written from the export without a
+  call: `has_title`, `has_author` (when known), `has_date`, `has_source_class`, and
+  `belongs_to_history` on a chat. They have no quote (`quote`, `quote_start`, `quote_end` and
+  `unit_id` are null); `provenance.from` is `document record`, and the date fact's
+  `provenance.flags` carries the extractor's date flags.
 - **Stated facts.** From a user turn: what the user says of their own life, plus one `stated` fact
   per user sentence that states a detail, the whole sentence as its object and its quote. From an
   assistant turn: the specific names, numbers, amounts, steps and options it gives the user.
@@ -104,5 +117,8 @@ skipped on a rerun; to continue a stopped run, make a dataset from the output an
 
 ## Measured cost
 
-A chat costs $0.0042 to $0.0045 a session on the one-call design, about $100 to $107 for the
-23,882 chats. The frozen full run of 09-13 on 1.7: 81 documents, $5.57, 1,696 calls, 0 quotes off.
+A chat costs about half a cent a session on the one-call design, the salience call adding
+$0.0005 ($0.034 over 71 sessions), about $110 for the 23,882 chats. The 1.8 run of 09-14 over the
+81 test documents: $5.47, 1,784 calls, 1 schema retry recovered, every one of the 6,605 quotes
+slicing from the export at its offsets. The books and papers are $5 of that; the 71 sessions are
+under $0.50.
