@@ -71,7 +71,7 @@ normalised, 255 words, 220 unwrapped; rejected 254 duplicate, 91 not found, 70 p
 self reference, 56 unlisted subject. Cost by stage: adjudicate $2.60, judge $1.40, entity
 abstracts $0.54, facts $0.22, entities $0.16, the 71 session readings $0.25; so a chat session
 is still about half a cent and the ten books and papers are $5.07 of the $5.49. Downloaded to
-`%TEMP%r18`. These packages are the global layer's test input.
+`%TEMP%/fr18`. These packages are the global layer's test input.
 
 ## The cleanup (afternoon and evening, local)
 
