@@ -60,8 +60,8 @@
 #             link first, with no floor; then a name match; then the cosine); pop a batch,
 #             skip a pair whose children already share a cluster and a pair between two
 #             clusters that hold any pair ruled different, judge the rest in parallel (one
-#             call over the two clusters' instances and nothing else: same or different, with
-#             a reason), unite the pairs ruled same and put the clusters back in the pool for
+#             call about the pair's two instances, each shown with what is already united
+#             with it as context: same or different, with a reason), unite the pairs ruled same and put the clusters back in the pool for
 #             the pairs still queued; until no valid pair remains; every pair and verdict is
 #             logged, and a pair ruled different is a constraint the clusters keep
 # write       a group of one is a parent copied from its child, no call; a group of two or
@@ -568,12 +568,15 @@ def load_sidecar(store):
 
 # %%
 JUDGE = """You are deciding whether two entities are the same person, place, thing or concept, or different
-things with a similar name or description. Each is described only by its instances, what one or more
-documents say of it, and nothing else. Say same when the descriptions are of one thing, even under
-different names, spellings or roles, and even when one document knows it under a name another never
-uses. Say different when they are different things that share a name or a word, or when nothing in the
-descriptions connects them. A disagreement in kind or role is not by itself a reason to say different;
-a contradiction in identity is.
+things with a similar name or description. Each is described only by what its document says. Under an
+entity, "also united with it" lists other documents' instances already judged to be the same thing as
+it; they are context for what the entity is, and the question is not about them. Say same only when
+the first entity and the second entity themselves are one thing, even under different names, spellings
+or roles, and even when one document knows it under a name the other never uses. Say different when
+they are different things that share a name or a word, when one is a part, a possession, a place or an
+event of the other, or when nothing in their own descriptions connects them. A disagreement in kind or
+role is not by itself a reason to say different; a contradiction in identity is. The reason must speak
+of the first entity and the second entity, not of the instances united with them.
 
 The first entity:
 {first}
@@ -676,7 +679,7 @@ def rare_jaccard(a, b, rarity):
 PAIRS = []            # every nominated pair with its scores and the judge's verdict
 NEAREST = 8           # nearest other-document children by vector nominated per child
 WORKERS = 8           # judge calls in flight at once; a batch pops twice that many pairs from the queue
-SIDE_SHOWN = 6        # instances of a cluster shown to the judge on each side, most facts first
+SIDE_SHOWN = 6        # instances shown per side: the nominated one, then up to five united with it, as context
 GROUP_SHOWN = 20      # instances shown to the call that writes a parent, most facts first
 
 
@@ -746,28 +749,25 @@ def score_pair(a, b, hows, sim):
             "identity": identity, "offered": int(offered), "verdict": None, "reason": None}
 
 
-def cluster_text(members, children, docs):
-    """A cluster as the judge sees it: its instances, most facts first, at most SIDE_SHOWN of them."""
-    members = sorted(members, key=most_facts_first(children))
-    shown = members[:SIDE_SHOWN]
-    parts = [f"instance {n + 1} of {len(members)}:\n{child_text(children[key], docs[key[0]])}" for n, key in enumerate(shown)]
-    if len(members) > len(shown):
-        parts.append(f"and {len(members) - len(shown)} more instances not shown")
-    return "\n\n".join(parts)
-
-
-def cluster_cast(members, children):
-    cast = set()
-    for key in members:
-        cast |= children[key]["cast"]
-    return cast
+def side_text(key, members, children, docs):
+    """One side as the judge sees it: the nominated instance itself, then the instances already
+    united with it as context, most facts first, at most SIDE_SHOWN of them."""
+    text = child_text(children[key], docs[key[0]])
+    others = sorted((m for m in members if m != key), key=most_facts_first(children))[:SIDE_SHOWN - 1]
+    if others:
+        text += "\nalso united with it, in other documents (context only):\n" + "\n".join(
+            f"  - {children[m]['name']} ({children[m]['kind']}) in {docs[m[0]]['title']}: "
+            + (children[m]["abstract"] or "; ".join(children[m]["facts"][:4]) or "")[:300] for m in others)
+    if len(members) - 1 > len(others):
+        text += f"\n  - and {len(members) - 1 - len(others)} more"
+    return text
 
 
 def judge_pair(pair, side_a, side_b, children, docs):
-    """One call over the two clusters' texts; the verdict written onto the pair that raised it.
-    Chat pairs go to Luna."""
-    prompt = JUDGE.format(first=cluster_text(side_a, children, docs), first_cast=cast_line(cluster_cast(side_a, children)),
-                          second=cluster_text(side_b, children, docs), second_cast=cast_line(cluster_cast(side_b, children)))
+    """One call about the pair's two instances, each shown with the instances already united with
+    it as context; the verdict written onto the pair. Chat pairs go to Luna."""
+    prompt = JUDGE.format(first=side_text(pair["a"], side_a, children, docs), first_cast=cast_line(children[pair["a"]]["cast"]),
+                          second=side_text(pair["b"], side_b, children, docs), second_cast=cast_line(children[pair["b"]]["cast"]))
     chat = any(children[key]["chat"] for key in side_a + side_b)
     reply = generate(prompt, {"same": None, "reason": str}, "judge", model=LUNA if chat else TERRA, effort="medium",
                      ctx={"a": f"{pair['a'][0][:8]}:{pair['a'][1]}", "b": f"{pair['b'][0][:8]}:{pair['b'][1]}",

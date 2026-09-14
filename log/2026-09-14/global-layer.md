@@ -137,3 +137,31 @@ Correction, the same afternoon: kernel version 6 was pushed from a stale copy of
 and holds the incremental attach, not the batch build; the line above naming it version 6 is
 wrong. Version 7, verified to hold the batch build (`cluster()` present), was pushed at 19:1x
 UTC and queued behind it; Justin was asked to cancel version 6 in the editor.
+
+## The first real run of the batch build (kernel version 7, 20:04 to 20:49 UTC)
+
+45 minutes, $2.55: 2,138 Terra judge calls ($2.51, 1.7 s each), 317 Luna judge calls (chat
+pairs), 54 parent-writer calls on Luna ($0.01, 9 s each); the rest of the time is the sidecar
+built twice on Kaggle's CPU. 9,300 pairs nominated, 3,050 offered, 2,455 judged: 113 same, 2,342
+different, 538 blocked by a constraint, 57 skipped. 1,282 parents, 54 with two or more
+instances, the largest ten.
+
+Right: Tip and Ozma united ("Tip is revealed at the end of The Marvelous Land of Oz to be
+Princess Ozma"), Princess Ozma and Ozma, Saw-Horse and Sawhorse, Glinda and Glinda the Good,
+the Cowardly Lion, Tin Woodman across all three books, Land of Oz, Scarecrow, L. Frank Baum,
+Target across three sessions, Amazon across three; Toto and Billina kept apart ("a small black
+dog" against "a yellow hen"); the five papers' Large Language Models and Retrieval-Augmented
+Generation each gathered ten instances.
+
+Wrong: 21 of the 54 clusters mix kinds beyond person and character. Every wrong "same" carries
+the same signature, a reason about a different member than the pair judged: General Jinjur +
+Ozma, "Tip is revealed to be Princess Ozma"; Wonderful Wizard + axe, "both identify the Tin
+Woodman's axe"; Dorothy + desert, "both refer to the deadly desert"; letters from children +
+heart, "the Tin Woodman's heart". Showing each side as its whole cluster let the judge answer
+about any two instances it found matching, and each such answer chained a cluster on. The
+parent writer then named Tip's and Dorothy's clusters "fictional setting".
+
+The fix, in version 8: the judge is asked about the pair's two instances, each shown first, with
+the instances already united with it listed underneath as context only, and the prompt says the
+question and the reason are about the two entities themselves; a part, a possession, a place or
+an event of a thing is named as different. The kinds rule stands: kind never blocks.
