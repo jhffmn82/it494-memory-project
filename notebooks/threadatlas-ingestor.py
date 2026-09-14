@@ -102,11 +102,17 @@
 #                 user says of their own life, the specifics the assistant gives, and a summary;
 #                 a fact is kept only if its quote is located in its own turn
 #     entities    one per name the reading used; the same name in two turns is one entity, no judge
+#     salience    one Luna call over the summary and every entity's facts: each entity's kind
+#                 (never thing) and whether it is major; the user is always major; minors get no node
 #     abstract    the reading's summary, no call
 #     adjudicate  nothing is consolidated: every fact is checked in one support call
 #     verify      as above
-#     write       the package
+#     write       the package; a minor's facts on the session's document node, as mentioned
 # ```
+#
+# Every document node, of every kind, also carries the document's own facts, written from the
+# export without a call: title, author, date, source class, and a chat's history. They have no
+# quote; their provenance is the document record, and the date names the extractor's date flags.
 #
 # ## On Kaggle
 #
@@ -138,7 +144,7 @@ from datetime import datetime, timezone
 from contextlib import redirect_stdout
 from pathlib import Path
 
-INGESTOR = "threadatlas-ingestor 1.7"
+INGESTOR = "threadatlas-ingestor 1.8"
 KAGGLE_EXPORTS = (Path("/kaggle/input/datasets/jhffmn/it494-threadatlas-step0"), Path("/kaggle/input/it494-threadatlas-step0"))
 LOCAL_EXPORT = Path("data/export")
 KAGGLE_OUT, LOCAL_OUT = Path("/kaggle/working/packages"), Path("data/packages")
@@ -280,7 +286,7 @@ import urllib.error
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor
 
-LUNA = "gpt-5.6-luna"                      # derive, a chat's one reading, support checks, corrections
+LUNA = "gpt-5.6-luna"                      # derive, a chat's reading and salience, support checks, corrections
 TERRA = "gpt-5.6-terra"                    # judge, folds, adjudication
 SERVICE_TIER = "flex"                      # the same models at half price, slower, sometimes refused (tried 09-11)
 PRICE = {"flex": {LUNA: (0.10, 0.60), TERRA: (1.00, 6.00)},       # $ per million tokens in, out,
@@ -455,7 +461,7 @@ def generate(prompt, schema, stage, model=LUNA, effort="low", ctx=None):
     return None
 
 
-print(f"models {LUNA} (derive, and a chat's one reading), {TERRA} (judge, folds, adjudication);"
+print(f"models {LUNA} (derive, and a chat's reading and salience), {TERRA} (judge, folds, adjudication);"
       f" {SERVICE_TIER} tier; key {'present' if KEY else 'MISSING'}")
 
 # %% [markdown]
@@ -977,6 +983,24 @@ Return JSON {{"summary": "...", "facts": [{{"turn", "subject", "predicate", "obj
 - valid_from: an ISO date (YYYY, YYYY-MM or YYYY-MM-DD) only when the quote itself states when the fact began; otherwise null. Never infer a date.
 - each fact other than a stated fact is atomic: one attribute or one relationship"""
 
+
+SALIENCE_SCHEMA = {"type": "object", "required": ["entities"], "properties": {"entities": {"type": "array"}}}
+
+
+def salience_prompt(summary, listing):
+    return f"""Below is one conversation between a user and an assistant, as its summary and the facts read from it, grouped under the entity each fact is about. The record is the user's memory.
+
+For each entity, give its kind and its salience:
+- kind: one lowercase word for what sort of thing it is, such as person, place, organisation, store, product, work, event or project; never thing
+- salience: "major" for something worth finding again in a later conversation: a named person, place, organisation, store, product, work, event or project, or a specific thing the user owns, plans, attends or returns to; "minor" for the scaffolding of this one conversation: a category, a section of the assistant's answer, one option among several, a step in a list, an abstract topic. When in doubt, minor.
+
+Return JSON {{"entities": [{{"name", "kind", "salience"}}]}}, one for each entity below, its name exactly as written.
+
+SUMMARY: {summary}
+
+ENTITIES:
+{chr(10).join(listing)}"""
+
 # %% [markdown]
 # ## Block 6: one unit
 #
@@ -1225,7 +1249,7 @@ def read_session(doc, units, ctx):
                                    "quote": f["quote"][:160], "category": "duplicate"} for f in repeated]
         for f in rec["facts"]:
             f["object_is_entity"] = f["object"] in subjects
-        rec["entities"] = [{"name": n, "named": True, "kind": "person" if n == "user" else "thing", "major": True,
+        rec["entities"] = [{"name": n, "named": True, "kind": "person" if n == "user" else None, "major": n == "user",
                             "forms": [n], "mentions": 1} for n in dict.fromkeys(f["subject"] for f in rec["facts"])]
         rec["empty"] = not rec["facts"]
     return [records[u["unit_id"]] for u in units], " ".join(summaries) or None
@@ -1571,6 +1595,41 @@ def session_entities(records):
     stats = {"locals": len(locals_), "candidate_pairs": 0, "judged_pairs": 0, "judge_calls": 0, "judge_rounds": 0, "judge_misnumbered": 0}
     return cluster_entities(locals_, clusters), ledger, stats
 
+
+def mark_salience(records, summary, ctx):
+    """A chat's entities, after the reading: one Luna call gives each a kind and a salience, with
+    the summary and every fact about it in view. A kind of thing is refused and left null; an entity
+    the reply leaves out is minor; the user stays a major person. Returns the names whose kind was
+    refused."""
+    facts_of = {}
+    for r in records:
+        for f in r["facts"]:
+            if f["subject"] != "user":
+                facts_of.setdefault(f["subject"], []).append(f)
+    if not facts_of:
+        return []
+    listing = []
+    for name, facts in facts_of.items():
+        listing.append(name)
+        listing += [f"  - {fact_text(f)} {quoted(f)}" for f in facts]
+    reply = generate(salience_prompt(summary or "(none)", listing), SALIENCE_SCHEMA, "salience", model=LUNA, ctx=ctx)
+    marks = {}
+    for item in (reply or {}).get("entities", []):
+        if isinstance(item, dict) and isinstance(item.get("name"), str):
+            marks.setdefault(norm(item["name"]), item)
+    refused = set()
+    for r in records:
+        for e in r["entities"]:
+            if e["name"] == "user":
+                continue
+            item = marks.get(norm(e["name"]), {})
+            kind = str(item.get("kind") or "").strip().casefold()
+            if kind == "thing":
+                refused.add(e["name"])
+            e["kind"] = kind if kind and kind != "thing" else None
+            e["major"] = str(item.get("salience") or "").strip().casefold() == "major"
+    return sorted(refused)
+
 # %% [markdown]
 # ## Block 8: fold, adjudicate, verify
 #
@@ -1674,17 +1733,23 @@ def fold_document(records, entities, ctx, light=False, chat=False):
 
 
 def landings(records, folded):
-    """Where every kept fact lands: {major index: [(fact, direction, unit label)]}. A fact whose
-    subject is a major lands forward; one that points AT a major lands under it as inverse, with
-    the lesser thing's name as its value. A fact between two lesser things is not stored."""
+    """Where every kept fact lands: {major index: [(fact, direction, unit label)], "doc": [...]}. A
+    fact whose subject is a major lands forward. In a chat, a fact whose subject is minor lands on
+    the session's document node as mentioned (09-14). Otherwise one that points AT a major lands
+    under it as inverse, with the lesser thing's name as its value, and a fact between two lesser
+    things is not stored."""
     entity_of = {(ui, local_name): e["index"] for e in folded["majors"] + folded["minors"] for ui, local_name in e["members"]}
     landed = {e["index"]: [] for e in folded["majors"]}
+    landed["doc"] = []
+    chat = any(r["kind"] in TURNS for r in records)
     for r in records:
         for f in r["facts"]:
             subject = entity_of.get((r["position"], f["subject"]))
             obj = entity_of.get((r["position"], f["object"])) if f["object_is_entity"] else None
             if subject in landed:
                 landed[subject].append((f, "forward", r["label"]))
+            elif chat and subject is not None:
+                landed["doc"].append((f, "mentioned", r["label"]))
             elif obj in landed:
                 landed[obj].append((f, "inverse", r["label"]))
     return landed
@@ -1765,24 +1830,30 @@ def adjudicate(records, folded, ctx, watch=False, light=False, chat=False):
                   f" {ADJUDICATE_MIN_FACTS} facts stand, checked together after")
         in_parallel(adjudicate_one, to_judge)
 
-    # the facts left to stand are checked in one pass over the whole document (ruling of 09-08)
+    # the facts left to stand are checked in one pass over the whole document (ruling of 09-08),
+    # a chat's mentioned facts among them
     facts = [(f, f["fact_id"]) for e in standing for f, direction, label in landed[e["index"]]]
+    if landed["doc"]:
+        out["doc"] = {"facts": [], "attributes": [], "contradictions": [], "unsupported": [], "dropped": 0,
+                      "raw": len(landed["doc"]), "skipped": "mentioned on the session: the facts stand as said, verified in one pass",
+                      "rejected": False, "support_calls": 0}
+        facts += [(f, f["fact_id"]) for f, direction, label in landed["doc"]]
     if facts:
         if watch:
             print(f"support: {len(facts)} facts of {len(standing)} entities left to stand, one pass on {LUNA}")
         flagged, refused, calls = unsupported_of(facts, ctx)
         aside = set(flagged)
-        for e in standing:
-            out[e["index"]]["rejected"] = refused
-            out[e["index"]]["unsupported"] = [f["fact_id"] for f, direction, label in landed[e["index"]] if f["fact_id"] in aside]
-        out[standing[0]["index"]]["support_calls"] = calls          # the one pass, counted once
+        for key in [e["index"] for e in standing] + (["doc"] if landed["doc"] else []):
+            out[key]["rejected"] = refused
+            out[key]["unsupported"] = [f["fact_id"] for f, direction, label in landed[key] if f["fact_id"] in aside]
+        out[standing[0]["index"] if standing else "doc"]["support_calls"] = calls          # the one pass, counted once
     return out
 
 
 def flagged_facts(records, folded, adjudicated):
     """{fact id: the raw fact} for every fact a check set aside."""
     landed = landings(records, folded)
-    by_id = {f["fact_id"]: f for e in folded["majors"] for f, direction, label in landed[e["index"]]}
+    by_id = {f["fact_id"]: f for key in landed for f, direction, label in landed[key]}
     flagged = {x for result in adjudicated.values() for x in result["unsupported"]}
     return {fid: by_id[fid] for fid in flagged if fid in by_id}
 
@@ -1931,8 +2002,10 @@ def verify(records, folded, adjudicated, ctx, watch=False):
 #
 # `write_package` writes one JSONL file per document, every line one record with a `record`
 # field, ending in the completion record. Minors have no node. A fact lands on the major that is
-# its subject (forward), or on the major a lesser thing's fact points at (inverse); a fact
-# between two lesser things is not stored (ruling of 09-11). Mentions are counted, not written
+# its subject (forward). In a chat, a minor's fact lands on the session's document node as
+# mentioned (09-14); elsewhere it lands on the major it points at (inverse), and a fact between
+# two lesser things is not stored (ruling of 09-11). The document node carries the document's own
+# facts (title, author, date, source class, a chat's history), which have no quote. Mentions are counted, not written
 # (ruling of 09-08). Node ids are `<doc tag>:doc` and `<doc tag>:n<index>`, the index being the
 # entity's number in reconcile's order. `completed(doc)` says whether a finished package over
 # these units exists, whatever version wrote it, so a rerun skips it.
@@ -2026,9 +2099,9 @@ def fact_lines(doc, records, folded, node_of, corrections, dumped_ids):
     position_of = {u["unit_id"]: u["position"] for u in doc["units"]}
     when_of = {u["unit_id"]: u.get("occurred_at") for u in doc["units"]}
     landed, facts, dumped = landings(records, folded), [], []
-    for e in folded["majors"]:
-        nid = node_id(doc, e)
-        for f, direction, label in landed[e["index"]]:
+    targets = [(node_id(doc, e), landed[e["index"]]) for e in folded["majors"]] + [(f"{doc_tag(doc)}:doc", landed["doc"])]
+    for nid, landed_here in targets:
+        for f, direction, label in landed_here:
             if f["fact_id"] in dumped_ids:
                 dumped.append({"record": "rejection", "stage": "verify", "unit_id": f["unit_id"], "category": "unsupported",
                                "subject": f["subject"], "predicate": f["predicate"], "object": f["object"], "quote": f["quote"],
@@ -2055,6 +2128,30 @@ def fact_lines(doc, records, folded, node_of, corrections, dumped_ids):
                           "provenance": {"ingestor": INGESTOR, "matched_by": f["matched_by"], "subject_name": f["subject"],
                                          "corrected_from": {k: f[k] for k in ("predicate", "object", "qualifiers")} if fix else None}})
     return facts, dumped
+
+
+def document_facts(doc, doc_node):
+    """The document's own facts on its node, from the export and without a model call: title, author,
+    date, source class, and for a chat its history (the folder it sits in). They carry no quote;
+    provenance names the document record, and the date carries the extractor's date flags (09-14)."""
+    tag, chat = doc_tag(doc), doc["source_uri"].startswith("chats/")
+    values = [("has_title", doc.get("title"), None), ("has_author", doc.get("author"), None),
+              ("has_date", doc.get("occurred_at"), [x for x in doc.get("flags", []) if x.startswith("date:")]),
+              ("has_source_class", doc.get("source_class"), None),
+              ("belongs_to_history", doc["source_uri"].split("/")[-2] if chat else None, None)]
+    facts = []
+    for predicate, value, flags in values:
+        if not value:
+            continue
+        provenance = {"ingestor": INGESTOR, "from": "document record", "matched_by": None,
+                      "subject_name": doc.get("title") or doc["source_uri"], "corrected_from": None}
+        if flags:
+            provenance["flags"] = flags
+        facts.append({"record": "fact", "fact_id": f"{tag}:doc:f{len(facts) + 1}", "subject": doc_node, "predicate": predicate,
+                      "object": str(value), "object_is_node": False, "direction": "forward", "qualifiers": None, "rank": "active",
+                      "unit_id": None, "quote": None, "quote_start": None, "quote_end": None, "valid_from": None,
+                      "occurred_at": doc.get("occurred_at"), "tier": None, "author": None, "provenance": provenance})
+    return facts
 
 
 def package_counts(records, entities, folded, adjudicated, excluded, lines, stored, dumped, flagged, corrections):
@@ -2096,11 +2193,14 @@ def write_package(doc, records, entities, folded, adjudicated, ledger, candidate
                "updated_at": written_at} for a in folded["entity_abstracts"]]
     lines += [{"record": "ledger", **entry} for entry in ledger] + [{"record": "candidate", **entry} for entry in candidates]
     facts, dumped = fact_lines(doc, records, folded, node_of, corrections, dumped_ids)
-    lines += facts + dumped
+    own = document_facts(doc, doc_node)
+    lines += own + facts + dumped
     for r in records:
         lines += [{"record": "rejection", "stage": "facts", "unit_id": r["unit_id"], **x} for x in r["rejected_facts"]]
         lines += [{"record": "rejection", "stage": "entities", "unit_id": r["unit_id"], **x} for x in r["dropped_entities"]]
     counts = package_counts(records, entities, folded, adjudicated, excluded, lines, len(facts), dumped, flagged, corrections)
+    counts["document_facts"] = len(own)
+    counts["facts_mentioned"] = sum(1 for f in facts if f["direction"] == "mentioned")
     lines.append({"record": "completion", "doc_id": doc["doc_id"], "ingestor": INGESTOR, "counts": counts, "stats": stats,
                   "empty": not facts and counts["cells"] == 0, "excluded": excluded, "demoted": folded["demoted"]})
     path.write_text("\n".join(json.dumps(l, ensure_ascii=False) for l in lines) + "\n", encoding="utf-8", newline="\n")
@@ -2243,7 +2343,9 @@ def ingest(doc, ctx=None):
     if chat:                                    # a chat: every turn in one reading, each fact tied to its turn
         turns = [{**u, "text": doc["text"][u["start"]:u["end"]]} for u in kept]
         records, summary = read_session(doc, turns, ctx)
+        refused_kinds = mark_salience(records, summary, ctx)
         entities, ledger, stats = session_entities(records)
+        stats["kinds_refused"] = refused_kinds
         candidates = []
     else:
         # the units, each on its own, WORKERS at a time, landing in reading order
