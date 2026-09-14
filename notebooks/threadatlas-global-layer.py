@@ -27,9 +27,9 @@
 #
 # | table | fields | meaning |
 # |---|---|---|
-# | `parent` | `parent_id`, `name`, `kind`, `aliases`, `summary`, `version`, `founded_by` | a global entity: a name and kind the judge chose from its instances, the union of their aliases, one summary line per instance tagged with the instance's id, how many times it was rewritten, the instance that founded it |
-# | `instance_of` | `doc_id`, `node_id`, `parent_id`, `pass`, `reason`, `scores` | the up-edge from a document's entity to its parent, owned by the document: which pass drew it, the judge's reason (or `founded`), and the scores of the offer that won |
-# | `offer` | `doc_id`, `node_id`, `parent_id`, `parent_version`, `pass`, `lexical`, `vector`, `cast`, `cast_rare`, `identity`, `offered`, `verdict`, `reason` | every candidate parent scored for a child: the four signals, whether it cleared the floor, and the judge's verdict on it; the attachment replays from this table under any subset of the signals |
+# | `parent` | `parent_id`, `name`, `kind`, `aliases`, `summary`, `instances`, `first` | a global entity: a name and kind chosen from its instances, the union of their aliases, one summary line per instance tagged with the instance's id, how many instances it has, the first of them |
+# | `instance_of` | `doc_id`, `node_id`, `parent_id`, `reason`, `scores` | the up-edge from a document's entity to its parent, owned by the document: the judge's reason on the pair that joined it (or `alone`), and that pair's scores |
+# | `pair` | `doc_a`, `node_a`, `doc_b`, `node_b`, `lexical`, `vector`, `cast`, `cast_rare`, `identity`, `offered`, `verdict`, `reason` | every nominated pair of children: the four signals, whether it cleared the floor, and the judge's verdict; the grouping replays from this table under any subset of the signals |
 # | `vec_header`, `vec_row` | `model`, `dimension`, `built_at`; `row`, `record`, `doc_id`, `record_id`, `ordinal`, `text` | the sidecar's map: what each row of the array is |
 #
 # FTS5 tables sit over abstracts, cells and fact quotes when the SQLite build has FTS5.
@@ -46,29 +46,35 @@
 # ```
 # load        every Step 1 record into the store; a fact's quote must slice from its
 #             document's text at its offsets, or the load stops; FTS5 over the text fields
-# embed       one vector per fact line and per narrative sentence
-# for each document, by date then source_uri (a document arriving out of order attaches the
-#   same way, later):
-#   for each entity of the document, by first unit, those with an is_a link to a sibling last:
-#     score   every live parent: lexical (name or alias match), vector (cosine of the child's
-#             text against the parent's), cast (overlap of the names each appears beside),
-#             identity (the document says in an is_a fact that this child is one of the
-#             parent's children); a parent is OFFERED when a named signal clears its floor;
-#             the top K offered and a few below the floor are logged
-#     judge   one call over texts only (no scores): attach to one offered parent, or none
-#     attach  the parent gains the child, its aliases and its cast; one call rewrites the
-#             parent's name and kind (a name no child carries is refused) and writes the line
-#             for this document; the parent's vector is refreshed
-#     found   a child nothing was offered to, or the judge kept apart, founds a parent as a
-#             copy of itself, with no call
-# second pass every parent still alone is offered the full set once under the same rule; an
-#             attach moves the edge and retires the one-child parent
+# embed       one vector per fact line and per narrative sentence, and one per child (an
+#             entity node that is not the document itself and not the user of a chat)
+# nominate    candidate pairs of children, each once: the NEAREST other-document children by
+#             vector (block matrix products, never a scan in Python), every two children
+#             sharing a name or a naming alias (by index), and every is_a link between two
+#             children of one document; each pair scored on four signals: lexical (a name or
+#             alias match), vector (cosine of the two texts), cast (overlap of the names each
+#             appears beside), identity (the document says one is the other); a pair is
+#             OFFERED when a named signal clears its floor
+# cluster     bottom up, as the ingestor reconciles a document: every child starts as its own
+#             cluster in the pool; every offered pair goes into a heap by strength (an is_a
+#             link first, with no floor; then a name match; then the cosine); pop a batch,
+#             skip a pair whose children already share a cluster and a pair between two
+#             clusters that hold any pair ruled different, judge the rest in parallel (one
+#             call over the two clusters' instances and nothing else: same or different, with
+#             a reason), unite the pairs ruled same and put the clusters back in the pool for
+#             the pairs still queued; until no valid pair remains; every pair and verdict is
+#             logged, and a pair ruled different is a constraint the clusters keep
+# write       a group of one is a parent copied from its child, no call; a group of two or
+#             more gets one call that picks the name and kind from what the instances carry
+#             (a name no instance carries is refused) and writes one line per instance
 # embed       the parents' summaries join the sidecar
 # ```
 #
-# Two children of one document are never offered to each other; both may land under the
-# same parent. The user of a chat is never a child. Every call is logged with its cost, and
-# the run stops at a spending limit.
+# The user of a chat is never a child. Grouping is transitive, so one wrong "same" chains
+# two entities into one parent; only judged pairs join, and the size of every group is in the
+# receipt. Every call is logged with its cost, and the run stops at a spending limit. A
+# document arriving later (the nightly pull) attaches through the same nomination against
+# the parents that exist; that path is the next build.
 #
 # ## Running it
 #
@@ -81,7 +87,7 @@
 #
 # Where the inputs are (Kaggle's mount, or the environment), where the outputs go, and the
 # constants the pipeline turns on. The signals named in `SIGNALS` are the arm: the ones that
-# may put a parent in front of the judge. Every signal is logged whatever the arm.
+# may put a pair in front of the judge. Every signal is logged whatever the arm.
 
 # %%
 import json
@@ -99,12 +105,10 @@ KAGGLE_STEP1 = (Path("/kaggle/input/datasets/jhffmn/it494-threadatlas-step1"), P
 KAGGLE_EXPORT = (Path("/kaggle/input/datasets/jhffmn/it494-threadatlas-step0"), Path("/kaggle/input/it494-threadatlas-step0"))
 KAGGLE_OUT, LOCAL_OUT = Path("/kaggle/working"), Path("data/global")
 
-K = 5                      # parents offered to the judge at most, strongest first
-VECTOR_FLOOR = 0.75        # cosine over bge-small at which a parent is offered on the vector alone: loose, the judge is the gate
-BELOW_FLOOR_LOGGED = 3     # candidates under the floor logged per child, so the floor can be tuned
-FACTS_SHOWN = 12           # facts of a child shown to the judge and the rewrite
+VECTOR_FLOOR = 0.75        # cosine over bge-small at which a pair is offered on the vector alone: loose, the judge is the gate
+FACTS_SHOWN = 12           # facts of a child shown to the judge and the parent writer
 SIGNALS = set(os.environ.get("SIGNALS", "lexical,vector,cast,identity").split(","))
-SPEND_STOP = float(os.environ.get("SPEND_STOP", "10"))
+SPEND_STOP = float(os.environ.get("SPEND_STOP", "25"))     # the test set judges about 2,700 pairs, most on Terra: near $9
 
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
@@ -169,16 +173,18 @@ def now():
 
 # %%
 import http.client
+import threading
 import urllib.error
 import urllib.request
 
-LUNA = "gpt-5.6-luna"                   # the rewrite, and the judge for chat children
-TERRA = "gpt-5.6-terra"                 # the judge for book and paper children
+LUNA = "gpt-5.6-luna"                   # the parent writer, and the judge when a chat is on either side
+TERRA = "gpt-5.6-terra"                 # the judge for pairs of book and paper children
 SERVICE_TIER = "flex"
 PRICE = {"flex": {LUNA: (0.10, 0.60), TERRA: (1.00, 6.00)},          # $ per million tokens in, out
          "default": {LUNA: (0.20, 1.20), TERRA: (2.00, 12.00)}}
 CALLS = OUT / "calls.jsonl"
 SPENT = 0.0
+LOG_LOCK = threading.Lock()
 
 KEY = os.environ.get("OPENAI_API_KEY")
 if not KEY:
@@ -195,9 +201,10 @@ class SpendStop(Exception):
 
 def log_call(row):
     global SPENT
-    SPENT += row.get("cost", 0.0)
-    with CALLS.open("a", encoding="utf-8") as f:
-        f.write(json.dumps(row, ensure_ascii=False) + "\n")
+    with LOG_LOCK:                                    # calls run in parallel
+        SPENT += row.get("cost", 0.0)
+        with CALLS.open("a", encoding="utf-8") as f:
+            f.write(json.dumps(row, ensure_ascii=False) + "\n")
 
 
 def post(payload):
@@ -276,7 +283,7 @@ def generate(prompt, schema, stage, model=LUNA, effort="low", ctx=None):
     return None
 
 
-print(f"models {LUNA} (rewrite, chat judge), {TERRA} (book and paper judge); {SERVICE_TIER} tier; key {'present' if KEY else 'MISSING'}")
+print(f"models {LUNA} (parent writer, chat judge), {TERRA} (book and paper judge); {SERVICE_TIER} tier; key {'present' if KEY else 'MISSING'}")
 
 # %% [markdown]
 # ## Block 3: connection test
@@ -297,7 +304,7 @@ if __name__ == "__main__":
 # Every Step 1 record into SQLite, one table per record type with the same fields (`flags`,
 # `provenance`, `units` and the other nested values as JSON text), the documents' text from
 # Step 0 stored once, every quoted fact re-sliced from it at load and the load stopped on the
-# first mismatch. The parent, up-edge, offer and sidecar tables are declared here and filled
+# first mismatch. The parent, up-edge, pair and sidecar tables are declared here and filled
 # by the later blocks, so the whole schema is in one place.
 
 # %%
@@ -328,11 +335,11 @@ create table candidate (doc_id text, a text, a_unit integer, b text, b_unit inte
 create table completion (doc_id text primary key, row text);
 
 create table parent (parent_id integer primary key, name text, kind text, aliases text, summary text,
-    version integer, founded_by text);
-create table instance_of (doc_id text, node_id text, parent_id integer, pass integer, reason text, scores text,
+    instances integer, first text);
+create table instance_of (doc_id text, node_id text, parent_id integer, reason text, scores text,
     primary key (doc_id, node_id));
-create table offer (doc_id text, node_id text, parent_id integer, parent_version integer, pass integer,
-    lexical real, vector real, cast real, cast_rare real, identity integer, offered integer, verdict text, reason text);
+create table pair (doc_a text, node_a text, doc_b text, node_b text, lexical real, vector real, cast real,
+    cast_rare real, identity integer, offered integer, verdict text, reason text);
 
 create table vec_header (model text, dimension integer, built_at text);
 create table vec_row (row integer primary key, record text, doc_id text, record_id text, ordinal integer, text text);
@@ -550,47 +557,47 @@ def load_sidecar(store):
 # %% [markdown]
 # ## Block 6: the global layer
 #
-# The corpus is read once: every child (an entity node that is not the document itself and
-# not the user of a chat) with its name, aliases, kind, summary or facts, the cast it shares
-# units with, and its is_a links to siblings. Parents live in memory during the build and are
-# written at the end. The judge reads texts and never scores; the rewrite may only pick a name
-# a child carries. Prompts state rules, never cases.
+# The corpus is read once: every child with its name, aliases, kind, summary or facts, the
+# cast it shares units with, and its is_a links to siblings. Then, bottom up: every child is
+# embedded in one batch, the candidate pairs are nominated by index and by matrix product and
+# queued by strength, batches of them are judged in parallel and united until no valid pair
+# remains, and each cluster becomes a parent, written by one call when it has two or more
+# instances. The judge reads
+# texts and never scores; the writer may only pick a name an instance carries. Prompts state
+# rules, never cases.
 
 # %%
-JUDGE = """You are deciding whether an entity found in one document is an instance of a global entity that other
-documents have already established, or something else with a similar name. Both are described only by
-what their documents say. Attach when the two descriptions are of the same person, place, thing or
-concept, even under different names, spellings or roles, and even when one document knows it under a
-name the other never uses. Keep apart when they are different things that share a name or a word, or
-when nothing in the descriptions connects them. A disagreement in kind or role is not by itself a reason
-to keep apart; a contradiction in identity is.
+JUDGE = """You are deciding whether two entities are the same person, place, thing or concept, or different
+things with a similar name or description. Each is described only by its instances, what one or more
+documents say of it, and nothing else. Say same when the descriptions are of one thing, even under
+different names, spellings or roles, and even when one document knows it under a name another never
+uses. Say different when they are different things that share a name or a word, or when nothing in the
+descriptions connects them. A disagreement in kind or role is not by itself a reason to say different;
+a contradiction in identity is.
 
-The entity from its document:
-{child}
-Appears beside: {child_cast}
+The first entity:
+{first}
+Appears beside: {first_cast}
 
-The candidates, numbered:
-{parents}
+The second entity:
+{second}
+Appears beside: {second_cast}
 
-Reply with a JSON object: {{"attach": <candidate number or null>, "reason": "<one sentence>"}}."""
+Reply with a JSON object: {{"same": true or false, "reason": "<one sentence>"}}."""
 
-REWRITE = """A global entity is described by the instances of it that documents hold. It has just gained a new
-instance. Rewrite its name and kind from all its instances, and write one line saying what part the new
-instance played in its document. The name must be one the instances actually use (a name or an alias
-listed below), the one a reader would look for first. The kind is one or two words. The line must say
-only what the new instance's description says, in the third person, naming the document.
+WRITE = """A global entity is described by its instances, the entities that documents hold of it. Below are the
+instances of one global entity, numbered. Give it a name and a kind, and write one line per instance
+saying what part that instance played in its document. The name must be one the instances actually use
+(a name or an alias listed below), the one a reader would look for first. The kind is one or two words.
+Each line says only what that instance's description says, in the third person, naming the document.
 
-The global entity as it stands:
-{parent}
+{instances}
 
-The new instance:
-{child}
-
-Reply with a JSON object: {{"name": "<name>", "kind": "<kind>", "line": "<one sentence>"}}."""
+Reply with a JSON object: {{"name": "<name>", "kind": "<kind>", "lines": [<{n} strings, one per instance, in order>]}}."""
 
 
 def read_corpus(db):
-    """docs (with their children in attach order), children, and each cast name's rarity."""
+    """docs (with their children), children, and each cast name's rarity."""
     docs = {r[0]: {"title": r[1], "source_uri": r[2], "occurred_at": r[3], "children": []}
             for r in db.execute("select doc_id, title, source_uri, occurred_at from document")}
     chats = {r[0] for r in db.execute("select distinct doc_id from unit where kind in ('user', 'assistant')")}
@@ -638,22 +645,11 @@ def read_corpus(db):
 
     for child in children.values():
         docs[child["doc_id"]]["children"].append(child)
-    for doc in docs.values():                                        # by first unit; linked children last
-        doc["children"].sort(key=child_order)
     return docs, children, rarity
 
 
-def child_order(child):
-    return (1 if child["links"] else 0, child["first_unit"], child["node_id"])
-
-
-def doc_order(item):
-    doc_id, doc = item
-    return (first_year(doc["occurred_at"]), doc["source_uri"])
-
-
 def child_text(child, doc):
-    """What the judge, the rewrite and the vector see of a child."""
+    """What the judge, the parent writer and the vector see of a child."""
     lines = [f"name: {child['name']}", f"kind: {child['kind']}"]
     if child["aliases"]:
         lines.append("also called: " + "; ".join(child["aliases"][:15]))
@@ -676,15 +672,12 @@ def rare_jaccard(a, b, rarity):
     return sum(rarity.get(name, 0.0) for name in a & b) / either if either else 0.0
 
 
-# the build's state: parents in memory, the edges drawn, the offers logged
-PARENTS = []          # dicts: name, kind, aliases, summary [(child key, line)], children [keys], cast, vec, version, alive
-EDGES = {}            # child key -> parent
-OFFERS = []           # every logged offer row
-
-
-def parent_text(p):
-    lines = [f"name: {p['name']}", f"kind: {p['kind']}", "also called: " + "; ".join(sorted(p["aliases"])[:20])]
-    return "\n".join(lines + [line for (_, line) in p["summary"]])
+# the build's state: every child's vector, the pairs judged, the groups that become parents
+PAIRS = []            # every nominated pair with its scores and the judge's verdict
+NEAREST = 8           # nearest other-document children by vector nominated per child
+WORKERS = 8           # judge calls in flight at once; a batch pops twice that many pairs from the queue
+SIDE_SHOWN = 6        # instances of a cluster shown to the judge on each side, most facts first
+GROUP_SHOWN = 20      # instances shown to the call that writes a parent, most facts first
 
 
 def proper(alias):
@@ -696,13 +689,9 @@ def proper(alias):
     return any(w[:1].isupper() for w in words)
 
 
-def lexical_names(name, aliases):
+def lexical_names(child):
     """The forms a lexical match may fire on: the name, and the aliases that are names."""
-    return {fold(name)} | {fold(a) for a in aliases if proper(a)}
-
-
-def parent_names(p):
-    return lexical_names(p["name"], p["aliases"])
+    return {fold(child["name"])} | {fold(a) for a in child["aliases"] if proper(a)}
 
 
 def cast_line(names):
@@ -710,152 +699,268 @@ def cast_line(names):
     return ", ".join(sorted(names)[:25]) if "cast" in SIGNALS else "(not shown)"
 
 
-def score(child, doc, vec, pass_no, exclude=None):
-    """Every live parent scored for a child; the offered ones (at most K) and a few below the floor logged."""
+def nominate(keys, children, vectors):
+    """The candidate pairs, each once: the NEAREST other-document children by vector (block
+    matrix products over every child, never a scan in Python), every child sharing a name or a
+    naming alias (by index), and every is_a link between two children of one document."""
     import numpy
-    live = [p for p in PARENTS if p["alive"] and p is not exclude]
-    if not live:
-        return []
-    sims = numpy.stack([p["vec"] for p in live]) @ vec
-    child_names = lexical_names(child["name"], child["aliases"])
-    text = fold(child_text(child, doc))
-    rows = []
-    for p, sim in zip(live, sims):
-        names = parent_names(p)
-        lexical = 1.0 if child_names & names else (0.5 if any(n and n in text for n in names) else 0.0)
-        linked = any(key[0] == child["doc_id"] and key[1] in child["links"] for key in p["children"])
-        offered = (("lexical" in SIGNALS and lexical == 1.0) or ("vector" in SIGNALS and sim >= VECTOR_FLOOR)
-                   or ("identity" in SIGNALS and linked))
-        rows.append({"doc_id": child["doc_id"], "node_id": child["node_id"], "parent": p, "parent_version": p["version"],
-                     "pass": pass_no, "lexical": lexical, "vector": float(sim), "cast": jaccard(child["cast"], p["cast"]),
-                     "cast_rare": rare_jaccard(child["cast"], p["cast"], RARITY), "identity": int(linked),
-                     "offered": int(offered), "verdict": None, "reason": None})
-    rows.sort(key=strongest_first)
-    offered = [r for r in rows if r["offered"]][:K]
-    OFFERS.extend(offered + [r for r in rows if not r["offered"]][:BELOW_FLOOR_LOGGED])
-    return offered
+    index = {key: i for i, key in enumerate(keys)}
+    docs_of = numpy.array([hash(key[0]) for key in keys])
+    pairs = {}
+
+    def add(i, j, how):
+        a, b = (i, j) if i < j else (j, i)
+        pairs.setdefault((a, b), set()).add(how)
+
+    for start in range(0, len(keys), 2048):
+        sims = vectors[start:start + 2048] @ vectors.T
+        sims[docs_of[start:start + 2048, None] == docs_of[None, :]] = -1.0       # never two of one document by vector
+        for row, i in enumerate(range(start, min(start + 2048, len(keys)))):
+            for j in numpy.argpartition(-sims[row], NEAREST)[:NEAREST]:
+                add(i, int(j), "vector")
+    by_name = {}
+    for i, key in enumerate(keys):
+        for name in lexical_names(children[key]):
+            by_name.setdefault(name, []).append(i)
+    for name, members in by_name.items():
+        for i in members:
+            for j in members:
+                if i < j and keys[i][0] != keys[j][0]:
+                    add(i, j, "lexical")
+    for i, key in enumerate(keys):
+        for node_id in children[key]["links"]:
+            j = index.get((key[0], node_id))
+            if j is not None:
+                add(i, j, "identity")
+    return pairs
 
 
-def strongest_first(row):
-    return (not row["offered"], -row["vector"])
+def score_pair(a, b, hows, sim):
+    """One pair on every signal, and whether a named signal puts it in front of the judge."""
+    lexical = 1.0 if lexical_names(a) & lexical_names(b) else 0.0
+    identity = int("identity" in hows)
+    offered = (("lexical" in SIGNALS and lexical == 1.0) or ("vector" in SIGNALS and sim >= VECTOR_FLOOR)
+               or ("identity" in SIGNALS and identity))
+    return {"a": (a["doc_id"], a["node_id"]), "b": (b["doc_id"], b["node_id"]), "lexical": lexical, "vector": sim,
+            "cast": jaccard(a["cast"], b["cast"]), "cast_rare": rare_jaccard(a["cast"], b["cast"], RARITY),
+            "identity": identity, "offered": int(offered), "verdict": None, "reason": None}
 
 
-def judge(child, doc, offered, pass_no):
-    """One call over texts; the verdict is written onto the offered rows. The parent joined, or None."""
-    listing = "\n".join(f"[{n + 1}]\n{parent_text(r['parent'])}\nAppears beside: {cast_line(r['parent']['cast'])}\n"
-                        for n, r in enumerate(offered))
-    prompt = JUDGE.format(child=child_text(child, doc), child_cast=cast_line(child["cast"]), parents=listing)
-    reply = generate(prompt, {"attach": None, "reason": str}, "judge", model=LUNA if child["chat"] else TERRA,
-                     effort="medium", ctx={"doc": child["doc_id"][:8], "node": child["node_id"], "pass": pass_no})
-    choice = reply.get("attach") if reply else None
-    if isinstance(choice, str) and choice.strip().isdigit():
-        choice = int(choice)
-    picked = offered[choice - 1]["parent"] if isinstance(choice, int) and 1 <= choice <= len(offered) else None
-    for r in offered:
-        r["verdict"] = "attach" if r["parent"] is picked else "apart"
-        r["reason"] = reply.get("reason") if reply else "no reply"
-    return picked
+def cluster_text(members, children, docs):
+    """A cluster as the judge sees it: its instances, most facts first, at most SIDE_SHOWN of them."""
+    members = sorted(members, key=most_facts_first(children))
+    shown = members[:SIDE_SHOWN]
+    parts = [f"instance {n + 1} of {len(members)}:\n{child_text(children[key], docs[key[0]])}" for n, key in enumerate(shown)]
+    if len(members) > len(shown):
+        parts.append(f"and {len(members) - len(shown)} more instances not shown")
+    return "\n\n".join(parts)
 
 
-def found(child, doc, vec):
-    """A new parent as a copy of the child; no call."""
-    key = (child["doc_id"], child["node_id"])
-    line = f"In {doc['title']}: " + (child["abstract"] or "; ".join(child["facts"][:FACTS_SHOWN]) or child["name"])
-    p = {"name": child["name"], "kind": child["kind"], "aliases": {child["name"], *child["aliases"]},
-         "summary": [(key, line)], "children": [key], "cast": set(child["cast"]), "vec": vec, "version": 1, "alive": True}
-    PARENTS.append(p)
-    EDGES[key] = p
-    return p
+def cluster_cast(members, children):
+    cast = set()
+    for key in members:
+        cast |= children[key]["cast"]
+    return cast
 
 
-def attach(child, doc, p):
-    """The parent gains the child; one call rewrites its name, kind and the line for this document."""
-    key = (child["doc_id"], child["node_id"])
-    prompt = REWRITE.format(parent=parent_text(p), child=child_text(child, doc) + f"\ndocument: {doc['title']}")
-    reply = generate(prompt, {"name": str, "kind": str, "line": str}, "rewrite", effort="low",
-                     ctx={"doc": child["doc_id"][:8], "node": child["node_id"], "parent": PARENTS.index(p)})
-    p["children"].append(key)
-    p["aliases"] |= {child["name"], *child["aliases"]}
-    p["cast"] |= child["cast"]
-    if reply and fold(reply["name"]) in parent_names(p):            # a name no child carries is refused
-        p["name"] = reply["name"]
-    if reply and reply.get("kind"):
-        p["kind"] = reply["kind"]
-    p["summary"].append((key, reply["line"] if reply and reply.get("line") else f"In {doc['title']}: {child['name']}."))
-    p["version"] += 1
-    p["vec"] = embed([parent_text(p)])[0]
-    EDGES[key] = p
+def judge_pair(pair, side_a, side_b, children, docs):
+    """One call over the two clusters' texts; the verdict written onto the pair that raised it.
+    Chat pairs go to Luna."""
+    prompt = JUDGE.format(first=cluster_text(side_a, children, docs), first_cast=cast_line(cluster_cast(side_a, children)),
+                          second=cluster_text(side_b, children, docs), second_cast=cast_line(cluster_cast(side_b, children)))
+    chat = any(children[key]["chat"] for key in side_a + side_b)
+    reply = generate(prompt, {"same": None, "reason": str}, "judge", model=LUNA if chat else TERRA, effort="medium",
+                     ctx={"a": f"{pair['a'][0][:8]}:{pair['a'][1]}", "b": f"{pair['b'][0][:8]}:{pair['b'][1]}",
+                          "sides": [len(side_a), len(side_b)]})
+    same = reply.get("same") if reply else None
+    if isinstance(same, str):
+        same = same.strip().casefold() in ("true", "yes", "same")
+    pair["verdict"] = "same" if same is True else ("different" if reply else "no reply")
+    pair["reason"] = reply.get("reason") if reply else None
+    return pair
 
 
-def place(child, doc, pass_no, exclude=None):
-    """Offer, judge, attach or found. The parent the child is under afterwards."""
-    vec = embed([child_text(child, doc)])[0]
-    offered = score(child, doc, vec, pass_no, exclude)
-    picked = judge(child, doc, offered, pass_no) if offered else None
-    if picked is not None:
-        attach(child, doc, picked)
-        return picked
-    return None if exclude is not None else found(child, doc, vec)
+def in_parallel(function, jobs):
+    """function(*job) for every job, WORKERS at a time; the results in the jobs' order."""
+    from concurrent.futures import ThreadPoolExecutor
+    with ThreadPoolExecutor(max_workers=WORKERS) as pool:
+        return list(pool.map(function, *zip(*jobs))) if jobs else []
+
+
+TIER = {"identity": 2.0, "lexical": 1.0, "vector": 0.0}     # what a pair is offered on, strongest first
+
+
+def priority(pair):
+    """A pair's place in the queue: the strongest signal it was offered on, then its cosine."""
+    tier = TIER["identity"] if pair["identity"] else (TIER["lexical"] if pair["lexical"] == 1.0 else TIER["vector"])
+    return tier + pair["vector"]
+
+
+def cluster(keys, pairs, children, docs):
+    """Bottom up, the way the ingestor reconciles a document. Every child starts as its own
+    cluster in the pool. Every offered pair goes into a heap by strength (an is_a link first,
+    no floor). Pop a batch: a pair whose two children already share a cluster is skipped, and so
+    is a pair between two clusters that hold any pair ruled different; the rest are judged in
+    parallel, each side shown as its whole cluster, and the pairs ruled same unite their
+    clusters, which go back into the pool for the pairs still queued. Until no valid pair
+    remains. Returns every child's cluster leader."""
+    import heapq
+    leader = {key: key for key in keys}
+    members = {key: [key] for key in keys}
+    different = set()                                                # child pairs ruled different, as (a, b) with a < b
+
+    def find(key):
+        while leader[key] != key:
+            leader[key] = leader[leader[key]]
+            key = leader[key]
+        return key
+
+    def blocked(la, lb):
+        """Two clusters may not merge when any member of one was ruled different from any member of the other."""
+        small, large = (members[la], members[lb]) if len(members[la]) <= len(members[lb]) else (members[lb], members[la])
+        large_set = set(large)
+        return any((min(a, b), max(a, b)) in different for a in small for b in large_set)
+
+    heap = [(-priority(p), n, p) for n, p in enumerate(pairs) if p["offered"]]
+    heapq.heapify(heap)
+    batches, judged, united = 0, 0, 0
+    while heap:
+        batch, seen = [], set()
+        while heap and len(batch) < WORKERS * 2:
+            _, _, pair = heapq.heappop(heap)
+            la, lb = find(pair["a"]), find(pair["b"])
+            if la == lb:
+                pair["verdict"] = "skipped"                          # already one cluster through other pairs
+            elif blocked(la, lb):
+                pair["verdict"] = "blocked"                          # their clusters hold a pair ruled different
+            elif (min(la, lb), max(la, lb)) in seen:
+                heapq.heappush(heap, (-priority(pair) + 1e-6, len(pairs) + judged, pair))   # the same two clusters, later
+                break
+            else:
+                seen.add((min(la, lb), max(la, lb)))
+                batch.append((pair, list(members[la]), list(members[lb])))
+        if not batch:
+            continue
+        in_parallel(judge_pair, [(pair, a, b, children, docs) for pair, a, b in batch])
+        for pair, _, _ in batch:
+            la, lb = find(pair["a"]), find(pair["b"])
+            if pair["verdict"] == "same" and la != lb:
+                keep, gone = (la, lb) if la < lb else (lb, la)
+                leader[gone] = keep
+                members[keep] += members.pop(gone)
+                united += 1
+            elif pair["verdict"] == "different":
+                different.add((min(pair["a"], pair["b"]), max(pair["a"], pair["b"])))
+        judged += len(batch)
+        batches += 1
+        if batches % 10 == 0:
+            print(f"  batch {batches}: {judged} judged, {united} united, {len(heap)} pairs left; ${SPENT:.2f}")
+    print(f"clustered in {batches} batches: {judged} judged, {united} united, {len(different)} ruled different; ${SPENT:.2f}")
+    return {key: find(key) for key in keys}
+
+
+def group(keys, leaders):
+    """Every cluster as the list of its children, keyed by its leader."""
+    groups = {}
+    for key in keys:
+        groups.setdefault(leaders[key], []).append(key)
+    return groups
+
+
+def write_parent(members, children, docs):
+    """A parent from its instances: a copy of the child when alone, else one call that picks the
+    name and kind from what the instances carry and writes one line per instance."""
+    members = sorted(members, key=most_facts_first(children))
+    first = children[members[0]]
+    aliases = set()
+    for key in members:
+        aliases |= {children[key]["name"], *children[key]["aliases"]}
+    if len(members) == 1:
+        doc = docs[first["doc_id"]]
+        line = f"In {doc['title']}: " + (first["abstract"] or "; ".join(first["facts"][:FACTS_SHOWN]) or first["name"])
+        return {"name": first["name"], "kind": first["kind"], "aliases": aliases, "summary": [(members[0], line)],
+                "children": members, "calls": 0}
+    shown = members[:GROUP_SHOWN]
+    listing = "\n\n".join(f"[{n + 1}] {child_text(children[key], docs[key[0]])}\ndocument: {docs[key[0]]['title']}"
+                          for n, key in enumerate(shown))
+    reply = generate(WRITE.format(instances=listing, n=len(shown)), {"name": str, "kind": str, "lines": list}, "write",
+                     effort="low", ctx={"parent": f"{members[0][0][:8]}:{members[0][1]}", "instances": len(members)})
+    allowed = {fold(a) for a in aliases}
+    name = reply["name"] if reply and fold(reply["name"]) in allowed else first["name"]      # a name no instance carries is refused
+    kind = reply["kind"] if reply and reply.get("kind") else first["kind"]
+    lines = reply["lines"] if reply and isinstance(reply["lines"], list) else []
+    summary = []
+    for n, key in enumerate(shown):
+        line = lines[n] if n < len(lines) and isinstance(lines[n], str) and lines[n].strip() else None
+        summary.append((key, line or f"In {docs[key[0]]['title']}: {children[key]['name']}."))
+    for key in members[GROUP_SHOWN:]:
+        summary.append((key, f"In {docs[key[0]]['title']}: {children[key]['name']}."))
+    return {"name": name, "kind": kind, "aliases": aliases, "summary": summary, "children": members, "calls": 1}
+
+
+def most_facts_first(children):
+    def key_of(key):
+        return (-len(children[key]["facts"]), key)
+    return key_of
 
 
 def build_parents(store):
-    """Both passes over the store, then the tables."""
+    """Embed every child, nominate and judge the pairs in parallel, group, write the parents."""
     global RARITY
-    PARENTS.clear()
-    EDGES.clear()
-    OFFERS.clear()
+    PAIRS.clear()
     db = sqlite3.connect(store)
     docs, children, RARITY = read_corpus(db)
-    order = sorted(docs.items(), key=doc_order)
-    print(f"{len(order)} documents, {len(children)} children; signals {sorted(SIGNALS)}")
-
-    for n, (doc_id, doc) in enumerate(order):
-        for child in doc["children"]:
-            place(child, doc, 1)
-        alive = sum(p["alive"] for p in PARENTS)
-        print(f"  [{n + 1}/{len(order)}] {(doc['title'] or doc_id)[:40]:40} children {len(doc['children']):3}  parents {alive:5}  ${SPENT:.2f}")
-
-    founders = [(key, p) for key, p in EDGES.items() if len(p["children"]) == 1]
-    moved = 0
-    for key, own in founders:
-        child = children[key]
-        if place(child, docs[key[0]], 2, exclude=own) is not None:
-            own["alive"] = False
-            moved += 1
-    print(f"pass 2: {len(founders)} founders offered again, {moved} moved; parents {sum(p['alive'] for p in PARENTS)}; ${SPENT:.2f}")
-    write_parents(db)
+    keys = sorted(children, key=child_key)
+    print(f"{len(docs)} documents, {len(keys)} children; signals {sorted(SIGNALS)}")
+    vectors = embed([child_text(children[key], docs[key[0]]) for key in keys])
+    nominated = nominate(keys, children, vectors)
+    for (i, j), hows in nominated.items():
+        PAIRS.append(score_pair(children[keys[i]], children[keys[j]], hows, float(vectors[i] @ vectors[j])))
+    print(f"{len(PAIRS)} pairs nominated, {sum(p['offered'] for p in PAIRS)} offered to the judge")
+    leaders = cluster(keys, PAIRS, children, docs)
+    groups = group(keys, leaders)
+    multi = [members for members in groups.values() if len(members) > 1]
+    print(f"{len(groups)} groups, {len(multi)} with two or more instances, the largest {max((len(m) for m in multi), default=1)}")
+    parents = in_parallel(write_parent, [(members, children, docs) for members in groups.values()])
+    write_tables(db, parents, keys)
     db.close()
 
 
-def write_parents(db):
-    for table in ("parent", "instance_of", "offer"):
+def child_key(key):
+    return key
+
+
+def write_tables(db, parents, keys):
+    for table in ("parent", "instance_of", "pair"):
         db.execute(f"delete from {table}")
-    for i, p in enumerate(PARENTS):
-        if p["alive"]:
-            summary = "\n".join(f"[{d[:8]}:{n}] {line}" for ((d, n), line) in p["summary"])
-            first = p["children"][0]
-            db.execute("insert into parent values (?,?,?,?,?,?,?)",
-                       (i, p["name"], p["kind"], column(sorted(p["aliases"])), summary, p["version"], f"{first[0][:8]}:{first[1]}"))
-    winning = {(r["doc_id"], r["node_id"]): r for r in OFFERS if r["verdict"] == "attach"}
-    for (doc_id, node_id), p in EDGES.items():
-        r = winning.get((doc_id, node_id))
-        scores = {k: r[k] for k in ("lexical", "vector", "cast", "cast_rare", "identity")} if r else None
-        db.execute("insert into instance_of values (?,?,?,?,?,?)",
-                   (doc_id, node_id, PARENTS.index(p), r["pass"] if r else 1, r["reason"] if r else "founded", column(scores)))
-    for r in OFFERS:
-        db.execute("insert into offer values (?,?,?,?,?,?,?,?,?,?,?,?,?)",
-                   (r["doc_id"], r["node_id"], PARENTS.index(r["parent"]), r["parent_version"], r["pass"], r["lexical"],
-                    r["vector"], r["cast"], r["cast_rare"], r["identity"], r["offered"], r["verdict"], r["reason"]))
+    reason = {}
+    for p in PAIRS:
+        if p["verdict"] == "same":
+            reason.setdefault(p["a"], p)
+            reason.setdefault(p["b"], p)
+    for i, p in enumerate(parents):
+        summary = "\n".join(f"[{node_id}] {line}" for ((_, node_id), line) in p["summary"])   # a node id carries its document's tag
+        db.execute("insert into parent values (?,?,?,?,?,?,?)",
+                   (i, p["name"], p["kind"], column(sorted(p["aliases"])), summary, len(p["children"]), p["children"][0][1]))
+        for key in p["children"]:
+            r = reason.get(key)
+            scores = {k: r[k] for k in ("lexical", "vector", "cast", "cast_rare", "identity")} if r else None
+            db.execute("insert into instance_of values (?,?,?,?,?)",
+                       (key[0], key[1], i, r["reason"] if r else "alone", column(scores)))
+    for p in PAIRS:
+        db.execute("insert into pair values (?,?,?,?,?,?,?,?,?,?,?,?)",
+                   (p["a"][0], p["a"][1], p["b"][0], p["b"][1], p["lexical"], p["vector"], p["cast"], p["cast_rare"],
+                    p["identity"], p["offered"], p["verdict"], p["reason"]))
     db.commit()
-    alive = [p for p in PARENTS if p["alive"]]
-    multi = sum(1 for p in alive if len(p["children"]) > 1)
-    print(f"written: {len(alive)} parents ({multi} with two or more children), {len(EDGES)} up-edges, {len(OFFERS)} offer rows")
+    calls = sum(p["calls"] for p in parents)
+    print(f"written: {len(parents)} parents ({calls} written by a call), {len(keys)} up-edges, {len(PAIRS)} pair rows; ${SPENT:.2f}")
+
 
 # %% [markdown]
 # ## Block 7: run
 #
 # The store, the sidecar, the parents, the sidecar again with the parents' summaries, and a
-# receipt. Without a key the parents are skipped and the rest still builds.
+# receipt with the group sizes. Without a key the parents are skipped and the rest still builds.
 
 # %%
 if __name__ == "__main__":
@@ -871,8 +976,11 @@ if __name__ == "__main__":
     receipt = {"version": VERSION, "started_at": started, "finished_at": now(), "signals": sorted(SIGNALS),
                "store": counts, "parents": db.execute("select count(*) from parent").fetchone()[0],
                "parents_with_two_or_more": db.execute("select count(*) from (select parent_id from instance_of group by parent_id having count(*) > 1)").fetchone()[0],
+               "largest_group": db.execute("select max(n) from (select count(*) as n from instance_of group by parent_id)").fetchone()[0],
                "up_edges": db.execute("select count(*) from instance_of").fetchone()[0],
-               "offers": db.execute("select count(*) from offer").fetchone()[0],
+               "pairs": db.execute("select count(*) from pair").fetchone()[0],
+               "pairs_judged": db.execute("select count(*) from pair where offered = 1").fetchone()[0],
+               "pairs_same": db.execute("select count(*) from pair where verdict = 'same'").fetchone()[0],
                "vectors": db.execute("select count(*) from vec_row").fetchone()[0], "cost": round(SPENT, 4)}
     db.close()
     (OUT / "receipt.json").write_text(json.dumps(receipt, indent=2), encoding="utf-8")
@@ -886,10 +994,14 @@ if __name__ == "__main__":
 # %%
 if __name__ == "__main__" and STORE.exists():
     db = sqlite3.connect(STORE)
-    query = """select p.name, p.kind, count(*) as n, group_concat(substr(i.doc_id, 1, 8) || ':' || i.node_id, ' ')
+    query = """select p.name, p.kind, count(*) as n, group_concat(i.node_id, ' ')
                from parent p join instance_of i on i.parent_id = p.parent_id group by p.parent_id having n > 1 order by n desc limit 25"""
     for name, kind, n, members in db.execute(query):
         print(f"{n:3}  {name:35} {kind:15} {members}")
     for name, kind, summary in db.execute("select name, kind, summary from parent where name like 'Ozma%' or name = 'Tip'"):
         print(f"\n{name} ({kind})\n{summary}")
+    query = """select node_a, node_b, round(vector, 3), lexical, identity, verdict, reason from pair
+               where offered = 1 and (node_a in ('48e4dd66:n12', '48e4dd66:n30') or node_b in ('48e4dd66:n12', '48e4dd66:n30')) limit 12"""
+    for row in db.execute(query):
+        print("  pair", row)
     db.close()
