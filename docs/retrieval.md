@@ -14,13 +14,16 @@ treating every stored text as an interchangeable chunk. The store holds a book o
 several resolutions:
 
 ```
-document abstract  ->  entity abstract  ->  narrative cell (per unit, in order)  ->  facts  ->  quotes
+document -> document abstract -> units (the unit summaries in order)
+source-local entity -> entity abstract -> narrative cells (per unit, in order) -> raw facts -> quotes
+                                      \-> adjudicated claims, each citing the raw facts behind it
 ```
 
-A document has an abstract of the whole work. Each major entity has a document-local abstract
+Two parallel source-local structures, the document's and the entity's; the document abstract is
+not the parent of the entity abstracts. A document has an abstract of the whole work. Each major entity has a document-local abstract
 over the work, and beneath it one narrative cell per unit it appears in, in unit order. The
-facts of a unit are atomic claims with verbatim quotes; adjudicated facts consolidate them
-within the document and cite the raw facts behind them. Above the document-local entity the
+facts of a unit are atomic claims with verbatim quotes; adjudicated facts hang off the entity,
+consolidate raw facts from any of its units, and cite them. Above the document-local entity the
 global layer adds one level:
 
 ```
@@ -38,7 +41,7 @@ and where a representation is absent its edge is empty.
 
 ```
 SEARCH        hybrid lexical and vector entry inside the filter, fused by rank
-ROUTE         to the representation above the entry, and across the identity tree
+ROUTE         to the representation above the entry, and across the global identity layer
 TRAVERSE      along the entity's narrative in unit order
 SUBSTANTIATE  down to facts and their quotes
 PACK          coherent bundles, whole, by score, to the budget
@@ -57,14 +60,19 @@ code chooses: the two arms rank, the fusion orders.
 
 ## A2. Route
 
-From the entry, up to the representation above it and across the tree, one hop:
+From the entry, up to the representation above it and across the global identity layer, one hop:
 
 ```
-fact       -> its entity's cell in that unit; its entity's abstract
+fact       -> its entity's cell in that unit; its entity's abstract   (each when present)
 cell       -> its entity's abstract
 any child  -> its parent's other children's abstracts inside the filter   (parent hop on)
-parent     -> its children's abstracts inside the filter; the parent itself enters no pool
+parent     -> its children's abstracts inside the filter; a parent entry is routing only and
+              never enters the evidence pool
 ```
+
+A chat's fact has no cell and no entity abstract; its route is the session abstract. A book's
+fact whose cell was not written routes to the abstract alone; packing carries such a fact on its
+own with its quote.
 
 ## A3. Traverse
 
@@ -72,9 +80,14 @@ Along the entity's narrative, by unit position, one hop:
 
 ```
 cell       -> the previous and the next cell of the same entity
-abstract   -> that entity's cells in unit order; a document's abstract -> the document node's
-              cells, the unit summaries in order
+abstract   -> nominates that entity's cells; the most relevant (by own score, K_HOP) are selected
+              and kept in source order; a document's abstract nominates the document node's cells,
+              the unit summaries, the same way
 ```
+
+Selection, not a dump: an entity that runs through forty units yields its K_HOP best cells, in
+the order the document tells them; a selected cell's own previous and next are not pulled in
+turn (one hop), they come only from a cell that is itself an entry.
 
 The edges are the entity's own trajectory, never the unit's neighbourhood: a chapter's cast is
 not evidence about one of its members; where that member was just before and just after is.
@@ -85,10 +98,15 @@ Every edge fires from every entry of its kind; none is conditional on the questi
 Down to the evidence, one hop:
 
 ```
-cell       -> its entity's facts in that unit: adjudicated facts first, raw facts with quotes
-abstract   -> that entity's facts
+cell       -> that entity's raw facts in that unit, each with its quote; then the adjudicated
+              claims of the entity that cite any of those raw facts, where any do
+abstract   -> that entity's facts (raw, with quotes) and its adjudicated claims
 fact       -> nothing further; its quote travels with it
 ```
+
+Adjudicated facts hang off the entity, not the unit: each consolidates raw facts that may come
+from several units and cites them (`from_facts`), so a cell reaches a claim only through a raw
+fact of its own unit.
 
 ## A5. Pack
 
@@ -233,13 +251,13 @@ record key; the eligible count per edge logged. One hop; a pulled record is not 
 
 ```
 fact entry       route: cell, abstract, children of its parent    traverse: none         substantiate: none
-cell entry       route: abstract, children of its parent          traverse: prev, next   substantiate: facts in the unit
-abstract entry   route: children of its parent                    traverse: its cells    substantiate: its facts
+cell entry       route: abstract, children of its parent          traverse: prev, next   substantiate: raw facts in the unit, claims citing them
+abstract entry   route: children of its parent                    traverse: its cells    substantiate: its raw facts and claims
 parent entry     route: its children's abstracts                  traverse: none         substantiate: none
 ```
 
 Edge names in the log: `cell`, `abstract`, `parent` (the other children's abstracts),
-`children` (a parent entry's), `previous`, `next`, `cells`, `facts`. A chat's session abstract:
+`children` (a parent entry's), `previous`, `next`, `cells`, `facts`, `claims`. A chat's session abstract:
 `cells` empty, `facts` the session's facts including the mentioned ones. Entry records have
 `hops = 0`; a pulled record `hops = 1`, its edge and the entry it came from; a record reached
 twice keeps the first route. The parent-off arm removes `parent` and `children`.

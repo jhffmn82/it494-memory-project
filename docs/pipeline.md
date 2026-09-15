@@ -434,20 +434,26 @@ PROPOSED, ruled in design on 2026-09-15 and not built (`docs/retrieval.md` is th
 built rather than flattening every stored text into interchangeable chunks:
 
 ```
-document abstract -> entity abstract -> ordered narrative cells -> adjudicated claims -> raw facts -> quotes
-source-local entity  <-  global parent  ->  the same entity's instance in another document
+document -> document abstract -> units (the unit summaries in order)
+source-local entity -> entity abstract -> ordered narrative cells -> raw facts -> quotes
+                                      \-> adjudicated claims, each citing the raw facts behind it
+global parent -> the source-local instances of one identity across documents
 ```
 
-The parent supplies identity continuity; the documents supply the evidence.
+Two parallel source-local structures, the document's and the entity's; the parent stands over
+the entities only. The parent supplies identity continuity; the documents supply the evidence.
 
 ```
 SEARCH        hybrid lexical and vector entry inside the filter, fused by rank: where to enter
-ROUTE         from the entry up to the representation above it (a fact to its cell and abstract)
-              and across the tree (a child to its parent's other instances; the parent enters no
-              pool)
-TRAVERSE      a cell to the same entity's previous and next cell; an abstract to its cells in
-              order; the entity's own trajectory, never the unit's neighbourhood
-SUBSTANTIATE  a cell to that entity's facts in the unit, adjudicated first, raw with quotes
+ROUTE         from the entry up to the representation above it (a fact to its entity's cell in
+              that unit and to its entity's abstract, when present) and across the global identity
+              layer (a child to its parent's other instances; a parent entry is routing only and
+              never enters the evidence pool)
+TRAVERSE      a cell to the same entity's previous and next cell; an abstract nominates that
+              entity's cells and the most relevant are selected, kept in source order; the
+              entity's own trajectory, never the unit's neighbourhood
+SUBSTANTIATE  a cell to that entity's raw facts in that unit with their quotes, then the
+              adjudicated claims that cite those raw facts, where any do
 PACK          bundles, whole, by score, to the budget: a cell with its facts and quotes; an
               abstract alone; a fact alone when its cell is absent
 ANSWER        the reader sees source-owned evidence only
