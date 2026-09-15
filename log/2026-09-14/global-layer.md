@@ -247,3 +247,21 @@ it holds. On the clean store: eight collections (the papers; the Oz books over 2
 Target, Amazon and Macy's sessions as three; the grocery pair; the enchiladas pair; the closet
 pair), two documents in more than one. Block 17 draws the tree (`collection-tree.svg`); the
 blocks are 16 collections, 17 the tree, 18 the wiki page, 19 the portal. Kernel version 15.
+
+## The full keyed run of version 15 (23:30 to 23:51 UTC, $2.41)
+
+21 minutes: the store, the sidecar, 1,313 parents (51 with two or more instances, the largest
+8), 2,557 pairs judged, 80 united, 453 blocked; the collections, the tree, the wiki pages and
+the portals. The call named the collections: "Oz series" (the three books, with an abstract
+naming Dorothy, Tip, Jack Pumpkinhead, the Saw-Horse, Billina, Tiktok, the Emerald City, the
+Tin Woodman, Scarecrow and Glinda), "Retrieval-Augmented Generation methods for large language
+models" (the five papers), "Personal shopping and planning chats" (Amazon), "Shopping, Bathroom
+Organization, and Target's Community Outreach" (Target), "Macy's shopping and business",
+"Closet Organization, Clothing, and Laundry", and three meal-planning pairs. Justin asked
+whether 80 unions is low; 68 are among the books and papers (810 children) and 11 among the
+chats (583 children, about twenty names recurring at all), and of the 43 refusals on a shared
+name only the field mice and Lentil Soup look wrong, so the number is the data's. One thing
+seen: the three grocery sessions came out as three overlapping pairs rather than one
+collection of three, because each pair has its own seed parents and the pairs' document sets
+overlap at Jaccard 0.33; not changed. The Oz portal, the Ozma and Dorothy pages and the tree
+from this run are the mock-up in `docs/wiki/`.
