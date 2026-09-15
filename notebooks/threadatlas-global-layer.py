@@ -1437,7 +1437,7 @@ PALETTES = {
     "harbour": "--ink: #23303f; --muted: #6b7484; --accent: #b4552a; --band: #1f3d4a; --band-ink: #f6f1e7; --band-muted: #b8c6bf; --paper: #fbf7f0; --card: #f1ebdf; --link: #1f5f8b;",
     "parchment": "--ink: #2e2419; --muted: #7a6a58; --accent: #8c2f2f; --band: #efe6d3; --band-ink: #2e2419; --band-muted: #7a6a58; --paper: #f8f3e8; --card: #efe6d3; --link: #5b3d8c;",
     "emerald": "--ink: #1c2a24; --muted: #5f716a; --accent: #c99a2e; --band: #163f34; --band-ink: #f4f1e6; --band-muted: #b7cbc1; --paper: #f7f6f1; --card: #e9efe8; --link: #1f6b56;",
-    "slate": "--ink: #1f2933; --muted: #6b7a88; --accent: #b0532c; --band: #ffffff; --band-ink: #1f2933; --band-muted: #6b7a88; --paper: #ffffff; --card: #f6f7f9; --link: #2455a4; --rule: #e4e7eb;",
+    "slate": "--ink: #1f2933; --muted: #6b7a88; --accent: #b0532c; --band: #ffffff; --band-ink: #1f2933; --band-muted: #6b7a88; --paper: #ffffff; --card: #f6f7f9; --link: #2455a4; --rule: #e4e7eb; --tint: #c9d6e3;",
 }
 PALETTE = os.environ.get("PALETTE", "slate")
 
@@ -1446,7 +1446,7 @@ PAGE = """<!doctype html>
 <style>
 :root {{ {palette} }}
 body {{ font-family: Georgia, "Times New Roman", serif; margin: 0; color: var(--ink); background: var(--paper); line-height: 1.5; }}
-header {{ background: var(--band); color: var(--band-ink); padding: 1.6rem 0; border-bottom: 1px solid var(--rule, #e4e7eb); }}
+header {{ background: var(--band); color: var(--band-ink); padding: 1.6rem 0; border-bottom: 2px solid var(--tint, var(--rule, #e4e7eb)); }}
 header .inner {{ max-width: 1200px; margin: 0 auto; padding: 0 1.5rem; }}
 header h1 {{ font-size: 2.2rem; margin: 0; font-weight: normal; letter-spacing: 0.01em; }}
 header .kind {{ color: var(--band-muted); font-style: italic; margin-top: 0.3rem; }}
@@ -1454,9 +1454,9 @@ header .aliases {{ color: var(--band-muted); font-size: 0.85rem; margin-top: 0.5
 header .crumb {{ color: var(--band-muted); font-size: 0.9rem; margin-top: 0.4rem; }} header .crumb a {{ color: var(--band-ink); }}
 .wrap {{ display: flex; gap: 2.5rem; max-width: 1200px; margin: 0 auto; padding: 1.5rem; }}
 main {{ flex: 3; min-width: 0; }}
-aside {{ flex: 1.3; min-width: 280px; font-size: 0.9rem; background: var(--card); border-radius: 6px; padding: 1rem 1.2rem; align-self: flex-start; }}
+aside {{ flex: 1.3; min-width: 280px; font-size: 0.9rem; background: var(--card); border: 1px solid var(--tint, var(--rule, #e4e7eb)); border-radius: 6px; padding: 1rem 1.2rem; align-self: flex-start; }}
 aside h2 {{ margin-top: 0; }}
-h2 {{ font-size: 1.25rem; color: var(--ink); border-bottom: 1px solid var(--rule, #e4e7eb); padding-bottom: 0.2rem; margin-top: 2.2rem; }}
+h2 {{ font-size: 1.25rem; color: var(--ink); border-bottom: 1px solid var(--tint, var(--rule, #e4e7eb)); padding-bottom: 0.2rem; margin-top: 2.2rem; }}
 h3 {{ font-size: 0.95rem; color: var(--accent); margin: 1.4rem 0 0.4rem; text-transform: uppercase; letter-spacing: 0.06em; }}
 h4 {{ font-size: 0.8rem; color: var(--accent); margin: 1.1rem 0 0.1rem; font-weight: normal; text-transform: uppercase; letter-spacing: 0.08em; }}
 .lead {{ font-size: 1.1rem; color: var(--ink); }}
@@ -1635,7 +1635,7 @@ PORTAL = """<!doctype html>
 <style>
 :root {{ {palette} }}
 body {{ font-family: Georgia, "Times New Roman", serif; margin: 0; color: var(--ink); background: var(--paper); line-height: 1.5; }}
-header {{ background: var(--band); color: var(--band-ink); padding: 1.6rem 0; border-bottom: 1px solid var(--rule, #e4e7eb); }}
+header {{ background: var(--band); color: var(--band-ink); padding: 1.6rem 0; border-bottom: 2px solid var(--tint, var(--rule, #e4e7eb)); }}
 header .inner {{ max-width: 1200px; margin: 0 auto; padding: 0 1.5rem; }}
 header h1 {{ font-size: 2.2rem; margin: 0; font-weight: normal; letter-spacing: 0.01em; }}
 header .kind {{ color: var(--band-muted); font-style: italic; margin-top: 0.3rem; }}
@@ -1643,9 +1643,9 @@ header .aliases {{ color: var(--band-muted); font-size: 0.85rem; margin-top: 0.5
 header .crumb {{ color: var(--band-muted); font-size: 0.9rem; margin-top: 0.4rem; }} header .crumb a {{ color: var(--band-ink); }}
 .wrap {{ display: flex; gap: 2.5rem; max-width: 1200px; margin: 0 auto; padding: 1.5rem; }}
 main {{ flex: 3; min-width: 0; }}
-aside {{ flex: 1.3; min-width: 280px; font-size: 0.9rem; background: var(--card); border-radius: 6px; padding: 1rem 1.2rem; align-self: flex-start; }}
+aside {{ flex: 1.3; min-width: 280px; font-size: 0.9rem; background: var(--card); border: 1px solid var(--tint, var(--rule, #e4e7eb)); border-radius: 6px; padding: 1rem 1.2rem; align-self: flex-start; }}
 aside h2 {{ margin-top: 0; }}
-h2 {{ font-size: 1.25rem; color: var(--ink); border-bottom: 1px solid var(--rule, #e4e7eb); padding-bottom: 0.2rem; margin-top: 2.2rem; }}
+h2 {{ font-size: 1.25rem; color: var(--ink); border-bottom: 1px solid var(--tint, var(--rule, #e4e7eb)); padding-bottom: 0.2rem; margin-top: 2.2rem; }}
 h3 {{ font-size: 0.95rem; color: var(--accent); margin: 1.4rem 0 0.4rem; text-transform: uppercase; letter-spacing: 0.06em; }}
 h4 {{ font-size: 0.8rem; color: var(--accent); margin: 1.1rem 0 0.1rem; font-weight: normal; text-transform: uppercase; letter-spacing: 0.08em; }}
 .lead {{ font-size: 1.1rem; color: var(--ink); }}
