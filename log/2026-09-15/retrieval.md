@@ -223,3 +223,39 @@ fused, parent off   both on, parent hop off           what the tree buys
 
 The 14 tuning questions are excluded from every reported number (ruled 09-13); a question is
 scored only over a history ingested whole.
+
+## 11. Corrections adopted the same day (an adversarial review, brought by Justin; ruled approved with these)
+
+Each overrides the section it names.
+
+1. **Filter before the top K** (3.1, 3.2). Both arms rank inside the filter and take the top K
+   from that ranking: the keyword query joins the FTS rowid to its record and restricts by
+   `doc_id in filter` in SQL; the vector scan masks before the argsort. Never rank, cut, then
+   filter.
+2. **Entry hits are records** (3.1). `score_v(record) = max over its sentence rows of <q, v_i>`;
+   V is the top K_ENTRY records by that score. Both arms return ranked records and the fusion
+   is over records.
+3. **One FTS table** (1, 3.2). The serving store carries `search(record, doc_id, record_id,
+   text)` with one row per record: a fact's row is its rendered line and its quote, a cell's
+   and an abstract's row their text. BM25 is computed on one table with one N and one average
+   length, so the top K is one ranking. SQLite's `bm25()` returns the negative of the score
+   (smaller is better); the SQL orders ascending. The three per-column tables are dropped.
+4. **Parent off means off** (3.1, 4, 10). When the parent hop is off, parent summary rows are
+   masked from the entry scans as well. The arm compares the same local store with and
+   without the global identity tree.
+5. **Parents route and are never evidence** (4, 6). A parent summary row may be an entry hit;
+   it is then replaced by the facts, cells and abstracts of the parent's children inside the
+   filter, scored on their own vectors, and the summary itself is never packed. The `parent`
+   render of section 6 is removed. The reader sees source-owned records only.
+6. **K_HOP is by own score** (4). Every eligible neighbour of an entry record is scored by its
+   own vector against the question; the top K_HOP per edge are taken, ties broken by record
+   key; the count of eligible neighbours per edge is logged, so a miss divides into not
+   connected against connected but cut at the hop.
+7. **The query instruction is tuned, then frozen** (3.1). BGE's recommended prefix for short
+   queries ("Represent this sentence for searching relevant passages: ") is tried against no
+   prefix on the 14 tuning questions, one is chosen, and it is frozen before any benchmark
+   question is scored.
+
+Nothing else is added this fall: no cross-encoder, no query rewriting, no multi-hop agent, no
+model reranking, no PageRank. A miss is attributable to one of: entry recall, expansion, the
+hop cap, the rerank, the budget, the reader.
