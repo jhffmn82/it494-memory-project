@@ -1189,7 +1189,8 @@ if __name__ == "__main__" and STORE.exists():
 # document. One call per collection names the body of work the way a reader would (a series,
 # a field, one person's history) and writes an abstract of what the documents are and which
 # entities span them, from the documents' abstracts and the shared parents; it asserts nothing
-# beyond them. Without a key the name is the top shared parents and the abstract the counts.
+# beyond them. Without a key the name is "Works around" the most distinctive shared parent and
+# the abstract the counts; a keyed run replaces both.
 # Tables: `collection` (id, name, abstract, documents, written_by) and `document_in`
 # (doc_id, collection_id), one row per membership.
 
@@ -1287,7 +1288,7 @@ def write_collection(db, group):
                          effort="low", ctx={"documents": len(group)})
     if reply:
         return reply["name"], reply["abstract"], "call"
-    name = "Works sharing " + ", ".join(p[1] for p in parents[:3]) if parents else "Works"
+    name = f"Works around {parents[0][1]}" if parents else "Works"
     abstract = f"{len(group)} documents, from {titles[0][2]} to {titles[-1][2]}, sharing {len(parents)} entities: {named}."
     return name, abstract, "counts"
 
