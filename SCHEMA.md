@@ -193,9 +193,31 @@ from it. Minor entities never become nodes: a fact from a major
 to a minor is a property of the major with the minor's name as its value, and a
 fact between two minors is not stored. Below that line a minor leaves no record
 of its own; what the document says about it survives only in the per-unit
-summary, a cell on the document's own node. Mentions are not written (2026-09-08). There is no community layer: groupings the user or a loader
-declares (a series, a thread) exist for ordering and disambiguation scope, and
-nothing is clustered.
+summary, a cell on the document's own node. Mentions are not written (2026-09-08).
+
+## The global side (PROPOSED 2026-09-15, built in `notebooks/threadatlas-global-layer.py`)
+
+    parent       parent_id, name, kind, aliases, summary, instances, first
+    instance_of  doc_id, node_id, parent_id, reason, scores
+    pair         doc_a, node_a, doc_b, node_b, lexical, vector, cast, cast_rare,
+                 identity, offered, verdict, reason
+    merge        round, doc_a, node_a, doc_b, node_b, kept, joined
+    collection   collection_id, name, abstract, documents, written_by
+    document_in  doc_id, collection_id
+
+A parent is a class induced from its instances (`docs/entity-resolution.md`): a name
+and a kind chosen from what the instances carry, the union of their aliases, one
+summary line per instance tagged with the instance's id, and the instance list. It
+is written once, after the entities are clustered, and its fields are derived; it is
+never the source of a fact. `instance_of` is the up-edge, owned by the child's
+document; `pair` logs every candidate pair with its four signals and the judge's
+verdict, and `merge` every union in order, so the reason an entity sits under its
+parent is auditable end to end. A collection is a parent over documents, a body of
+work seeded by the parents two or more documents share; a document may belong to
+several. This replaces the earlier line that nothing is clustered: entities are
+clustered into parents and documents into collections, by the rules in
+`docs/global-layer.md`; the sentence that a parent asserts nothing about the world
+stands.
 
 ## What the code enforces
 

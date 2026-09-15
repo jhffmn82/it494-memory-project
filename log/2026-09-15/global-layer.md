@@ -26,3 +26,26 @@ Correction, minutes later: the push became kernel version 17, not 16; a version 
 
 - Justin, on the version 17 keyed run: duplicate collection nodes in the figure. The store held three "Retrieval-Augmented Generation" collections (the five papers and two pairs inside them) and three meal-planning ones over the same sessions, because seed groups merged only at Jaccard 0.5 and a pair inside a set of five scores 0.4. The merge rule is now the overlap of the smaller group (a group inside a larger one always joins it): four collections on that store, the papers, the shopping sessions, the grocery sessions, the Oz books, and no document in two. Kernel version 18.
   Correction: the push became kernel version 19; a version 18 was saved from the editor in between.
+
+## The reviewer's second pass, and the hardening
+
+Justin brought two reviews from an adversarial judge. The first read the incremental attach and
+is moot: no second pass, no parent rewritten on attach, no parent vector in nomination exist in
+the batch build. The second read the batch build, kept the architecture ("I would not go back
+to the previous second-pass attachment system") and asked for four fixes, all made:
+
+- priority as hard tiers, a tuple (identity, lexical, vector), not a sum;
+- merge provenance: a `merge` table with every union in order, and the up-edge's reason taken
+  from the pair whose union first joined the child's cluster to another, not an arbitrary
+  "same" pair;
+- the rarity term nonnegative, log of (documents plus one) over (holders plus one);
+- wiki file names carrying the parent's id, so two parents named alike never collide.
+
+Also from the review and Justin ("fix the issues and simplify the code, there has been a lot
+of complexity creep"): the interactive map page and the unused document-graph code are gone
+(the static figure was ruled); the ablation is stated exactly in the notebook and the design
+note (nomination fixed; the arm is what the judge sees: L+V+I against L+V+I+C; a replay of
+logged verdicts is a sensitivity check, not an arm); the vector floor's provenance is written
+down and the floor frozen before the key is scored; two invariants stop the run if broken.
+`docs/global-layer.md` is rewritten to the batch build; SCHEMA.md gains the global side
+(PROPOSED). Blocks now run 13 to 204 lines each, the wiki page the largest. Kernel version 20.

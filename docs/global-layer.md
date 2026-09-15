@@ -1,178 +1,90 @@
 # The global layer
 
-PROPOSED 2026-09-13, from the discussion with Justin that evening (`log/2026-09-13/global-layer.md`);
-it stands on his ruling. It replaces the first-cut rule in `docs/execution-plan.md` section 2b
-(case-folded name and kind; a parent named by its most frequent child name; a count-sentence
-abstract), which is superseded. The settled shape in `docs/entity-resolution.md` stands: nothing
-is merged, a child belongs to one document, a parent asserts nothing about the world.
+PROPOSED 2026-09-13, rewritten 2026-09-15 to the build that runs (`notebooks/threadatlas-global-layer.py`).
+The rulings behind it are in `docs/rulings.md` under "Entities, identity and the global layer" and
+"Store and retrieval"; the discussion is in `log/2026-09-13/global-layer.md`, `log/2026-09-14/global-layer.md`
+and `log/2026-09-15/global-layer.md`. The settled shape in `docs/entity-resolution.md` stands: nothing is
+merged, a child belongs to one document, a parent asserts nothing about the world.
 
 ## What it is
 
-One graph over everything loaded. The store holds every package that is given to it, chats, books
-and papers together, and the parents are built over all of it; a test is a filter at retrieval
-time on a set of documents (one LongMemEval history, the three Oz books), never a different build.
-Deployed, the same path takes each night's new sessions: nothing already stored is changed except
-the parents that gain a child.
+One graph over everything loaded: chats, books and papers together; a test is a filter at retrieval
+time on a set of documents, never a different build. The store is one SQLite file built from the Step 1
+dataset and the Step 0 text, every quote re-sliced at load; the sidecar is one float16 array of
+sentence vectors beside it; the parents are a tree over the documents' entities; the collections are a
+tree over the documents. Search is a linear scan of the array.
 
 ## The parent
 
-A parent is its own record, owned by no document. It holds a name, a kind, the union of its
-children's aliases, a role summary, and its instance list (the children, each an entity node in
-one document). The role summary is one line per document saying what part that instance played
-there, and every line carries the id of the child it came from; a line with no child behind it is
-rejected. The judge picks the name and the kind from what the children carry (a name no child ever
-used is rejected, and the log records which child supplied it), so "Ozma" over "Tip" is a choice
-among the evidence. Kind is redefined here from what comes in; a child's kind never blocks an
-attachment.
+A parent is its own record, owned by no document: a name and a kind chosen from its instances, the
+union of their aliases, a role summary of one line per instance tagged with the instance's id, and
+the instance list. It is written once, after the clusters exist, by one call per cluster of two or
+more instances; a name no instance carries is refused, and a cluster of one is a copy of its child
+with no call. Its vector plays no part in identity: nomination and judgement run over the children,
+which are immutable, so no model-written prose feeds back into resolution.
 
-The parent is rewritten on every attach: one model call reads the parent as it stands and the one
-new child (its name, aliases, kind, summary, or for a chat child its facts) and writes the new
-name, kind and summary; code takes the union of the aliases and appends the child to the instance
-list; the parent's vector in the sidecar is refreshed. A child that matches nothing founds a new
-parent as a copy of itself, with no call.
+## The build, bottom up (ruled 2026-09-14)
 
-## Salience for chats
+```
+load        every Step 1 record; a quote that does not slice from its text stops the load; FTS5
+embed       one vector per fact line and per narrative sentence; one per child (an entity node
+            that is not the document itself and not the user of a chat)
+nominate    candidate pairs of children, each once: the NEAREST other-document children by
+            vector (block matrix products), every two children sharing a name or a naming alias
+            (an alias names when a word after any article is capitalised), and every is_a link
+            between two children of one document; each pair scored on four signals: lexical,
+            vector, cast (overlap of the names each appears beside, plain and rarity-weighted),
+            identity; a pair is OFFERED when lexical or identity fires or the vector clears 0.75
+cluster     log n bottom up: every child its own cluster; the offered pairs ranked by hard tiers
+            (is_a, then a name match, then the cosine); each round every cluster takes its best
+            eligible partner, the pairs disjoint; the round is judged in parallel; the pairs
+            ruled same unite; a pair whose children share a cluster is skipped; a pair between
+            clusters holding any pair ruled different is blocked; until a round finds no pair
+judge       one call about the pair's two instances, each shown with what is already united
+            with it as context only; texts and casts as names, never scores; same or different
+            with a reason; every pair and verdict logged
+write       the parents; every union logged in `merge`; the up-edge's reason is the pair whose
+            union first joined the child's cluster to another
+collect     a collection per body of work: every parent held by two or more documents seeds a
+            group; groups merge when the smaller shares half its documents with the other; one
+            call names the collection and writes its abstract from the documents' abstracts and
+            the shared parents; a document may belong to several
+```
 
-A chat session's reading made every subject a major. Before nomination, one call per session sees
-the session's abstract and every entity with its facts and answers which are things a person would
-want found again across sessions (a store, a show, a person, a place, a product, a project) and
-which are the scaffolding of that one conversation. Only the first group is nominated; the rest
-stay as leaves under the session document, with no parent and no further call, still reachable
-through their facts. Books and papers keep their majors, judged per unit already. Step 1 is not
-rerun. The user is never nominated (ruled 2026-09-12).
+Order does not decide correctness: every child starts on equal footing and the rounds are drawn
+from the merged pool. Grouping is transitive, so one wrong "same" chains two entities; only judged
+pairs join, a "different" is a constraint the clusters keep, and every cluster's size is an
+instrument. After the build two invariants hold or the run stops: every up-edge points at a written
+parent, and every child has an up-edge.
 
-## The up-edge
+## The ablation, exactly
 
-Children are processed in document order. For each child, nomination is a similarity search: the
-child's text (name, aliases, summary or facts) is embedded and scanned against every existing
-parent's text, and the nearest few parents are offered to the judge. Each offered pair is logged
-with three scores, kept separate so the attachment replays under any one of them: the lexical
-match (case-folded name or alias overlap), the vector similarity, and the cast overlap (the
-ingestor's own co-occurrence score, Jaccard over the names that share a unit with each side,
-carried across documents; a rarity-weighted variant, with the 09-08 term log(N over one plus the
-documents holding the name), is logged as a second column). A document's own identity fact (book 2
-states that Tip is Princess Ozma, with a quote) is a fourth nomination, ranked first. The judge
-rules attach or found, with a reason; the edge (`instance_of`, owned by the child's document)
-carries the reason and the scores. Co-occurrence is what keeps a Dorothy of Oz apart from a Dorothy
-in a chat inside the one graph, and what clusters documents; on the three Oz books it does not
-unite anything on its own (measured 09-13: every cross-book pair scores 0.04 to 0.12 because the
-shared cast is the same core), and the identity fact and the judge do that work.
+The signals `lexical`, `vector` and `identity` nominate; `cast` never does. The arm is what the
+judge sees: L+V+I shows the two entities' texts alone; L+V+I+C shows also the names each appears
+beside. The question is whether relational evidence buys anything on top of an embedding nomination
+and a language-model judge. Each arm is a full build over the scored subset (the three Oz books
+against the Wikipedia key; the held-out histories the harness scores); a replay of logged verdicts
+under another arm is a fixed-verdict sensitivity check, not the arm, because a verdict was given
+with the clusters as they stood. The vector floor was set on 2026-09-14 from the cosine distribution
+over the test store and a handful of pairs read by eye, and is frozen before the key is scored.
 
-## The key
+## The store and the wiki
 
-The attachment is scored against a public key drawn from the Wikipedia list of Baum's Oz characters
-(CC BY-SA 4.0) and the per-character articles: one line per character with the names the first three
-books call it, and pairs that must stay apart. From it: wrong-unite and wrong-split counts, attachment
-accuracy, and the replay by signal. From the same roster, the coverage of majors (which of the
-roster's characters the three packages hold as nodes). Fact and narrative coverage against the
-articles' plot sections is a later instrument, since it needs a model reading and its own hand check.
-A second check: 30 parents drawn at random from the history, hand checked.
+Tables: the Step 1 records; `parent`, `instance_of`, `pair`, `merge`; `collection`, `document_in`;
+`vec_header`, `vec_row`. The wiki is four page types rendered from the store and nothing else: the
+entity page (the parent's lines; a section per instance with its abstract and its cells under their
+unit labels; the consolidated facts opening to their raw facts and quotes), the document page, the
+portal (the collection's name and abstract; its documents; every entity they hold by relevance), and
+the collection figure (collections as hubs, documents as leaves). File names carry the record's id,
+so two parents named alike never collide.
 
-## What the store holds and how it is read
+## Not built this fall
 
-SQLite, one file: every package record keyed by the full document hash (the 8-character tag is
-display only), the parent table, the up-edges with their reasons and scores, the candidate log, the
-row map and header of the sidecar. FTS5 over abstracts, cells and fact quotes; every quote
-re-resolved from its offsets at load.
-
-The sidecar is one float16 `.npy` beside the database, memory-mapped, rows in row-map order, holding
-one vector per fact rendered as a line (subject, predicate, object, date, document), one per sentence
-of every cell, entity summary, session abstract and parent summary, each sentence prefixed with its
-entity and document. No index: a linear scan of the corpus's vectors is a fraction of a second, far
-under the reader's call, and memory is the only limit (about 1.1 GB at the full chat corpus).
-
-Retrieval: two flat scans, facts and narratives, give the entry hits; one hop of expansion along
-node (sibling facts and cells), document (the same session's turns) and parent (the other children
-and their cells and top facts) pulls what they connect to; everything is rescored against the
-question with a fixed discount per hop, kept once at its best score, rendered whole with its date
-and document, and packed by rank within the budget. The log records every candidate, how it arrived
-and whether it was packed or cut. Flat is the scans alone; full adds the three hops; parent-off
-removes the parent hop. The insertion measurement: ingest the history, add one session, count what
-was rewritten.
-
-## Amendments of 2026-09-14
-
-From two adversarial reviews of the pipeline pseudocode and Justin's rulings on them
-(`log/2026-09-14/global-layer.md`). Each is part of the design above.
-
-- **The offer floor.** A parent is offered to the judge only when its lexical score is nonzero
-  (its name or an alias matches the child's name or an alias, or appears in the child's summary
-  or facts), or its vector similarity clears a threshold set on the test packages, or a fact of
-  the child's document names one of its children as a node (`object_is_node`). Candidates below
-  the floor are logged so the floor can be tuned. A child with no parent over the floor founds
-  one with no call. Chat children are judged on Luna, book and paper children on Terra.
-- **Two children of one document are never offered to each other.** Each is offered parents;
-  both may land under the same parent, in the first pass or the second. So Tip founds a parent,
-  Princess Ozma is offered it, and the judge rules.
-- **The second pass.** After every package is loaded, every child that founded its own parent is
-  offered the full parent set under the same rule, once; an attach moves its edge and deletes the
-  one-child parent, which loses nothing. This is also what makes arrival order matter for
-  reproducibility only: a document arriving out of order attaches the same way, later.
-- **Order.** Packages are ingested by the document's `occurred_at` (first year as a signed
-  integer), ties by `source_uri`, undated last. Nothing in the rules depends on the order for
-  correctness. Within a package, children are processed by first unit.
-- **The judge sees texts, never scores.** Scores decide what is offered; the judge rules on the
-  child's text, the parents' summaries and both casts as names. Every verdict is logged with the
-  parent's version at the time, so a replay can reuse it for a pair already ruled and count where
-  the summary has since changed.
-- **The filter applies at every hop.** Retrieval's document filter masks the entry scans, every
-  expansion hop, and the parent's summary lines (only lines whose child id is inside the filter
-  render). Without this a LongMemEval number leaks another user's sessions.
-- **Expansion is capped.** Each hop takes the top m items by score and logs the rest as cut.
-- **The sentence prefix** is the entity name, plus the document's title where Step 0's title is a
-  title and not an identifier (a session id is noise). Date and document render at pack time.
-- **FTS5 stays.** Retrieval has a keyword scan beside the two vector scans, fused by rank as the
-  plan says; every packed item renders with its date.
-- **The ablation.** The arms (which signals nominate) are a switch in the pipeline. They are run
-  as full rebuilds over the scored subset only, the three Oz books against the key and the
-  held-out histories the harness scores, never the whole corpus; the replay from the log is the
-  screen. Which histories is the test-set ruling, still open.
-- **The key's matching** step is reported: Wikipedia names matched to children by case-folded
-  alias first, the rest by hand, with the hand count beside the accuracy.
-- **Deletion has its twin measurement**: remove one session and count what was rewritten.
-- **Re-ingesting a changed package** (detach its children, rewrite the touched parents) is
-  spring; this fall a finished package is skipped on a rerun.
-- **The sidecar row map** is written in the same transaction as the parent's record and verified
-  on load; a mismatch rebuilds the sidecar.
-- **Open, parked by Justin 09-14:** the gold for the document-cluster test. The recommendation on
-  the table is LongMemEval's multi-session questions, whose answer sessions form labelled
-  clusters inside a history; not ruled.
-
-## The build for this fall: bottom up, in batches (Justin, 2026-09-14 afternoon)
-
-The incremental attach above (a child offered the parents that exist, the parent rewritten on
-every attach) is the shape for a nightly pull and is not built this fall. Justin's ruling for
-the build over a whole corpus, in his words: read everything into a pool of entities (the
-document entities aside), fill a heap with the eligible pairs best first, judge a batch in
-parallel, throw the results back into the pool, track the pairs judged different and never
-try to merge clusters that contain nodes judged different, repeat until no valid pairs remain;
-an is_a relationship drops straight into the heap. So:
-
-- **Nomination is child to child**, each pair once: the nearest other-document children by
-  vector (block matrix products over every child, never a scan in Python), every two children
-  sharing a name or a naming alias (an alias counts only when it names: a capitalised word
-  after any article), and every is_a link between two children of one document. Every pair is
-  scored on the four signals and logged in the `pair` table; it is offered when a named
-  signal clears its floor (a name match; the vector at 0.75, loose because the judge is the
-  gate; an is_a link with no floor).
-- **Clustering is the ingestor's reconciliation lifted to the corpus**: every child starts as
-  its own cluster; the offered pairs sit in a heap by tier (is_a, then a name match, then the
-  cosine); a batch of sixteen pops; a pair whose children already share a cluster is skipped; a
-  pair between two clusters that hold any pair ruled different is blocked; the rest are judged
-  in parallel, each side shown as its whole cluster (up to six instances, most facts first);
-  the pairs ruled same unite their clusters, which go back into the pool for the pairs still
-  queued; until the heap is empty.
-- **A parent is written once, at the end**: a cluster of one is a copy of its child, no call; a
-  cluster of two or more gets one Luna call that picks the name (refused unless an instance
-  carries it) and the kind and writes one line per instance. The `instances` and `first`
-  columns replace `version` and `founded_by`.
-- **The instruments**: every pair with its scores and verdict, the count of pairs blocked by a
-  constraint, and the size of every cluster (the largest in the receipt), since uniting is
-  transitive and one wrong "same" can chain two entities.
-- The judge sees texts and casts as names, never scores; the four signals stay separate in
-  the log so the clustering replays under any arm.
+The nightly path (a new document attached against the parents that exist), an approximate index
+for nomination at the full corpus (exact search is kept for the measurement), and any second look
+for partners by a merged cluster.
 
 ## Gate, Sep 20
 
-Parents over the test packages with the key scored; the store built from them; the sidecar rebuilt
-byte for byte twice.
+Parents, store and vectors over the test packages with the schema written down: met on Kaggle on
+2026-09-14. The key and its scorer are the next instrument.

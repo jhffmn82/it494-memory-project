@@ -28,7 +28,8 @@
 # | table | fields | meaning |
 # |---|---|---|
 # | `parent` | `parent_id`, `name`, `kind`, `aliases`, `summary`, `instances`, `first` | a global entity: a name and kind chosen from its instances, the union of their aliases, one summary line per instance tagged with the instance's id, how many instances it has, the first of them |
-# | `instance_of` | `doc_id`, `node_id`, `parent_id`, `reason`, `scores` | the up-edge from a document's entity to its parent, owned by the document: the judge's reason on the pair that joined it (or `alone`), and that pair's scores |
+# | `instance_of` | `doc_id`, `node_id`, `parent_id`, `reason`, `scores` | the up-edge from a document's entity to its parent, owned by the document: the judge's reason on the pair whose union first joined this child's cluster to another (or `alone`), and that pair's scores |
+# | `merge` | `round`, `doc_a`, `node_a`, `doc_b`, `node_b`, `kept`, `joined` | every union in order: the round, the pair ruled same, and the two cluster leaders it joined; with `pair` it is the full audit of why an entity is under its parent |
 # | `pair` | `doc_a`, `node_a`, `doc_b`, `node_b`, `lexical`, `vector`, `cast`, `cast_rare`, `identity`, `offered`, `verdict`, `reason` | every nominated pair of children: the four signals, whether it cleared the floor, and the judge's verdict; the grouping replays from this table under any subset of the signals |
 # | `vec_header`, `vec_row` | `model`, `dimension`, `built_at`; `row`, `record`, `doc_id`, `record_id`, `ordinal`, `text` | the sidecar's map: what each row of the array is |
 #
@@ -75,6 +76,21 @@
 # receipt. Every call is logged with its cost, and the run stops at a spending limit. A
 # document arriving later (the nightly pull) attaches through the same nomination against
 # the parents that exist; that path is the next build.
+#
+# ## The ablation, exactly
+#
+# Nomination and the floor never change between arms; the arm is what the judge is shown.
+# `SIGNALS` without `cast` is the arm L+V+I: the judge sees the two entities' texts alone.
+# With `cast` it is L+V+I+C: the judge also sees the names each entity appears beside. The
+# question the two arms answer is whether relational evidence buys anything on top of an
+# embedding nomination and a language-model judge. Dropping `lexical`, `vector` or `identity`
+# from `SIGNALS` changes nomination instead and is a different experiment. The vector floor
+# (0.75) was set on 2026-09-14 from the distribution of cosines over the test store and a
+# handful of pairs read by eye (a true pair at 0.78, a false pair at 0.76); it is frozen here
+# and is not tuned against the Oz key.
+#
+# After the build, two invariants hold or the run stops: every up-edge points at a written
+# parent, and every child has an up-edge.
 #
 # ## Running it
 #
@@ -344,6 +360,7 @@ create table instance_of (doc_id text, node_id text, parent_id integer, reason t
     primary key (doc_id, node_id));
 create table pair (doc_a text, node_a text, doc_b text, node_b text, lexical real, vector real, cast real,
     cast_rare real, identity integer, offered integer, verdict text, reason text);
+create table merge (round integer, doc_a text, node_a text, doc_b text, node_b text, kept text, joined text);
 
 create table vec_header (model text, dimension integer, built_at text);
 create table vec_row (row integer primary key, record text, doc_id text, record_id text, ordinal integer, text text);
@@ -607,8 +624,9 @@ def load_sidecar(store):
 # A child is an entity node that is not the document itself and not the user of a chat. Each
 # is read once with its name, aliases, kind, summary or facts, the cast it shares units with,
 # and its is_a links to siblings (the ingestor's own link: an is_a fact whose object is
-# another node of the document). A cast name's rarity over the loaded documents weights the
-# second co-occurrence score.
+# another node of the document). A cast name's rarity over the loaded documents, the log of
+# (documents plus one) over (documents holding it plus one), weights the second co-occurrence
+# score; a name in every document weighs almost nothing and none weighs less than zero.
 
 # %%
 def read_children(db):
@@ -665,7 +683,7 @@ def read_corpus(db):
     docs_with = {}
     for child in children.values():
         docs_with.setdefault(fold(child["name"]), set()).add(child["doc_id"])
-    rarity = {name: math.log(len(docs) / (1 + len(ds))) for name, ds in docs_with.items()}
+    rarity = {name: math.log((len(docs) + 1) / (len(ds) + 1)) for name, ds in docs_with.items()}   # nonnegative, smoothed
     return docs, children, rarity
 
 
@@ -819,13 +837,10 @@ def score_pair(a, b, hows, sim, rarity):
             "identity": identity, "offered": int(offered), "verdict": None, "reason": None}
 
 
-TIER = {"identity": 2.0, "lexical": 1.0, "vector": 0.0}     # what a pair is offered on, strongest first
-
-
 def priority(pair):
-    """A pair's place in the queue: the strongest signal it was offered on, then its cosine."""
-    tier = TIER["identity"] if pair["identity"] else (TIER["lexical"] if pair["lexical"] == 1.0 else TIER["vector"])
-    return tier + pair["vector"]
+    """A pair's place in the queue, as hard tiers: an is_a link before any name match before any
+    cosine, and the cosine only within a tier."""
+    return (pair["identity"], pair["lexical"], pair["vector"])
 
 # %% [markdown]
 # ## Block 11: the judge
@@ -885,6 +900,8 @@ class Clusters:
         self.leader = {key: key for key in keys}
         self.members = {key: [key] for key in keys}
         self.different = set()
+        self.joined = {}
+        self.merges = []
 
     def find(self, key):
         while self.leader[key] != key:
@@ -892,8 +909,13 @@ class Clusters:
             key = self.leader[key]
         return key
 
-    def unite(self, a, b):
+    def unite(self, a, b, pair, round_no):
+        """Join two clusters on a pair ruled same; the union is logged, and every member not yet
+        joined through an earlier union remembers this one as the reason it is where it is."""
         keep, gone = (a, b) if a < b else (b, a)
+        for member in self.members[a] + self.members[b]:
+            self.joined.setdefault(member, pair)
+        self.merges.append((round_no, pair["a"], pair["b"], keep, gone))
         self.leader[gone] = keep
         self.members[keep] += self.members.pop(gone)
 
@@ -944,7 +966,7 @@ def cluster(keys, pairs, children, docs):
         for pair, _, _ in batch:
             la, lb = clusters.find(pair["a"]), clusters.find(pair["b"])
             if pair["verdict"] == "same" and la != lb:
-                clusters.unite(la, lb)
+                clusters.unite(la, lb, pair, rounds + 1)
                 united += 1
             elif pair["verdict"] == "different":
                 clusters.different.add((min(pair["a"], pair["b"]), max(pair["a"], pair["b"])))
@@ -953,7 +975,7 @@ def cluster(keys, pairs, children, docs):
         alive = len(clusters.members)
         print(f"  round {rounds}: {len(batch)} pairs judged, {united} united so far, {alive} clusters; ${SPENT:.2f}")
     print(f"clustered in {rounds} rounds: {judged} judged, {united} united, {len(clusters.different)} ruled different; ${SPENT:.2f}")
-    return clusters.groups(keys)
+    return clusters
 
 # %% [markdown]
 # ## Block 13: writing the parents
@@ -996,14 +1018,10 @@ def write_parent(members, children, docs):
     return {"name": name, "kind": kind, "aliases": aliases, "summary": summary, "children": members, "calls": 1}
 
 
-def write_tables(db, parents, pairs):
-    for table in ("parent", "instance_of", "pair"):
+def write_tables(db, parents, pairs, clusters):
+    for table in ("parent", "instance_of", "pair", "merge"):
         db.execute(f"delete from {table}")
-    joined_by = {}
-    for p in pairs:
-        if p["verdict"] == "same":
-            joined_by.setdefault(p["a"], p)
-            joined_by.setdefault(p["b"], p)
+    joined_by = clusters.joined                     # child -> the pair whose union first joined its cluster to another
     for i, p in enumerate(parents):
         summary = "\n".join(f"[{node_id}] {line}" for ((_, node_id), line) in p["summary"])   # a node id carries its document's tag
         db.execute("insert into parent values (?,?,?,?,?,?,?)",
@@ -1012,11 +1030,18 @@ def write_tables(db, parents, pairs):
             r = joined_by.get(key)
             scores = {k: r[k] for k in ("lexical", "vector", "cast", "cast_rare", "identity")} if r else None
             db.execute("insert into instance_of values (?,?,?,?,?)", (key[0], key[1], i, r["reason"] if r else "alone", column(scores)))
+    db.executemany("insert into merge values (?,?,?,?,?,?,?)",
+                   [(r, a[0], a[1], b[0], b[1], keep[1], gone[1]) for r, a, b, keep, gone in clusters.merges])
     for p in pairs:
         db.execute("insert into pair values (?,?,?,?,?,?,?,?,?,?,?,?)",
                    (p["a"][0], p["a"][1], p["b"][0], p["b"][1], p["lexical"], p["vector"], p["cast"], p["cast_rare"],
                     p["identity"], p["offered"], p["verdict"], p["reason"]))
     db.commit()
+    orphans = db.execute("select count(*) from instance_of i left join parent p on p.parent_id = i.parent_id where p.parent_id is null").fetchone()[0]
+    unplaced = db.execute("""select count(*) from node n left join instance_of i on i.doc_id = n.doc_id and i.node_id = n.node_id
+                             where n.node_id not like '%:doc' and n.name != 'user' and i.parent_id is null""").fetchone()[0]
+    if orphans or unplaced:
+        raise SystemExit(f"invariant broken: {orphans} up-edges point at no written parent, {unplaced} children have no up-edge")
 
 
 def build_parents(store):
@@ -1029,11 +1054,12 @@ def build_parents(store):
     pairs = [score_pair(children[keys[i]], children[keys[j]], hows, float(vectors[i] @ vectors[j]), rarity)
              for (i, j), hows in nominate(keys, children, vectors).items()]
     print(f"{len(pairs)} pairs nominated, {sum(p['offered'] for p in pairs)} offered to the judge")
-    groups = cluster(keys, pairs, children, docs)
+    clusters = cluster(keys, pairs, children, docs)
+    groups = clusters.groups(keys)
     multi = [m for m in groups.values() if len(m) > 1]
     print(f"{len(groups)} groups, {len(multi)} with two or more instances, the largest {max((len(m) for m in multi), default=1)}")
     parents = in_parallel(write_parent, [(members, children, docs) for members in groups.values()])
-    write_tables(db, parents, pairs)
+    write_tables(db, parents, pairs, clusters)
     db.close()
     print(f"written: {len(parents)} parents ({sum(p['calls'] for p in parents)} written by a call), {len(keys)} up-edges, {len(pairs)} pair rows; ${SPENT:.2f}")
 
@@ -1224,111 +1250,21 @@ if __name__ == "__main__" and STORE.exists():
     build_collections(STORE)
 
 # %% [markdown]
-# ## Block 17: the collection map
+# ## Block 17: the collection figure
 #
-# Two drawings of the same tree, collections as parents and documents as leaves, a document in
-# two collections between them. `draw_collection_radial` is the figure the wiki and the paper
-# lead with (ruled 09-15): each collection a hub on a ring with its documents fanned around
-# it, shared documents between their hubs; it is shown inline at the end of the block.
-# `write_collection_map` is the interactive page beside it: plain SVG and JavaScript, no
-# library, a force layout that settles in the browser, zoom and pan, a click opening a portal
-# or a document page. Both read the store; nothing is written back.
+# The collections as parents and their documents as leaves, a document in two collections
+# between its hubs: each collection a hub on a ring with its documents fanned around it. Drawn
+# from the store, written as an SVG beside it, shown inline at the end of the block.
 
 # %%
-def slug(name):
-    return re.sub(r"[^a-z0-9]+", "-", name.casefold()).strip("-")
+def slug(name, number=None):
+    """A file name from a name, with the record's number so two parents named alike never collide."""
+    base = re.sub(r"[^a-z0-9]+", "-", name.casefold()).strip("-")
+    return base if number is None else f"{base}-{number}"
 
 
 def doc_slug(doc_id):
     return "doc-" + doc_id[:12]
-
-
-MAP = """<!doctype html>
-<html lang="en"><head><meta charset="utf-8"><title>{title}</title>
-<style>
-body {{ margin: 0; font-family: Georgia, serif; background: #fbf7f0; color: #23303f; }}
-header {{ background: #1f3d4a; color: #f6f1e7; padding: 1rem 1.5rem; }} header h1 {{ margin: 0; font-weight: normal; font-size: 1.6rem; }}
-header p {{ margin: 0.3rem 0 0; color: #b8c6bf; font-size: 0.9rem; }}
-svg {{ width: 100vw; height: calc(100vh - 5rem); display: block; cursor: grab; }}
-.doc {{ fill: #7aa6c2; stroke: #fff; stroke-width: 1.2; }} .doc.shared {{ fill: #e0a73b; }}
-.hub {{ fill: #b4552a; stroke: #fff; stroke-width: 2; }}
-.edge {{ stroke: #9aa5b1; stroke-opacity: 0.6; }}
-text {{ font-size: 11px; fill: #23303f; pointer-events: none; paint-order: stroke; stroke: #fbf7f0; stroke-width: 3px; }}
-text.hub {{ font-size: 14px; font-weight: bold; fill: #1f3d4a; }} g:hover text {{ font-size: 13px; fill: #b4552a; }}
-a {{ cursor: pointer; }}
-</style></head><body>
-<header><h1>{title}</h1><p>collections in red, documents in blue, a document in more than one collection in gold; click a collection for its portal or a document for its page; drag to pan, wheel to zoom</p></header>
-<svg id="map"></svg>
-<script>
-const nodes = {nodes};
-const links = {links};
-const svg = document.getElementById("map");
-const W = svg.clientWidth, H = svg.clientHeight;
-const NS = "http://www.w3.org/2000/svg";
-const view = document.createElementNS(NS, "g"); svg.appendChild(view);
-nodes.forEach((n, i) => {{ n.x = W / 2 + 200 * Math.cos(i); n.y = H / 2 + 200 * Math.sin(i); n.vx = 0; n.vy = 0; }});
-const byId = Object.fromEntries(nodes.map(n => [n.id, n]));
-const lines = links.map(l => {{ const e = document.createElementNS(NS, "line"); e.setAttribute("class", "edge"); view.appendChild(e); return e; }});
-const groups = nodes.map(n => {{
-  const g = document.createElementNS(NS, "g");
-  const a = document.createElementNS(NS, "a"); if (n.href) a.setAttribute("href", n.href);
-  const c = document.createElementNS(NS, "circle"); c.setAttribute("r", n.hub ? 14 : 6);
-  c.setAttribute("class", n.hub ? "hub" : ("doc" + (n.shared ? " shared" : "")));
-  const t = document.createElementNS(NS, "text"); t.textContent = n.label; t.setAttribute("class", n.hub ? "hub" : "doc");
-  t.setAttribute("dx", n.hub ? 18 : 9); t.setAttribute("dy", 4);
-  a.appendChild(c); g.appendChild(a); g.appendChild(t); view.appendChild(g); return g; }});
-function step() {{
-  for (const a of nodes) for (const b of nodes) {{ if (a === b) continue;
-    let dx = a.x - b.x, dy = a.y - b.y, d2 = dx * dx + dy * dy + 0.01, d = Math.sqrt(d2);
-    const f = (a.hub && b.hub ? 40000 : 3000) / d2; a.vx += f * dx / d; a.vy += f * dy / d; }}
-  for (const l of links) {{ const a = byId[l.source], b = byId[l.target];
-    const dx = b.x - a.x, dy = b.y - a.y, d = Math.sqrt(dx * dx + dy * dy) + 0.01, f = (d - 70) * 0.05;
-    a.vx += f * dx / d; a.vy += f * dy / d; b.vx -= f * dx / d; b.vy -= f * dy / d; }}
-  for (const n of nodes) {{ n.vx += (W / 2 - n.x) * 0.002; n.vy += (H / 2 - n.y) * 0.002;
-    n.x += n.vx *= 0.8; n.y += n.vy *= 0.8; }}
-  lines.forEach((e, i) => {{ const a = byId[links[i].source], b = byId[links[i].target];
-    e.setAttribute("x1", a.x); e.setAttribute("y1", a.y); e.setAttribute("x2", b.x); e.setAttribute("y2", b.y); }});
-  groups.forEach((g, i) => g.setAttribute("transform", `translate(${{nodes[i].x}},${{nodes[i].y}})`));
-}}
-let scale = 1, tx = 0, ty = 0, dragging = null;
-function apply() {{ view.setAttribute("transform", `translate(${{tx}},${{ty}}) scale(${{scale}})`); }}
-function fit() {{ const xs = nodes.map(n => n.x), ys = nodes.map(n => n.y);
-  const x0 = Math.min(...xs) - 80, x1 = Math.max(...xs) + 220, y0 = Math.min(...ys) - 40, y1 = Math.max(...ys) + 40;
-  scale = Math.min(W / (x1 - x0), H / (y1 - y0), 1.5); tx = (W - (x0 + x1) * scale) / 2; ty = (H - (y0 + y1) * scale) / 2; apply(); }}
-let ticks = 0; const timer = setInterval(() => {{ step(); if (++ticks > 400) {{ clearInterval(timer); fit(); }} }}, 16);
-svg.addEventListener("wheel", e => {{ e.preventDefault(); const k = e.deltaY < 0 ? 1.1 : 0.9;
-  tx = e.offsetX - (e.offsetX - tx) * k; ty = e.offsetY - (e.offsetY - ty) * k; scale *= k; apply(); }});
-svg.addEventListener("mousedown", e => {{ dragging = [e.clientX - tx, e.clientY - ty]; }});
-window.addEventListener("mousemove", e => {{ if (dragging) {{ tx = e.clientX - dragging[0]; ty = e.clientY - dragging[1]; apply(); }} }});
-window.addEventListener("mouseup", () => {{ dragging = null; }});
-</script></body></html>
-"""
-
-
-def collection_nodes(db):
-    """The map's nodes and links from the store."""
-    titles = dict(db.execute("select doc_id, title from document"))
-    collections = db.execute("select collection_id, name from collection").fetchall()
-    membership = db.execute("select doc_id, collection_id from document_in").fetchall()
-    count = {}
-    for d, _ in membership:
-        count[d] = count.get(d, 0) + 1
-    nodes = [{"id": f"c{c}", "label": name, "hub": True, "href": slug(name) + ".html"} for c, name in collections]
-    nodes += [{"id": d, "label": titles[d], "hub": False, "shared": count[d] > 1, "href": doc_slug(d) + ".html"} for d in count]
-    links = [{"source": f"c{c}", "target": d} for d, c in membership]
-    return nodes, links
-
-
-def write_collection_map(store, out):
-    """The interactive map page, under out/wiki."""
-    db = sqlite3.connect(store)
-    nodes, links = collection_nodes(db)
-    db.close()
-    (out / "wiki").mkdir(exist_ok=True)
-    path = out / "wiki" / "map.html"
-    path.write_text(MAP.format(title="ThreadAtlas: the collections", nodes=json.dumps(nodes, ensure_ascii=False), links=json.dumps(links)), encoding="utf-8")
-    print(f"wrote map.html: {sum(n['hub'] for n in nodes)} collections, {len(nodes)} nodes, {len(links)} links")
-    return path
 
 
 def draw_collection_radial(store, out):
@@ -1337,13 +1273,18 @@ def draw_collection_radial(store, out):
     matplotlib.use("Agg")
     from matplotlib import pyplot
     db = sqlite3.connect(store)
-    nodes, links = collection_nodes(db)
-    db.close()
-    hubs = [n for n in nodes if n["hub"]]
-    docs = {n["id"]: n for n in nodes if not n["hub"]}
+    titles = dict(db.execute("select doc_id, title from document"))
+    hubs = [{"id": f"c{c}", "label": name} for c, name in db.execute("select collection_id, name from collection")]
     members = {}
-    for l in links:
-        members.setdefault(l["source"], []).append(l["target"])
+    for d, c in db.execute("select doc_id, collection_id from document_in"):
+        members.setdefault(f"c{c}", []).append(d)
+    db.close()
+    count = {}
+    for ds in members.values():
+        for d in ds:
+            count[d] = count.get(d, 0) + 1
+    docs = {d: {"label": titles[d], "shared": n > 1} for d, n in count.items()}
+    links = [{"source": h, "target": d} for h, ds in members.items() for d in ds]
     pos = {}
     R = 10.0
     for i, hub in enumerate(hubs):
@@ -1391,7 +1332,6 @@ def show_figure(path):
 
 if __name__ == "__main__" and STORE.exists():
     draw_collection_radial(STORE, OUT)
-    write_collection_map(STORE, OUT)
     show_figure(OUT / "collection-radial.svg")
 
 # %% [markdown]
@@ -1474,14 +1414,14 @@ def document_page(db, doc_id):
         cells = db.execute("""select group_concat(f.object, ' '), u.label from fact f join unit u on u.unit_id = f.unit_id
                               where f.doc_id = ? and f.direction = 'mentioned' group by u.position order by u.position""", (doc_id,)).fetchall()
     summaries = "".join(f'<h4>{escape(unit_heading(label))}</h4><p class="cell">{escape(text)}</p>' for text, label in cells)
-    entities = db.execute("""select n.node_id, n.name, n.kind, p.name, p.instances from node n
+    entities = db.execute("""select n.node_id, n.name, n.kind, p.parent_id, p.name, p.instances from node n
                              left join instance_of i on i.doc_id = n.doc_id and i.node_id = n.node_id
                              left join parent p on p.parent_id = i.parent_id
                              where n.doc_id = ? and n.node_id != ? and n.name != 'user'
                              order by (select count(*) from fact f where f.doc_id = n.doc_id and f.subject = n.node_id) desc""", (doc_id, f"{tag}:doc")).fetchall()
     items = []
-    for node_id, name, kind, pname, instances in entities[:60]:
-        link = f'<a href="{slug(pname)}.html">{escape(name)}</a>' if pname else escape(name)
+    for node_id, name, kind, pid, pname, instances in entities[:60]:
+        link = f'<a href="{slug(pname, pid)}.html">{escape(name)}</a>' if pname else escape(name)
         more = f", with {instances - 1} more" if instances and instances > 1 else ""
         items.append(f'<li>{link} <span class="kind">{escape(kind or "")}{more}</span></li>')
     record = f"{escape(author or 'author unknown')}, {escape(date or 'undated')}"
@@ -1589,7 +1529,7 @@ def write_wiki_page(store, out, name, kind=None):
     html = wiki_page(db, row[0])
     db.close()
     (out / "wiki").mkdir(exist_ok=True)
-    path = out / "wiki" / (re.sub(r"[^a-z0-9]+", "-", name.casefold()).strip("-") + ".html")
+    path = out / "wiki" / (slug(name, row[0]) + ".html")
     path.write_text(html, encoding="utf-8")
     print(f"wrote {path.name}: {len(html)} characters")
     return path
@@ -1665,8 +1605,8 @@ def portal_page(db, collection_id):
     sections = "".join(f"<h2><a href=\"{doc_slug(doc_id)}.html\">{escape(title)}</a></h2><div class=\"doc\">{escape(date)}</div><p>{escape(abstracts.get(doc_id) or '')}</p>"
                        for doc_id, title, date in docs)
     parents = collection_parents(db, group)
-    items = "".join(f'<li><a href="{slug(pname)}.html">{escape(pname)}</a> <span class="kind">{escape(kind)}, in {n} of {len(group)}, {facts} facts</span></li>'
-                    for _, pname, kind, n, facts in parents[:PORTAL_ENTITIES])
+    items = "".join(f'<li><a href="{slug(pname, pid)}.html">{escape(pname)}</a> <span class="kind">{escape(kind)}, in {n} of {len(group)}, {facts} facts</span></li>'
+                    for pid, pname, kind, n, facts in parents[:PORTAL_ENTITIES])
     return PORTAL.format(name=escape(name), n=len(group), abstract=escape(abstract), sections=sections, parents=items)
 
 
@@ -1675,11 +1615,11 @@ def write_portal(store, out, collection_id):
     db = sqlite3.connect(store)
     name = db.execute("select name from collection where collection_id = ?", (collection_id,)).fetchone()[0]
     (out / "wiki").mkdir(exist_ok=True)
-    path = out / "wiki" / (slug(name) + ".html")
+    path = out / "wiki" / (slug(name, f"c{collection_id}") + ".html")
     path.write_text(portal_page(db, collection_id), encoding="utf-8")
     group = [d for (d,) in db.execute("select doc_id from document_in where collection_id = ?", (collection_id,))]
     for pid, pname, _, _, _ in collection_parents(db, group)[:PORTAL_ENTITIES]:
-        (out / "wiki" / (slug(pname) + ".html")).write_text(wiki_page(db, pid), encoding="utf-8")
+        (out / "wiki" / (slug(pname, pid) + ".html")).write_text(wiki_page(db, pid), encoding="utf-8")
     for doc_id in group:
         (out / "wiki" / (doc_slug(doc_id) + ".html")).write_text(document_page(db, doc_id), encoding="utf-8")
     db.close()
