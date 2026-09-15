@@ -104,3 +104,12 @@ machine), so a script an entry names may no longer be in its folder.
   the project against Justin's goals; [questions.md](2026-09-13/questions.md) the rulings left
   open by the cleanup. The plan that follows from the audit is `docs/execution-plan.md`. Scripts:
   `check_flex_run.py` (the Step 1 answer check) and `extractor/` (the 1.8 build and verification).
+- [2026-09-14](2026-09-14/global-layer.md): the global layer built as a batch (bottom-up clustering
+  with a judge, parents written once, the mentions pass, collections, the wiki); ingestor 1.8 run
+  and published as the Step 1 dataset ([ingestor-1.8.md](2026-09-14/ingestor-1.8.md), the note
+  to the ingestor thread).
+- [2026-09-15](2026-09-15/global-layer.md): the wiki settled (slate scheme, breadcrumb, the portal
+  by relevance), the lean serving store, retrieval built; [retrieval.md](2026-09-15/retrieval.md)
+  is the query-path manual as proposed and approved with seven corrections (the master is
+  `docs/retrieval.md`); [documentation-review.md](2026-09-15/documentation-review.md) reviews
+  every master against the code and the rulings.

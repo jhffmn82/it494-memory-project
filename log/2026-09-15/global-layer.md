@@ -79,3 +79,13 @@ version 21.
   `build.sqlite` beside the store. Dry run with the judge stubbed: 6,929 facts, 6,605 quotes
   checked, 9,646 search rows, 15,758 vectors, 1,344 parents, 4 collections, the figure, the
   portal, an entity page and a document page all render. Kernel pushed.
+
+- Block 20 (retrieval) and block 21 (one question over the largest collection) written to the
+  manual with its seven corrections; the master is `docs/retrieval.md`. Dry run over the Oz
+  collection on the stubbed-judge store: a question answers in about a tenth of a second; both
+  arms find entries (a parent summary tops the vector arm for "Who is Tip" and routes to its
+  children; the keyword arm's top hits are the Emerald City cells and facts); the parent hop off
+  removes the `parent` edge and the parent rows; each arm alone runs; 6,000 tokens pack 57 to
+  74 whole records. A fact's packed line is its clause and its quote; the date and the title
+  are the record's prefix, not repeated. `questions.jsonl` holds one line per question. The
+  BGE query prefix is empty until the 14 tuning questions choose it. Kernel pushed.
