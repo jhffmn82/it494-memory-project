@@ -994,20 +994,39 @@ def cluster(keys, pairs, children, docs):
 # %% [markdown]
 # ## Block 13: writing the parents
 #
-# First the final pass that makes a document the parent of its mentions. Then a cluster of
-# one is a parent copied from its child, no call; a cluster of two or more gets one call that
-# picks the name and kind from what the instances carry and writes one line per instance; a
-# name no instance carries is refused, and a cluster anchored by a document takes the
-# document's title. Then the tables.
+# Two kinds of parent. An entity parent stands over one finished cluster: a cluster of one is a
+# copy of its child with no call; two or more instances get one call that picks the name and
+# kind from what the instances carry (a name no instance carries is refused) and writes one
+# line per instance. A document parent stands over the document's own node and every cluster
+# the judge ruled a mention of that document: it takes the document's title and the kind
+# `document`, no naming call, and one call writes the instance lines when there are mentions.
+# The mentions pass runs after the clustering is finished and never puts a document into it:
+# each finished cluster is offered at most one titled document, and the judge rules with the
+# document as the other side. Then the tables, and two invariants.
 
 # %%
-def attach_mentions(groups, keys, vectors, documents, children, docs, rarity, pairs):
-    """The final pass: is a cluster a mention of a document in the corpus? Each cluster is
-    offered at most one titled document, by a title matching a member's name or alias, else by
-    the member text nearest the document's abstract over the floor; the judge rules with the
-    document as the other side; a cluster ruled same becomes that document's children, and the
-    document's own node its anchor. Returns cluster leader -> document child key."""
+def best_offer(members, children, documents, by_title, sims, index):
+    """The one document a cluster is offered, or None: a document whose title equals a member's
+    name or naming alias; else the document whose abstract is nearest a member's text over
+    DOCUMENT_FLOOR. Returns (lexical, cosine, member, document index)."""
     import numpy
+    best = None
+    for m in members:
+        forms = [children[m]["name"]] + [a for a in children[m]["aliases"] if proper(a)]
+        for j in [j for form in forms for j in by_title.get(fold(form), [])]:
+            best = (1.0, float(sims[index[m], j]), m, j)
+        if best is None or best[0] < 1.0:
+            j = int(numpy.argmax(sims[index[m]]))
+            if sims[index[m], j] >= DOCUMENT_FLOOR and (best is None or sims[index[m], j] > best[1]):
+                best = (0.0, float(sims[index[m], j]), m, j)
+    return best
+
+
+def attach_mentions(groups, keys, vectors, documents, children, docs, rarity, pairs):
+    """The pass after clustering: which finished clusters are mentions of a document in the
+    corpus. Every offer is judged like any pair (the cluster's members on one side, the document
+    on the other) and logged in `pair`. Returns document key -> the leaders of the clusters ruled
+    its mentions, so a document with two mention clusters gets both under it."""
     if not documents:
         return {}
     doc_vectors = embed([child_text(children[key], docs[key[0]]) for key in documents])
@@ -1018,14 +1037,7 @@ def attach_mentions(groups, keys, vectors, documents, children, docs, rarity, pa
         by_title.setdefault(fold(children[key]["name"]), []).append(j)
     offers = []
     for leader, members in groups.items():
-        best = None
-        for m in members:
-            for j in by_title.get(fold(children[m]["name"]), []) + [j for a in children[m]["aliases"] if proper(a) for j in by_title.get(fold(a), [])]:
-                best = (1.0, float(sims[index[m], j]), m, j)
-            if best is None or best[0] < 1.0:
-                j = int(numpy.argmax(sims[index[m]]))
-                if sims[index[m], j] >= DOCUMENT_FLOOR and (best is None or sims[index[m], j] > best[1]):
-                    best = (0.0, float(sims[index[m], j]), m, j)
+        best = best_offer(members, children, documents, by_title, sims, index)
         if best is not None:
             lexical, sim, m, j = best
             pair = score_pair(children[m], children[documents[j]], set(), sim, rarity)
@@ -1033,8 +1045,12 @@ def attach_mentions(groups, keys, vectors, documents, children, docs, rarity, pa
             pairs.append(pair)
             offers.append((leader, documents[j], pair, list(members)))
     in_parallel(judge_pair, [(pair, members, [doc_key], children, docs) for _, doc_key, pair, members in offers])
-    mentions = {leader: doc_key for leader, doc_key, pair, _ in offers if pair["verdict"] == "same"}
-    print(f"mentions: {len(offers)} clusters offered a document, {len(mentions)} ruled its mentions")
+    mentions = {}
+    for leader, doc_key, pair, _ in offers:
+        if pair["verdict"] == "same":
+            mentions.setdefault(doc_key, []).append(leader)
+    print(f"mentions: {len(offers)} clusters offered a document, {sum(len(v) for v in mentions.values())} ruled its mentions, "
+          f"{len(mentions)} documents with mentions")
     return mentions
 
 
@@ -1046,10 +1062,23 @@ def alone(members, children, docs):
             "summary": [(members[0], line)], "children": members, "calls": 0}
 
 
+def instance_lines(members, children, docs, reply):
+    """One summary line per instance, tagged later with the instance's id: the call's line when
+    it wrote one, else a plain line naming the instance in its document."""
+    lines = reply["lines"] if reply and isinstance(reply["lines"], list) else []
+    summary = []
+    for n, key in enumerate(members):
+        line = lines[n] if n < len(lines) and isinstance(lines[n], str) and lines[n].strip() else None
+        summary.append((key, line or f"In {docs[key[0]]['title']}: {children[key]['name']}."))
+    return summary
+
+
 def write_parent(members, children, docs):
-    """A parent from its instances, most facts first."""
-    members = sorted(members, key=most_facts_first(children))
-    anchors = [m for m in members if children[m]["document"]]
+    """A parent from its instances, most facts first. A document parent (its first member is the
+    document's own node) keeps the document's title and the kind `document`; the call only
+    writes the instance lines. An entity parent lets the call pick the name and kind too."""
+    document = children[members[0]]["document"]
+    members = members[:1] + sorted(members[1:], key=most_facts_first(children)) if document else sorted(members, key=most_facts_first(children))
     if len(members) == 1:
         return alone(members, children, docs)
     aliases = set()
@@ -1061,18 +1090,13 @@ def write_parent(members, children, docs):
     reply = generate(WRITE.format(instances=listing, n=len(shown)), {"name": str, "kind": str, "lines": list}, "write",
                      effort="low", ctx={"parent": members[0][1], "instances": len(members)})
     first = children[members[0]]
-    allowed = {fold(a) for a in aliases}
-    name = reply["name"] if reply and fold(reply["name"]) in allowed else first["name"]
-    kind = reply["kind"] if reply and reply.get("kind") else first["kind"]
-    if anchors:                                          # a document is the parent of its mentions, under its own title
-        name, kind = children[anchors[0]]["name"], "document"
-        members = anchors[:1] + [m for m in members if m not in anchors]
-    lines = reply["lines"] if reply and isinstance(reply["lines"], list) else []
-    summary = []
-    for n, key in enumerate(members):
-        line = lines[n] if n < len(lines) and isinstance(lines[n], str) and lines[n].strip() else None
-        summary.append((key, line or f"In {docs[key[0]]['title']}: {children[key]['name']}."))
-    return {"name": name, "kind": kind, "aliases": aliases, "summary": summary, "children": members, "calls": 1}
+    if document:
+        name, kind = first["name"], "document"
+    else:
+        name = reply["name"] if reply and fold(reply["name"]) in {fold(a) for a in aliases} else first["name"]
+        kind = reply["kind"] if reply and reply.get("kind") else first["kind"]
+    return {"name": name, "kind": kind, "aliases": aliases, "summary": instance_lines(members, children, docs, reply),
+            "children": members, "calls": 1}
 
 
 def write_tables(db, store, parents, pairs, clusters):
@@ -1117,8 +1141,8 @@ def build_parents(store, step1):
     multi = [m for m in groups.values() if len(m) > 1]
     print(f"{len(groups)} groups, {len(multi)} with two or more instances, the largest {max((len(m) for m in multi), default=1)}")
     mentions = attach_mentions(groups, keys, vectors, documents, children, docs, rarity, pairs)
-    for leader, doc_key in mentions.items():
-        groups[leader].append(doc_key)
+    for doc_key in documents:                            # a document is a parent: its own node first, then its mentions
+        groups[doc_key] = [doc_key] + [m for leader in mentions.get(doc_key, []) for m in groups.pop(leader)]
     parents = in_parallel(write_parent, [(members, children, docs) for members in groups.values()])
     write_tables(db, store, parents, pairs, clusters)
     db.close()

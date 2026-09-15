@@ -127,3 +127,13 @@ version 21.
   to the kernel; kernel version 29. The first keyed run on the lean store is Justin's.
 
 - Correction: the push with the key block is kernel version 30, not 29.
+
+- Two keyed runs crashed in write_tables: IntegrityError on instance_of, because two clusters were
+  ruled mentions of one document and the document's node was appended to each cluster's group.
+  Justin: the document IS the parent; the mentions pass matches clusters to documents after the
+  clustering, and documents never enter the clustering. Block 13 rewritten to say so: attach_mentions
+  returns document -> the clusters ruled its mentions; build_parents makes one group per titled
+  document, the document's node first, then every mention cluster; write_parent keeps a document
+  parent's title and kind with no naming call (best_offer and instance_lines split out). Verified
+  locally with a stub that rules every offer a mention: 94 clusters under 10 documents, 1,260
+  parents, 1,393 up-edges, invariants hold. Kernel pushed for the third keyed run.
