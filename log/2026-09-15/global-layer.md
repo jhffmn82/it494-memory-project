@@ -125,3 +125,5 @@ version 21.
   joins; the splits are the alias cases (Tip and Ozma, Saw-Horse, Glinda the Good, the Wonderful
   Wizard, the Guardian of the Gate). Dataset `jhffmn/it494-threadatlas-oz-key` published, attached
   to the kernel; kernel version 29. The first keyed run on the lean store is Justin's.
+
+- Correction: the push with the key block is kernel version 30, not 29.
