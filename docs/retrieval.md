@@ -4,7 +4,7 @@ The master for the retrieval pipeline, its own notebook over the serving store a
 of the build (ruled 2026-09-15; the draft is `notebooks/threadatlas-retrieval.py`). Ruled from the
 manual in `log/2026-09-15/retrieval.md` with the seven corrections of its section 11 folded in;
 that log is the snapshot, this file carries the rule. Every constant here is logged with every
-question. Sources are in section 8.
+question. Sources are in section 10.
 
 ## 1. What the path reads
 
