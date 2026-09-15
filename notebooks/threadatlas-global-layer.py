@@ -1297,9 +1297,10 @@ if __name__ == "__main__" and STORE.exists():
 #
 # One function renders a page for any parent from the store: the parent's paragraph (its
 # summary lines) at the top; then a section per instance with the instance's abstract and its
-# cells as paragraphs, in unit order, a summary of the entity's part in that document; and, on
-# the right, every fact of every instance as a sentence in order of appearance, with its quote
-# beneath. Read only; nothing is written back. The run writes a sample page beside the store;
+# cells as paragraphs in unit order, each under its unit's label (a chapter, or a chat turn's
+# time), a summary of the entity's part in that document; and, on the right, the instance's
+# facts in order of appearance: the consolidated facts where the ingestor wrote them, each
+# opening to the raw facts and quotes behind it, else the raw facts one line per distinct claim. Read only; nothing is written back. The run writes a sample page beside the store;
 # the Ozma page is the mock-up kept in the repository under `docs/wiki/`.
 
 # %%
@@ -1328,6 +1329,8 @@ h1 {{ font-size: 2rem; margin: 0 0 0.2rem; }} h2 {{ font-size: 1.2rem; border-bo
 h3 {{ font-size: 0.95rem; color: #555; margin: 1.2rem 0 0.4rem; }}
 .kind {{ color: #777; font-style: italic; }} .lead {{ font-size: 1.05rem; }} .cell {{ margin: 0.6rem 0; }}
 .doc {{ color: #666; font-size: 0.85rem; margin-bottom: 0.4rem; }} .facts p {{ margin: 0.5rem 0; }}
+h4 {{ font-size: 0.85rem; color: #777; margin: 1rem 0 0.2rem; font-weight: normal; }}
+details {{ margin: 0.4rem 0; }} summary {{ cursor: pointer; }} details p {{ margin: 0.3rem 0 0.3rem 1rem; }}
 .quote {{ color: #777; font-size: 0.8rem; display: block; margin-top: 0.15rem; }}
 .aliases {{ color: #666; font-size: 0.85rem; }}
 </style></head><body><div class="wrap">
@@ -1342,27 +1345,70 @@ h3 {{ font-size: 0.95rem; color: #555; margin: 1.2rem 0 0.4rem; }}
 """
 
 
+def unit_heading(label):
+    """A cell's heading: the unit's label; a chat turn's label becomes its turn and time."""
+    match = re.match(r"SESSION \S+ TURN (\d+) (\S+)", label or "")
+    if match:
+        return f"turn {match.group(1)}, {match.group(2).replace('T', ' ')}"
+    return label or ""
+
+
 def instance_section(db, doc_id, node_id, title, date, names):
-    """One instance: its abstract, then its cells in unit order."""
+    """One instance: its abstract, then its cells in unit order, each under its unit's label."""
     abstract = db.execute("select text from abstract where doc_id = ? and node_id = ?", (doc_id, node_id)).fetchone()
-    cells = db.execute("""select c.text from cell c join unit u on u.unit_id = c.unit_id
+    cells = db.execute("""select c.text, u.label from cell c join unit u on u.unit_id = c.unit_id
                           where c.doc_id = ? and c.node_id = ? order by u.position""", (doc_id, node_id)).fetchall()
-    paragraphs = "".join(f'<p class="cell">{escape(text)}</p>' for (text,) in cells)
+    paragraphs = "".join(f'<h4>{escape(unit_heading(label))}</h4><p class="cell">{escape(text)}</p>' for text, label in cells)
     return (f"<h2>{escape(names.get(node_id, node_id))} in {escape(title)}</h2>"
             f'<div class="doc">{escape(title)}, {escape(date)}</div>'
             f"<p><em>{escape(abstract[0] if abstract else '')}</em></p>{paragraphs}")
 
 
-def instance_facts(db, doc_id, node_id, title, names):
-    """One instance's facts as sentences in order of appearance, each with its quote."""
-    rows = db.execute("""select f.subject, f.predicate, f.object, f.object_is_node, f.qualifiers, f.quote
+def raw_facts(db, doc_id, node_id):
+    """fact_id -> the fact row, in order of appearance."""
+    rows = db.execute("""select f.fact_id, f.subject, f.predicate, f.object, f.object_is_node, f.qualifiers, f.quote, u.position
                          from fact f left join unit u on u.unit_id = f.unit_id
                          where f.doc_id = ? and f.subject = ? and f.quote is not null order by u.position, f.fact_id""", (doc_id, node_id)).fetchall()
+    return {r[0]: {"subject": r[1], "predicate": r[2], "object": r[3], "object_is_node": r[4], "qualifiers": r[5], "quote": r[6], "position": r[7]}
+            for r in rows}
+
+
+def quoted(fact, names):
+    return f'<p>{escape(sentence(fact, names))}<span class="quote">&ldquo;{escape(fact["quote"][:200])}&rdquo;</span></p>'
+
+
+def instance_facts(db, doc_id, node_id, title, names):
+    """One instance's facts. A major the ingestor consolidated shows its adjudicated facts, each
+    opening to the raw facts and quotes behind it; otherwise the raw facts, one line per distinct
+    claim, with how often it was stated."""
+    facts = raw_facts(db, doc_id, node_id)
     parts = [f"<h3>{escape(title)}</h3>"]
-    for subject, predicate, obj, is_node, qualifiers, quote in rows:
-        fact = {"subject": subject, "predicate": predicate, "object": obj, "object_is_node": is_node, "qualifiers": qualifiers}
-        parts.append(f'<p>{escape(sentence(fact, names))}<span class="quote">&ldquo;{escape(quote[:200])}&rdquo;</span></p>')
+    adjudicated = db.execute("select predicate, object, qualifiers, from_facts from adjudicated_fact where doc_id = ? and node_id = ?", (doc_id, node_id)).fetchall()
+    if adjudicated:
+        rows = []
+        for predicate, obj, qualifiers, from_facts in adjudicated:
+            behind = [facts[i] for i in json.loads(from_facts) if i in facts]
+            first = min((f["position"] or 0 for f in behind), default=10 ** 6)
+            rows.append((first, {"subject": node_id, "predicate": predicate, "object": obj, "object_is_node": False, "qualifiers": qualifiers}, behind))
+        for _, fact, behind in sorted(rows, key=first_position):
+            inner = "".join(quoted(f, names) for f in behind)
+            parts.append(f"<details><summary>{escape(sentence(fact, names))}</summary>{inner}</details>")
+        return "".join(parts)
+    seen = {}
+    for fact in facts.values():
+        key = (fact["predicate"], fold(fact["object"]))
+        if key in seen:
+            seen[key]["count"] += 1
+        else:
+            seen[key] = dict(fact, count=1)
+    for fact in seen.values():
+        times = f' <span class="quote">stated {fact["count"]} times</span>' if fact["count"] > 1 else ""
+        parts.append(f'<p>{escape(sentence(fact, names))}{times}<span class="quote">&ldquo;{escape(fact["quote"][:200])}&rdquo;</span></p>')
     return "".join(parts)
+
+
+def first_position(row):
+    return row[0]
 
 
 def wiki_page(db, parent_id):
