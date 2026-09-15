@@ -1247,11 +1247,11 @@ svg {{ width: 100vw; height: calc(100vh - 5rem); display: block; cursor: grab; }
 .doc {{ fill: #7aa6c2; stroke: #fff; stroke-width: 1.2; }} .doc.shared {{ fill: #e0a73b; }}
 .hub {{ fill: #b4552a; stroke: #fff; stroke-width: 2; }}
 .edge {{ stroke: #9aa5b1; stroke-opacity: 0.6; }}
-text {{ font-size: 11px; fill: #23303f; pointer-events: none; }} text.hub {{ font-size: 13px; font-weight: bold; fill: #1f3d4a; }}
-text.doc {{ display: none; }} g:hover text.doc {{ display: block; }}
+text {{ font-size: 11px; fill: #23303f; pointer-events: none; paint-order: stroke; stroke: #fbf7f0; stroke-width: 3px; }}
+text.hub {{ font-size: 14px; font-weight: bold; fill: #1f3d4a; }} g:hover text {{ font-size: 13px; fill: #b4552a; }}
 a {{ cursor: pointer; }}
 </style></head><body>
-<header><h1>{title}</h1><p>collections in red, documents in blue, a document in more than one collection in gold; hover a document for its title, click a collection for its portal; drag to pan, wheel to zoom</p></header>
+<header><h1>{title}</h1><p>collections in red, documents in blue, a document in more than one collection in gold; click a collection for its portal; drag to pan, wheel to zoom</p></header>
 <svg id="map"></svg>
 <script>
 const nodes = {nodes};
@@ -1284,9 +1284,12 @@ function step() {{
     e.setAttribute("x1", a.x); e.setAttribute("y1", a.y); e.setAttribute("x2", b.x); e.setAttribute("y2", b.y); }});
   groups.forEach((g, i) => g.setAttribute("transform", `translate(${{nodes[i].x}},${{nodes[i].y}})`));
 }}
-let ticks = 0; const timer = setInterval(() => {{ step(); if (++ticks > 400) clearInterval(timer); }}, 16);
 let scale = 1, tx = 0, ty = 0, dragging = null;
 function apply() {{ view.setAttribute("transform", `translate(${{tx}},${{ty}}) scale(${{scale}})`); }}
+function fit() {{ const xs = nodes.map(n => n.x), ys = nodes.map(n => n.y);
+  const x0 = Math.min(...xs) - 80, x1 = Math.max(...xs) + 220, y0 = Math.min(...ys) - 40, y1 = Math.max(...ys) + 40;
+  scale = Math.min(W / (x1 - x0), H / (y1 - y0), 1.5); tx = (W - (x0 + x1) * scale) / 2; ty = (H - (y0 + y1) * scale) / 2; apply(); }}
+let ticks = 0; const timer = setInterval(() => {{ step(); if (++ticks > 400) {{ clearInterval(timer); fit(); }} }}, 16);
 svg.addEventListener("wheel", e => {{ e.preventDefault(); const k = e.deltaY < 0 ? 1.1 : 0.9;
   tx = e.offsetX - (e.offsetX - tx) * k; ty = e.offsetY - (e.offsetY - ty) * k; scale *= k; apply(); }});
 svg.addEventListener("mousedown", e => {{ dragging = [e.clientX - tx, e.clientY - ty]; }});
