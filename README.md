@@ -139,6 +139,7 @@ author's machine, untracked.
     docs/entity-resolution.md  the resolution design, its guards, and the tree
     docs/references.md       sources behind the schema decisions
     notebooks/               the extractor, the ingestor and the global layer (store, clustering, collections, wiki, retrieval), as script and notebook, as they run on Kaggle
+    docs/pipeline.md         the three pipelines start to finish, the significant steps only
     docs/global-layer.md     the global layer's design and build; docs/retrieval.md the query path
     docs/wiki/               the wiki mock-up rendered from a real store: three Oz books, four entity pages, the portal, the figure
     dataset/step0/           the published Step 0 dataset's docs, as published, with the 09-13 corrections pending republish

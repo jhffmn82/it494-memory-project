@@ -98,3 +98,9 @@ version 21.
   database. The merge is the focus now.
 
 - Justin: the dataset carries the SQLite and the array together; the retrieval pipeline reads both.
+
+- `docs/pipeline.md` written at Justin's ask: the three pipelines start to finish, the significant
+  steps, low prose. GPT's review of `docs/retrieval.md` (brought by Justin): the architecture stands;
+  four edge-case rulings folded into the master and the draft (entry against record; the discount
+  as a bias, not a guarantee; total orders with keys as tie-breaks; no document edge from an
+  abstract, the parent edge only from a parent entry); the master is approved with them.

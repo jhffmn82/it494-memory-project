@@ -144,18 +144,24 @@ def own_score(index, scores, key):
 
 
 def vector_entries(index, scores, mask):
-    """The K_ENTRY records with the best sentence inside the filter."""
+    """The K_ENTRY entries with the best sentence inside the filter: score descending, then key."""
     import numpy
     masked = numpy.where(mask, scores, -numpy.inf)
-    ranked, seen = [], set()
-    for row in numpy.argsort(-masked):
-        if masked[row] == -numpy.inf or len(ranked) == K_ENTRY:
-            break
-        key = index["keys"][row]
-        if key not in seen:
-            seen.add(key)
-            ranked.append(key)
-    return ranked
+    best = {}
+    for row in numpy.argsort(-masked, kind="stable"):
+        score = float(masked[row])
+        if score == -numpy.inf or (len(best) >= K_ENTRY and score < min(best.values())):
+            break                                       # past the K-th score and its ties
+        best.setdefault(index["keys"][row], score)      # the first row seen is the record's best
+    ranked = sorted(best, key=score_then_key(best))
+    return ranked[:K_ENTRY]
+
+
+def score_then_key(scores):
+    """The sort key for entries: score descending, then the entry key ascending."""
+    def key(entry):
+        return (-scores[entry], tuple(str(part) for part in entry))
+    return key
 
 
 def fts_query(question):
@@ -172,7 +178,7 @@ def keyword_entries(db, question, doc_filter):
     if doc_filter is not None:
         sql += f" and doc_id in ({', '.join('?' * len(doc_filter))})"
         args += sorted(doc_filter)
-    sql += " order by bm25(search) limit ?"
+    sql += " order by bm25(search), record, doc_id, record_id limit ?"
     args.append(K_ENTRY)
     return [tuple(r) for r in db.execute(sql, args)]
 
@@ -183,7 +189,7 @@ def fuse(vector, keyword):
     for ranked in (vector, keyword):
         for rank, key in enumerate(ranked, 1):
             score[key] = score.get(key, 0.0) + 1 / (RRF_K + rank)
-    return sorted(score, key=score.get, reverse=True), score
+    return sorted(score, key=score_then_key(score)), score
 
 
 def node_records(db, doc_id, node_id):
@@ -221,7 +227,7 @@ def edges(index, entry, doc_filter, parent_on):
     db = index["db"]
     record, doc_id, record_id = entry
     if record == "parent":
-        return {"children": children_records(db, int(record_id), doc_filter)}
+        return {"parent": children_records(db, int(record_id), doc_filter)}
     if record == "fact":
         node_id, unit_id = db.execute("select subject, unit_id from fact where doc_id = ? and fact_id = ?", (doc_id, record_id)).fetchone()
     elif record == "cell":
@@ -242,9 +248,9 @@ def expand(index, scores, entries, doc_filter, parent_on):
     eligible = []
     for entry in entries:
         for edge, keys in edges(index, entry, doc_filter, parent_on).items():
-            ranked = sorted((-own_score(index, scores, k), k) for k in set(keys) if k != entry)
+            ranked = sorted((-own_score(index, scores, k), tuple(str(part) for part in k), k) for k in set(keys) if k != entry)
             eligible.append({"entry": list(entry), "edge": edge, "eligible": len(ranked)})
-            for _, key in ranked[:K_HOP]:
+            for _, _, key in ranked[:K_HOP]:
                 pool.setdefault(key, {"hops": 1, "route": [edge, list(entry)]})
     return pool, eligible
 
@@ -287,7 +293,7 @@ def tokens(text):
 def pack(index, pool, budget):
     """Whole records in score order until the budget is spent; a record that does not fit is cut, not trimmed."""
     context, used = [], 0
-    for key in sorted(pool, key=score_key(pool), reverse=True):
+    for key in sorted(pool, key=score_key(pool)):
         text = render(index, key)
         n = tokens(text)
         if used + n > budget:
@@ -300,9 +306,9 @@ def pack(index, pool, budget):
 
 
 def score_key(pool):
-    """The sort key for a pool: a record's score."""
+    """The sort key for a pool: score descending, then the record key ascending."""
     def key(record):
-        return pool[record]["score"]
+        return (-pool[record]["score"], tuple(str(part) for part in record))
     return key
 
 
