@@ -1329,6 +1329,16 @@ def doc_slug(doc_id):
     return "doc-" + doc_id[:12]
 
 
+def crumbs(db, doc_ids):
+    """'Part of' the collections these documents belong to, each a link up to its portal."""
+    marks = ", ".join("?" * len(doc_ids))
+    rows = db.execute(f"""select distinct c.collection_id, c.name from document_in i join collection c on c.collection_id = i.collection_id
+                          where i.doc_id in ({marks}) order by c.name""", list(doc_ids)).fetchall()
+    if not rows:
+        return ""
+    return "Part of " + ", ".join(f'<a href="{slug(name, f"c{cid}")}.html">{escape(name)}</a>' for cid, name in rows)
+
+
 def draw_collection_radial(store, out):
     """The static figure: collections on a ring, their documents fanned around each."""
     import matplotlib
@@ -1422,16 +1432,25 @@ def escape(text):
     return (text or "").replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
 
+PALETTES = {
+    "harbour": "--ink: #23303f; --muted: #6b7484; --accent: #b4552a; --band: #1f3d4a; --band-ink: #f6f1e7; --band-muted: #b8c6bf; --paper: #fbf7f0; --card: #f1ebdf; --link: #1f5f8b;",
+    "parchment": "--ink: #2e2419; --muted: #7a6a58; --accent: #8c2f2f; --band: #efe6d3; --band-ink: #2e2419; --band-muted: #7a6a58; --paper: #f8f3e8; --card: #efe6d3; --link: #5b3d8c;",
+    "emerald": "--ink: #1c2a24; --muted: #5f716a; --accent: #c99a2e; --band: #163f34; --band-ink: #f4f1e6; --band-muted: #b7cbc1; --paper: #f7f6f1; --card: #e9efe8; --link: #1f6b56;",
+    "slate": "--ink: #1f2933; --muted: #6b7a88; --accent: #b0532c; --band: #ffffff; --band-ink: #1f2933; --band-muted: #6b7a88; --paper: #ffffff; --card: #f3f5f7; --link: #2455a4;",
+}
+PALETTE = os.environ.get("PALETTE", "harbour")
+
 PAGE = """<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><title>{name}</title>
 <style>
-:root {{ --ink: #23303f; --muted: #6b7484; --accent: #b4552a; --band: #1f3d4a; --paper: #fbf7f0; --card: #f1ebdf; --rule: #e3dccb; --link: #1f5f8b; }}
+:root {{ {palette} }}
 body {{ font-family: Georgia, "Times New Roman", serif; margin: 0; color: var(--ink); background: var(--paper); line-height: 1.5; }}
-header {{ background: var(--band); color: #f6f1e7; padding: 1.6rem 0; }}
+header {{ background: var(--band); color: var(--band-ink); padding: 1.6rem 0; border-bottom: 3px solid var(--accent); }}
 header .inner {{ max-width: 1200px; margin: 0 auto; padding: 0 1.5rem; }}
 header h1 {{ font-size: 2.2rem; margin: 0; font-weight: normal; letter-spacing: 0.01em; }}
-header .kind {{ color: #cfd9d3; font-style: italic; margin-top: 0.3rem; }}
-header .aliases {{ color: #b8c6bf; font-size: 0.85rem; margin-top: 0.5rem; }}
+header .kind {{ color: var(--band-muted); font-style: italic; margin-top: 0.3rem; }}
+header .aliases {{ color: var(--band-muted); font-size: 0.85rem; margin-top: 0.5rem; }}
+header .crumb {{ color: var(--band-muted); font-size: 0.9rem; margin-top: 0.4rem; }} header .crumb a {{ color: var(--band-ink); }}
 .wrap {{ display: flex; gap: 2.5rem; max-width: 1200px; margin: 0 auto; padding: 1.5rem; }}
 main {{ flex: 3; min-width: 0; }}
 aside {{ flex: 1.3; min-width: 280px; font-size: 0.9rem; background: var(--card); border-radius: 8px; padding: 1rem 1.2rem; align-self: flex-start; }}
@@ -1447,7 +1466,7 @@ details p {{ margin: 0.3rem 0 0.3rem 1rem; }}
 a {{ color: var(--link); text-decoration: none; }} a:hover {{ text-decoration: underline; }}
 aside li {{ margin: 0.35rem 0; }} aside ul {{ padding-left: 1.1rem; }}
 </style></head><body>
-<header><div class="inner"><h1>{name}</h1><div class="kind">{kind}, in {n} {documents}</div><div class="aliases">Also called: {aliases}</div></div></header>
+<header><div class="inner"><h1>{name}</h1><div class="kind">{kind}, in {n} {documents}</div><div class="crumb">{crumb}</div><div class="aliases">Also called: {aliases}</div></div></header>
 <div class="wrap">
 <main>
 <p class="lead">{lead}</p>
@@ -1458,8 +1477,8 @@ aside li {{ margin: 0.35rem 0; }} aside ul {{ padding-left: 1.1rem; }}
 """
 
 
-DOCUMENT = PAGE.replace("<div class=\"kind\">{kind}, in {n} {documents}</div><div class=\"aliases\">Also called: {aliases}</div>",
-                        "<div class=\"kind\">{record}</div><div class=\"aliases\">{uri}</div>").replace(
+DOCUMENT = PAGE.replace("<div class=\"kind\">{kind}, in {n} {documents}</div><div class=\"crumb\">{crumb}</div><div class=\"aliases\">Also called: {aliases}</div>",
+                        "<div class=\"kind\">{record}</div><div class=\"crumb\">{crumb}</div><div class=\"aliases\">{uri}</div>").replace(
     "<aside><h2>Facts, in order of appearance</h2><div class=\"facts\">{facts}</div></aside>",
     "<aside><h2>Entities in this document ({n})</h2><ul>{entities}</ul></aside>").replace("{name}", "{title}").replace("{sections}", "{summaries}")
 
@@ -1487,8 +1506,8 @@ def document_page(db, doc_id):
         more = f", with {instances - 1} more" if instances and instances > 1 else ""
         items.append(f'<li>{link} <span class="kind">{escape(kind or "")}{more}</span></li>')
     record = f"{escape(author or 'author unknown')}, {escape(date or 'undated')}"
-    return DOCUMENT.format(title=escape(title), record=record, uri=escape(uri), lead=escape(abstract[0] if abstract else ""),
-                           summaries=summaries, entities="".join(items), n=len(entities))
+    return DOCUMENT.format(palette=PALETTES[PALETTE], crumb=crumbs(db, [doc_id]), title=escape(title), record=record, uri=escape(uri),
+                           lead=escape(abstract[0] if abstract else ""), summaries=summaries, entities="".join(items), n=len(entities))
 
 
 def write_document_page(store, out, doc_id):
@@ -1575,7 +1594,8 @@ def wiki_page(db, parent_id):
     lead = " ".join(line.split("] ", 1)[1] if "] " in line else line for line in summary.split("\n"))
     sections = "".join(instance_section(db, d, n, title, date, names) for d, n, title, date in instances)
     facts = "".join(instance_facts(db, d, n, title, names) for d, n, title, _ in instances)
-    return PAGE.format(name=escape(name), kind=escape(kind), n=len(instances), documents="document" if len(instances) == 1 else "documents",
+    return PAGE.format(palette=PALETTES[PALETTE], crumb=crumbs(db, [d for d, _, _, _ in instances]),
+                       name=escape(name), kind=escape(kind), n=len(instances), documents="document" if len(instances) == 1 else "documents",
                        aliases=escape(", ".join(json.loads(aliases))), lead=escape(lead), sections=sections, facts=facts)
 
 
@@ -1612,13 +1632,14 @@ if __name__ == "__main__" and STORE.exists():
 PORTAL = """<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><title>{name}</title>
 <style>
-:root {{ --ink: #23303f; --muted: #6b7484; --accent: #b4552a; --band: #1f3d4a; --paper: #fbf7f0; --card: #f1ebdf; --rule: #e3dccb; --link: #1f5f8b; }}
+:root {{ {palette} }}
 body {{ font-family: Georgia, "Times New Roman", serif; margin: 0; color: var(--ink); background: var(--paper); line-height: 1.5; }}
-header {{ background: var(--band); color: #f6f1e7; padding: 1.6rem 0; }}
+header {{ background: var(--band); color: var(--band-ink); padding: 1.6rem 0; border-bottom: 3px solid var(--accent); }}
 header .inner {{ max-width: 1200px; margin: 0 auto; padding: 0 1.5rem; }}
 header h1 {{ font-size: 2.2rem; margin: 0; font-weight: normal; letter-spacing: 0.01em; }}
-header .kind {{ color: #cfd9d3; font-style: italic; margin-top: 0.3rem; }}
-header .aliases {{ color: #b8c6bf; font-size: 0.85rem; margin-top: 0.5rem; }}
+header .kind {{ color: var(--band-muted); font-style: italic; margin-top: 0.3rem; }}
+header .aliases {{ color: var(--band-muted); font-size: 0.85rem; margin-top: 0.5rem; }}
+header .crumb {{ color: var(--band-muted); font-size: 0.9rem; margin-top: 0.4rem; }} header .crumb a {{ color: var(--band-ink); }}
 .wrap {{ display: flex; gap: 2.5rem; max-width: 1200px; margin: 0 auto; padding: 1.5rem; }}
 main {{ flex: 3; min-width: 0; }}
 aside {{ flex: 1.3; min-width: 280px; font-size: 0.9rem; background: var(--card); border-radius: 8px; padding: 1rem 1.2rem; align-self: flex-start; }}
@@ -1669,7 +1690,7 @@ def portal_page(db, collection_id):
     parents = collection_parents(db, group)
     items = "".join(f'<li><a href="{slug(pname, pid)}.html">{escape(pname)}</a> <span class="kind">{escape(kind)}, in {n} of {len(group)}, {facts} facts</span></li>'
                     for pid, pname, kind, n, facts in parents[:PORTAL_ENTITIES])
-    return PORTAL.format(name=escape(name), n=len(group), abstract=escape(abstract), sections=sections, parents=items)
+    return PORTAL.format(palette=PALETTES[PALETTE], name=escape(name), n=len(group), abstract=escape(abstract), sections=sections, parents=items)
 
 
 def write_portal(store, out, collection_id):
