@@ -99,4 +99,7 @@ for partners by a merged cluster.
 ## Gate, Sep 20
 
 Parents, store and vectors over the test packages with the schema written down: met on Kaggle on
-2026-09-14. The key and its scorer are the next instrument.
+2026-09-14. The key and its scorer exist (block 15b; `data/benchmarks/oz-key/`, the dataset
+`jhffmn/it494-threadatlas-oz-key`): 100 characters from Wikipedia's list of Baum's Oz characters
+with 53 hand aliases counted; recall over cross-document pairs of matched children, wrong joins,
+parents per character. The first keyed run on the lean store is the next number.

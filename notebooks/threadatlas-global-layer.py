@@ -1183,6 +1183,112 @@ if __name__ == "__main__" and STORE.exists():
     db.close()
 
 # %% [markdown]
+# ## Block 15b: the Oz key
+#
+# The one external key: Wikipedia's list of the characters L. Frank Baum created (CC BY-SA 4.0,
+# `jhffmn/it494-threadatlas-oz-key`; built by `scripts/build_oz_key.py`, the hand-added aliases
+# counted). A child of one of the three Oz books matches a character when its name or an alias
+# folds to one of the character's names. The key says which matched children are one identity;
+# the store says which share a parent. Scored over cross-document pairs of matched children:
+# recall (pairs of one character under one parent), wrong joins (pairs of two characters under
+# one parent), and per character the number of parents its children span. Children the key does
+# not name (places, objects, events, the minor cast) are outside the score.
+
+# %%
+KAGGLE_OZ_KEY = (Path("/kaggle/input/datasets/jhffmn/it494-threadatlas-oz-key"), Path("/kaggle/input/it494-threadatlas-oz-key"))
+OZ_KEY = first_existing("OZ_KEY", *KAGGLE_OZ_KEY) or Path("data/benchmarks/oz-key")
+
+
+def read_key(folder):
+    """fold(name) -> character, over every character's names; a name two characters share is dropped."""
+    key = json.loads((folder / "oz-key.json").read_text(encoding="utf-8"))
+    owner, shared = {}, set()
+    for c in key["characters"]:
+        for alias in c["aliases"]:
+            f = fold(alias)
+            if f in owner and owner[f] != c["name"]:
+                shared.add(f)
+            owner.setdefault(f, c["name"])
+    for f in shared:
+        owner.pop(f, None)
+    return key, owner
+
+
+def match_key(db, key, owner):
+    """(doc_id, node_id) -> character, for the children of the key's books whose name or alias the key names."""
+    books = {d: t for d, t in db.execute("select doc_id, title from document") if t in key["books"]}
+    aliases = {}
+    for doc_id, node_id, alias in db.execute("select doc_id, node_id, alias from alias"):
+        if doc_id in books:
+            aliases.setdefault((doc_id, node_id), []).append(alias)
+    matched, unmatched = {}, []
+    for doc_id, node_id, name, kind in db.execute("select doc_id, node_id, name, kind from node"):
+        if doc_id not in books or node_id.endswith(":doc"):
+            continue
+        hits = {owner[f] for f in [fold(name)] + [fold(a) for a in aliases.get((doc_id, node_id), [])] if f in owner}
+        if len(hits) == 1:
+            matched[(doc_id, node_id)] = hits.pop()
+        elif kind in ("person", "animal", "creature", "character"):
+            unmatched.append((books[doc_id], name, kind, sorted(hits)))
+    return books, matched, unmatched
+
+
+def score_key(db, books, matched):
+    """The score: cross-document pairs of one character united or split; pairs of two characters joined."""
+    parent = {(d, n): p for d, n, p in db.execute("select doc_id, node_id, parent_id from instance_of")}
+    by_character = {}
+    for child, character in matched.items():
+        by_character.setdefault(character, []).append(child)
+    rows, united, split, joined = [], 0, 0, []
+    for character, children in sorted(by_character.items()):
+        docs = {c[0] for c in children}
+        parents = {parent.get(c) for c in children}
+        pairs = [(a, b) for i, a in enumerate(children) for b in children[i + 1:] if a[0] != b[0]]
+        same = sum(parent.get(a) == parent.get(b) for a, b in pairs)
+        united += same
+        split += len(pairs) - same
+        rows.append((character, len(children), len(docs), len(parents), same, len(pairs) - same))
+    children = sorted(matched)
+    for i, a in enumerate(children):
+        for b in children[i + 1:]:
+            if matched[a] != matched[b] and parent.get(a) == parent.get(b) and parent.get(a) is not None:
+                joined.append((matched[a], matched[b], books[a[0]], books[b[0]]))
+    return rows, united, split, joined
+
+
+def report_key(store):
+    """Match, score, print and write oz-score.json beside the store."""
+    key, owner = read_key(OZ_KEY)
+    db = sqlite3.connect(store)
+    books, matched, unmatched = match_key(db, key, owner)
+    rows, united, split, joined = score_key(db, books, matched)
+    db.close()
+    scorable = [r for r in rows if r[2] > 1]
+    recall = united / (united + split) if united + split else None
+    print(f"key: {len(key['characters'])} characters, revision {key['revision']}; {len(books)} books in the store; "
+          f"{len(matched)} children matched, {len(unmatched)} named persons or animals unmatched")
+    print(f"{len(scorable)} characters in two or more books; cross-document pairs: {united} united, {split} split; "
+          f"recall {recall if recall is None else round(recall, 3)}; {len(joined)} wrong joins")
+    print(f"{'character':34} children  docs  parents  united  split")
+    for character, n, docs, parents, same, apart in scorable:
+        flag = "" if parents == 1 else "  <- split" if parents > 1 else ""
+        print(f"{character:34} {n:8} {docs:5} {parents:8} {same:7} {apart:6}{flag}")
+    for a, b, da, dbk in joined[:20]:
+        print(f"  wrong join: {a} ({da}) with {b} ({dbk})")
+    for book, name, kind, hits in unmatched[:40]:
+        print(f"  unmatched: {name} ({kind}, {book}){' ambiguous ' + str(hits) if hits else ''}")
+    score = {"revision": key["revision"], "matched": len(matched), "unmatched_named": len(unmatched), "scorable": len(scorable),
+             "united": united, "split": split, "recall": recall, "wrong_joins": len(joined),
+             "characters": [{"character": c, "children": n, "documents": d, "parents": p, "united": u, "split": s} for c, n, d, p, u, s in rows],
+             "joined": [list(j) for j in joined], "unmatched": [list(u) for u in unmatched]}
+    (store.parent / "oz-score.json").write_text(json.dumps(score, ensure_ascii=False, indent=1), encoding="utf-8")
+    return score
+
+
+if __name__ == "__main__" and STORE.exists() and (OZ_KEY / "oz-key.json").exists():
+    report_key(STORE)
+
+# %% [markdown]
 # ## Block 16: collections, a parent for each body of work
 #
 # A collection is a parent over documents, the entry point of a portal in the wiki. It is

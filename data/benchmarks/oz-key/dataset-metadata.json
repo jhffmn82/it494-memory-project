@@ -1,0 +1,13 @@
+{
+  "title": "it494-threadatlas-oz-key",
+  "id": "jhffmn/it494-threadatlas-oz-key",
+  "licenses": [{"name": "CC-BY-SA-4.0"}],
+  "subtitle": "Baum's Oz characters as an identity key for ThreadAtlas (CC BY-SA 4.0)",
+  "description": "One entry per character L. Frank Baum created, from Wikipedia's 'List of Oz characters (created by Baum)' (revision 1374825486, CC BY-SA 4.0), with the names the page gives it and 53 hand-added aliases, counted. Scores a ThreadAtlas store's parents over the three Oz books: cross-document pairs of matched children united or split, wrong joins, parents per character. README.md in the dataset says how.",
+  "resources": [
+    {"path": "oz-key.json", "description": "the key: source, license, revision, books, characters with names and aliases"},
+    {"path": "aliases-added.json", "description": "the hand-added aliases, character to list"},
+    {"path": "wikipedia.json", "description": "the page as the MediaWiki API returned it, unedited"},
+    {"path": "README.md", "description": "what the key is and how it scores a store"}
+  ]
+}

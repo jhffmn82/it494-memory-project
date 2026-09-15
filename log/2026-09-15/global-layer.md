@@ -112,3 +112,16 @@ version 21.
   Sections 4 to 7 of `docs/retrieval.md` rewritten; the draft `notebooks/threadatlas-retrieval.py`
   is behind the master (it still expands along node, document and parent) and follows when the
   pipeline is built.
+
+- The Oz key built (Justin: "start on 1"): Wikipedia's "List of Oz characters (created by Baum)",
+  revision 1374825486, fetched through the API and kept unedited; `scripts/build_oz_key.py` makes
+  one entry per character (83 with a section, 17 from the minor list) with the heading, the main
+  link, the bold terms and the hand aliases of `aliases-added.json` (53 across 30 characters, each
+  counted; the book title was removed from Ozma's aliases so the document node cannot match).
+  Block 15b matches the three books' children by folded name or alias (a name two characters share
+  is dropped) and scores cross-document pairs: united, split, recall, wrong joins, parents per
+  character; `oz-score.json` beside the store. On the dry store (the judge stubbed to same names):
+  59 children matched, 12 characters in two or more books, 15 united, 15 split, recall 0.5, 0 wrong
+  joins; the splits are the alias cases (Tip and Ozma, Saw-Horse, Glinda the Good, the Wonderful
+  Wizard, the Guardian of the Gate). Dataset `jhffmn/it494-threadatlas-oz-key` published, attached
+  to the kernel; kernel version 29. The first keyed run on the lean store is Justin's.
