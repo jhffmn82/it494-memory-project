@@ -1237,6 +1237,10 @@ def slug(name):
     return re.sub(r"[^a-z0-9]+", "-", name.casefold()).strip("-")
 
 
+def doc_slug(doc_id):
+    return "doc-" + doc_id[:12]
+
+
 MAP = """<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><title>{title}</title>
 <style>
@@ -1251,7 +1255,7 @@ text {{ font-size: 11px; fill: #23303f; pointer-events: none; paint-order: strok
 text.hub {{ font-size: 14px; font-weight: bold; fill: #1f3d4a; }} g:hover text {{ font-size: 13px; fill: #b4552a; }}
 a {{ cursor: pointer; }}
 </style></head><body>
-<header><h1>{title}</h1><p>collections in red, documents in blue, a document in more than one collection in gold; click a collection for its portal; drag to pan, wheel to zoom</p></header>
+<header><h1>{title}</h1><p>collections in red, documents in blue, a document in more than one collection in gold; click a collection for its portal or a document for its page; drag to pan, wheel to zoom</p></header>
 <svg id="map"></svg>
 <script>
 const nodes = {nodes};
@@ -1308,7 +1312,7 @@ def collection_nodes(db):
     for d, _ in membership:
         count[d] = count.get(d, 0) + 1
     nodes = [{"id": f"c{c}", "label": name, "hub": True, "href": slug(name) + ".html"} for c, name in collections]
-    nodes += [{"id": d, "label": titles[d], "hub": False, "shared": count[d] > 1} for d in count]
+    nodes += [{"id": d, "label": titles[d], "hub": False, "shared": count[d] > 1, "href": doc_slug(d) + ".html"} for d in count]
     links = [{"source": f"c{c}", "target": d} for d, c in membership]
     return nodes, links
 
@@ -1449,6 +1453,48 @@ aside li {{ margin: 0.35rem 0; }} aside ul {{ padding-left: 1.1rem; }}
 """
 
 
+DOCUMENT = PAGE.replace("<div class=\"kind\">{kind}, in {n} {documents}</div><div class=\"aliases\">Also called: {aliases}</div>",
+                        "<div class=\"kind\">{record}</div><div class=\"aliases\">{uri}</div>").replace(
+    "<aside><h2>Facts, in order of appearance</h2><div class=\"facts\">{facts}</div></aside>",
+    "<aside><h2>Entities in this document ({n})</h2><ul>{entities}</ul></aside>").replace("{name}", "{title}").replace("{sections}", "{summaries}")
+
+
+def document_page(db, doc_id):
+    """The HTML of one document's page: its record, its abstract, its unit summaries in order,
+    and the entities it holds, each linking to its parent's page."""
+    title, author, date, uri = db.execute("select title, author, occurred_at, source_uri from document where doc_id = ?", (doc_id,)).fetchone()
+    tag = doc_id[:8]
+    abstract = db.execute("select text from abstract where doc_id = ? and node_id = ?", (doc_id, f"{tag}:doc")).fetchone()
+    cells = db.execute("""select c.text, u.label from cell c join unit u on u.unit_id = c.unit_id
+                          where c.doc_id = ? and c.node_id = ? order by u.position""", (doc_id, f"{tag}:doc")).fetchall()
+    if not cells:                                   # a chat has no unit summaries; its turns' facts stand in
+        cells = db.execute("""select group_concat(f.object, ' '), u.label from fact f join unit u on u.unit_id = f.unit_id
+                              where f.doc_id = ? and f.direction = 'mentioned' group by u.position order by u.position""", (doc_id,)).fetchall()
+    summaries = "".join(f'<h4>{escape(unit_heading(label))}</h4><p class="cell">{escape(text)}</p>' for text, label in cells)
+    entities = db.execute("""select n.node_id, n.name, n.kind, p.name, p.instances from node n
+                             left join instance_of i on i.doc_id = n.doc_id and i.node_id = n.node_id
+                             left join parent p on p.parent_id = i.parent_id
+                             where n.doc_id = ? and n.node_id != ? and n.name != 'user'
+                             order by (select count(*) from fact f where f.doc_id = n.doc_id and f.subject = n.node_id) desc""", (doc_id, f"{tag}:doc")).fetchall()
+    items = []
+    for node_id, name, kind, pname, instances in entities[:60]:
+        link = f'<a href="{slug(pname)}.html">{escape(name)}</a>' if pname else escape(name)
+        more = f", with {instances - 1} more" if instances and instances > 1 else ""
+        items.append(f'<li>{link} <span class="kind">{escape(kind or "")}{more}</span></li>')
+    record = f"{escape(author or 'author unknown')}, {escape(date or 'undated')}"
+    return DOCUMENT.format(title=escape(title), record=record, uri=escape(uri), lead=escape(abstract[0] if abstract else ""),
+                           summaries=summaries, entities="".join(items), n=len(entities))
+
+
+def write_document_page(store, out, doc_id):
+    db = sqlite3.connect(store)
+    (out / "wiki").mkdir(exist_ok=True)
+    path = out / "wiki" / (doc_slug(doc_id) + ".html")
+    path.write_text(document_page(db, doc_id), encoding="utf-8")
+    db.close()
+    return path
+
+
 def unit_heading(label):
     """A cell's heading: the unit's label; a chat turn's label becomes its turn and time."""
     match = re.match(r"SESSION \S+ TURN (\d+) (\S+)", label or "")
@@ -1463,7 +1509,7 @@ def instance_section(db, doc_id, node_id, title, date, names):
     cells = db.execute("""select c.text, u.label from cell c join unit u on u.unit_id = c.unit_id
                           where c.doc_id = ? and c.node_id = ? order by u.position""", (doc_id, node_id)).fetchall()
     paragraphs = "".join(f'<h4>{escape(unit_heading(label))}</h4><p class="cell">{escape(text)}</p>' for text, label in cells)
-    return (f"<h2>{escape(names.get(node_id, node_id))} in {escape(title)}</h2>"
+    return (f"<h2>{escape(names.get(node_id, node_id))} in <a href=\"{doc_slug(doc_id)}.html\">{escape(title)}</a></h2>"
             f'<div class="doc">{escape(title)}, {escape(date)}</div>'
             f"<p><em>{escape(abstract[0] if abstract else '')}</em></p>{paragraphs}")
 
@@ -1599,7 +1645,7 @@ def portal_page(db, collection_id):
     group = [d for (d,) in db.execute("select doc_id from document_in where collection_id = ?", (collection_id,))]
     docs = db.execute(f"select doc_id, title, occurred_at from document where doc_id in ({', '.join('?' * len(group))}) order by occurred_at", group).fetchall()
     abstracts = dict(db.execute(f"select doc_id, text from abstract where node_id like '%:doc' and doc_id in ({', '.join('?' * len(group))})", group).fetchall())
-    sections = "".join(f"<h2>{escape(title)}</h2><div class=\"doc\">{escape(date)}</div><p>{escape(abstracts.get(doc_id) or '')}</p>"
+    sections = "".join(f"<h2><a href=\"{doc_slug(doc_id)}.html\">{escape(title)}</a></h2><div class=\"doc\">{escape(date)}</div><p>{escape(abstracts.get(doc_id) or '')}</p>"
                        for doc_id, title, date in docs)
     parents = shared_parents(db, group)
     items = "".join(f'<li><a href="{slug(pname)}.html">{escape(pname)}</a> <span class="kind">{escape(kind)}, in {n} of {len(group)}</span></li>'
@@ -1617,8 +1663,10 @@ def write_portal(store, out, collection_id, with_entities=25):
     group = [d for (d,) in db.execute("select doc_id from document_in where collection_id = ?", (collection_id,))]
     for pid, pname, _, _ in shared_parents(db, group)[:with_entities]:
         (out / "wiki" / (slug(pname) + ".html")).write_text(wiki_page(db, pid), encoding="utf-8")
+    for doc_id in group:
+        (out / "wiki" / (doc_slug(doc_id) + ".html")).write_text(document_page(db, doc_id), encoding="utf-8")
     db.close()
-    print(f"wrote {path.name} and its entity pages")
+    print(f"wrote {path.name}, its entity pages and its {len(group)} document pages")
     return path
 
 
