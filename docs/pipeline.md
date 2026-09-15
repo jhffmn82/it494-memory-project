@@ -427,9 +427,9 @@ the other is a fixed-verdict sensitivity check only, because a verdict was given
 clusters as they stood. Attachment accuracy is scored against Wikipedia's list of Baum's Oz
 characters (CC BY-SA 4.0), matched to children by alias, the hand-matched remainder counted.
 
-## 4. Retrieval: serving the stored representation
+## 4. Retrieval (PROPOSED): serving the stored representation
 
-Designed, not built (`docs/retrieval.md`). Its own pipeline; it reads `threadatlas.sqlite` and
+PROPOSED, ruled in design on 2026-09-15 and not built (`docs/retrieval.md` is the master). Its own pipeline; it reads `threadatlas.sqlite` and
 `threadatlas.npy` and never returns to Step 0 or Step 1. It follows the structure the ingestor
 built rather than flattening every stored text into interchangeable chunks:
 
