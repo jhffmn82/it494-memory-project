@@ -35,10 +35,12 @@ is why none of them can be deferred to an evaluation phase.
 **The order this forces** (ruled 2026-09-13). The global layer first, because the store schema and
 the embedding follow from it; then the store and the embedding sidecar; then the query path; then
 the harness that runs each benchmark's questions through it. Each is built and tuned on the test
-packages already on disk (71 chat sessions, three Oz books, five papers, two plays), and only when
+packages already on disk (71 chat sessions, three Oz books, five papers, two plays: the Bacchae
+and, from GraphRAG-Bench, Dandy Dick), and only when
 each has a solution does the full corpus go through the ingestor, in Kaggle batches. GraphRAG-Bench
 is scored the week the query path works, since it needs no global layer; LongMemEval as its batches
-land. BookCoref, the CORE-KG run, the alias set and NarrativeQA are spring.
+land. BookCoref, the CORE-KG run and NarrativeQA are spring; the fall's resolution key is
+Wikipedia's list of Baum's Oz characters, not a hand-labeled alias set.
 
 ---
 

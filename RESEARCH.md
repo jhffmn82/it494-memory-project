@@ -73,15 +73,16 @@ merge black holes, and the citations are in `docs/entity-resolution.md`; the
 Walmart report (2607.26298) that argues against our soft-veto choice gets
 cited against ourselves.
 
-Where this stands on 2026-09-13: nothing is merged across documents any more (the tree,
-ruled 09-07) and the profile signal is gone (09-09), but co-occurrence survives as the
-second signal of the global layer's up-edge, as the 09-08 review restated it: a child attaches
-to a parent on its name and on the cast it co-occurs with, both scored and logged per
-candidate. The measurement the fall owns is that ablation at the up-edge, name-only against
-name plus co-occurrence, replayed from the logged scores and scored as attachment accuracy
-against the hand-labeled Oz alias set, with the parent-off arm on LongMemEval beside it to
-say what the global layer buys in retrieval. The same document-entity graph clusters the
-documents for the wiki pages.
+Where this stands on 2026-09-15: nothing is merged across documents (the tree, ruled 09-07);
+document-local entities are clustered bottom up into parents by a judge that sees texts and
+never scores (ruled 09-14), and co-occurrence survives as the cast, the names an entity appears
+beside. The measurement the fall owns is the ablation at the judge, the resolution ablation:
+the arm L+V+I shows the judge the two entities' texts alone, the arm L+V+I+C also shows their
+casts; each arm is a full build; attachment accuracy is scored against Wikipedia's list of
+Baum's Oz characters (CC BY-SA 4.0), matched to children by alias with the hand-matched
+remainder counted; the parent-off arm on LongMemEval beside it says what the global layer
+buys in retrieval. The parents two or more documents share cluster the documents into
+collections for the wiki pages.
 
 ## What the field says is unsolved
 
@@ -110,8 +111,9 @@ the rest is spring.
 | GraphRAG-Bench novels: no-context control, flat retrieval over raw units, the full system; the benchmark's own scorer; the plain-RAG parity check first | 9 published gpt-4o-mini baselines, gold answers and evidence, 2,010 questions | tens of dollars to ingest the 20 novels; the arms under $20 |
 | LongMemEval, one history per graph: full context (truncation rule stated), flat retrieval over raw turns, the full system, the full system with the parent join off; the benchmark's own evaluator; the 14 questions used to tune the ingestor excluded; the knowledge-update questions reported as accuracy, no supersession mechanism claimed | Zep's 63.8 over a 55.4 full-context baseline (gpt-4o-mini, original `_s` file), only if that model is callable; otherwise ratios between our own arms | about $107 to ingest every chat on the frozen version, less on the current one; the arms under $20 |
 | The parent-off arm | what the global layer buys, measured rather than asserted | a replay of the LongMemEval arm |
-| Wiki pages over document clusters, rendered from the store after the numbers | the store made visible; checked by eye, not scored | an afternoon |
-| The resolution ablation at the up-edge: name-only against name plus co-occurrence as inputs to attachment, replayed from the logged candidate scores | attachment accuracy against the hand-labeled Oz alias set (one hour of labels); the retrieval difference on LongMemEval | a replay |
+| Wiki pages over document clusters, rendered from the store (built 09-15) | the store made visible; checked by eye, not scored | done |
+| The resolution ablation at the judge: L+V+I (texts alone) against L+V+I+C (texts plus casts), each a full build; a replay of the logged verdicts is a sensitivity check only | attachment accuracy against Wikipedia's roster of Baum's Oz characters; the retrieval difference on LongMemEval | two builds, about $3 each |
+| The collection layer and the mentions pass | collection sizes, documents in more than one collection, clusters ruled a document's mention | free |
 | Deferred to spring: NarrativeQA (319 questions over 11 works we hold), the cells ablation, the fabrication probe, the three-tier pilot, the refold cost against MemTree's published figures, maintenance and deployment | | |
 | The free instruments: rejection rate per stage per tier, duplicate mints per unit, predicate sprawl, quote-gate pass rate, unit-versus-cell summary agreement, token cost per arm, and the long-tail count: surface forms occurring in N or more distinct documents that resolve to no node, at N = 2, 3, 5 | our own run logs and the node and alias records | free |
 
@@ -308,10 +310,9 @@ problem, evidence, artifact.
 4. Verify the 8-hours-a-week assumption against one real week before trusting
    the calendar.
 5. Rebuild the paper manifest (on disk, untracked); it predates half the corpus.
-6. The resolution ablation is a fall measurement, restated at the up-edge (the 09-08
-   review, confirmed by Justin on 09-13): name-only against name plus co-occurrence as
-   inputs to attachment, replayed from logged scores, scored as attachment accuracy against
-   the Oz alias set, with the parent-off arm on LongMemEval beside it.
+6. The resolution ablation is a fall measurement, restated at the judge (09-14): L+V+I
+   against L+V+I+C, each a full build, scored as attachment accuracy against Wikipedia's Oz
+   roster, with the parent-off arm on LongMemEval beside it.
 7. A first draft of the paper is due in mid-October (tentative); the
    results-independent sections are written in the exam block while the full
    corpus runs through the ingestor in batches.

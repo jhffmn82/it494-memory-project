@@ -50,12 +50,14 @@ The pipeline has five stages, and the first two are built and measured:
    stored), a narrative cell per entity per unit for books and papers, and an
    abstract. A chat session is read in one call, each fact tied to its turn.
    Frozen on September 12; a chat session costs under half a cent.
-3. **The global layer** attaches each document's entities to silent parents.
-   It is built first in the remaining weeks, because the database schema and
-   the embedding follow from it.
+3. **The global layer** clusters each document's entities bottom up into
+   parents, a judge ruling each pair from the texts and the parents written
+   once after the clustering. Built first (09-14), because the database schema
+   and the embedding followed from it.
 4. **The store and the query path**: SQLite with full-text search, a local
    embedding sidecar (a small model run on the user's own machine), and
-   retrieval that returns whole items with their dates and sources.
+   hybrid retrieval, keyword and vector fused by rank, that returns whole
+   records with their dates and sources.
 5. **The harness** that runs a benchmark's questions through the query path
    and scores them with the benchmark's own evaluator.
 
@@ -117,12 +119,12 @@ model for every arm.
 
 Also this fall, after the numbers: wiki pages over document clusters, rendered from the store, an afternoon's work that makes the store visible. Fourth, the one question in the design that is genuinely open: whether the relational signal
 still pays when the candidate scorer is an embedding and a language model. Every system I
-compare against attaches or merges entities on name similarity or a model's verdict; mine also
-scores co-occurrence, whether the surrounding cast matches, at the point where a document's
-entity attaches to its cross-document parent. Both scores are logged for every candidate, so
-the attachment is replayed name-only and name plus co-occurrence and scored as attachment
-accuracy against a hand-labeled alias set over the Oz books. The same document-entity graph,
-weighted by shared entities, is what clusters the documents for the wiki pages.
+compare against attaches or merges entities on name similarity or a model's verdict; mine can also
+show the judge the surrounding cast, the names each entity appears beside, at the point where
+two documents' entities are ruled the same. The two arms are full builds, the judge shown texts
+alone against texts plus casts, scored as attachment accuracy against Wikipedia's list of
+Baum's Oz characters. The parents that documents share are what cluster the documents into
+collections for the wiki pages.
 
 Deferred to spring, with reasons recorded: NarrativeQA; the assembled-versus-generated
 fabrication probe; the narrative-cell ablation; the three-tier model-sensitivity pilot; and
@@ -168,6 +170,6 @@ and keep the committed measurements.
 - The interfaces: one today, `generate`; the embedding interface arrives with
   the store.
 - The milestone of September 27 (store and pipeline over Oz book 1 at three tiers, alias
-  set scored) is replaced by the design lock above; the alias set is written in the week
-  after it, and the three-tier pilot is spring.
+  set scored) is replaced by the design lock above; the key is Wikipedia's roster of Baum's Oz
+  characters rather than hand labels, and the three-tier pilot is spring.
 - Authorship is stated as it is.

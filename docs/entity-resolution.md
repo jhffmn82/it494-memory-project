@@ -125,22 +125,25 @@ fact sets, and the inherited facts then look like independent corroboration.
 
 ## How it gets tested
 
-As designed on 2026-08-28. Where it stands on 2026-09-13: nothing is merged across documents
-(the settled section) and the profile signal is gone, so of the four arms below N and N+C
-survive, moved to the up-edge as the 09-08 review restated them: name-only against name plus
-co-occurrence as inputs to the attachment decision, replayed from the candidate scores the
-global layer logs, scored as attachment accuracy against the hand-labeled Oz alias set. The
-parent-off arm on LongMemEval sits beside it (`docs/execution-plan.md`). The Tip fixture stays
-as the regression check.
+As designed on 2026-08-28. Where it stands on 2026-09-15: nothing is merged across documents
+(the settled section); document-local entities are clustered into parents by a judge
+(`docs/global-layer.md`, 09-14), so the four arms below are replaced by two at the judge:
+L+V+I, the judge shown the two entities' texts alone, and L+V+I+C, the texts plus the casts
+(the names each appears beside). Nomination and the floor never change between arms; each arm
+is a full build; a replay of the logged verdicts is a sensitivity check only. Scored as
+attachment accuracy against Wikipedia's list of Baum's Oz characters (CC BY-SA 4.0), matched
+to children by alias, the hand-matched remainder counted. The parent-off arm on LongMemEval
+sits beside it (`docs/retrieval.md`). The Tip fixture stays as the regression check.
 
-Four arms, same corpus, same model, everything else held constant:
+Two arms (09-14), same corpus, same model, same nomination, everything else held constant:
 
-| Arm | Signals |
+| Arm | What the judge sees |
 |---|---|
-| N | name only, the field default |
-| N+C | name plus co-occurrence |
-| N+P | name plus profile |
-| N+C+P | all three |
+| L+V+I | the two entities' texts: name, kind, aliases, abstract, facts |
+| L+V+I+C | the same, plus the names each entity appears beside (its cast) |
+
+The four arms as designed (N, N+C, N+P, N+C+P) are gone: the profile signal was dropped 09-09,
+and N alone is not an arm once nomination is by vector, name and is_a link.
 
 Reported per arm: duplicate nodes minted per chunk, merge precision on a hand-checked sample,
 cluster purity, and downstream accuracy on GraphRAG-Bench. Duplicate rate uses the CORE-KG and
@@ -308,7 +311,7 @@ traversal, deterministic and cheap, but it is a traversal.
 
 **Duplicate-minting rate stops being a metric this system can compete on**, because it is not
 minting duplicates, it is declining to decide. The honest replacement is *attachment accuracy*:
-how often the up-edge puts a child under the right parent, scored against a hand-labeled alias set or BookCoref's gold (LitBank was rejected: 96 of its 100 documents are two chunks long)
+how often the up-edge puts a child under the right parent, scored against Wikipedia's Oz roster (the fall's key) or BookCoref's gold (spring's second opinion) (LitBank was rejected: 96 of its 100 documents are two chunks long)
 coreference. That is a cleaner question than "did the merge lose something" and it is measurable
 without a judge model.
 
@@ -318,7 +321,7 @@ insertion, deletion and provenance". A reviewer will ask how a multi-hop cross-d
 gets answered. The answer is the traversal, and its cost and accuracy have to be measured rather
 than asserted.
 
-### Still to decide, none of it destructive
+### Decided since (the dates are in `docs/rulings.md`), none of it destructive
 
 0. **Granularity, and it may answer itself.** GPT, GPT-3.5, GPT-4 and GPT-4o: one parent or four?
    If the evidence is name, kind and role, they stay four, because nothing in the corpus says they
@@ -327,12 +330,17 @@ than asserted.
    with a quote behind it. The rule falls out rather than being imposed.
 1. **What draws the up-edge.** Given a new document's children, which existing parents they attach
    to. This is the only global operation left. It is a matching problem over monikers and
-   dossiers, not a merge, and being an edge it can be redone.
+   dossiers, not a merge, and being an edge it can be redone. Ruled 09-13 and 09-14: nomination
+   by vector, name and is_a link; a judge shown the texts rules each pair; parents are written
+   once after the clustering.
 2. **The parent's name.** It needs one to be findable. Derived from its children and recomputable,
    a cache rather than an assertion, consistent with the rule that indexes are derived and
-   disposable.
+   disposable. Ruled 09-14: the call that writes a parent picks the name from what the
+   instances carry; a name no instance carries is refused.
 3. **Whether the up-edge carries its score and its evidence.** It should, or the reason for the
-   link is thrown away and it cannot be re-decided later.
+   link is thrown away and it cannot be re-decided later. Ruled 09-15: `instance_of` is the
+   up-edge alone; `pair` and `merge` in `build.sqlite` carry every signal, verdict, reason and
+   union, so the link can be re-decided from the log.
 
 ### Consequences already ruled, 2026-09-07
 
@@ -385,8 +393,10 @@ MergeCandidate {mention_id, candidate_node, name_score, cooc_score,
                 profile_score, combined, threshold, decision, unit_id}
 ```
 
-This turns most of the ablation into an offline re-scoring: replay the log with different weights and
-read off what the decision would have been, instead of paying for another full ingest.
+As built (09-14) this is the `pair` row of `build.sqlite`: lexical, vector, cast, cast_rare,
+identity, offered, verdict, reason; `merge` holds the unions. The judge sees texts and never
+scores, so a replay of the log is a sensitivity check on the fixed verdicts, not the ablation;
+the arms are full builds.
 
 **The limit, stated so it does not become a false claim later.** Every signal here is collective. A
 merge changes the alias table, the co-occurrence sets and the node's accumulated profile, so a

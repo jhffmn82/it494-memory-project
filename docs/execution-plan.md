@@ -13,7 +13,7 @@ Two benchmarks are on the table. What each costs on the path from the 1.8 packag
 | | GraphRAG-Bench | LongMemEval |
 |---|---|---|
 | ingest | Step 1 over the 20 novels: 480 units on the full path, tens of dollars, one Kaggle session | Step 1 over chats: $107 and about 48 kernel hours for all 500 histories, or a subset |
-| graph | one document per graph, so no global layer is on its path | one history per graph; needs the first-cut global layer (2b) |
+| graph | one graph over everything loaded (ruled 09-13); a novel is a retrieval filter | one graph; a history is a retrieval filter; the parent hop needs the global layer (2b) |
 | questions and scoring | 2,010 questions with gold answers and evidence, the benchmark's own scorer, nine published baselines under gpt-4o-mini | 500 questions, the benchmark's own GPT-4o evaluator prompt, Zep's published numbers under gpt-4o-mini and gpt-4o |
 | judge to build | none | none if the benchmark's evaluator is used as published |
 | what it tests of the design | retrieval over cells, facts and abstracts of a book; contamination answered (pre-1900) | retrieval over facts and session abstracts of a chat history (chats have no cells); the benchmark is public since 2024 and inside the model's training window |
@@ -52,10 +52,10 @@ section numbers are kept from the first draft so the attack reports still read.
 ### 2a. The store (6 to 10 hours; built after 2b, to the schema 2b decides)
 
 - In: the packages of the 1.8 run.
-- Out: one SQLite file per graph, built by one script: document, unit, piece, node, alias, fact,
-  abstract, cell, contradiction; FTS5 over abstract text, cell text and fact quotes; every quote
-  re-resolved from its offsets at load, the load refused on the first mismatch. A graph is one
-  document for GraphRAG-Bench and one history folder (by `source_uri` prefix) for LongMemEval.
+- Out (superseded 09-13 night, built 09-15): one SQLite serving store over everything loaded,
+  the lean schema of SCHEMA.md (the serving store) with one FTS5 table of records; every quote
+  re-resolved from its offsets at load, the load refused on the first mismatch, the text not
+  kept. A test is a retrieval filter: one document for GraphRAG-Bench, one history for LongMemEval.
 - Gate: a store built from one novel's package and from history gpt4_2ba83207's 53 packages;
   every quote slices to its text; counts equal the completion records.
 
@@ -66,16 +66,11 @@ section numbers are kept from the first draft so the attack reports still read.
 - Out (the design output, before any code): what a parent is, what draws the up-edge, what a
   parent's name and abstract are computed from, and what the store must hold to answer a
   question through a parent. That decides the store schema in 2a and what gets embedded in 2b2.
-- Out (the code): superseded on 09-13 night by `docs/global-layer.md` (PROPOSED, from the
-  global thread's discussion with Justin): a parent record owned by no document (name, kind, the
-  union of its children's aliases, a role summary of one line per instance with the child's id,
-  the instance list); nomination by similarity search over parents plus lexical, cast and
-  identity-fact signals, every score logged per candidate; a Terra judge that attaches or founds;
-  the parent rewritten by a Luna call on every attach under two rejection rules; a chat salience
-  call before nomination (now done inside ingestor 1.8). The first-cut text that follows is kept
-  only so the 09-13 attack reports still read. First cut: nodes unite under one parent when their case-folded name and their case-folded kind string agree; a shared name with a kind conflict stays apart and is logged as a candidate; every edge carries its reason. Second signal, from the 09-08 review: for every candidate parent the child could attach to (a shared name or name word), a co-occurrence score, the overlap between the entities the child appears beside in its document and the entities the parent's children appear beside in theirs; both scores are logged per candidate so the attachment can be replayed name-only and name plus co-occurrence. The same graph (documents joined by shared parents, weighted by co-occurrence, generic parents down-weighted) is what clusters documents for the wiki pages. The parent's name is its most frequent
-  child name; its abstract is the count sentence until a fold is written. Kind is an open
-  vocabulary, so near-synonym kinds will split parents; the split count is an instrument.
+- Out (the code): `docs/global-layer.md`, built 09-14: nomination by vector, name and is_a link;
+  log n bottom-up clustering with a judge shown texts and never scores; parents written once; a
+  final pass making a document the parent of its mentions; collections. The 09-13 first cut
+  (case-folded name and kind) and the 09-13 night incremental design are superseded; the ledger
+  in `docs/rulings.md` carries the dates.
 - Gate (one that can fail): a hand check of 30 parents drawn at random from the history, with
   the wrong-unite and wrong-split counts recorded; and a second arm in 2d that runs the same
   retrieval with the parent join switched off, so what the tree buys is measured rather than
@@ -84,8 +79,9 @@ section numbers are kept from the first draft so the attack reports still read.
 ### 2b2. The embedding sidecar (3 to 5 hours)
 
 - Out: `bge-small-en-v1.5` through fastembed (384 dimensions, ONNX, CPU, fetched once), one
-  vector per sentence of every cell and abstract and one per fact quote, in a sidecar keyed by
-  record id, sentence ordinal and model name, with a header (model, dimension, built at);
+  vector per sentence of every cell and abstract, one per fact rendered as a line, and one per
+  parent summary sentence appended after the parents are written, in a sidecar keyed by record,
+  record id and sentence ordinal, with a header (model, dimension, built at);
   brute-force cosine at this scale; the store never depends on it and a header mismatch
   rebuilds. `embed(texts)` becomes the second interface BUILD.md names.
 - Gate: the sidecar rebuilt from the store byte for byte twice; the row map verified against
@@ -93,9 +89,9 @@ section numbers are kept from the first draft so the attack reports still read.
 
 ### 2c. Retrieval and context (8 to 10 hours)
 
-- Out: `retrieve(question, graph) -> context`: FTS5 and the sentence vectors over abstracts,
-  cells and fact quotes, fused by rank, hits expanded through their parent to sibling facts
-  where a parent exists, each item rendered by one
+- Out (built 09-15; the rule is `docs/retrieval.md`): `retrieve(question, filter) -> context`:
+  BM25 over one FTS5 table of records and the sentence vectors, fused by rank, entries expanded
+  one hop along the entity, the unit and the parent, each record rendered by one
   deterministic function with its document date, packed greedily whole-item by rank within a
   token budget; `answer(question, context)` on the reader model of section 5; a routing and
   admission log per question. Every dated fact is served; no read-time supersession is built
@@ -171,7 +167,7 @@ end of September) assumes the measured pace, and the gates below say by Sep 20 w
 
 | week | dates | build | write | gate |
 |---|---|---|---|---|
-| 1 | Sep 14 to 20 | read the 1.8 run's receipt; 2b (the global layer: the design, then the first cut) on the test packages; 2a (the store) to the schema 2b decides; 2b2 (the embedding sidecar) | the addendum to Dr. Fang; the endorsement email if unsent; ask what IT 494 grades | **Sep 20**: parents, store and vectors exist over the test packages, and the schema is written down |
+| 1 | Sep 14 to 20 | read the 1.8 run's receipt; 2b (the global layer: the design, then the batch build) on the test packages; 2a (the store) to the schema 2b decides; 2b2 (the embedding sidecar) | the addendum to Dr. Fang; the endorsement email if unsent; ask what IT 494 grades | **Sep 20**: parents, store and vectors exist over the test packages, and the schema is written down |
 | 2 | Sep 21 to 27 | 2c (the query path) to the first answered question on a novel and on the history; 2d (the harness) on the 14 known questions and one novel, with the parity check; 2e (the Kaggle output shape and budget) | nothing | **Sep 27, the design lock**: the harness runs the tests end to end through store, parents, vectors and query on both corpora; testing can start, and the full data may run |
 | exams | Sep 28 to Oct 18 | first, tuning of the whole pipeline on the test packages until it is ready for testing (the harness green, the query path's misses classified and fixed); then, and only then, Kaggle in batches, unattended: the 20 novels, then the chat histories | the ASKS comparison and the tree search first (2 hours of reading); then the full first draft, written while the batches run: introduction, related work, method (the two stages, the tree, the store, the query path), dataset, contamination, the instruments, and the results that exist by then | **Oct 11**: results-independent sections drafted. **Oct 15: the first draft**, with whatever numbers exist, each with its denominator. **Oct 18**: pipeline tuned; the packages on disk; the GraphRAG-Bench arms scored on all 20 novels |
 | 3 | Oct 19 to 25 | 2d LongMemEval over every history ingested; 2f the bands; the wiki pages over document clusters (one afternoon) | tables as they land | **Oct 25: build stop** (ruled 09-13 for ECIR): both numbers exist, each with its denominator |
@@ -198,7 +194,8 @@ labelled as such.
 5. The knowledge-update band is reported as accuracy only; the paper claims no supersession
    mechanism this fall (every dated fact is served). The functional-predicate list and the
    read-time view are spring.
-6. The first-cut attach rule (case-folded name and kind) and its hand-checked gate.
+6. Superseded 09-14: the first-cut attach rule (case-folded name and kind) gave way to the
+   bottom-up clustering with a judge; `docs/rulings.md` carries the line.
 7. The Kaggle output shape (one JSONL per history) and the block budget for the full run.
 8. Which verification artifacts are public: the offline battery, the export verifier and the
    answer check left the tree tonight as working tooling, but they are what lets a reader check

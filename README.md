@@ -41,12 +41,13 @@ up, we caught the model's weights leaking into the record.
 | Borrowed | Built here | Measured against |
 |---|---|---|
 | SQLite and FTS5 | the extractor and its gates; the ingestor and its quote gate | 9 published GraphRAG-Bench baselines, one reader model for every arm |
-| a small local embedding model (bge-small through fastembed) | the global layer: silent parents over document-local entities, attached on name and co-occurrence | attachment accuracy against the Oz alias set, name-only versus name plus co-occurrence; the parent join off, on LongMemEval |
+| a small local embedding model (bge-small through fastembed) | the global layer: parents over document-local entities, clustered bottom up through a judge | attachment accuracy against Wikipedia's roster of Baum's Oz characters, the judge shown texts alone (L+V+I) versus texts plus casts (L+V+I+C); the parent hop off, on LongMemEval |
 | GraphRAG-Bench, LongMemEval, each with its own published evaluator | the store, the embedding sidecar, the query path, the harness | full-context and flat-retrieval arms; Zep's LongMemEval numbers, parity arm first |
 | hierarchical summaries (GraphRAG, RAPTOR), dated facts (Zep), per-character summaries (EntSUM) | narrative cells and summary folding, for books and papers | the instruments: quote-gate and rejection rates, cost per stage and tier, duplicate parents |
 
-Also in the fall, after the numbers: wiki pages over document clusters drawn from the
-document-entity graph, rendered from the store (an afternoon). Deferred to spring:
+The wiki exists (09-15): four page types rendered from the store and nothing else, an entity
+page, a document page, a collection portal listing every entity by relevance, and the collection
+figure; the mock-up is `docs/wiki/`. Deferred to spring:
 NarrativeQA, the cells ablation, the three-tier model-sensitivity pilot, maintenance
 (re-ingest, refold, delete), deployment and a living stream of data.
 
@@ -77,7 +78,7 @@ stretch between them is three weeks of exams and nothing gets scheduled there.
 | Sep 2 | One chapter of Oz book 1 ingested end to end for Dr. Fang: split, cast, entities, facts, summary, rendered graph |
 | Sep 8 | One-semester proposal form filed |
 | Sep 14 | All four corpora split and gated; dataset published. Oz, Holmes, and Greek landed Sep 1 (kaggle.com/datasets/jhffmn/it494-narrative-corpora-units, since superseded); Chinese remains. Superseded Sep 4: one general extractor over one raw dataset holding every source (Oz, Holmes, Greek, GraphRAG-Bench, LongMemEval sessions, paper PDFs), documents carrying their text and units as ranges; see `log/2026-09-04/`. Done Sep 13: extractor 1.8 over the whole raw dataset, 24,071 documents (23,882 chats in 500 LongMemEval histories, 89 texts, 100 PDFs) for $8.24, published at kaggle.com/datasets/jhffmn/it494-threadatlas-step0 |
-| Sep 20 | The global layer (first cut), the store to the schema it decides, and the embedding sidecar exist over the test packages (71 chat sessions, three Oz books, five papers, two plays); the schema written down |
+| Sep 20 | Met Sep 14 to 15: the global layer (bottom-up clustering with a judge, parents written once, the mentions pass, collections), the lean serving store, the embedding sidecar and the query path exist over the test packages (71 chat sessions, three Oz books, five papers, two plays) in `notebooks/threadatlas-global-layer.py` (kernel jhffmn/threadatlas-global-layer); the schema is SCHEMA.md's serving store; the harness is next |
 | Sep 27 | The design lock: the harness runs a question end to end through store, parents, vectors and query on a novel and a chat history; testing begins; open block ends |
 | Sep 28 to Oct 18 | Exams. The pipeline tuned on the test packages until ready; only then the full corpus through the ingestor in Kaggle batches, unattended, while the paper is written. Oct 11: results-independent sections drafted. **Oct 15: first draft of the paper**, with whatever numbers exist. Oct 18: GraphRAG-Bench scored on all 20 novels |
 | Oct 25 | Build stop: both benchmark numbers exist, each with its denominator; the wiki pages over document clusters |
@@ -101,10 +102,10 @@ one; the ten test books and papers about $5). Remaining, priced in
 
 | Work | Hours |
 |---|---|
-| The global layer: the design note, then the first cut | 8-12 |
-| The store, to the schema the global layer decides | 6-10 |
-| The embedding sidecar | 3-5 |
-| The query path | 8-10 |
+| The global layer: the design note, then the batch build (done 09-14) | 8-12 |
+| The store, to the schema the global layer decides (done 09-15) | 6-10 |
+| The embedding sidecar (done 09-14) | 3-5 |
+| The query path (built 09-15; the Oz key and the harnesses are next) | 8-10 |
 | The two harnesses (each benchmark's own evaluator) | 12-18 |
 | Kaggle changes before the full run (output shape, block budget) | 2-4 |
 | Scale, bands, instruments, tables | 6-8 |
@@ -137,8 +138,11 @@ author's machine, untracked.
     docs/evaluation-corpus.md  every dataset and what the build owes it
     docs/entity-resolution.md  the resolution design, its guards, and the tree
     docs/references.md       sources behind the schema decisions
-    notebooks/               the extractor and ingestor, as script and notebook, as they run on Kaggle
+    notebooks/               the extractor, the ingestor and the global layer (store, clustering, collections, wiki, retrieval), as script and notebook, as they run on Kaggle
+    docs/global-layer.md     the global layer's design and build; docs/retrieval.md the query path
+    docs/wiki/               the wiki mock-up rendered from a real store: three Oz books, four entity pages, the portal, the figure
     dataset/step0/           the published Step 0 dataset's docs, as published, with the 09-13 corrections pending republish
+    dataset/step1/           the published Step 1 dataset's docs (ingestor 1.8, version 2), what the global layer reads
     data/raw/                the raw corpora (three literature corpora, GraphRAG-Bench novels, kg-rag-cc papers, LongMemEval) and their manifests
     data/benchmarks/         GraphRAG-Bench, LongMemEval, NarrativeQA gold files
     scripts/                 the fetchers and unpackers that built the raw dataset, the Step 0 packer, the package renderer
