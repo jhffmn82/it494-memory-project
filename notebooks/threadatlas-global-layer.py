@@ -23,17 +23,27 @@
 #
 # ## The store
 #
-# The Step 1 records, one table each with the same fields, plus:
+# The serving store keeps what a question or a page reads. The document's text stays in Step 0
+# and is used at load to prove every quote. The build's evidence goes to `build.sqlite` beside it.
 #
-# | table | fields | meaning |
+# | table | columns | meaning |
 # |---|---|---|
-# | `parent` | `parent_id`, `name`, `kind`, `aliases`, `summary`, `instances`, `first` | a global entity: a name and kind chosen from its instances, the union of their aliases, one summary line per instance tagged with the instance's id, how many instances it has, the first of them |
-# | `instance_of` | `doc_id`, `node_id`, `parent_id`, `reason`, `scores` | the up-edge from a document's entity to its parent, owned by the document: the judge's reason on the pair whose union first joined this child's cluster to another (or `alone`), and that pair's scores |
-# | `merge` | `round`, `doc_a`, `node_a`, `doc_b`, `node_b`, `kept`, `joined` | every union in order: the round, the pair ruled same, and the two cluster leaders it joined; with `pair` it is the full audit of why an entity is under its parent |
-# | `pair` | `doc_a`, `node_a`, `doc_b`, `node_b`, `lexical`, `vector`, `cast`, `cast_rare`, `identity`, `offered`, `verdict`, `reason` | every nominated pair of children: the four signals, whether it cleared the floor, and the judge's verdict; the grouping replays from this table under any subset of the signals |
-# | `vec_header`, `vec_row` | `model`, `dimension`, `built_at`; `row`, `record`, `doc_id`, `record_id`, `ordinal`, `text` | the sidecar's map: what each row of the array is |
+# | `document` | doc_id, title, author, occurred_at, source_uri | the filter's unit; the date on every item |
+# | `unit` | unit_id, doc_id, position, label, kind, occurred_at | order inside a document; a chapter's or a turn's label |
+# | `node` | doc_id, node_id, name, kind | a document's entity |
+# | `alias` | doc_id, node_id, alias | its surface forms |
+# | `fact` | doc_id, fact_id, subject, subject_name, predicate, object, object_is_node, qualifiers, unit_id, quote, quote_start, quote_end, occurred_at, direction | a claim with its verbatim quote |
+# | `adjudicated_fact` | doc_id, node_id, predicate, object, qualifiers, from_facts | the ingestor's consolidation, for the wiki |
+# | `cell`, `abstract` | doc_id, node_id, unit_id, text; doc_id, node_id, text | the narratives |
+# | `parent` | parent_id, name, kind, aliases, summary | a global entity: derived fields only |
+# | `instance_of` | doc_id, node_id, parent_id | the up-edge, owned by the document |
+# | `collection`, `document_in` | collection_id, name, abstract; doc_id, collection_id | a body of work and its documents |
+# | `vec_header`, `vec_row` | model, dimension, built_at; row, record, doc_id, record_id, ordinal | what each row of the array is |
+# | `search` | record, doc_id, record_id, text (FTS5) | one row per record: a fact's line and quote, a cell, an abstract |
 #
-# FTS5 tables sit over abstracts, cells and fact quotes when the SQLite build has FTS5.
+# `build.sqlite`: `pair` (every candidate pair, its four signals, whether it was offered, the
+# judge's verdict and reason) and `merge` (every union in order). With the Step 1 dataset's own
+# diagnostics they are the full audit of why an entity is under its parent.
 #
 # ## The sidecar
 #
@@ -46,7 +56,7 @@
 #
 # ```
 # load        every Step 1 record into the store; a fact's quote must slice from its
-#             document's text at its offsets, or the load stops; FTS5 over the text fields
+#             document's text at its offsets, or the load stops; one search row per record
 # embed       one vector per fact line and per narrative sentence, and one per child (an
 #             entity node that is not the document itself and not the user of a chat)
 # nominate    candidate pairs of children, each once: the NEAREST other-document children by
@@ -327,88 +337,48 @@ if __name__ == "__main__":
 # %% [markdown]
 # ## Block 4: the store's schema
 #
-# Every Step 1 record type is a table with the same fields (`flags`, `provenance`, `units` and
-# the other nested values as JSON text), the documents' text from Step 0 is stored once, and
-# the parent, up-edge, pair and sidecar tables are declared here, filled by the later blocks,
-# so the whole schema is in one place. `TABLES` names the Step 1 file behind each table and
-# the fields in column order.
+# The serving store holds what a question or a page reads and nothing else: thirteen tables and
+# one full-text table with a row per record. The document's text stays in Step 0; the load
+# slices every quote against it and does not keep it. What the build learned on the way (every
+# candidate pair with its scores and the judge's verdict, every union) goes to `build.sqlite`
+# beside the store, and Step 1's own diagnostics stay in the Step 1 dataset.
 
 # %%
 SCHEMA = """
-create table document (doc_id text primary key, source_uri text, sha256 text, title text, author text,
-    source_class text, occurred_at text, ingested_at text, loader text, flags text, text text);
-create table unit (unit_id text primary key, doc_id text, position integer, label text, kind text,
-    start integer, end integer, occurred_at text);
-create table piece (doc_id text, unit_id text, position integer, kind text, start integer, end integer,
-    author text, occurred_at text);
-create table node (doc_id text, node_id text, name text, kind text, created_from_unit text, provenance text,
-    primary key (doc_id, node_id));
-create table alias (doc_id text, alias text, node_id text, first_seen_unit text);
-create table edge (doc_id text, predicate text, subject text, object text, units text, position integer);
-create table fact (doc_id text, fact_id text, subject text, predicate text, object text, object_is_node integer,
-    direction text, qualifiers text, rank text, unit_id text, quote text, quote_start integer, quote_end integer,
-    valid_from text, occurred_at text, tier text, author text, provenance text, primary key (doc_id, fact_id));
-create table cell (doc_id text, node_id text, unit_id text, text text, tier text, provenance text);
-create table abstract (doc_id text, node_id text, text text, tier text, updated_at text);
-create table adjudicated_fact (doc_id text, node_id text, predicate text, object text, qualifiers text,
-    from_facts text, tier text);
-create table attribute (doc_id text, node_id text, attribute text, value text, from_facts text, tier text);
-create table contradiction (doc_id text, node_id text, note text, from_facts text, holds text, because text);
-create table rejection (doc_id text, stage text, unit_id text, category text, row text);
-create table ledger (doc_id text, a text, a_unit integer, b text, b_unit integer, verdict text, how text, evidence text);
-create table candidate (doc_id text, a text, a_unit integer, b text, b_unit integer, round integer, tier real,
-    reason text, name_score real, cooc_score real, combined real);
-create table completion (doc_id text primary key, row text);
+create table document (doc_id text primary key, title text, author text, occurred_at text, source_uri text);
+create table unit (unit_id text primary key, doc_id text, position integer, label text, kind text, occurred_at text);
+create table node (doc_id text, node_id text, name text, kind text, primary key (doc_id, node_id));
+create table alias (doc_id text, node_id text, alias text);
+create table fact (doc_id text, fact_id text, subject text, subject_name text, predicate text, object text,
+    object_is_node integer, qualifiers text, unit_id text, quote text, quote_start integer, quote_end integer,
+    occurred_at text, direction text, primary key (doc_id, fact_id));
+create table adjudicated_fact (doc_id text, node_id text, predicate text, object text, qualifiers text, from_facts text);
+create table cell (doc_id text, node_id text, unit_id text, text text);
+create table abstract (doc_id text, node_id text, text text);
 
-create table parent (parent_id integer primary key, name text, kind text, aliases text, summary text,
-    instances integer, first text);
-create table instance_of (doc_id text, node_id text, parent_id integer, reason text, scores text,
-    primary key (doc_id, node_id));
+create table parent (parent_id integer primary key, name text, kind text, aliases text, summary text);
+create table instance_of (doc_id text, node_id text, parent_id integer, primary key (doc_id, node_id));
+create table collection (collection_id integer primary key, name text, abstract text);
+create table document_in (doc_id text, collection_id integer, primary key (doc_id, collection_id));
+
+create table vec_header (model text, dimension integer, built_at text);
+create table vec_row (row integer primary key, record text, doc_id text, record_id text, ordinal integer);
+create virtual table search using fts5(record unindexed, doc_id unindexed, record_id unindexed, text);
+"""
+
+BUILD_SCHEMA = """
 create table pair (doc_a text, node_a text, doc_b text, node_b text, lexical real, vector real, cast real,
     cast_rare real, identity integer, offered integer, verdict text, reason text);
 create table merge (round integer, doc_a text, node_a text, doc_b text, node_b text, kept text, joined text);
-
-create table vec_header (model text, dimension integer, built_at text);
-create table vec_row (row integer primary key, record text, doc_id text, record_id text, ordinal integer, text text);
 """
-
-FTS = """
-create virtual table abstract_fts using fts5(text, content='abstract', content_rowid='rowid');
-create virtual table cell_fts using fts5(text, content='cell', content_rowid='rowid');
-create virtual table fact_fts using fts5(quote, content='fact', content_rowid='rowid');
-insert into abstract_fts(abstract_fts) values ('rebuild');
-insert into cell_fts(cell_fts) values ('rebuild');
-insert into fact_fts(fact_fts) values ('rebuild');
-"""
-
-TABLES = {
-    "document": ("documents", ["doc_id", "source_uri", "sha256", "title", "author", "source_class", "occurred_at",
-                               "ingested_at", "loader", "flags"]),
-    "unit": ("units", ["unit_id", "doc_id", "position", "label", "kind", "start", "end", "occurred_at"]),
-    "piece": ("pieces", ["doc_id", "unit_id", "position", "kind", "start", "end", "author", "occurred_at"]),
-    "node": ("nodes", ["doc_id", "node_id", "name", "kind", "created_from_unit", "provenance"]),
-    "alias": ("aliases", ["doc_id", "alias", "node_id", "first_seen_unit"]),
-    "edge": ("edges", ["doc_id", "predicate", "subject", "object", "units", "position"]),
-    "fact": ("facts", ["doc_id", "fact_id", "subject", "predicate", "object", "object_is_node", "direction",
-                       "qualifiers", "rank", "unit_id", "quote", "quote_start", "quote_end", "valid_from",
-                       "occurred_at", "tier", "author", "provenance"]),
-    "cell": ("cells", ["doc_id", "node_id", "unit_id", "text", "tier", "provenance"]),
-    "abstract": ("abstracts", ["doc_id", "node_id", "text", "tier", "updated_at"]),
-    "adjudicated_fact": ("adjudicated_facts", ["doc_id", "node_id", "predicate", "object", "qualifiers", "from_facts", "tier"]),
-    "attribute": ("attributes", ["doc_id", "node_id", "attribute", "value", "from_facts", "tier"]),
-    "contradiction": ("contradictions", ["doc_id", "node_id", "note", "from_facts", "holds", "because"]),
-    "ledger": ("ledger", ["doc_id", "a", "a_unit", "b", "b_unit", "verdict", "how", "evidence"]),
-    "candidate": ("candidates", ["doc_id", "a", "a_unit", "b", "b_unit", "round", "tier", "reason", "name_score",
-                                 "cooc_score", "combined"]),
-}
 
 # %% [markdown]
 # ## Block 5: loading the store
 #
-# The Step 1 rows go in as they are; a fact's quote is re-sliced from the document's text at
-# its offsets and the load stops on the first mismatch (a document-record fact has no quote by
-# rule and is not checked). Then FTS5, and a check that the facts and cells per document equal
-# the completion records the ingestor wrote.
+# The Step 1 rows go in with the columns the store keeps; a fact's quote is re-sliced from the
+# document's text at its offsets and the load stops on the first mismatch (a document-record
+# fact has no quote by rule and is not checked). Then the `search` rows, one per record, and a
+# check that the facts and cells per document equal the completion records the ingestor wrote.
 
 # %%
 def column(value):
@@ -421,7 +391,7 @@ def column(value):
 
 
 def texts_of(export_documents, doc_ids):
-    """doc_id -> text, from Step 0, for the documents asked for."""
+    """doc_id -> text, from Step 0, for the documents asked for; used at load and not kept."""
     texts = {}
     with Path(export_documents).open(encoding="utf-8") as f:
         for line in f:
@@ -431,60 +401,84 @@ def texts_of(export_documents, doc_ids):
     return texts
 
 
-def load_table(db, table, step1, texts):
-    """One Step 1 file into its table; every quoted fact proven against the text. Quotes checked."""
-    file, fields = TABLES[table]
+# the Step 1 file behind each table, and the row the store keeps of each record
+ROWS = {
+    "document": ("documents", ["doc_id", "title", "author", "occurred_at", "source_uri"]),
+    "unit": ("units", ["unit_id", "doc_id", "position", "label", "kind", "occurred_at"]),
+    "node": ("nodes", ["doc_id", "node_id", "name", "kind"]),
+    "alias": ("aliases", ["doc_id", "node_id", "alias"]),
+    "adjudicated_fact": ("adjudicated_facts", ["doc_id", "node_id", "predicate", "object", "qualifiers", "from_facts"]),
+    "cell": ("cells", ["doc_id", "node_id", "unit_id", "text"]),
+    "abstract": ("abstracts", ["doc_id", "node_id", "text"]),
+}
+
+
+def load_facts(db, step1, texts):
+    """Every fact, its quote proven against the text; the number checked."""
     checked = 0
-    for r in read_jsonl(step1 / f"{file}.jsonl"):
-        values = [column(r.get(f)) for f in fields]
-        if table == "document":
-            values.append(texts[r["doc_id"]])
-        if table == "fact" and r["quote"] is not None:
+    for r in read_jsonl(step1 / "facts.jsonl"):
+        if r["quote"] is not None:
             if texts[r["doc_id"]][r["quote_start"]:r["quote_end"]] != r["quote"]:
                 raise SystemExit(f"quote of {r['fact_id']} does not slice to its text; load refused")
             checked += 1
-        db.execute(f"insert into {table} values ({', '.join('?' * len(values))})", values)
+        db.execute("insert into fact values (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                   (r["doc_id"], r["fact_id"], r["subject"], r["provenance"].get("subject_name"), r["predicate"], r["object"],
+                    int(r["object_is_node"]), r["qualifiers"], r["unit_id"], r["quote"], r["quote_start"], r["quote_end"],
+                    r["occurred_at"], r["direction"]))
     return checked
 
 
-def check_counts(db):
+def load_search(db):
+    """One search row per record: a fact's line and quote, a cell's text, an abstract's text."""
+    docs = {r[0]: {"title": r[1], "source_uri": r[2]} for r in db.execute("select doc_id, title, source_uri from document")}
+    names = {(d, n): name for d, n, name in db.execute("select doc_id, node_id, name from node")}
+    fields = ["doc_id", "fact_id", "subject", "subject_name", "predicate", "object", "object_is_node", "qualifiers", "occurred_at", "direction", "quote"]
+    rows = []
+    for row in db.execute(f"select {', '.join(fields)} from fact"):
+        f = dict(zip(fields, row))
+        local = {f["subject"]: names.get((f["doc_id"], f["subject"]), f["subject"]),
+                 f["object"]: names.get((f["doc_id"], f["object"]), f["object"])}
+        rows.append(("fact", f["doc_id"], f["fact_id"], fact_line(f, local, docs[f["doc_id"]]) + ("\n" + f["quote"] if f["quote"] else "")))
+    rows += [("cell", d, f"{n}@{u}", text) for d, n, u, text in db.execute("select doc_id, node_id, unit_id, text from cell")]
+    rows += [("abstract", d, n, text) for d, n, text in db.execute("select doc_id, node_id, text from abstract")]
+    db.executemany("insert into search values (?,?,?,?)", rows)
+    return len(rows)
+
+
+def check_counts(step1, db):
     """Documents whose stored facts or cells differ from their completion record."""
     off = 0
-    for doc_id, row in db.execute("select doc_id, row from completion"):
-        counts = json.loads(row)["counts"]
-        facts = db.execute("select count(*) from fact where doc_id = ? and quote is not null", (doc_id,)).fetchone()[0]
-        cells = db.execute("select count(*) from cell where doc_id = ?", (doc_id,)).fetchone()[0]
+    for r in read_jsonl(step1 / "completions.jsonl"):
+        counts = r["counts"]
+        facts = db.execute("select count(*) from fact where doc_id = ? and quote is not null", (r["doc_id"],)).fetchone()[0]
+        cells = db.execute("select count(*) from cell where doc_id = ?", (r["doc_id"],)).fetchone()[0]
         off += facts != counts["facts_stored"] or cells != counts["cells"]
     return off
 
 
 def build_store(step1, export_documents, path):
-    """The store from a Step 1 folder and Step 0's documents.jsonl."""
-    if path.exists():
-        path.unlink()
+    """The serving store from a Step 1 folder and Step 0's documents.jsonl; build.sqlite beside it."""
+    for old in (path, path.with_name("build.sqlite")):
+        if old.exists():
+            old.unlink()
     db = sqlite3.connect(path)
     db.executescript(SCHEMA)
-    docs = read_jsonl(step1 / "documents.jsonl")
-    texts = texts_of(export_documents, {d["doc_id"] for d in docs})
-    missing = [d["doc_id"] for d in docs if d["doc_id"] not in texts]
+    sqlite3.connect(path.with_name("build.sqlite")).executescript(BUILD_SCHEMA)
+    for table, (file, fields) in ROWS.items():
+        db.executemany(f"insert into {table} values ({', '.join('?' * len(fields))})",
+                       [[column(r.get(f)) for f in fields] for r in read_jsonl(step1 / f"{file}.jsonl")])
+    doc_ids = {r[0] for r in db.execute("select doc_id from document")}
+    texts = texts_of(export_documents, doc_ids)
+    missing = doc_ids - set(texts)
     if missing:
-        raise SystemExit(f"{len(missing)} documents have no text in Step 0, first {missing[0]}")
-    checked = sum(load_table(db, table, step1, texts) for table in TABLES)
-    for r in read_jsonl(step1 / "rejections.jsonl"):
-        db.execute("insert into rejection values (?,?,?,?,?)", (r["doc_id"], r["stage"], r.get("unit_id"), r["category"], column(r)))
-    for r in read_jsonl(step1 / "completions.jsonl"):
-        db.execute("insert into completion values (?,?)", (r["doc_id"], column(r)))
+        raise SystemExit(f"{len(missing)} documents have no text in Step 0, first {sorted(missing)[0][:8]}")
+    checked = load_facts(db, step1, texts)
+    searchable = load_search(db)
     db.commit()
-    try:
-        db.executescript(FTS)
-        fts = "built"
-    except sqlite3.OperationalError as e:
-        fts = f"not built ({e})"
-    db.commit()
-    off = check_counts(db)
+    off = check_counts(step1, db)
     counts = {t: db.execute(f"select count(*) from {t}").fetchone()[0] for t in ("document", "node", "fact", "cell", "abstract")}
     db.close()
-    print(f"store: {counts}; {checked} quotes checked, all slice to their text; FTS5 {fts}; "
+    print(f"store: {counts}; {checked} quotes checked, all slice to their text; {searchable} search rows; "
           f"{'counts equal the completion records' if not off else f'{off} documents differ from their completion record'}")
     return counts
 
@@ -509,8 +503,8 @@ def sentences(text):
 def fact_line(f, names, doc):
     """A fact as the sentence a question would match: subject, predicate, object, qualifiers, date, title."""
     subject = names.get(f["subject"], f["subject"])
-    if f["direction"] == "mentioned":                       # a chat minor's fact, carried by its session
-        subject = json.loads(f["provenance"] or "{}").get("subject_name") or subject
+    if f["direction"] == "mentioned" and f["subject_name"]:    # a chat minor's fact, carried by its session
+        subject = f["subject_name"]
     obj = names.get(f["object"], f["object"]) if f["object_is_node"] else f["object"]
     line = f"{subject} {f['predicate'].replace('_', ' ')} {obj}"
     if f["qualifiers"]:
@@ -531,7 +525,7 @@ def document_texts(db):
     docs = {r[0]: {"title": r[1], "source_uri": r[2]} for r in db.execute("select doc_id, title, source_uri from document")}
     names = {(d, n): name for d, n, name in db.execute("select doc_id, node_id, name from node")}
     rows = []
-    fields = ["doc_id", "fact_id", "subject", "predicate", "object", "object_is_node", "qualifiers", "occurred_at", "direction", "provenance"]
+    fields = ["doc_id", "fact_id", "subject", "subject_name", "predicate", "object", "object_is_node", "qualifiers", "occurred_at", "direction"]
     for row in db.execute(f"select {', '.join(fields)} from fact order by doc_id, fact_id"):
         f = dict(zip(fields, row))
         local = {f["subject"]: names.get((f["doc_id"], f["subject"]), f["subject"]),
@@ -582,7 +576,7 @@ def write_sidecar(db, store, rows, vectors):
     numpy.save(store.with_suffix(".npy"), vectors)
     db.execute("delete from vec_row")
     db.execute("delete from vec_header")
-    db.executemany("insert into vec_row values (?,?,?,?,?,?)", [(i, *r) for i, r in enumerate(rows)])
+    db.executemany("insert into vec_row values (?,?,?,?,?)", [(i, *r[:4]) for i, r in enumerate(rows)])
     db.execute("insert into vec_header values (?,?,?)", (MODEL, DIMENSION, now()))
     db.commit()
     by_record = {}
@@ -605,7 +599,7 @@ def extend_sidecar(store):
     """The parents' rows appended to the array the documents already have."""
     import numpy
     db = sqlite3.connect(store)
-    rows = [tuple(r) for r in db.execute("select record, doc_id, record_id, ordinal, text from vec_row where record != 'parent' order by row")]
+    rows = [tuple(r) + ("",) for r in db.execute("select record, doc_id, record_id, ordinal from vec_row where record != 'parent' order by row")]
     have = numpy.load(store.with_suffix(".npy"))[:len(rows)]
     added = parent_texts(db)
     vectors = numpy.vstack([have, embed([r[4] for r in added]).astype(numpy.float16)]) if added else have
@@ -643,13 +637,12 @@ def read_children(db):
     document can join the document itself."""
     chats = {r[0] for r in db.execute("select distinct doc_id from unit where kind in ('user', 'assistant')")}
     titled = {d for d, t, u in db.execute("select doc_id, title, source_uri from document") if not is_identifier(t, u)}
-    position = dict(db.execute("select unit_id, position from unit"))
     children = {}
-    for doc_id, node_id, name, kind, created in db.execute("select doc_id, node_id, name, kind, created_from_unit from node"):
+    for doc_id, node_id, name, kind in db.execute("select doc_id, node_id, name, kind from node"):
         if fold(name) == "user" or (node_id.endswith(":doc") and doc_id not in titled):
             continue
         children[(doc_id, node_id)] = {"doc_id": doc_id, "node_id": node_id, "name": name, "kind": kind,
-                                       "first_unit": position.get(created, 0), "aliases": [], "facts": [],
+                                       "aliases": [], "facts": [],
                                        "abstract": None, "cast": set(), "links": set(), "chat": doc_id in chats,
                                        "document": node_id.endswith(":doc")}
     for doc_id, alias, node_id in db.execute("select doc_id, alias, node_id from alias"):
@@ -673,13 +666,14 @@ def read_children(db):
     return children
 
 
-def read_casts(db, children):
-    """Each child's cast, the folded names of the children it shares a unit with."""
+def read_casts(step1, children):
+    """Each child's cast, the folded names of the children it shares a unit with, from the
+    Step 1 edges (the store does not keep them)."""
     members = {}
-    for doc_id, subject, units in db.execute("select doc_id, subject, units from edge where predicate = 'appears_in'"):
-        if (doc_id, subject) in children:
-            for unit in json.loads(units or "[]"):
-                members.setdefault((doc_id, unit), []).append(subject)
+    for e in read_jsonl(step1 / "edges.jsonl"):
+        if e["predicate"] == "appears_in" and (e["doc_id"], e["subject"]) in children:
+            for unit in e.get("units") or []:
+                members.setdefault((e["doc_id"], unit), []).append(e["subject"])
     for (doc_id, unit), ids in members.items():
         names = {fold(children[(doc_id, i)]["name"]) for i in ids}
         for i in ids:
@@ -689,12 +683,12 @@ def read_casts(db, children):
             whole["cast"] |= names
 
 
-def read_corpus(db):
+def read_corpus(db, step1):
     """docs, children and each cast name's rarity (log of documents over documents holding the name)."""
     docs = {r[0]: {"title": r[1], "source_uri": r[2], "occurred_at": r[3]}
             for r in db.execute("select doc_id, title, source_uri, occurred_at from document")}
     children = read_children(db)
-    read_casts(db, children)
+    read_casts(step1, children)
     docs_with = {}
     for child in children.values():
         docs_with.setdefault(fold(child["name"]), set()).add(child["doc_id"])
@@ -1076,36 +1070,36 @@ def write_parent(members, children, docs):
     return {"name": name, "kind": kind, "aliases": aliases, "summary": summary, "children": members, "calls": 1}
 
 
-def write_tables(db, parents, pairs, clusters):
-    for table in ("parent", "instance_of", "pair", "merge"):
-        db.execute(f"delete from {table}")
-    joined_by = clusters.joined                     # child -> the pair whose union first joined its cluster to another
+def write_tables(db, store, parents, pairs, clusters):
+    """The parents and up-edges into the store; the pairs and unions into build.sqlite."""
+    db.execute("delete from parent")
+    db.execute("delete from instance_of")
     for i, p in enumerate(parents):
         summary = "\n".join(f"[{node_id}] {line}" for ((_, node_id), line) in p["summary"])   # a node id carries its document's tag
-        db.execute("insert into parent values (?,?,?,?,?,?,?)",
-                   (i, p["name"], p["kind"], column(sorted(p["aliases"])), summary, len(p["children"]), p["children"][0][1]))
-        for key in p["children"]:
-            r = joined_by.get(key)
-            scores = {k: r[k] for k in ("lexical", "vector", "cast", "cast_rare", "identity")} if r else None
-            db.execute("insert into instance_of values (?,?,?,?,?)", (key[0], key[1], i, r["reason"] if r else "alone", column(scores)))
-    db.executemany("insert into merge values (?,?,?,?,?,?,?)",
-                   [(r, a[0], a[1], b[0], b[1], keep[1], gone[1]) for r, a, b, keep, gone in clusters.merges])
-    for p in pairs:
-        db.execute("insert into pair values (?,?,?,?,?,?,?,?,?,?,?,?)",
-                   (p["a"][0], p["a"][1], p["b"][0], p["b"][1], p["lexical"], p["vector"], p["cast"], p["cast_rare"],
-                    p["identity"], p["offered"], p["verdict"], p["reason"]))
+        db.execute("insert into parent values (?,?,?,?,?)", (i, p["name"], p["kind"], column(sorted(p["aliases"])), summary))
+        db.executemany("insert into instance_of values (?,?,?)", [(key[0], key[1], i) for key in p["children"]])
     db.commit()
     orphans = db.execute("select count(*) from instance_of i left join parent p on p.parent_id = i.parent_id where p.parent_id is null").fetchone()[0]
     unplaced = db.execute("""select count(*) from node n left join instance_of i on i.doc_id = n.doc_id and i.node_id = n.node_id
                              where n.node_id not like '%:doc' and n.name != 'user' and i.parent_id is null""").fetchone()[0]
     if orphans or unplaced:
         raise SystemExit(f"invariant broken: {orphans} up-edges point at no written parent, {unplaced} children have no up-edge")
+    log = sqlite3.connect(store.with_name("build.sqlite"))
+    log.execute("delete from pair")
+    log.execute("delete from merge")
+    log.executemany("insert into pair values (?,?,?,?,?,?,?,?,?,?,?,?)",
+                    [(p["a"][0], p["a"][1], p["b"][0], p["b"][1], p["lexical"], p["vector"], p["cast"], p["cast_rare"],
+                      p["identity"], p["offered"], p["verdict"], p["reason"]) for p in pairs])
+    log.executemany("insert into merge values (?,?,?,?,?,?,?)",
+                    [(r, a[0], a[1], b[0], b[1], keep[1], gone[1]) for r, a, b, keep, gone in clusters.merges])
+    log.commit()
+    log.close()
 
 
-def build_parents(store):
+def build_parents(store, step1):
     """Embed every child, nominate and score the pairs, cluster, write the parents and the tables."""
     db = sqlite3.connect(store)
-    docs, children, rarity = read_corpus(db)
+    docs, children, rarity = read_corpus(db, step1)
     keys = sorted(key for key in children if not children[key]["document"])
     documents = sorted(key for key in children if children[key]["document"])
     print(f"{len(docs)} documents, {len(keys)} children, {len(documents)} titled documents; signals {sorted(SIGNALS)}")
@@ -1121,7 +1115,7 @@ def build_parents(store):
     for leader, doc_key in mentions.items():
         groups[leader].append(doc_key)
     parents = in_parallel(write_parent, [(members, children, docs) for members in groups.values()])
-    write_tables(db, parents, pairs, clusters)
+    write_tables(db, store, parents, pairs, clusters)
     db.close()
     print(f"written: {len(parents)} parents ({sum(p['calls'] for p in parents)} written by a call), {len(keys)} up-edges, {len(pairs)} pair rows; ${SPENT:.2f}")
 
@@ -1139,20 +1133,23 @@ if __name__ == "__main__":
     counts = build_store(STEP1, EXPORT / "documents.jsonl", STORE)
     build_sidecar(STORE)
     if KEY:
-        build_parents(STORE)
+        build_parents(STORE, STEP1)
         extend_sidecar(STORE)
     db = sqlite3.connect(STORE)
+    log = sqlite3.connect(STORE.with_name("build.sqlite"))
+    sizes = "select count(*) as n from instance_of group by parent_id"
     receipt = {"version": VERSION, "started_at": started, "finished_at": now(), "signals": sorted(SIGNALS),
                "store": counts, "parents": db.execute("select count(*) from parent").fetchone()[0],
-               "parents_with_two_or_more": db.execute("select count(*) from parent where instances > 1").fetchone()[0],
-               "largest_group": db.execute("select max(instances) from parent").fetchone()[0],
+               "parents_with_two_or_more": db.execute(f"select count(*) from ({sizes}) where n > 1").fetchone()[0],
+               "largest_group": db.execute(f"select max(n) from ({sizes})").fetchone()[0],
                "up_edges": db.execute("select count(*) from instance_of").fetchone()[0],
-               "pairs": db.execute("select count(*) from pair").fetchone()[0],
-               "pairs_judged": db.execute("select count(*) from pair where verdict in ('same', 'different')").fetchone()[0],
-               "pairs_same": db.execute("select count(*) from pair where verdict = 'same'").fetchone()[0],
-               "pairs_blocked": db.execute("select count(*) from pair where verdict = 'blocked'").fetchone()[0],
+               "pairs": log.execute("select count(*) from pair").fetchone()[0],
+               "pairs_judged": log.execute("select count(*) from pair where verdict in ('same', 'different')").fetchone()[0],
+               "pairs_same": log.execute("select count(*) from pair where verdict = 'same'").fetchone()[0],
+               "pairs_blocked": log.execute("select count(*) from pair where verdict = 'blocked'").fetchone()[0],
                "vectors": db.execute("select count(*) from vec_row").fetchone()[0], "cost": round(SPENT, 4)}
     db.close()
+    log.close()
     (OUT / "receipt.json").write_text(json.dumps(receipt, indent=2), encoding="utf-8")
     print(json.dumps(receipt, indent=2))
 
@@ -1168,7 +1165,9 @@ if __name__ == "__main__" and STORE.exists():
     db = sqlite3.connect(STORE)
     kinds_of = {n: k for n, k in db.execute("select node_id, kind from node")}
     mixed = 0
-    for pid, name, kind, n in db.execute("select parent_id, name, kind, instances from parent where instances > 1 order by instances desc"):
+    query = """select p.parent_id, p.name, p.kind, count(*) as n from parent p join instance_of i on i.parent_id = p.parent_id
+               group by p.parent_id having n > 1 order by n desc"""
+    for pid, name, kind, n in db.execute(query).fetchall():
         members = [m for (m,) in db.execute("select node_id from instance_of where parent_id = ?", (pid,))]
         kinds = {kinds_of[m] for m in members}
         mixed += len(kinds) > 1 and not kinds <= {"person", "character"}
@@ -1191,7 +1190,7 @@ if __name__ == "__main__" and STORE.exists():
 # entities span them, from the documents' abstracts and the shared parents; it asserts nothing
 # beyond them. Without a key the name is "Works around" the most distinctive shared parent and
 # the abstract the counts; a keyed run replaces both.
-# Tables: `collection` (id, name, abstract, documents, written_by) and `document_in`
+# Tables: `collection` (id, name, abstract) and `document_in`
 # (doc_id, collection_id), one row per membership.
 
 # %%
@@ -1212,10 +1211,8 @@ Entities shared across them, most distinctive first:
 Reply with a JSON object: {{"name": "<name>", "abstract": "<three to five sentences>"}}."""
 
 COLLECTION_SCHEMA = """
-drop table if exists collection;
-drop table if exists document_in;
-create table collection (collection_id integer primary key, name text, abstract text, documents integer, written_by text);
-create table document_in (doc_id text, collection_id integer, primary key (doc_id, collection_id));
+delete from collection;
+delete from document_in;
 """
 
 
@@ -1300,7 +1297,7 @@ def build_collections(store):
     collections = collection_groups(parent_groups(db))
     for i, (seeds, docs) in enumerate(collections):
         name, abstract, how = write_collection(db, docs)
-        db.execute("insert into collection values (?,?,?,?,?)", (i, name, abstract, len(docs), how))
+        db.execute("insert into collection values (?,?,?)", (i, name, abstract))
         db.executemany("insert into document_in values (?,?)", [(d, i) for d in sorted(docs)])
         print(f"  collection {i}: {name} ({len(docs)} documents from {len(seeds)} seed parents, {how})")
     db.commit()
@@ -1496,7 +1493,8 @@ def document_page(db, doc_id):
         cells = db.execute("""select group_concat(f.object, ' '), u.label from fact f join unit u on u.unit_id = f.unit_id
                               where f.doc_id = ? and f.direction = 'mentioned' group by u.position order by u.position""", (doc_id,)).fetchall()
     summaries = "".join(f'<h4>{escape(unit_heading(label))}</h4><p class="cell">{escape(text)}</p>' for text, label in cells)
-    entities = db.execute("""select n.node_id, n.name, n.kind, p.parent_id, p.name, p.instances from node n
+    entities = db.execute("""select n.node_id, n.name, n.kind, p.parent_id, p.name,
+                             (select count(*) from instance_of j where j.parent_id = p.parent_id) from node n
                              left join instance_of i on i.doc_id = n.doc_id and i.node_id = n.node_id
                              left join parent p on p.parent_id = i.parent_id
                              where n.doc_id = ? and n.node_id != ? and n.name != 'user'
@@ -1603,7 +1601,8 @@ def wiki_page(db, parent_id):
 def write_wiki_page(store, out, name, kind=None):
     """The page for the parent of that name (and kind, when given), written under out/wiki."""
     db = sqlite3.connect(store)
-    query = "select parent_id from parent where name = ?" + (" and kind = ?" if kind else "") + " order by instances desc"
+    query = ("select p.parent_id from parent p where p.name = ?" + (" and p.kind = ?" if kind else "")
+             + " order by (select count(*) from instance_of i where i.parent_id = p.parent_id) desc")
     row = db.execute(query, (name, kind) if kind else (name,)).fetchone()
     if row is None:
         db.close()
@@ -1682,7 +1681,7 @@ def collection_parents(db, group):
 
 def portal_page(db, collection_id):
     """The HTML of one collection's page."""
-    name, abstract, _ = db.execute("select name, abstract, documents from collection where collection_id = ?", (collection_id,)).fetchone()
+    name, abstract = db.execute("select name, abstract from collection where collection_id = ?", (collection_id,)).fetchone()
     group = [d for (d,) in db.execute("select doc_id from document_in where collection_id = ?", (collection_id,))]
     docs = db.execute(f"select doc_id, title, occurred_at from document where doc_id in ({', '.join('?' * len(group))}) order by occurred_at", group).fetchall()
     abstracts = dict(db.execute(f"select doc_id, text from abstract where node_id like '%:doc' and doc_id in ({', '.join('?' * len(group))})", group).fetchall())
@@ -1713,7 +1712,7 @@ def write_portal(store, out, collection_id):
 
 if __name__ == "__main__" and STORE.exists():
     db = sqlite3.connect(STORE)
-    largest = db.execute("select collection_id from collection order by documents desc").fetchall()
+    largest = db.execute("select collection_id from collection order by (select count(*) from document_in i where i.collection_id = collection.collection_id) desc").fetchall()
     db.close()
     for (cid,) in largest:
         write_portal(STORE, OUT, cid)

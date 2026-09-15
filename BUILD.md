@@ -25,8 +25,9 @@ differs from chunk 20, which is what supersession is for.
 
 Every model touch in the ingestor goes through one interface,
 generate(prompt, schema), and every call records its model id, tier, tokens,
-latency and cost; embed(texts) belongs to the serving side and is not built
-(the ingestor's embedding path was removed on 2026-09-07). Schema-invalid output gets one retry with the validation error
+latency and cost; embed(texts) belongs to the serving side (block 7 of the
+global-layer notebook, bge-small-en-v1.5 through fastembed, one call over every
+text; the ingestor's embedding path was removed on 2026-09-07). Schema-invalid output gets one retry with the validation error
 appended, then a logged rejection. Semantic failure is different: a quote that
 is not in its unit or an alias pointing at an unknown entity is rejected with
 no retry, because that is bad data, not bad formatting, and the two get
@@ -60,7 +61,7 @@ guards in `docs/entity-resolution.md` beyond these are design intent for the
 global layer. Which resolution signals the
 paper ablates is the open item there.
 
-In the store (Step 2, not built), summaries rebuild only when the hash of their inputs changes, and staleness
+In the store's refold rule (spring, not this fall), summaries rebuild only when the hash of their inputs changes, and staleness
 markers are stripped before hashing so stamping a summary cannot cascade. A
 rebuild reads the ordered child texts, never raw source, and is bounded to 400
 words; the fold is a summary of the children and stands as written. Supersession
@@ -68,8 +69,14 @@ applies only to a small list of functional predicates, maintained by hand.
 
 ## Exact match, whole items, byte-for-byte replay
 
-This section and the two after it describe the serving side, which is not built;
-`docs/execution-plan.md` says when.
+The serving store and the sidecar are built (SCHEMA.md, the serving store: a lean
+SQLite file that keeps what a question reads, the build's evidence in `build.sqlite`
+beside it). Retrieval is PROPOSED in `log/2026-09-15/retrieval.md`: keyword (BM25
+over one FTS5 table) and vector (cosine over the sidecar) fused by rank, one hop,
+rerank by each record's own score. Three rules of the serving side: the judge that
+clusters entities sees texts and never scores; a parent is written once after the
+clustering and routes a query but is never evidence; the query path serves whole
+records, source-owned only.
 
 Alias lookup is exact match, then case-folded match; fuzzy matching stays
 out of the query path. Context is

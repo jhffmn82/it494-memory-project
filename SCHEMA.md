@@ -1,7 +1,7 @@
 # Schema
 
 The record types below, plus logs. Anything not listed here gets added when the
-data demands it. Storage is JSONL packages today, one per document, and will be SQLite in one folder, no server (Step 2, not built). Raw
+data demands it. Storage is JSONL packages per run (the Step 0 and Step 1 datasets) and, above them, one SQLite serving store with a float16 array beside it, no server, built by `notebooks/threadatlas-global-layer.py` (2026-09-15). Raw
 files are never edited; document and unit ids are content hashes, entity and
 fact ids are readable and minted per document (2026-09-08); re-ingesting the
 same input is a no-op rather than a duplicate.
@@ -195,29 +195,61 @@ fact between two minors is not stored. Below that line a minor leaves no record
 of its own; what the document says about it survives only in the per-unit
 summary, a cell on the document's own node. Mentions are not written (2026-09-08).
 
-## The global side (PROPOSED 2026-09-15, built in `notebooks/threadatlas-global-layer.py`)
+## The serving store (2026-09-15, built in `notebooks/threadatlas-global-layer.py`, block 4)
 
-    parent       parent_id, name, kind, aliases, summary, instances, first
-    instance_of  doc_id, node_id, parent_id, reason, scores
-    pair         doc_a, node_a, doc_b, node_b, lexical, vector, cast, cast_rare,
-                 identity, offered, verdict, reason
-    merge        round, doc_a, node_a, doc_b, node_b, kept, joined
-    collection   collection_id, name, abstract, documents, written_by
-    document_in  doc_id, collection_id
+`threadatlas.sqlite` holds what a question or a page reads and nothing else. The
+document's text stays in Step 0; the load slices every quote against it and stops
+on the first mismatch, and does not keep the text.
 
-A parent is a class induced from its instances (`docs/entity-resolution.md`): a name
-and a kind chosen from what the instances carry, the union of their aliases, one
-summary line per instance tagged with the instance's id, and the instance list. It
-is written once, after the entities are clustered, and its fields are derived; it is
-never the source of a fact. `instance_of` is the up-edge, owned by the child's
-document; `pair` logs every candidate pair with its four signals and the judge's
-verdict, and `merge` every union in order, so the reason an entity sits under its
-parent is auditable end to end. A collection is a parent over documents, a body of
-work seeded by the parents two or more documents share; a document may belong to
-several. This replaces the earlier line that nothing is clustered: entities are
-clustered into parents and documents into collections, by the rules in
-`docs/global-layer.md`; the sentence that a parent asserts nothing about the world
-stands.
+    document          doc_id, title, author, occurred_at, source_uri
+    unit              unit_id, doc_id, position, label, kind, occurred_at
+    node              doc_id, node_id, name, kind
+    alias             doc_id, node_id, alias
+    fact              doc_id, fact_id, subject, subject_name, predicate, object,
+                      object_is_node, qualifiers, unit_id, quote, quote_start,
+                      quote_end, occurred_at, direction
+    adjudicated_fact  doc_id, node_id, predicate, object, qualifiers, from_facts
+    cell              doc_id, node_id, unit_id, text
+    abstract          doc_id, node_id, text
+    parent            parent_id, name, kind, aliases, summary
+    instance_of       doc_id, node_id, parent_id
+    collection        collection_id, name, abstract
+    document_in       doc_id, collection_id
+    vec_header        model, dimension, built_at
+    vec_row           row, record, doc_id, record_id, ordinal
+    search            record, doc_id, record_id, text        (FTS5, one row per record)
+
+`subject_name` is the name a chat minor's fact was stated under, carried by its
+session's node (direction `mentioned`). `vec_row` maps each row of
+`threadatlas.npy` (float16, 384 dimensions, unit length) to its record and
+sentence; a `search` row is a fact's rendered line and its quote, a cell's text,
+an abstract's text, so BM25 runs over one table with one ranking.
+
+A parent is a class induced from its instances (`docs/entity-resolution.md`): a
+name and a kind chosen from what the instances carry, the union of their
+aliases, one summary line per instance tagged with the instance's id. It is
+written once, after the entities are clustered, and its fields are derived; it
+is never the source of a fact and is never served as evidence. `instance_of` is
+the up-edge, owned by the child's document. A document's node is the parent of
+the mentions of that document in other documents (a final pass after the
+clustering). A collection is a parent over documents, a body of work seeded by
+the parents two or more documents share; a document may belong to several.
+Entities are clustered into parents and documents into collections by the rules
+in `docs/global-layer.md`; the sentence that a parent asserts nothing about the
+world stands.
+
+The build's evidence goes to `build.sqlite` beside the store:
+
+    pair    doc_a, node_a, doc_b, node_b, lexical, vector, cast, cast_rare,
+            identity, offered, verdict, reason
+    merge   round, doc_a, node_a, doc_b, node_b, kept, joined
+
+Every candidate pair with its four signals, whether it was offered, the judge's
+verdict and reason; every union in order. With the Step 1 dataset's own
+diagnostics (pieces, edges, the ledger, candidates, rejections, completions,
+attributes, contradictions) they are the full audit of why an entity sits under
+its parent. The casts the nominator scores are read from the Step 1 edges at
+build time and are not stored.
 
 ## What the code enforces
 
@@ -239,7 +271,7 @@ stands.
    holds a wildly disproportionate share. Round-trip: every unit's slice of
    the document text is identical to what the splitter cut.
 5. An abstract is a fold over its cells and facts. Rebuilding it when its
-   children change is the store's rule (Step 2, not built); the ingestor
+   children change is the store's rule (spring, not this fall); the ingestor
    writes each abstract once per run.
 6. A fact whose quote is not found, whose subject the unit did not list,
    whose object restates its subject, or which repeats a stored fact is

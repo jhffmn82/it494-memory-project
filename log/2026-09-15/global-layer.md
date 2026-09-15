@@ -69,3 +69,13 @@ version 21.
 - Justin: the document titles should lead to a document page (built), every entity should be listed on the portal by relevance (built), a breadcrumb up to the collection under the title (built), and on the colours: "the dark cream background is not great and border colors aren't making it better". The palette is a named choice of four (harbour, parchment, emerald, slate), rendered side by side for him; slate is the default: white paper, hair-line rules, the accent kept only for the small labels. Kernel version 22 carries the mentions pass, the breadcrumb and the palette.
 
 - The slate scheme settled with Justin ("looks good"): white paper, a pale blue-grey header band, a light blue-grey tint on the header rule, the section rules and the facts card, the amber kept for the small labels. Kernel version 24; the mock-up in `docs/wiki/` is rendered in it.
+
+- The lean serving store built (blocks 4 and 5 rewritten, 6, 7, 8, 13 to 16, 18 and 19 adjusted):
+  fourteen tables and one `search` FTS5 table with a row per record (a fact's line and quote, a
+  cell, an abstract); `fact` carries `subject_name` in place of `provenance`; the document's text
+  is read from Step 0 at load to prove every quote and not kept; the casts are read from the
+  Step 1 edges at build time; `parent` and `collection` keep derived fields only (instance and
+  document counts are counted from `instance_of` and `document_in`); `pair` and `merge` go to
+  `build.sqlite` beside the store. Dry run with the judge stubbed: 6,929 facts, 6,605 quotes
+  checked, 9,646 search rows, 15,758 vectors, 1,344 parents, 4 collections, the figure, the
+  portal, an entity page and a document page all render. Kernel pushed.

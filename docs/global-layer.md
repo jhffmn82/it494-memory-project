@@ -43,8 +43,12 @@ cluster     log n bottom up: every child its own cluster; the offered pairs rank
 judge       one call about the pair's two instances, each shown with what is already united
             with it as context only; texts and casts as names, never scores; same or different
             with a reason; every pair and verdict logged
-write       the parents; every union logged in `merge`; the up-edge's reason is the pair whose
-            union first joined the child's cluster to another
+write       the parents; every union logged in `merge`
+mentions    a final pass: titled documents stay out of the clustering; each finished cluster is
+            offered at most one document, by a member's name or naming alias equal to the title,
+            else by the member text nearest the document's abstract at 0.85; the judge rules with
+            the document as the other side; a cluster ruled a mention becomes the document's
+            children, the document's own node its anchor, the parent named by the title
 collect     a collection per body of work: every parent held by two or more documents seeds a
             group; groups merge when the smaller shares half its documents with the other; one
             call names the collection and writes its abstract from the documents' abstracts and
@@ -70,8 +74,13 @@ over the test store and a handful of pairs read by eye, and is frozen before the
 
 ## The store and the wiki
 
-Tables: the Step 1 records; `parent`, `instance_of`, `pair`, `merge`; `collection`, `document_in`;
-`vec_header`, `vec_row`. The wiki is four page types rendered from the store and nothing else: the
+The serving store is lean (ruled 2026-09-15; SCHEMA.md, the serving store): what a question or
+a page reads and nothing else. `document` without its text, `unit`, `node`, `alias`, `fact`,
+`adjudicated_fact`, `cell`, `abstract`; `parent`, `instance_of`; `collection`, `document_in`;
+`vec_header`, `vec_row`; and `search`, one FTS5 row per record. Every quote is sliced against
+the Step 0 text at load and the load stops on a mismatch. The build's evidence, `pair` and
+`merge`, goes to `build.sqlite` beside it; the casts are read from the Step 1 edges at build
+time. The wiki is four page types rendered from the store and nothing else: the
 entity page (the parent's lines; a section per instance with its abstract and its cells under their
 unit labels; the consolidated facts opening to their raw facts and quotes), the document page, the
 portal (the collection's name and abstract; its documents; every entity they hold by relevance), and
