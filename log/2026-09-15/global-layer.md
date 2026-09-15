@@ -96,3 +96,5 @@ version 21.
   log and the wiki. Open: the vectors are in `threadatlas.npy` beside the store by the 09-13
   ruling, so the new pipeline reads two files from the dataset or the vectors move inside the
   database. The merge is the focus now.
+
+- Justin: the dataset carries the SQLite and the array together; the retrieval pipeline reads both.

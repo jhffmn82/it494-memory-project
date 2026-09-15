@@ -9,7 +9,9 @@ question. Sources are in section 8.
 ## 1. What the path reads
 
 From `threadatlas.sqlite` (SCHEMA.md, the serving store) and `threadatlas.npy` (one float16 row
-per `vec_row`, 384 dimensions, unit length, loaded into memory as float32):
+per `vec_row`, 384 dimensions, unit length, loaded into memory as float32). The two travel
+together in one Kaggle dataset written by the global-layer notebook, and this pipeline reads
+that dataset and nothing else of the build (ruled 2026-09-15):
 
 | table | columns used | role |
 |---|---|---|

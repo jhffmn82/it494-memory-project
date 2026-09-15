@@ -3,8 +3,8 @@
 #
 # The query path of `docs/retrieval.md` over the serving store and nothing else of the build.
 # Parked here on 2026-09-15 when retrieval left the global-layer notebook; not yet shaped into
-# blocks, not yet run as its own kernel. What it reads: `threadatlas.sqlite` and, until the
-# vectors move inside it or the dataset carries both, `threadatlas.npy` beside it. The helpers
+# blocks, not yet run as its own kernel. What it reads: `threadatlas.sqlite` and `threadatlas.npy`
+# beside it, both from the one dataset the global-layer notebook writes (ruled 2026-09-15). The helpers
 # below are copied from the global-layer notebook so this file imports nothing from it.
 
 # %%
