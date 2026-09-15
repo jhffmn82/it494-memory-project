@@ -1095,8 +1095,8 @@ if __name__ == "__main__" and STORE.exists():
 #
 # A collection is a parent over documents, the entry point of a portal in the wiki. It is
 # seeded by the entities: every parent held by two or more documents names a group of
-# documents; groups whose document sets mostly coincide (Jaccard at least `OVERLAP`) merge into
-# one collection; a document belongs to every collection whose seed parents it holds, so a
+# documents; groups that share at least `OVERLAP` of the smaller group's documents merge into
+# one collection (so a group inside a larger one always joins it); a document belongs to every collection whose seed parents it holds, so a
 # session about a store and a trip sits under both. A collection always has more than one
 # document. One call per collection names the body of work the way a reader would (a series,
 # a field, one person's history) and writes an abstract of what the documents are and which
@@ -1106,7 +1106,7 @@ if __name__ == "__main__" and STORE.exists():
 # (doc_id, collection_id), one row per membership.
 
 # %%
-OVERLAP = 0.5              # two parents' document sets merge into one collection at this Jaccard or above
+OVERLAP = 0.5              # two seed groups merge when their shared documents are this share of the smaller group or more
 
 COLLECTION = """Below are the documents of one body of work, found because they share the entities listed after
 them, and the abstract of each. Name the body of work the way a reader would look for it: a series by its
@@ -1139,7 +1139,7 @@ def parent_groups(db):
 
 
 def collection_groups(groups):
-    """Seed groups merged when their document sets mostly coincide; each collection as (seed parents, documents)."""
+    """Seed groups merged when the smaller shares OVERLAP of its documents with the other; each collection as (seed parents, documents)."""
     leader = {pid: pid for pid in groups}
 
     def find(pid):
@@ -1151,7 +1151,7 @@ def collection_groups(groups):
     pids = sorted(groups)
     for i, a in enumerate(pids):
         for b in pids[i + 1:]:
-            if len(groups[a] & groups[b]) / len(groups[a] | groups[b]) >= OVERLAP:
+            if len(groups[a] & groups[b]) / min(len(groups[a]), len(groups[b])) >= OVERLAP:
                 ra, rb = find(a), find(b)
                 if ra != rb:
                     leader[max(ra, rb)] = min(ra, rb)
