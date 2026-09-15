@@ -25,3 +25,4 @@ Continues `log/2026-09-14/global-layer.md`. Rulings and builds after midnight, i
 Correction, minutes later: the push became kernel version 17, not 16; a version 16 was saved from the editor in between.
 
 - Justin, on the version 17 keyed run: duplicate collection nodes in the figure. The store held three "Retrieval-Augmented Generation" collections (the five papers and two pairs inside them) and three meal-planning ones over the same sessions, because seed groups merged only at Jaccard 0.5 and a pair inside a set of five scores 0.4. The merge rule is now the overlap of the smaller group (a group inside a larger one always joins it): four collections on that store, the papers, the shopping sessions, the grocery sessions, the Oz books, and no document in two. Kernel version 18.
+  Correction: the push became kernel version 19; a version 18 was saved from the editor in between.
