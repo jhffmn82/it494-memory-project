@@ -5,7 +5,11 @@ of the build (ruled 2026-09-15; the draft is `notebooks/threadatlas-retrieval.py
 manual in `log/2026-09-15/retrieval.md` with the seven corrections of its section 11 folded in;
 that log is the snapshot, this file carries the rule; four edge-case rulings of the same evening
 (an entry against a record; the discount as a bias; deterministic ties; the abstract's document
-edge) are folded in where they apply. Every constant here is logged with every question. Sources
+edge) are folded in where they apply. Sections 4 to 7 were rewritten the same night (ruled
+after GPT's second review, brought by Justin): the expansion is a typed traversal over the
+representations the store holds, route, traverse and substantiate, the same from every entry
+with no branch on the question or the corpus; the document edge of the manual (the unit and
+its neighbours) is gone; the packing unit is a bundle, a cell with its facts and quotes. Every constant here is logged with every question. Sources
 are in section 10.
 
 ## 1. What the path reads
@@ -111,25 +115,60 @@ E      = the entries of V and W ordered by RRF descending, ties by entry key asc
 
 An entry in both lists scores about twice one in either. With one arm off, E is the other's list.
 
-## 4. Expansion, one hop
+## 4. Traversal: route, traverse, substantiate
 
-From every entry record, three edges, each masked by the filter. Every eligible neighbour is
-scored on its own vector against the question (section 5's `score`); the top K_HOP per edge are
-taken, ties by record key; the count of eligible neighbours per edge is logged.
+The store holds an entity at three resolutions (its abstract over the document, its cell per
+unit, its facts with quotes) and the tree above them (the parent, the collection). The hop from
+an entry follows those representations and nothing else. Three operations, the same from every
+entry; each edge masked by the filter; every pulled record scored on its own vector (section 5);
+the top K_HOP per edge taken, ties by record key; the count of eligible records per edge logged.
+One hop: a pulled record is not expanded again.
 
 ```
-node(e)      the facts, cells and abstract of e's entity (same doc_id, node_id)
-document(e)  the facts and cells of e's unit and of the units at position +-1
-parent(e)    if the hop is on: the facts, cells and abstracts of the other children of e's
-             parent whose doc_id is inside the filter
-
-fact or cell entry   node, document, parent
-abstract entry       node, parent (no unit, so no document edge)
-parent entry         parent only: the records of its children inside the filter
+route          up to the representation above, and across the tree
+               fact      -> its entity's cell in that unit; its entity's abstract
+               cell      -> its entity's abstract
+               abstract  -> nothing above it in the document
+               any child -> if the parent hop is on: the abstracts of its parent's other
+                            children inside the filter
+               parent    -> the abstracts of its children inside the filter (the entry itself
+                            never enters the pool)
+traverse       along the entity's narrative, by unit position
+               cell      -> the previous and the next cell of the same entity
+               abstract  -> that entity's cells in unit order (a document's abstract -> the
+                            document node's cells: the unit summaries in order)
+               fact      -> nothing (the cell it routes to is the narrative state)
+substantiate   down to the evidence
+               cell      -> its entity's facts in that unit (adjudicated facts first; a raw fact
+                            carries its quote)
+               abstract  -> that entity's facts
+               fact      -> nothing further; its quote travels with it
 ```
 
-A parent entry never enters the pool. Record entries have `hops = 0`; a pulled record has
-`hops = 1` and keeps the first route that reached it.
+Per entry kind:
+
+```
+fact entry       route: cell, abstract, parent's other children    traverse: none        substantiate: none
+cell entry       route: abstract, parent's other children          traverse: prev, next  substantiate: facts in the unit
+abstract entry   route: parent's other children                    traverse: its cells   substantiate: its facts
+parent entry     route: its children's abstracts                   traverse: none        substantiate: none
+```
+
+A chat session has no cells and no entity abstracts, so from its session abstract `traverse` is
+empty and `substantiate` is the session's facts (a minor's facts, direction `mentioned`,
+included); from one of its facts `route` is the session abstract. Nothing branches on the source:
+the same operations follow whatever the store holds.
+
+Entry records have `hops = 0`; a pulled record has `hops = 1`, the edge that pulled it (`cell`,
+`abstract`, `parent`, `children`, `previous`, `next`, `cells`, `facts`) and the entry it came
+from; a record reached by two entries keeps the first route.
+
+Why these edges and not the unit's neighbourhood: a chapter's cast is not evidence for a question
+about one of its members; the same entity's previous and next state, its facts in that unit and
+its abstract are. Why one hop with named edges: a miss stays attributable to one edge, and the
+parent-off arm is the same traversal with the `parent` and `children` edges removed and the
+parent rows masked from the entry scan (section 3), so what the tree buys is narrative continuity
+across documents and nothing else.
 
 ## 5. Rerank
 
@@ -143,21 +182,31 @@ not its route, and a strong pulled record can outrank a weak direct hit (0.80 * 
 
 ## 6. Packing
 
+The packing unit is the **bundle**: a cell with the facts of the same entity in the same unit
+that are in the pool, each with its quote; an abstract alone; a fact alone when its cell is not
+in the pool. A bundle's score is its head record's; a fact inside a packed bundle is marked
+packed through the bundle and is never packed twice.
+
 ```
+bundles = for each cell in the pool: (cell, the pool's facts of the same entity in the same unit)
+          for each abstract in the pool: (abstract)
+          for each fact in the pool whose cell is not in the pool: (fact)
 context = []; used = 0
-for r in pool by score descending:
-    text = render(r); n = tokens(text)
-    if used + n > BUDGET: mark r cut; continue
-    context.append(text); used += n; mark r packed
+for b in bundles by score of the head descending, ties by key:
+    text = render(b); n = tokens(text)
+    if used + n > BUDGET: mark b cut; continue
+    context.append(text); used += n; mark b packed
 ```
 
-Whole records only, nothing truncated (BUILD.md). `render` is one function shared with the log:
+Whole bundles only, nothing truncated (BUILD.md). `render` is one function shared with the log:
 
 ```
-fact      "<date> | <document> | <unit label> | <subject> <predicate> <object> (<qualifiers>)
-             quote: "<quote>""
-cell      "<date> | <document> | <unit label> | <entity>: <text>"
-abstract  "<date> | <document> | abstract | <entity or document>: <text>"
+cell bundle   "<date> | <document> | <unit label> | <entity>: <cell text>
+                 - <subject> <predicate> <object> (<qualifiers>)   quote: "<quote>"
+                 - ..."
+abstract      "<date> | <document> | abstract | <entity or document>: <text>"
+fact          "<date> | <document> | <unit label> | <subject> <predicate> <object> (<qualifiers>)
+                 quote: "<quote>""
 ```
 
 The date is the fact's own, else its unit's, else its document's; a chat's document is shown by
@@ -173,14 +222,17 @@ One JSON line per question in `questions.jsonl` beside the store:
 asked_at, question, filter, arms, constants
 entries:   [{record, rank_v, rank_w, rrf}]
 eligible:  [{entry, edge, eligible}]
-pool:      [{record, hops, route, score, packed}]
+pool:      [{record, hops, edge, from, score, bundle, packed}]
 context:   the packed texts in order; tokens
 ```
 
-A miss then divides into: never a candidate (not in `pool`); connected but cut at the hop (its
-edge's `eligible` exceeds K_HOP and it is absent); in the pool but cut by the budget (`packed`
-false); packed and misread by the reader. Every order in the path is total (score, then key), so
-the context rebuilds byte for byte from the log.
+A miss then divides, in the order the path runs: the entity was never found (no entry of that
+node, or of its parent); the episode was never reached (the node entered but the cell is not
+in the pool: the edge's `eligible` exceeds K_HOP, or `traverse` did not reach it); the other
+document was never reached (the parent edge pulled no child of it); the evidence was never
+recovered (the cell is in the pool, the fact is not); in the pool but cut by the budget
+(`packed` false); packed and misread by the reader. Every order in the path is total (score,
+then key), so the context rebuilds byte for byte from the log.
 
 ## 8. The reader
 
@@ -194,7 +246,8 @@ question.
 keyword only        vector off
 vector only         keyword off
 fused               both on, parent hop on            the full system
-fused, parent off   both on, parent hop off           what the tree buys
+fused, parent off   both on, parent and children edges off, parent rows masked
+                                                      what the tree buys: continuity across documents
 ```
 
 The 14 tuning questions are excluded from every reported number (ruled 09-13); a question is

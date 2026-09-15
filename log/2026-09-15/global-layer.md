@@ -104,3 +104,11 @@ version 21.
   four edge-case rulings folded into the master and the draft (entry against record; the discount
   as a bias, not a guarantee; total orders with keys as tie-breaks; no document edge from an
   abstract, the parent edge only from a parent entry); the master is approved with them.
+
+- GPT's second review of retrieval (brought by Justin, after reading `docs/pipeline.md`): the
+  store holds an entity at three resolutions and the generic expansion flattened them. Ruled
+  ("yes"): the same typed traversal from every entry (route, traverse, substantiate), no
+  per-question routing, facts kept as entries, the bundle as a cell with its facts and quotes.
+  Sections 4 to 7 of `docs/retrieval.md` rewritten; the draft `notebooks/threadatlas-retrieval.py`
+  is behind the master (it still expands along node, document and parent) and follows when the
+  pipeline is built.
