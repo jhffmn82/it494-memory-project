@@ -1223,74 +1223,166 @@ if __name__ == "__main__" and STORE.exists():
     build_collections(STORE)
 
 # %% [markdown]
-# ## Block 17: the collection tree
+# ## Block 17: the collection map
 #
-# The collections drawn as parents with their documents as leaves; a document in two
-# collections sits between them with an edge to each. Documents in no collection are not
-# drawn. A spring layout in numpy; written as an SVG beside the store.
+# Two drawings of the same tree, collections as parents and documents as leaves, a document in
+# two collections between them. `write_collection_map` is a page for the wiki: plain SVG and
+# JavaScript, no library, a force layout that settles in the browser, zoom and pan, labels on
+# hover, a click opening the portal or the document's collection. `draw_collection_radial` is
+# the static figure for print: each collection a hub on a ring with its documents fanned
+# around it, shared documents between their hubs. Both read the store; nothing is written back.
 
 # %%
-def spring_layout(nodes, edges, steps=300):
-    """Fruchterman and Reingold in numpy: joined nodes pull together, all repel."""
-    import numpy
-    rng = numpy.random.default_rng(494)
-    index = {d: i for i, d in enumerate(nodes)}
-    pos = rng.uniform(-1, 1, (len(nodes), 2))
-    k = 1.0 / math.sqrt(max(len(nodes), 2))
-    heat = 0.1
-    for step in range(steps):
-        delta = pos[:, None, :] - pos[None, :, :]
-        dist = numpy.maximum(numpy.linalg.norm(delta, axis=2), 1e-3)
-        move = ((delta / dist[:, :, None]) * (k * k / dist)[:, :, None]).sum(axis=1)
-        for a, b in edges:
-            i, j = index[a], index[b]
-            d = pos[i] - pos[j]
-            length = max(float(numpy.linalg.norm(d)), 1e-3)
-            pull = d / length * (length * length / k)
-            move[i] -= pull
-            move[j] += pull
-        length = numpy.maximum(numpy.linalg.norm(move, axis=1), 1e-3)[:, None]
-        pos += move / length * numpy.minimum(length, heat)
-        heat *= 0.99
-    return pos
+def slug(name):
+    return re.sub(r"[^a-z0-9]+", "-", name.casefold()).strip("-")
 
 
-def draw_collection_tree(store, out):
-    """Collections as parents, documents as leaves, as an SVG beside the store."""
+MAP = """<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>{title}</title>
+<style>
+body {{ margin: 0; font-family: Georgia, serif; background: #fbf7f0; color: #23303f; }}
+header {{ background: #1f3d4a; color: #f6f1e7; padding: 1rem 1.5rem; }} header h1 {{ margin: 0; font-weight: normal; font-size: 1.6rem; }}
+header p {{ margin: 0.3rem 0 0; color: #b8c6bf; font-size: 0.9rem; }}
+svg {{ width: 100vw; height: calc(100vh - 5rem); display: block; cursor: grab; }}
+.doc {{ fill: #7aa6c2; stroke: #fff; stroke-width: 1.2; }} .doc.shared {{ fill: #e0a73b; }}
+.hub {{ fill: #b4552a; stroke: #fff; stroke-width: 2; }}
+.edge {{ stroke: #9aa5b1; stroke-opacity: 0.6; }}
+text {{ font-size: 11px; fill: #23303f; pointer-events: none; }} text.hub {{ font-size: 13px; font-weight: bold; fill: #1f3d4a; }}
+text.doc {{ display: none; }} g:hover text.doc {{ display: block; }}
+a {{ cursor: pointer; }}
+</style></head><body>
+<header><h1>{title}</h1><p>collections in red, documents in blue, a document in more than one collection in gold; hover a document for its title, click a collection for its portal; drag to pan, wheel to zoom</p></header>
+<svg id="map"></svg>
+<script>
+const nodes = {nodes};
+const links = {links};
+const svg = document.getElementById("map");
+const W = svg.clientWidth, H = svg.clientHeight;
+const NS = "http://www.w3.org/2000/svg";
+const view = document.createElementNS(NS, "g"); svg.appendChild(view);
+nodes.forEach((n, i) => {{ n.x = W / 2 + 200 * Math.cos(i); n.y = H / 2 + 200 * Math.sin(i); n.vx = 0; n.vy = 0; }});
+const byId = Object.fromEntries(nodes.map(n => [n.id, n]));
+const lines = links.map(l => {{ const e = document.createElementNS(NS, "line"); e.setAttribute("class", "edge"); view.appendChild(e); return e; }});
+const groups = nodes.map(n => {{
+  const g = document.createElementNS(NS, "g");
+  const a = document.createElementNS(NS, "a"); if (n.href) a.setAttribute("href", n.href);
+  const c = document.createElementNS(NS, "circle"); c.setAttribute("r", n.hub ? 14 : 6);
+  c.setAttribute("class", n.hub ? "hub" : ("doc" + (n.shared ? " shared" : "")));
+  const t = document.createElementNS(NS, "text"); t.textContent = n.label; t.setAttribute("class", n.hub ? "hub" : "doc");
+  t.setAttribute("dx", n.hub ? 18 : 9); t.setAttribute("dy", 4);
+  a.appendChild(c); g.appendChild(a); g.appendChild(t); view.appendChild(g); return g; }});
+function step() {{
+  for (const a of nodes) for (const b of nodes) {{ if (a === b) continue;
+    let dx = a.x - b.x, dy = a.y - b.y, d2 = dx * dx + dy * dy + 0.01, d = Math.sqrt(d2);
+    const f = (a.hub && b.hub ? 40000 : 3000) / d2; a.vx += f * dx / d; a.vy += f * dy / d; }}
+  for (const l of links) {{ const a = byId[l.source], b = byId[l.target];
+    const dx = b.x - a.x, dy = b.y - a.y, d = Math.sqrt(dx * dx + dy * dy) + 0.01, f = (d - 70) * 0.05;
+    a.vx += f * dx / d; a.vy += f * dy / d; b.vx -= f * dx / d; b.vy -= f * dy / d; }}
+  for (const n of nodes) {{ n.vx += (W / 2 - n.x) * 0.002; n.vy += (H / 2 - n.y) * 0.002;
+    n.x += n.vx *= 0.8; n.y += n.vy *= 0.8; }}
+  lines.forEach((e, i) => {{ const a = byId[links[i].source], b = byId[links[i].target];
+    e.setAttribute("x1", a.x); e.setAttribute("y1", a.y); e.setAttribute("x2", b.x); e.setAttribute("y2", b.y); }});
+  groups.forEach((g, i) => g.setAttribute("transform", `translate(${{nodes[i].x}},${{nodes[i].y}})`));
+}}
+let ticks = 0; const timer = setInterval(() => {{ step(); if (++ticks > 400) clearInterval(timer); }}, 16);
+let scale = 1, tx = 0, ty = 0, dragging = null;
+function apply() {{ view.setAttribute("transform", `translate(${{tx}},${{ty}}) scale(${{scale}})`); }}
+svg.addEventListener("wheel", e => {{ e.preventDefault(); const k = e.deltaY < 0 ? 1.1 : 0.9;
+  tx = e.offsetX - (e.offsetX - tx) * k; ty = e.offsetY - (e.offsetY - ty) * k; scale *= k; apply(); }});
+svg.addEventListener("mousedown", e => {{ dragging = [e.clientX - tx, e.clientY - ty]; }});
+window.addEventListener("mousemove", e => {{ if (dragging) {{ tx = e.clientX - dragging[0]; ty = e.clientY - dragging[1]; apply(); }} }});
+window.addEventListener("mouseup", () => {{ dragging = null; }});
+</script></body></html>
+"""
+
+
+def collection_nodes(db):
+    """The map's nodes and links from the store."""
+    titles = dict(db.execute("select doc_id, title from document"))
+    collections = db.execute("select collection_id, name from collection").fetchall()
+    membership = db.execute("select doc_id, collection_id from document_in").fetchall()
+    count = {}
+    for d, _ in membership:
+        count[d] = count.get(d, 0) + 1
+    nodes = [{"id": f"c{c}", "label": name, "hub": True, "href": slug(name) + ".html"} for c, name in collections]
+    nodes += [{"id": d, "label": titles[d], "hub": False, "shared": count[d] > 1} for d in count]
+    links = [{"source": f"c{c}", "target": d} for d, c in membership]
+    return nodes, links
+
+
+def write_collection_map(store, out):
+    """The interactive map page, under out/wiki."""
+    db = sqlite3.connect(store)
+    nodes, links = collection_nodes(db)
+    db.close()
+    (out / "wiki").mkdir(exist_ok=True)
+    path = out / "wiki" / "map.html"
+    path.write_text(MAP.format(title="ThreadAtlas: the collections", nodes=json.dumps(nodes, ensure_ascii=False), links=json.dumps(links)), encoding="utf-8")
+    print(f"wrote map.html: {sum(n['hub'] for n in nodes)} collections, {len(nodes)} nodes, {len(links)} links")
+    return path
+
+
+def draw_collection_radial(store, out):
+    """The static figure: collections on a ring, their documents fanned around each."""
     import matplotlib
     matplotlib.use("Agg")
     from matplotlib import pyplot
     db = sqlite3.connect(store)
-    titles = dict(db.execute("select doc_id, title from document"))
-    names = dict(db.execute("select collection_id, name from collection"))
-    edges = [(f"collection:{c}", d) for d, c in db.execute("select doc_id, collection_id from document_in")]
+    nodes, links = collection_nodes(db)
     db.close()
-    nodes = sorted({n for e in edges for n in e})
-    if not nodes:
-        print("no collections to draw")
-        return
-    pos = spring_layout(nodes, edges)
-    index = {n: i for i, n in enumerate(nodes)}
-    figure, axis = pyplot.subplots(figsize=(14, 12))
-    for a, b in edges:
-        axis.plot([pos[index[a], 0], pos[index[b], 0]], [pos[index[a], 1], pos[index[b], 1]], color="#999", linewidth=0.8, zorder=1)
-    parents = [n for n in nodes if n.startswith("collection:")]
-    leaves = [n for n in nodes if not n.startswith("collection:")]
-    axis.scatter([pos[index[n], 0] for n in leaves], [pos[index[n], 1] for n in leaves], s=50, c="#7aa6c2", zorder=2)
-    axis.scatter([pos[index[n], 0] for n in parents], [pos[index[n], 1] for n in parents], s=320, c="#c27a7a", zorder=3)
-    for n in leaves:
-        axis.annotate(titles[n][:26], pos[index[n]], fontsize=7, xytext=(3, 3), textcoords="offset points")
-    for n in parents:
-        axis.annotate(names[int(n.split(":")[1])][:40], pos[index[n]], fontsize=9, fontweight="bold", xytext=(6, 6), textcoords="offset points")
+    hubs = [n for n in nodes if n["hub"]]
+    docs = {n["id"]: n for n in nodes if not n["hub"]}
+    members = {}
+    for l in links:
+        members.setdefault(l["source"], []).append(l["target"])
+    pos = {}
+    R = 10.0
+    for i, hub in enumerate(hubs):
+        angle = 2 * math.pi * i / len(hubs)
+        pos[hub["id"]] = (R * math.cos(angle), R * math.sin(angle))
+    for hub in hubs:
+        hx, hy = pos[hub["id"]]
+        own = [d for d in members[hub["id"]] if not docs[d]["shared"]]
+        base = math.atan2(hy, hx)
+        for j, d in enumerate(own):
+            a = base + (j - (len(own) - 1) / 2) * (math.pi / max(len(own), 4))
+            pos[d] = (hx + 3.2 * math.cos(a), hy + 3.2 * math.sin(a))
+    for d, n in docs.items():
+        if n["shared"]:
+            xs = [pos[h["id"]] for h in hubs if d in members[h["id"]]]
+            pos[d] = (sum(x for x, _ in xs) / len(xs) * 0.55, sum(y for _, y in xs) / len(xs) * 0.55)
+    figure, axis = pyplot.subplots(figsize=(15, 15))
+    for l in links:
+        (x1, y1), (x2, y2) = pos[l["source"]], pos[l["target"]]
+        axis.plot([x1, x2], [y1, y2], color="#9aa5b1", linewidth=0.9, alpha=0.7, zorder=1)
+    for d, n in docs.items():
+        x, y = pos[d]
+        axis.scatter([x], [y], s=70, c="#e0a73b" if n["shared"] else "#7aa6c2", edgecolors="white", zorder=2)
+        axis.annotate(n["label"][:30], (x, y), fontsize=7, xytext=(5, 3), textcoords="offset points", color="#23303f")
+    for hub in hubs:
+        x, y = pos[hub["id"]]
+        axis.scatter([x], [y], s=700, c="#b4552a", edgecolors="white", linewidths=2, zorder=3)
+        axis.annotate(hub["label"][:38], (x, y), fontsize=10, fontweight="bold", ha="center", xytext=(0, 16), textcoords="offset points", color="#1f3d4a")
+    axis.set_aspect("equal")
     axis.set_axis_off()
-    axis.set_title("collections (red) and their documents (blue); a document in two collections sits between them")
-    figure.savefig(out / "collection-tree.svg", bbox_inches="tight")
+    axis.set_title("collections and their documents (gold: a document in more than one collection)", color="#1f3d4a")
+    figure.savefig(out / "collection-radial.svg", bbox_inches="tight", facecolor="#fbf7f0")
     pyplot.close(figure)
-    print(f"collection tree: {len(parents)} collections, {len(leaves)} documents, {len(edges)} edges")
+    print(f"collection-radial.svg: {len(hubs)} collections, {len(docs)} documents")
+
+
+def show_map(path):
+    """The map inline when this runs in a notebook; nothing otherwise."""
+    try:
+        from IPython.display import IFrame, display
+        display(IFrame(str(path), width="100%", height=700))
+    except ImportError:
+        pass
 
 
 if __name__ == "__main__" and STORE.exists():
-    draw_collection_tree(STORE, OUT)
+    draw_collection_radial(STORE, OUT)
+    show_map(write_collection_map(STORE, OUT))
 
 # %% [markdown]
 # ## Block 18: a wiki page
@@ -1321,26 +1413,35 @@ def escape(text):
 PAGE = """<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><title>{name}</title>
 <style>
-body {{ font-family: Georgia, serif; margin: 0; color: #222; background: #fbfaf7; }}
-.wrap {{ display: flex; gap: 2rem; max-width: 1200px; margin: 0 auto; padding: 1.5rem; }}
+:root {{ --ink: #23303f; --muted: #6b7484; --accent: #b4552a; --band: #1f3d4a; --paper: #fbf7f0; --card: #f1ebdf; --rule: #e3dccb; --link: #1f5f8b; }}
+body {{ font-family: Georgia, "Times New Roman", serif; margin: 0; color: var(--ink); background: var(--paper); line-height: 1.5; }}
+header {{ background: var(--band); color: #f6f1e7; padding: 1.6rem 0; }}
+header .inner {{ max-width: 1200px; margin: 0 auto; padding: 0 1.5rem; }}
+header h1 {{ font-size: 2.2rem; margin: 0; font-weight: normal; letter-spacing: 0.01em; }}
+header .kind {{ color: #cfd9d3; font-style: italic; margin-top: 0.3rem; }}
+header .aliases {{ color: #b8c6bf; font-size: 0.85rem; margin-top: 0.5rem; }}
+.wrap {{ display: flex; gap: 2.5rem; max-width: 1200px; margin: 0 auto; padding: 1.5rem; }}
 main {{ flex: 3; min-width: 0; }}
-aside {{ flex: 1.3; min-width: 260px; font-size: 0.9rem; border-left: 1px solid #ddd; padding-left: 1.2rem; }}
-h1 {{ font-size: 2rem; margin: 0 0 0.2rem; }} h2 {{ font-size: 1.2rem; border-bottom: 1px solid #ddd; margin-top: 2rem; }}
-h3 {{ font-size: 0.95rem; color: #555; margin: 1.2rem 0 0.4rem; }}
-.kind {{ color: #777; font-style: italic; }} .lead {{ font-size: 1.05rem; }} .cell {{ margin: 0.6rem 0; }}
-.doc {{ color: #666; font-size: 0.85rem; margin-bottom: 0.4rem; }} .facts p {{ margin: 0.5rem 0; }}
-h4 {{ font-size: 0.85rem; color: #777; margin: 1rem 0 0.2rem; font-weight: normal; }}
-details {{ margin: 0.4rem 0; }} summary {{ cursor: pointer; }} details p {{ margin: 0.3rem 0 0.3rem 1rem; }}
-.quote {{ color: #777; font-size: 0.8rem; display: block; margin-top: 0.15rem; }}
-.aliases {{ color: #666; font-size: 0.85rem; }}
-</style></head><body><div class="wrap">
+aside {{ flex: 1.3; min-width: 280px; font-size: 0.9rem; background: var(--card); border-radius: 8px; padding: 1rem 1.2rem; align-self: flex-start; }}
+aside h2 {{ margin-top: 0; }}
+h2 {{ font-size: 1.25rem; color: var(--band); border-bottom: 2px solid var(--accent); padding-bottom: 0.2rem; margin-top: 2.2rem; }}
+h3 {{ font-size: 0.95rem; color: var(--accent); margin: 1.4rem 0 0.4rem; text-transform: uppercase; letter-spacing: 0.06em; }}
+h4 {{ font-size: 0.8rem; color: var(--accent); margin: 1.1rem 0 0.1rem; font-weight: normal; text-transform: uppercase; letter-spacing: 0.08em; }}
+.lead {{ font-size: 1.1rem; border-left: 4px solid var(--accent); padding-left: 1rem; color: var(--ink); }}
+.cell {{ margin: 0.3rem 0 0.8rem; }} .doc {{ color: var(--muted); font-size: 0.85rem; margin-bottom: 0.4rem; }}
+.facts p, details {{ margin: 0.45rem 0; }} summary {{ cursor: pointer; color: var(--ink); }} summary:hover {{ color: var(--accent); }}
+details p {{ margin: 0.3rem 0 0.3rem 1rem; }}
+.quote {{ color: var(--muted); font-size: 0.8rem; display: block; margin-top: 0.15rem; font-style: italic; }}
+a {{ color: var(--link); text-decoration: none; }} a:hover {{ text-decoration: underline; }}
+aside li {{ margin: 0.35rem 0; }} aside ul {{ padding-left: 1.1rem; }}
+</style></head><body>
+<header><div class="inner"><h1>{name}</h1><div class="kind">{kind}, in {n} {documents}</div><div class="aliases">Also called: {aliases}</div></div></header>
+<div class="wrap">
 <main>
-<h1>{name}</h1><div class="kind">{kind}, in {n} {documents}</div>
-<p class="aliases">Also called: {aliases}</p>
 <p class="lead">{lead}</p>
 {sections}
 </main>
-<aside><h2 style="margin-top:0">Facts, in order of appearance</h2><div class="facts">{facts}</div></aside>
+<aside><h2>Facts, in order of appearance</h2><div class="facts">{facts}</div></aside>
 </div></body></html>
 """
 
@@ -1456,26 +1557,37 @@ if __name__ == "__main__" and STORE.exists():
 PORTAL = """<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><title>{name}</title>
 <style>
-body {{ font-family: Georgia, serif; margin: 0; color: #222; background: #fbfaf7; }}
-.wrap {{ display: flex; gap: 2rem; max-width: 1200px; margin: 0 auto; padding: 1.5rem; }}
+:root {{ --ink: #23303f; --muted: #6b7484; --accent: #b4552a; --band: #1f3d4a; --paper: #fbf7f0; --card: #f1ebdf; --rule: #e3dccb; --link: #1f5f8b; }}
+body {{ font-family: Georgia, "Times New Roman", serif; margin: 0; color: var(--ink); background: var(--paper); line-height: 1.5; }}
+header {{ background: var(--band); color: #f6f1e7; padding: 1.6rem 0; }}
+header .inner {{ max-width: 1200px; margin: 0 auto; padding: 0 1.5rem; }}
+header h1 {{ font-size: 2.2rem; margin: 0; font-weight: normal; letter-spacing: 0.01em; }}
+header .kind {{ color: #cfd9d3; font-style: italic; margin-top: 0.3rem; }}
+header .aliases {{ color: #b8c6bf; font-size: 0.85rem; margin-top: 0.5rem; }}
+.wrap {{ display: flex; gap: 2.5rem; max-width: 1200px; margin: 0 auto; padding: 1.5rem; }}
 main {{ flex: 3; min-width: 0; }}
-aside {{ flex: 1.3; min-width: 260px; font-size: 0.9rem; border-left: 1px solid #ddd; padding-left: 1.2rem; }}
-h1 {{ font-size: 2rem; margin: 0 0 0.2rem; }} h2 {{ font-size: 1.2rem; border-bottom: 1px solid #ddd; margin-top: 2rem; }}
-.kind {{ color: #777; font-style: italic; }} .lead {{ font-size: 1.05rem; }}
-.doc {{ color: #666; font-size: 0.85rem; }} aside li {{ margin: 0.3rem 0; }} a {{ color: #35506b; }}
-</style></head><body><div class="wrap">
+aside {{ flex: 1.3; min-width: 280px; font-size: 0.9rem; background: var(--card); border-radius: 8px; padding: 1rem 1.2rem; align-self: flex-start; }}
+aside h2 {{ margin-top: 0; }}
+h2 {{ font-size: 1.25rem; color: var(--band); border-bottom: 2px solid var(--accent); padding-bottom: 0.2rem; margin-top: 2.2rem; }}
+h3 {{ font-size: 0.95rem; color: var(--accent); margin: 1.4rem 0 0.4rem; text-transform: uppercase; letter-spacing: 0.06em; }}
+h4 {{ font-size: 0.8rem; color: var(--accent); margin: 1.1rem 0 0.1rem; font-weight: normal; text-transform: uppercase; letter-spacing: 0.08em; }}
+.lead {{ font-size: 1.1rem; border-left: 4px solid var(--accent); padding-left: 1rem; color: var(--ink); }}
+.cell {{ margin: 0.3rem 0 0.8rem; }} .doc {{ color: var(--muted); font-size: 0.85rem; margin-bottom: 0.4rem; }}
+.facts p, details {{ margin: 0.45rem 0; }} summary {{ cursor: pointer; color: var(--ink); }} summary:hover {{ color: var(--accent); }}
+details p {{ margin: 0.3rem 0 0.3rem 1rem; }}
+.quote {{ color: var(--muted); font-size: 0.8rem; display: block; margin-top: 0.15rem; font-style: italic; }}
+a {{ color: var(--link); text-decoration: none; }} a:hover {{ text-decoration: underline; }}
+aside li {{ margin: 0.35rem 0; }} aside ul {{ padding-left: 1.1rem; }}
+</style></head><body>
+<header><div class="inner"><h1>{name}</h1><div class="kind">a collection of {n} documents</div></div></header>
+<div class="wrap">
 <main>
-<h1>{name}</h1><div class="kind">a collection of {n} documents</div>
 <p class="lead">{abstract}</p>
 {sections}
 </main>
-<aside><h2 style="margin-top:0">Entities across these documents</h2><ul>{parents}</ul></aside>
+<aside><h2>Entities across these documents</h2><ul>{parents}</ul></aside>
 </div></body></html>
 """
-
-
-def slug(name):
-    return re.sub(r"[^a-z0-9]+", "-", name.casefold()).strip("-")
 
 
 def portal_page(db, collection_id):
