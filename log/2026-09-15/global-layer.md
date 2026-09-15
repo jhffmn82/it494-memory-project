@@ -65,3 +65,5 @@ as its anchor, and the parent takes the document's title and the kind `document`
 Wonderful Wizard of Oz's parent holds book 1's node, book 1's entity for itself and book 2's
 mention; each paper's node takes the paper's mention of itself; 6 of 1,344 clusters. Kernel
 version 21.
+
+- Justin: the document titles should lead to a document page (built), every entity should be listed on the portal by relevance (built), a breadcrumb up to the collection under the title (built), and on the colours: "the dark cream background is not great and border colors aren't making it better". The palette is a named choice of four (harbour, parchment, emerald, slate), rendered side by side for him; slate is the default: white paper, hair-line rules, the accent kept only for the small labels. Kernel version 22 carries the mentions pass, the breadcrumb and the palette.
