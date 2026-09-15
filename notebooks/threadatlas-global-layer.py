@@ -1227,11 +1227,12 @@ if __name__ == "__main__" and STORE.exists():
 # ## Block 17: the collection map
 #
 # Two drawings of the same tree, collections as parents and documents as leaves, a document in
-# two collections between them. `write_collection_map` is a page for the wiki: plain SVG and
-# JavaScript, no library, a force layout that settles in the browser, zoom and pan, labels on
-# hover, a click opening the portal or the document's collection. `draw_collection_radial` is
-# the static figure for print: each collection a hub on a ring with its documents fanned
-# around it, shared documents between their hubs. Both read the store; nothing is written back.
+# two collections between them. `draw_collection_radial` is the figure the wiki and the paper
+# lead with (ruled 09-15): each collection a hub on a ring with its documents fanned around
+# it, shared documents between their hubs; it is shown inline at the end of the block.
+# `write_collection_map` is the interactive page beside it: plain SVG and JavaScript, no
+# library, a force layout that settles in the browser, zoom and pan, a click opening a portal
+# or a document page. Both read the store; nothing is written back.
 
 # %%
 def slug(name):
@@ -1379,18 +1380,19 @@ def draw_collection_radial(store, out):
     print(f"collection-radial.svg: {len(hubs)} collections, {len(docs)} documents")
 
 
-def show_map(path):
-    """The map inline when this runs in a notebook; nothing otherwise."""
+def show_figure(path):
+    """The figure inline when this runs in a notebook; nothing otherwise."""
     try:
-        from IPython.display import IFrame, display
-        display(IFrame(str(path), width="100%", height=700))
+        from IPython.display import SVG, display
+        display(SVG(filename=str(path)))
     except ImportError:
         pass
 
 
 if __name__ == "__main__" and STORE.exists():
     draw_collection_radial(STORE, OUT)
-    show_map(write_collection_map(STORE, OUT))
+    write_collection_map(STORE, OUT)
+    show_figure(OUT / "collection-radial.svg")
 
 # %% [markdown]
 # ## Block 18: a wiki page
