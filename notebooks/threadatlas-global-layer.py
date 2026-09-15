@@ -65,6 +65,11 @@
 #             drawn from the merged pool; a pair whose children already share a cluster is
 #             skipped, a pair between clusters that hold any pair ruled different is blocked;
 #             until a round finds no pair; every pair and verdict is logged
+# mentions    a final pass over the finished clusters: a cluster whose name or alias is a
+#             document's title, or whose text is nearest a document's abstract over the floor,
+#             is offered that document; the judge rules with the document as the other side;
+#             a cluster ruled a mention becomes that document's children, the document's own
+#             node its anchor, and the parent takes the document's title
 # write       a group of one is a parent copied from its child, no call; a group of two or
 #             more gets one call that picks the name and kind from what the instances carry
 #             (a name no instance carries is refused) and writes one line per instance
@@ -122,6 +127,7 @@ KAGGLE_EXPORT = (Path("/kaggle/input/datasets/jhffmn/it494-threadatlas-step0"), 
 KAGGLE_OUT, LOCAL_OUT = Path("/kaggle/working"), Path("data/global")
 
 VECTOR_FLOOR = 0.75        # cosine over bge-small at which a pair is offered on the vector alone: loose, the judge is the gate
+DOCUMENT_FLOOR = 0.85      # cosine at which a cluster is offered a document on the vector alone; a work is usually mentioned by its title
 NEAREST = 8                # nearest other-document children by vector nominated per child
 FACTS_SHOWN = 12           # facts of a child shown to the judge and the parent writer
 SIDE_SHOWN = 6             # instances shown per side to the judge: the nominated one, then up to five united with it
@@ -621,8 +627,10 @@ def load_sidecar(store):
 # %% [markdown]
 # ## Block 8: reading the corpus
 #
-# A child is an entity node that is not the document itself and not the user of a chat. Each
-# is read once with its name, aliases, kind, summary or facts, the cast it shares units with,
+# A child is an entity node that is not the user of a chat. A document with a title is read
+# the same way under its own node, kept apart from the clustering and used by the final pass
+# that makes a document the parent of its mentions. Each is read once with its name, aliases,
+# kind, summary or facts, the cast it shares units with,
 # and its is_a links to siblings (the ingestor's own link: an is_a fact whose object is
 # another node of the document). A cast name's rarity over the loaded documents, the log of
 # (documents plus one) over (documents holding it plus one), weights the second co-occurrence
@@ -630,16 +638,20 @@ def load_sidecar(store):
 
 # %%
 def read_children(db):
-    """Every child with its aliases, abstract and facts; is_a links between siblings."""
+    """Every child with its aliases, abstract and facts; is_a links between siblings. A document
+    with a title is a child too, under its own node, so a mention of a book or a paper in another
+    document can join the document itself."""
     chats = {r[0] for r in db.execute("select distinct doc_id from unit where kind in ('user', 'assistant')")}
+    titled = {d for d, t, u in db.execute("select doc_id, title, source_uri from document") if not is_identifier(t, u)}
     position = dict(db.execute("select unit_id, position from unit"))
     children = {}
     for doc_id, node_id, name, kind, created in db.execute("select doc_id, node_id, name, kind, created_from_unit from node"):
-        if node_id.endswith(":doc") or fold(name) == "user":
+        if fold(name) == "user" or (node_id.endswith(":doc") and doc_id not in titled):
             continue
         children[(doc_id, node_id)] = {"doc_id": doc_id, "node_id": node_id, "name": name, "kind": kind,
                                        "first_unit": position.get(created, 0), "aliases": [], "facts": [],
-                                       "abstract": None, "cast": set(), "links": set(), "chat": doc_id in chats}
+                                       "abstract": None, "cast": set(), "links": set(), "chat": doc_id in chats,
+                                       "document": node_id.endswith(":doc")}
     for doc_id, alias, node_id in db.execute("select doc_id, alias, node_id from alias"):
         child = children.get((doc_id, node_id))
         if child and alias != child["name"]:
@@ -647,10 +659,10 @@ def read_children(db):
     for doc_id, node_id, text in db.execute("select doc_id, node_id, text from abstract"):
         if (doc_id, node_id) in children:
             children[(doc_id, node_id)]["abstract"] = text
-    query = "select doc_id, subject, predicate, object, object_is_node, qualifiers from fact where quote is not null order by doc_id, fact_id"
-    for doc_id, subject, predicate, obj, is_node, qualifiers in db.execute(query):
+    query = "select doc_id, subject, predicate, object, object_is_node, qualifiers, quote from fact order by doc_id, fact_id"
+    for doc_id, subject, predicate, obj, is_node, qualifiers, quote in db.execute(query):
         child = children.get((doc_id, subject))
-        if child is None:
+        if child is None or (quote is None and not child["document"]):
             continue
         target = children.get((doc_id, obj)) if is_node else None
         value = target["name"] if target else obj
@@ -672,6 +684,9 @@ def read_casts(db, children):
         names = {fold(children[(doc_id, i)]["name"]) for i in ids}
         for i in ids:
             children[(doc_id, i)]["cast"] |= names - {fold(children[(doc_id, i)]["name"])}
+        whole = children.get((doc_id, f"{doc_id[:8]}:doc"))
+        if whole is not None:
+            whole["cast"] |= names
 
 
 def read_corpus(db):
@@ -980,11 +995,50 @@ def cluster(keys, pairs, children, docs):
 # %% [markdown]
 # ## Block 13: writing the parents
 #
-# A cluster of one is a parent copied from its child, no call. A cluster of two or more gets
-# one call that picks the name and kind from what the instances carry and writes one line per
-# instance; a name no instance carries is refused. Then the three tables.
+# First the final pass that makes a document the parent of its mentions. Then a cluster of
+# one is a parent copied from its child, no call; a cluster of two or more gets one call that
+# picks the name and kind from what the instances carry and writes one line per instance; a
+# name no instance carries is refused, and a cluster anchored by a document takes the
+# document's title. Then the tables.
 
 # %%
+def attach_mentions(groups, keys, vectors, documents, children, docs, rarity, pairs):
+    """The final pass: is a cluster a mention of a document in the corpus? Each cluster is
+    offered at most one titled document, by a title matching a member's name or alias, else by
+    the member text nearest the document's abstract over the floor; the judge rules with the
+    document as the other side; a cluster ruled same becomes that document's children, and the
+    document's own node its anchor. Returns cluster leader -> document child key."""
+    import numpy
+    if not documents:
+        return {}
+    doc_vectors = embed([child_text(children[key], docs[key[0]]) for key in documents])
+    sims = vectors @ doc_vectors.T                                 # child by document
+    index = {key: i for i, key in enumerate(keys)}
+    by_title = {}
+    for j, key in enumerate(documents):
+        by_title.setdefault(fold(children[key]["name"]), []).append(j)
+    offers = []
+    for leader, members in groups.items():
+        best = None
+        for m in members:
+            for j in by_title.get(fold(children[m]["name"]), []) + [j for a in children[m]["aliases"] if proper(a) for j in by_title.get(fold(a), [])]:
+                best = (1.0, float(sims[index[m], j]), m, j)
+            if best is None or best[0] < 1.0:
+                j = int(numpy.argmax(sims[index[m]]))
+                if sims[index[m], j] >= DOCUMENT_FLOOR and (best is None or sims[index[m], j] > best[1]):
+                    best = (0.0, float(sims[index[m], j]), m, j)
+        if best is not None:
+            lexical, sim, m, j = best
+            pair = score_pair(children[m], children[documents[j]], set(), sim, rarity)
+            pair["lexical"], pair["offered"] = lexical, 1
+            pairs.append(pair)
+            offers.append((leader, documents[j], pair, list(members)))
+    in_parallel(judge_pair, [(pair, members, [doc_key], children, docs) for _, doc_key, pair, members in offers])
+    mentions = {leader: doc_key for leader, doc_key, pair, _ in offers if pair["verdict"] == "same"}
+    print(f"mentions: {len(offers)} clusters offered a document, {len(mentions)} ruled its mentions")
+    return mentions
+
+
 def alone(members, children, docs):
     first = children[members[0]]
     doc = docs[first["doc_id"]]
@@ -996,6 +1050,7 @@ def alone(members, children, docs):
 def write_parent(members, children, docs):
     """A parent from its instances, most facts first."""
     members = sorted(members, key=most_facts_first(children))
+    anchors = [m for m in members if children[m]["document"]]
     if len(members) == 1:
         return alone(members, children, docs)
     aliases = set()
@@ -1010,6 +1065,9 @@ def write_parent(members, children, docs):
     allowed = {fold(a) for a in aliases}
     name = reply["name"] if reply and fold(reply["name"]) in allowed else first["name"]
     kind = reply["kind"] if reply and reply.get("kind") else first["kind"]
+    if anchors:                                          # a document is the parent of its mentions, under its own title
+        name, kind = children[anchors[0]]["name"], "document"
+        members = anchors[:1] + [m for m in members if m not in anchors]
     lines = reply["lines"] if reply and isinstance(reply["lines"], list) else []
     summary = []
     for n, key in enumerate(members):
@@ -1048,8 +1106,9 @@ def build_parents(store):
     """Embed every child, nominate and score the pairs, cluster, write the parents and the tables."""
     db = sqlite3.connect(store)
     docs, children, rarity = read_corpus(db)
-    keys = sorted(children)
-    print(f"{len(docs)} documents, {len(keys)} children; signals {sorted(SIGNALS)}")
+    keys = sorted(key for key in children if not children[key]["document"])
+    documents = sorted(key for key in children if children[key]["document"])
+    print(f"{len(docs)} documents, {len(keys)} children, {len(documents)} titled documents; signals {sorted(SIGNALS)}")
     vectors = embed([child_text(children[key], docs[key[0]]) for key in keys])
     pairs = [score_pair(children[keys[i]], children[keys[j]], hows, float(vectors[i] @ vectors[j]), rarity)
              for (i, j), hows in nominate(keys, children, vectors).items()]
@@ -1058,6 +1117,9 @@ def build_parents(store):
     groups = clusters.groups(keys)
     multi = [m for m in groups.values() if len(m) > 1]
     print(f"{len(groups)} groups, {len(multi)} with two or more instances, the largest {max((len(m) for m in multi), default=1)}")
+    mentions = attach_mentions(groups, keys, vectors, documents, children, docs, rarity, pairs)
+    for leader, doc_key in mentions.items():
+        groups[leader].append(doc_key)
     parents = in_parallel(write_parent, [(members, children, docs) for members in groups.values()])
     write_tables(db, parents, pairs, clusters)
     db.close()

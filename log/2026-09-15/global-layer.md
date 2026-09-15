@@ -49,3 +49,19 @@ logged verdicts is a sensitivity check, not an arm); the vector floor's provenan
 down and the floor frozen before the key is scored; two invariants stop the run if broken.
 `docs/global-layer.md` is rewritten to the batch build; SCHEMA.md gains the global side
 (PROPOSED). Blocks now run 13 to 204 lines each, the wiki page the largest. Kernel version 20.
+
+## Documents as parents of their mentions (Justin, 09-15)
+
+"Mentions of books that become entities within the units aren't being merged with the
+document entities and they should. This would go especially so for research papers that
+mention each other." And: "obviously, the document entity is the parent, and the mention is
+the child"; "that probably needs a final pass after the clustering ... since it wouldn't make
+sense to pair documents and entities and then create parents." Built as the final pass in
+block 13: titled documents stay out of the clustering; each finished cluster is offered at
+most one document, by a member's name or naming alias equal to the title, else by the member
+text nearest the document's abstract at 0.85; the judge rules with the document as the other
+side; a cluster ruled a mention becomes the document's children with the document's own node
+as its anchor, and the parent takes the document's title and the kind `document`. Dry run: The
+Wonderful Wizard of Oz's parent holds book 1's node, book 1's entity for itself and book 2's
+mention; each paper's node takes the paper's mention of itself; 6 of 1,344 clusters. Kernel
+version 21.
