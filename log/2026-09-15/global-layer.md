@@ -21,3 +21,5 @@ Continues `log/2026-09-14/global-layer.md`. Rulings and builds after midnight, i
 - Kernel version 16 carries all of it; the mock-up in `docs/wiki/` is from the keyed run of
   version 15: the Oz portal, the three Oz document pages, the Ozma and Dorothy pages, the
   radial figure and the map.
+
+Correction, minutes later: the push became kernel version 17, not 16; a version 16 was saved from the editor in between.
