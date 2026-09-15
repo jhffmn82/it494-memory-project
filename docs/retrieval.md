@@ -1,6 +1,7 @@
 # Retrieval: the query path
 
-The master for block 20 of `notebooks/threadatlas-global-layer.py`. Ruled 2026-09-15 from the
+The master for the retrieval pipeline, its own notebook over the serving store and nothing else
+of the build (ruled 2026-09-15; the draft is `notebooks/threadatlas-retrieval.py`). Ruled from the
 manual in `log/2026-09-15/retrieval.md` with the seven corrections of its section 11 folded in;
 that log is the snapshot, this file carries the rule. Every constant here is logged with every
 question. Sources are in section 8.

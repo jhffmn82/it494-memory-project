@@ -71,7 +71,7 @@ applies only to a small list of functional predicates, maintained by hand.
 
 The serving store and the sidecar are built (SCHEMA.md, the serving store: a lean
 SQLite file that keeps what a question reads, the build's evidence in `build.sqlite`
-beside it). Retrieval is built (block 20; the rule is `docs/retrieval.md`): keyword
+beside it). Retrieval is its own pipeline over the store (drafted; the rule is `docs/retrieval.md`): keyword
 (BM25 over one FTS5 table) and vector (cosine over the sidecar) fused by rank, one
 hop, rerank by each record's own score. Three rules of the serving side: the judge that
 clusters entities sees texts and never scores; a parent is written once after the

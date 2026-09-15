@@ -89,3 +89,10 @@ version 21.
   74 whole records. A fact's packed line is its clause and its quote; the date and the title
   are the record's prefix, not repeated. `questions.jsonl` holds one line per question. The
   BGE query prefix is empty until the 14 tuning questions choose it. Kernel pushed.
+
+- Justin: retrieval is not part of this notebook; a new pipeline imports the SQLite store and
+  nothing else of the build. Blocks 20 and 21 moved out into `notebooks/threadatlas-retrieval.py`
+  as a draft (not blocked, not run as a kernel); the global layer ends at the store, the build
+  log and the wiki. Open: the vectors are in `threadatlas.npy` beside the store by the 09-13
+  ruling, so the new pipeline reads two files from the dataset or the vectors move inside the
+  database. The merge is the focus now.

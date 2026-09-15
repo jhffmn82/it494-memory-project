@@ -80,7 +80,7 @@ a page reads and nothing else. `document` without its text, `unit`, `node`, `ali
 `vec_header`, `vec_row`; and `search`, one FTS5 row per record. Every quote is sliced against
 the Step 0 text at load and the load stops on a mismatch. The build's evidence, `pair` and
 `merge`, goes to `build.sqlite` beside it; the casts are read from the Step 1 edges at build
-time. The query path over the store is `docs/retrieval.md` (block 20): keyword and vector entry
+time. The query path is its own pipeline over the store, `docs/retrieval.md`: keyword and vector entry
 scans inside the filter fused by rank, one hop along the entity, the unit and the parent, a
 rerank by each record's own score, whole records packed to a budget, one log line per question.
 The wiki is four page types rendered from the store and nothing else: the
