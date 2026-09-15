@@ -67,3 +67,5 @@ mention; each paper's node takes the paper's mention of itself; 6 of 1,344 clust
 version 21.
 
 - Justin: the document titles should lead to a document page (built), every entity should be listed on the portal by relevance (built), a breadcrumb up to the collection under the title (built), and on the colours: "the dark cream background is not great and border colors aren't making it better". The palette is a named choice of four (harbour, parchment, emerald, slate), rendered side by side for him; slate is the default: white paper, hair-line rules, the accent kept only for the small labels. Kernel version 22 carries the mentions pass, the breadcrumb and the palette.
+
+- The slate scheme settled with Justin ("looks good"): white paper, a pale blue-grey header band, a light blue-grey tint on the header rule, the section rules and the facts card, the amber kept for the small labels. Kernel version 24; the mock-up in `docs/wiki/` is rendered in it.
