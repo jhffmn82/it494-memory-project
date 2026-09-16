@@ -137,3 +137,5 @@ version 21.
   parent's title and kind with no naming call (best_offer and instance_lines split out). Verified
   locally with a stub that rules every offer a mention: 94 clusters under 10 documents, 1,260
   parents, 1,393 up-edges, invariants hold. Kernel pushed for the third keyed run.
+
+- 09-16: the third keyed run (version 34) finished: 33 minutes, $2.51, 1,313 parents, 57 with two or more, 90 same verdicts, 464 blocked, 1,403 up-edges, the wiki written. Oz score as run: 59 children matched, 12 characters in two or more books, 25 united, 5 split, recall 0.83, 0 wrong joins; the five splits were all the Wizard, because the hand alias "Oz" matched the place Oz in Ozma of Oz (correctly under Land of Oz). The alias removed from the key (52 hand aliases), the key dataset versioned; rescored locally: 23 united, 0 split, recall 1.0, 0 wrong joins over the same store.

@@ -4,7 +4,7 @@ The one external key for ThreadAtlas's global layer: which document-local entiti
 Oz books held in the test store are one identity. It is Wikipedia's "List of Oz characters
 (created by Baum)", revision 1374825486, under CC BY-SA 4.0, one entry per character with the
 names the page gives it (its heading, its main-article title, the terms the page sets in bold),
-plus the aliases added by hand in `aliases-added.json`, each counted (53 across 30 characters).
+plus the aliases added by hand in `aliases-added.json`, each counted (52 across 30 characters; "Oz" was removed from the Wizard on 09-16 because in Ozma of Oz it names the land).
 
 Files:
 
