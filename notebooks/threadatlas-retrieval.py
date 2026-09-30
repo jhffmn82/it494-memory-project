@@ -866,23 +866,40 @@ else:
 # ## Block 9: examples
 #
 # Two questions drawn at random (seed 20260930) from the benchmarks' own questions about documents in
-# this store, each followed by the text retrieval returns, as the reader receives it. The first is
+# this store. Each prints three parts: the question, the retrieved text exactly as the model
+# receives it, and the model's response (which needs the OPENAI_API_KEY secret). The first is
 # LongMemEval question e8a79c70 (its answer, from the benchmark: 2-3 eggs), searched over all 71 chat
 # sessions in the store. The second is a GraphRAG-Bench question about the novel Dandy Dick (the
 # benchmark's answer: THE DEAN is also known as Gus).
 
 # %%
+RULE = "=" * 100
+
+
+def heading(title):
+    print(RULE)
+    print(title)
+    print(RULE)
+
+
 def ask(question, doc_filter):
     context, line = retrieve(store, question, doc_filter)
-    print("QUESTION:", question)
+
+    heading("1. QUESTION")
+    print(question)
     print()
-    print("TEXT RETURNED:")
-    print()
+
+    heading(f"2. RETRIEVED TEXT GIVEN TO THE MODEL ({len(context)} records, {line['tokens']} tokens)")
     for text in context:
         print(text)
         print()
+
+    heading(f"3. MODEL RESPONSE ({READER})")
     if KEY:
-        print("ANSWER:", ask_reader(question, context))
+        print(ask_reader(question, context))
+    else:
+        print("no OPENAI_API_KEY in this run, so the model was not asked")
+    print()
 
 # %%
 ask("I was going through our previous conversation about making a classic French omelette, and I wanted "
