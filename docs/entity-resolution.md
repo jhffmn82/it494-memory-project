@@ -88,9 +88,11 @@ better position than any novelty claim.
 Collective resolution buys accuracy by letting merges feed each other, which is the same mechanism
 by which one bad merge poisons the next.
 
-- **Kardes et al. (TextGraphs-8, 2013)** name it "black hole entities" and measure it: a pairwise
-  classifier gets precision 97 and recall 63; unrestrained transitive closure gets precision **64**
-  and recall 98. Their soft clustering recovers to 95 and 76.
+- **Kardes et al. (TextGraphs-8, 2013)** describe "black hole entities" (a term they credit to
+  Michelson, 2009) and measure the cost: a pairwise classifier gets precision 97 and recall 63;
+  unrestrained transitive closure gets precision **64** and recall 98. Their soft clustering recovers
+  to 95 and 76. Table 1, printed p. 76; trained on 135K of 150K Freebase organizations, measured on the rest; checked against the
+  PDF 2026-09-15, public at `https://aclanthology.org/W13-5010.pdf`.
 - **Bhattacharya and Getoor** admit it about their own algorithm: merges cannot be undone, so
   "precision is crucial for the bootstrap process," and that cost is one "not necessary for
   approaches that are not collective." Irrevocability is the price of going collective.
