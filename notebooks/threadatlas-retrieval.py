@@ -1,217 +1,700 @@
 # %% [markdown]
 # # ThreadAtlas retrieval
 #
-# The query path over the serving store and nothing else of the build. What it reads:
-# `threadatlas.sqlite` and `threadatlas.npy` beside it, from the public dataset
-# `jhffmn/it494-threadatlas-store` (the global-layer notebook's output of 2026-09-15). The helpers
-# below are copied from the global-layer notebook so this file imports nothing from it. This is the
-# one-hop path (entry scans, rank fusion, one hop along the entity, the unit and the parent, whole
-# records packed); the route, traverse and substantiate design of `docs/retrieval.md` is not yet built.
+# Given a question and the documents to search, find the stored records that answer it and hand
+# them, whole and dated, to a reader model. This notebook reads the store the global layer built and
+# nothing else: no Step 0, no Step 1, no model call until the reader. The same code runs on a book, a
+# series of books, or one user's chat history; nothing branches on the question or the corpus.
+#
+# ## What comes in
+#
+# The public dataset [ThreadAtlas Step 2: Serving Store](https://www.kaggle.com/datasets/jhffmn/it494-threadatlas-store):
+# `threadatlas.sqlite` and `threadatlas.npy`, written by the
+# [global-layer notebook](https://www.kaggle.com/code/jhffmn/threadatlas-global-layer) on 2026-09-15.
+# 81 documents, 6,929 facts, 1,826 cells, 891 abstracts, 1,313 parents, 15,739 vectors.
+#
+# | table | what retrieval uses it for |
+# |---|---|
+# | `document` | the title and date printed on every record; the filter is a set of `doc_id` |
+# | `unit` | a record's chapter or chat turn, its date, and which units sit beside it |
+# | `node` | the name of the entity a record is about |
+# | `fact`, `cell`, `abstract` | the three kinds of record the reader can be given |
+# | `parent`, `instance_of` | the same entity in other documents |
+# | `collection`, `document_in` | a named set of documents, used as a filter |
+# | `vec_row` | which record each row of `threadatlas.npy` belongs to |
+# | `search` | the FTS5 full-text index, one row per record |
+#
+# ## What goes out
+#
+# `questions.jsonl`: one line per question with everything needed to rebuild the context: the
+# entries and the scan that found each, every record reached and how, its score, whether it was
+# packed, and the context itself. `calls.jsonl`: the reader's calls with their cost. The printout
+# shows the first entries, the first records of the context, and the answer.
+#
+# ## Records and vectors
+#
+# A **record** is one thing the reader can be shown: a **fact** (a subject, predicate and object
+# with the verbatim quote it was read from), a **cell** (what one unit says about one entity), or an
+# **abstract** (a document's or an entity's summary). A fact has one vector. A cell or an abstract has
+# one vector per sentence. A **parent** summary has vectors too, but a parent is never shown to the
+# reader: finding one only leads to its instances. A record's similarity to the question is the
+# similarity of its **best** sentence, and a record is always packed whole, never cut.
+#
+# ## The algorithm
+#
+# ```
+# retrieve(question, filter):
+#     q = embed(question)                                   bge-small-en-v1.5, 384 numbers
+#     similarity of q to every vector                       one matrix product
+#
+#     vector entries  = the 20 records inside the filter with the most similar best sentence
+#     keyword entries = the 20 records inside the filter BM25 ranks best for the question's words
+#     entries = both lists fused by reciprocal rank: a record scores 1 / (60 + rank) in each list
+#
+#     pool = the entries (hop 0)
+#     for each entry, three edges:
+#         entity    every other record of the same entity in the same document
+#         unit      every record of the same unit and of the units just before and after it
+#         parent    every record of the same entity in the other documents of the filter
+#         add the 10 most similar records of each edge to the pool (hop 1)
+#
+#     score of a record = its own similarity x 0.8 for each hop
+#     render every record as  date | document | unit | text
+#     pack records whole, best score first, until 6,000 tokens are used
+#     reader(question + packed records) -> answer
+# ```
+#
+# ## A walkthrough: one question, step by step
+#
+# LongMemEval question gpt4_2ba83207 asks, of one user's chat history: *"Which grocery store did I
+# spend the most money at in the past month?"* The benchmark's answer is Thrive Market. The user
+# mentioned three purchases in three different sessions, and the answer needs all three. The numbers
+# below are this notebook's own log for that question.
+#
+# 1. **The filter.** The history is the 53 sessions under `chats/longmemeval/gpt4_2ba83207/`. Every
+#    vector outside those 53 documents is masked out. A parent's vector stays only when one of its
+#    instances is in the filter.
+# 2. **The vector scan.** The question becomes one 384-number vector, and one matrix product gives
+#    its cosine with all 15,739 rows. Each record takes the score of its best row, and the 20 best
+#    records are the vector entries. The best one, at 0.70, is the fact *user went grocery shopping
+#    at Walmart*.
+# 3. **The keyword scan.** The question's words are joined with OR and searched in the FTS5 index,
+#    ranked by BM25, inside the filter. The 20 best are the keyword entries. The same Walmart fact is
+#    first here too.
+# 4. **Fusing the two lists.** Reciprocal rank fusion gives each record 1 / (60 + rank) for every
+#    list it is in. The Walmart fact is first in both: 1/61 + 1/61 = 0.0328. A fact from the Thrive
+#    Market session, sixth by vector and eleventh by keyword, gets 1/66 + 1/71 = 0.0292. The two lists
+#    share 6 records, so there are 34 entries: 32 facts and 2 session abstracts.
+# 5. **One hop.** From each entry the three edges offered 448 records of the same entity, 358
+#    records of the same or a neighbouring turn, and 1 record through a parent. The 10 most similar
+#    per edge join the pool, which ends at 250 records: the 34 entries, 116 reached through the
+#    entity and 100 through the unit.
+# 6. **Scoring.** Every record in the pool is scored on its own similarity to the question, times
+#    0.8 if it was reached by a hop. An entry at 0.60 and a hop record at 0.75 both score 0.60.
+# 7. **Packing.** Each record is rendered with its date, document, unit and text (a fact with its
+#    quote), and records are added whole, best first, until the next one would pass 6,000 tokens.
+#    65 records went in: 31 entries and 34 reached by the hop. The Walmart $120 fact is second, the
+#    Publix $60 fact fourth, and the Thrive Market $150 fact sixteenth. The last record packed scored
+#    0.415.
+# 8. **The reader.** gpt-5.6-luna gets the 65 records and the question and answers in JSON. It is
+#    told to use the records and nothing else.
+#
+# The Oz question in Block 9 ("Who is Tip, and what becomes of him?", filtered to the three Oz
+# books) shows the other side: there the parent edge offered 1,972 records, since the Scarecrow, the
+# Tin Woodman and others are one parent across the three books, and 88 of them reached the pool.
+#
+# ## The constants
+#
+# | name | value | what it controls |
+# |---|---|---|
+# | `K_ENTRY` | 20 | records taken from each entry scan |
+# | `K_HOP` | 10 | records taken from each edge of each entry |
+# | `DISCOUNT` | 0.8 | the score multiplier for a record reached by a hop |
+# | `RRF_K` | 60 | the reciprocal rank fusion constant, as Cormack et al. fixed it |
+# | `BUDGET` | 6,000 | tokens of context the reader is given |
+#
+# None of them has been tuned. They are logged with every question so a run can be repeated.
+#
+# ## Where it comes from
+#
+# None of the steps is new. Each is a standard technique, and the combination is close to what
+# published graph memory systems already do.
+#
+# - **Two scans fused by rank.** Hybrid lexical and dense retrieval, fused with reciprocal rank
+#   fusion: G. V. Cormack, C. L. A. Clarke and S. Buettcher, "Reciprocal Rank Fusion outperforms
+#   Condorcet and individual Rank Learning Methods", SIGIR 2009, where k = 60 was fixed during a
+#   pilot study. S. Bruch, S. Gai and A. Ingber, "An Analysis of Fusion Functions for Hybrid
+#   Retrieval" (arXiv 2210.11934, 2023), find that a tuned weighted sum of the two scores does
+#   better than RRF.
+# - **A record scored by its best sentence.** MaxP: Z. Dai and J. Callan, "Deeper Text Understanding
+#   for IR with Contextual Neural Language Modeling", SIGIR 2019, which scores a document by its best
+#   passage.
+# - **Embed small, return large.** Sentence-window retrieval, as in LlamaIndex's
+#   `SentenceWindowNodeParser`: the vector is a sentence, the model reads the text around it.
+# - **Enter a graph by similarity, expand to the neighbours, fill a token budget.** Microsoft
+#   GraphRAG's local search (https://microsoft.github.io/graphrag/query/local_search/) enters through
+#   the entities most similar to the query, pulls their relationships and source text, and cuts the
+#   candidates to a fixed context window. LightRAG (Z. Guo et al., arXiv 2410.05779, 2024) adds the
+#   one-hop neighbours of what it retrieves. HippoRAG (B. Jimenez Gutierrez et al., NeurIPS 2024)
+#   spreads from the query's entities by Personalized PageRank instead of a fixed hop.
+# - **The closest match.** Zep (P. Rasmussen et al., "Zep: A Temporal Knowledge Graph Architecture
+#   for Agent Memory", arXiv 2501.13956, 2025) searches by cosine similarity, BM25 and breadth-first
+#   search over n hops, reranks with RRF among others, and gives the model each fact with its date
+#   range. That is this path's shape, and Zep reports on LongMemEval, one of the two benchmarks here.
+# - **A score that shrinks with each hop.** Spreading activation, long used in information
+#   retrieval (F. Crestani, "Application of Spreading Activation Techniques in Information
+#   Retrieval", Artificial Intelligence Review 11, 1997).
+#
+# What ThreadAtlas adds is not the search but what it searches: records that each belong to one
+# document and carry a verbatim quote, and a tree of parents that links the same entity across
+# documents without merging them. The parent edge is the one part to measure, by running the same
+# questions with `parent=False`.
+#
+# ## What it does not do yet
+#
+# - The reader is not told the date the question is asked, so "the past month" has no anchor.
+# - Facts read from the same sentence are packed separately, each with the same quote.
+# - The design in `docs/retrieval.md` (route, traverse, substantiate, bundles) is not built; this
+#   is the one-hop version.
+# - No reranker and no tuned constants.
+#
+# ## Running it
+#
+# On Kaggle: attach the `it494-threadatlas-store` dataset, turn Internet on (fastembed fetches the
+# embedding model once), and add an `OPENAI_API_KEY` secret for the reader. Without a key everything
+# runs except the answer. Locally: set `STORE_DIR` to a folder holding the two files and run the
+# script.
+
+# %% [markdown]
+# ## Block 1: files and settings
+#
+# Where the store is, where the output goes, and the constants the walkthrough names.
 
 # %%
 import json
 import os
 import re
 import sqlite3
+import subprocess
 import sys
+import time
+import urllib.error
+import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
 
-KAGGLE_STORE = (Path("/kaggle/input/datasets/jhffmn/it494-threadatlas-store"), Path("/kaggle/input/it494-threadatlas-store"))
-STORE_DIR = next((d for d in (Path(os.environ.get("STORE_DIR", "data/global")), *KAGGLE_STORE) if (d / "threadatlas.sqlite").exists()), Path("data/global"))
-STORE = STORE_DIR / "threadatlas.sqlite"
-OUT = Path("/kaggle/working") if Path("/kaggle/working").exists() else STORE_DIR
-MODEL = "BAAI/bge-small-en-v1.5"
-DIMENSION = 384
-EMBEDDER = None
+import numpy as np
+
+VERSION = "threadatlas-retrieval 0.2"
+
+try:
+    import fastembed
+except ImportError:
+    subprocess.run([sys.executable, "-m", "pip", "install", "-q", "fastembed"], check=True)
+try:
+    import tiktoken
+except ImportError:
+    subprocess.run([sys.executable, "-m", "pip", "install", "-q", "tiktoken"], check=True)
 
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
-for package in ("fastembed", "tiktoken"):     # not on Kaggle's image; fetched once, with Internet on
-    try:
-        __import__(package)
-    except ImportError:
-        import subprocess
-        subprocess.run([sys.executable, "-m", "pip", "install", "-q", package], check=True)
-print(f"store: {STORE}; output: {OUT}")
+places_to_look = [
+    Path(os.environ.get("STORE_DIR", "data/global")),
+    Path("/kaggle/input/datasets/jhffmn/it494-threadatlas-store"),
+    Path("/kaggle/input/it494-threadatlas-store"),
+]
+STORE_DIR = None
+for folder in places_to_look:
+    if (folder / "threadatlas.sqlite").exists():
+        STORE_DIR = folder
+        break
+if STORE_DIR is None:
+    raise SystemExit("threadatlas.sqlite not found: attach the it494-threadatlas-store dataset")
+
+if Path("/kaggle/working").exists():
+    OUT = Path("/kaggle/working")
+else:
+    OUT = STORE_DIR
+
+MODEL = "BAAI/bge-small-en-v1.5"
+DIMENSION = 384
+
+K_ENTRY = 20
+K_HOP = 10
+DISCOUNT = 0.8
+RRF_K = 60
+BUDGET = int(os.environ.get("BUDGET", "6000"))
+QUERY_PREFIX = os.environ.get("QUERY_PREFIX", "")
+
+print(VERSION)
+print("store: ", STORE_DIR / "threadatlas.sqlite")
+print("output:", OUT)
+
+# %% [markdown]
+# ## Block 2: opening the store
+#
+# The store and its vectors, checked against each other, and the lookups every question uses:
+# which record each vector row belongs to, which documents each parent reaches, each document's
+# title and date, and each entity's name. Then the two filters: a collection by name, and a
+# LongMemEval history by its folder.
+
+# %%
+def open_store(folder):
+    db = sqlite3.connect(folder / "threadatlas.sqlite")
+    vectors = np.load(folder / "threadatlas.npy")
+
+    header = db.execute("select model, dimension from vec_header").fetchone()
+    row_count = db.execute("select count(*) from vec_row").fetchone()[0]
+    if header != (MODEL, DIMENSION) or vectors.shape != (row_count, DIMENSION):
+        raise SystemExit(f"the vectors do not match the store: {header}, {vectors.shape}, {row_count} rows")
+
+    record_of_row = []
+    rows_of_record = {}
+    for row, kind, doc_id, record_id in db.execute("select row, record, doc_id, record_id from vec_row order by row"):
+        record = (kind, doc_id, record_id)
+        record_of_row.append(record)
+        if record not in rows_of_record:
+            rows_of_record[record] = []
+        rows_of_record[record].append(row)
+
+    documents_of_parent = {}
+    for doc_id, parent_id in db.execute("select doc_id, parent_id from instance_of"):
+        parent_id = str(parent_id)
+        if parent_id not in documents_of_parent:
+            documents_of_parent[parent_id] = set()
+        documents_of_parent[parent_id].add(doc_id)
+
+    documents = {}
+    for doc_id, title, source_uri, occurred_at in db.execute("select doc_id, title, source_uri, occurred_at from document"):
+        documents[doc_id] = {"title": title, "source_uri": source_uri, "occurred_at": occurred_at}
+
+    entity_names = {}
+    for doc_id, node_id, name in db.execute("select doc_id, node_id, name from node"):
+        entity_names[(doc_id, node_id)] = name
+
+    store = {}
+    store["db"] = db
+    store["vectors"] = vectors.astype(np.float32)
+    store["record_of_row"] = record_of_row
+    store["rows_of_record"] = rows_of_record
+    store["documents_of_parent"] = documents_of_parent
+    store["documents"] = documents
+    store["entity_names"] = entity_names
+    return store
 
 
-def now():
-    return datetime.now(timezone.utc).isoformat(timespec="seconds")
+def collection_filter(store, name):
+    sql = """select i.doc_id from document_in i
+             join collection c on c.collection_id = i.collection_id
+             where c.name = ?"""
+    doc_ids = set()
+    for (doc_id,) in store["db"].execute(sql, (name,)):
+        doc_ids.add(doc_id)
+    return doc_ids
 
 
-def is_identifier(title, source_uri):
-    """A chat's title is its session id, which is not a title."""
-    return title is None or title == Path(source_uri).stem
+def history_filter(store, question_id):
+    folder = f"chats/longmemeval/{question_id}/"
+    doc_ids = set()
+    for doc_id, source_uri in store["db"].execute("select doc_id, source_uri from document"):
+        if folder in source_uri:
+            doc_ids.add(doc_id)
+    return doc_ids
 
 
-def fact_text(f, names):
-    """A fact as a clause: subject, predicate, object, qualifiers."""
-    subject = names.get(f["subject"], f["subject"])
-    if f["direction"] == "mentioned" and f["subject_name"]:
-        subject = f["subject_name"]
-    obj = names.get(f["object"], f["object"]) if f["object_is_node"] else f["object"]
-    line = f"{subject} {f['predicate'].replace('_', ' ')} {obj}"
-    return line + (f" ({f['qualifiers']})" if f["qualifiers"] else "")
+store = open_store(STORE_DIR)
+print(len(store["documents"]), "documents,", len(store["record_of_row"]), "vectors")
+
+# %% [markdown]
+# ## Block 3: scoring the question against every vector
+#
+# The question's vector, its similarity to every row, and a record's score as its best row.
+# `best_first` is the one sort used everywhere: highest score first, ties broken by the record's
+# name, so a run can be repeated exactly.
+
+# %%
+EMBEDDER = None
 
 
 def embed(texts):
-    """Vectors for texts, float32; the model loads on first use."""
     global EMBEDDER
-    import numpy
     if EMBEDDER is None:
         from fastembed import TextEmbedding
         EMBEDDER = TextEmbedding(MODEL)
-    return numpy.asarray(list(EMBEDDER.embed(texts, batch_size=256)), dtype=numpy.float32)
+    vectors = list(EMBEDDER.embed(texts, batch_size=256))
+    return np.asarray(vectors, dtype=np.float32)
 
 
-def load_sidecar(store):
-    """The array, memory-mapped, and the open store; a mismatch with the header or the map refuses."""
-    import numpy
-    db = sqlite3.connect(store)
-    header = db.execute("select model, dimension from vec_header").fetchone()
-    array = numpy.load(store.with_suffix(".npy"), mmap_mode="r")
-    n = db.execute("select count(*) from vec_row").fetchone()[0]
-    if header != (MODEL, DIMENSION) or array.shape != (n, DIMENSION):
-        raise SystemExit(f"sidecar mismatch: header {header}, array {array.shape}, rows {n}; rebuild it")
-    return db, array
+def score_every_row(store, question):
+    question_vector = embed([QUERY_PREFIX + question])[0]
+    return store["vectors"] @ question_vector
 
 
-# the model: block 2 of the global-layer notebook, the reader on Luna only
-import http.client
-import threading
-import urllib.error
-import urllib.request
-
-LUNA = "gpt-5.6-luna"                   # the reader
-SERVICE_TIER = "flex"
-PRICE = {"flex": {LUNA: (0.10, 0.60)}, "default": {LUNA: (0.20, 1.20)}}      # $ per million tokens in, out
-SPEND_STOP = float(os.environ.get("SPEND_STOP", "2"))
-CALLS = OUT / "calls.jsonl"
-SPENT = 0.0
-LOG_LOCK = threading.Lock()
-
-KEY = os.environ.get("OPENAI_API_KEY")
-if not KEY:
-    try:
-        from kaggle_secrets import UserSecretsClient
-        KEY = UserSecretsClient().get_secret("OPENAI_API_KEY")
-    except Exception:
-        KEY = None
+def record_score(store, row_scores, record):
+    rows = store["rows_of_record"].get(record)
+    if not rows:
+        return 0.0
+    return float(row_scores[rows].max())
 
 
-class SpendStop(Exception):
-    pass
+def best_first(records, score_of):
+    ranked = []
+    for record in records:
+        name = []
+        for part in record:
+            name.append(str(part))
+        ranked.append((-score_of[record], tuple(name), record))
+    ranked.sort()
 
-
-def log_call(row):
-    global SPENT
-    with LOG_LOCK:                                    # calls run in parallel
-        SPENT += row.get("cost", 0.0)
-        with CALLS.open("a", encoding="utf-8") as f:
-            f.write(json.dumps(row, ensure_ascii=False) + "\n")
-
-
-def post(payload):
-    data = json.dumps(payload).encode("utf-8")
-    request = urllib.request.Request("https://api.openai.com/v1/chat/completions", data=data, method="POST",
-                                     headers={"Authorization": f"Bearer {KEY}", "Content-Type": "application/json"})
-    with urllib.request.urlopen(request, timeout=900) as response:
-        return response.status, response.read().decode("utf-8")
-
-
-def call(payload, model, stage, ctx):
-    """One exchange under the retry policy; the parsed body. The cost is logged here."""
-    if not KEY:
-        raise RuntimeError("no OPENAI_API_KEY in the environment or as a Kaggle secret")
-    if SPENT >= SPEND_STOP:
-        raise SpendStop(f"spending stop: ${SPENT:.2f} of ${SPEND_STOP:.2f}")
-    started = time.time()
-    for attempt in range(3):
-        try:
-            status, text = post(payload)
-        except urllib.error.HTTPError as error:
-            status, text = error.code, error.read().decode("utf-8", errors="replace")
-        except (urllib.error.URLError, TimeoutError, OSError, http.client.HTTPException):
-            if attempt == 2:
-                raise
-            time.sleep(15 * (attempt + 1))
-            continue
-        if status == 429 and "insufficient_quota" in text:
-            raise SpendStop(f"OpenAI quota exhausted: {text[:200]}")
-        if status == 429 or status >= 500:
-            if attempt == 2:
-                raise RuntimeError(f"OpenAI {status}: {text}")
-            time.sleep(15 * (attempt + 1))
-            continue
-        if status != 200:
-            raise RuntimeError(f"OpenAI {status}: {text}")
-        break
-    body = json.loads(text)
-    tier = body.get("service_tier") or SERVICE_TIER
-    price_in, price_out = PRICE.get(tier, PRICE["default"])[model]
-    usage = body.get("usage", {})
-    tokens_in, tokens_out = usage.get("prompt_tokens", 0), usage.get("completion_tokens", 0)
-    log_call({"stage": stage, "model": body.get("model", model), "tier": tier, "in": tokens_in, "out": tokens_out,
-              "seconds": round(time.time() - started, 1), "cost": (tokens_in * price_in + tokens_out * price_out) / 1e6, **ctx})
-    return body
-
-
-def fits(reply, schema):
-    """`schema` maps each required key to its type, or None for any. The first problem, or None."""
-    if not isinstance(reply, dict):
-        return "reply is not an object"
-    for key, kind in schema.items():
-        if key not in reply:
-            return f"missing {key}"
-        if kind is not None and not isinstance(reply[key], kind):
-            return f"{key} is not {kind.__name__}"
-    return None
-
-
-def generate(prompt, schema, stage, model=LUNA, effort="low", ctx=None):
-    """The reply as a dict that fits `schema`, or None after one retry with the error appended."""
-    ctx = ctx or {}
-    for attempt in range(2):
-        body = call({"model": model, "reasoning_effort": effort, "service_tier": SERVICE_TIER,
-                     "response_format": {"type": "json_object"}, "messages": [{"role": "user", "content": prompt}]},
-                    model, stage, ctx)
-        try:
-            reply = json.loads(body["choices"][0]["message"]["content"] or "")
-            error = fits(reply, schema)
-        except (ValueError, KeyError, IndexError, TypeError) as e:
-            error = f"{type(e).__name__}: {e}"
-        if error is None:
-            return reply
-        log_call({"stage": stage, "model": model, "schema_miss": error[:200], "cost": 0.0, **ctx})
-        prompt += f"\n\nYour previous reply did not fit the required shape ({error}). Reply again, in exactly the shape asked for."
-    return None
+    ordered = []
+    for item in ranked:
+        ordered.append(item[2])
+    return ordered
 
 # %% [markdown]
-# ## Retrieval
+# ## Block 4: the two entry scans
 #
-# The query path of `docs/retrieval.md`. Two entry
-# scans inside the filter, each returning records: the vector arm (cosine of the question
-# against every row, a record scored by its best sentence) and the keyword arm (BM25 over the
-# `search` table, one row per record). Reciprocal rank fusion orders the entry records. One hop
-# from each entry along three edges (the record's entity, its unit and the two beside it, its
-# parent's other children inside the filter), the top K_HOP per edge by the neighbour's own
-# score. Every record in the pool is then scored on its own vector, discounted once per hop,
-# and packed whole in that order until the budget is spent. A parent summary can be an entry
-# hit; it routes to its children's records and is never packed. One JSON line per question
-# goes to `questions.jsonl`, enough to rebuild the context byte for byte.
+# Steps 1 to 4 of the walkthrough: the filter, the vector scan, the keyword scan, and the fusion.
 
 # %%
-K_ENTRY = 20               # entry records per arm
-K_HOP = 10                 # neighbours per edge per entry, by their own score
-DISCOUNT = 0.8             # per hop
-RRF_K = 60                 # reciprocal rank fusion constant (Cormack, Clarke and Buettcher 2009)
-BUDGET = int(os.environ.get("BUDGET", "6000"))                 # reader tokens, the 15 percent margin already taken
-QUERY_PREFIX = os.environ.get("QUERY_PREFIX", "")              # BGE's instruction for short queries, tuned on the 14 questions then frozen
+def rows_in_filter(store, doc_filter, use_parents):
+    keep = np.ones(len(store["record_of_row"]), dtype=bool)
+    for row in range(len(store["record_of_row"])):
+        kind, doc_id, record_id = store["record_of_row"][row]
+        if kind == "parent":
+            if not use_parents:
+                keep[row] = False
+            elif doc_filter is not None:
+                child_documents = store["documents_of_parent"].get(record_id, set())
+                keep[row] = len(child_documents & doc_filter) > 0
+        elif doc_filter is not None:
+            keep[row] = doc_id in doc_filter
+    return keep
+
+
+def vector_entries(store, row_scores, keep):
+    scores = np.where(keep, row_scores, -np.inf)
+    best = {}
+    for row in np.argsort(-scores, kind="stable"):
+        score = float(scores[row])
+        if score == -np.inf:
+            break
+        if len(best) >= K_ENTRY and score < min(best.values()):
+            break
+        record = store["record_of_row"][row]
+        if record not in best:
+            best[record] = score
+    return best_first(best, best)[:K_ENTRY]
+
+
+def keyword_entries(store, question, doc_filter):
+    words = re.findall(r"\w+", question)
+    if len(words) == 0:
+        return []
+    quoted = []
+    for word in words:
+        quoted.append('"' + word + '"')
+    match = " OR ".join(quoted)
+
+    sql = "select record, doc_id, record_id from search where search match ?"
+    args = [match]
+    if doc_filter is not None:
+        marks = ", ".join(["?"] * len(doc_filter))
+        sql += " and doc_id in (" + marks + ")"
+        args += sorted(doc_filter)
+    sql += " order by bm25(search), record, doc_id, record_id limit ?"
+    args.append(K_ENTRY)
+
+    found = []
+    for row in store["db"].execute(sql, args):
+        found.append(tuple(row))
+    return found
+
+
+def fuse(vector_ranked, keyword_ranked):
+    rrf = {}
+    for ranked in [vector_ranked, keyword_ranked]:
+        rank = 1
+        for record in ranked:
+            rrf[record] = rrf.get(record, 0.0) + 1 / (RRF_K + rank)
+            rank += 1
+    return best_first(rrf, rrf), rrf
+
+# %% [markdown]
+# ## Block 5: one hop from every entry
+#
+# Step 5: the three edges of an entry (entity, unit, parent) and the 10 most similar records
+# taken from each. A parent found as an entry has one edge only, to its instances.
+
+# %%
+def entity_records(db, doc_id, node_id):
+    records = []
+    for (fact_id,) in db.execute("select fact_id from fact where doc_id = ? and subject = ?", (doc_id, node_id)):
+        records.append(("fact", doc_id, fact_id))
+    for (unit_id,) in db.execute("select unit_id from cell where doc_id = ? and node_id = ?", (doc_id, node_id)):
+        records.append(("cell", doc_id, node_id + "@" + unit_id))
+    if db.execute("select 1 from abstract where doc_id = ? and node_id = ?", (doc_id, node_id)).fetchone():
+        records.append(("abstract", doc_id, node_id))
+    return records
+
+
+def unit_records(db, doc_id, unit_id):
+    found = db.execute("select position from unit where unit_id = ?", (unit_id,)).fetchone()
+    if found is None:
+        return []
+    position = found[0]
+
+    units = []
+    for (neighbour,) in db.execute("select unit_id from unit where doc_id = ? and position between ? and ?",
+                                   (doc_id, position - 1, position + 1)):
+        units.append(neighbour)
+    marks = ", ".join(["?"] * len(units))
+
+    records = []
+    for (fact_id,) in db.execute("select fact_id from fact where doc_id = ? and unit_id in (" + marks + ")", [doc_id] + units):
+        records.append(("fact", doc_id, fact_id))
+    for node_id, cell_unit in db.execute("select node_id, unit_id from cell where doc_id = ? and unit_id in (" + marks + ")", [doc_id] + units):
+        records.append(("cell", doc_id, node_id + "@" + cell_unit))
+    return records
+
+
+def sibling_records(db, parent_id, doc_filter, skip):
+    records = []
+    for doc_id, node_id in db.execute("select doc_id, node_id from instance_of where parent_id = ?", (parent_id,)):
+        if (doc_id, node_id) == skip:
+            continue
+        if doc_filter is not None and doc_id not in doc_filter:
+            continue
+        records += entity_records(db, doc_id, node_id)
+    return records
+
+
+def neighbours(store, entry, doc_filter, use_parents):
+    db = store["db"]
+    kind, doc_id, record_id = entry
+
+    if kind == "parent":
+        return {"parent": sibling_records(db, int(record_id), doc_filter, None)}
+
+    unit_id = None
+    if kind == "fact":
+        node_id, unit_id = db.execute("select subject, unit_id from fact where doc_id = ? and fact_id = ?",
+                                      (doc_id, record_id)).fetchone()
+    elif kind == "cell":
+        node_id, unit_id = record_id.split("@")
+    else:
+        node_id = record_id
+
+    edges = {}
+    edges["node"] = entity_records(db, doc_id, node_id)
+    edges["document"] = []
+    if unit_id:
+        edges["document"] = unit_records(db, doc_id, unit_id)
+    if use_parents:
+        edges["parent"] = []
+        found = db.execute("select parent_id from instance_of where doc_id = ? and node_id = ?", (doc_id, node_id)).fetchone()
+        if found:
+            edges["parent"] = sibling_records(db, found[0], doc_filter, (doc_id, node_id))
+    return edges
+
+
+def expand(store, row_scores, entries, doc_filter, use_parents):
+    pool = {}
+    for record in entries:
+        if record[0] != "parent":
+            pool[record] = {"hops": 0, "route": "entry"}
+
+    eligible = []
+    for entry in entries:
+        edges = neighbours(store, entry, doc_filter, use_parents)
+        for edge in edges:
+            candidates = set(edges[edge])
+            candidates.discard(entry)
+            scores = {}
+            for record in candidates:
+                scores[record] = record_score(store, row_scores, record)
+            ranked = best_first(candidates, scores)
+            eligible.append({"entry": list(entry), "edge": edge, "eligible": len(ranked)})
+
+            for record in ranked[:K_HOP]:
+                if record not in pool:
+                    pool[record] = {"hops": 1, "route": [edge, list(entry)]}
+    return pool, eligible
+
+# %% [markdown]
+# ## Block 6: what the reader sees
+#
+# Steps 6 and 7: each record as one dated line, and the packing to the token budget. A chat's
+# title is its session id, so the first 8 characters of its `doc_id` are shown instead.
+
+# %%
 TOKENIZER = None
 
-ANSWER = """Answer the question from the records below and nothing else. Every record is dated and names its
+
+def count_tokens(text):
+    global TOKENIZER
+    if TOKENIZER is None:
+        TOKENIZER = tiktoken.get_encoding("o200k_base")
+    return len(TOKENIZER.encode(text))
+
+
+def document_title(store, doc_id):
+    document = store["documents"][doc_id]
+    title = document["title"]
+    if title is None or title == Path(document["source_uri"]).stem:
+        return doc_id[:8]
+    return title
+
+
+def unit_label_and_date(db, unit_id):
+    found = db.execute("select label, occurred_at from unit where unit_id = ?", (unit_id,)).fetchone()
+    if found is None:
+        return None, None
+    return found[0], found[1]
+
+
+def fact_line(fact, names):
+    subject = names.get(fact["subject"], fact["subject"])
+    if fact["direction"] == "mentioned" and fact["subject_name"]:
+        subject = fact["subject_name"]
+    thing = fact["object"]
+    if fact["object_is_node"]:
+        thing = names.get(fact["object"], fact["object"])
+    line = subject + " " + fact["predicate"].replace("_", " ") + " " + thing
+    if fact["qualifiers"]:
+        line += " (" + fact["qualifiers"] + ")"
+    return line
+
+
+def render(store, record):
+    db = store["db"]
+    names = store["entity_names"]
+    kind, doc_id, record_id = record
+    title = document_title(store, doc_id)
+    document_date = store["documents"][doc_id]["occurred_at"]
+
+    if kind == "fact":
+        fields = ["subject", "subject_name", "predicate", "object", "object_is_node",
+                  "qualifiers", "occurred_at", "direction", "quote", "unit_id"]
+        values = db.execute("select " + ", ".join(fields) + " from fact where doc_id = ? and fact_id = ?",
+                            (doc_id, record_id)).fetchone()
+        fact = {}
+        for i in range(len(fields)):
+            fact[fields[i]] = values[i]
+
+        local_names = {}
+        local_names[fact["subject"]] = names.get((doc_id, fact["subject"]), fact["subject"])
+        local_names[fact["object"]] = names.get((doc_id, fact["object"]), fact["object"])
+
+        label, unit_date = unit_label_and_date(db, fact["unit_id"])
+        date = fact["occurred_at"] or unit_date or document_date
+        text = fact_line(fact, local_names)
+        if fact["quote"]:
+            text += '\n  quote: "' + fact["quote"] + '"'
+        return f"{date} | {title} | {label or 'record'} | {text}"
+
+    if kind == "cell":
+        node_id, unit_id = record_id.split("@")
+        text = db.execute("select text from cell where doc_id = ? and node_id = ? and unit_id = ?",
+                          (doc_id, node_id, unit_id)).fetchone()[0]
+        label, unit_date = unit_label_and_date(db, unit_id)
+        entity = names.get((doc_id, node_id), node_id)
+        return f"{unit_date or document_date} | {title} | {label or unit_id[:8]} | {entity}: {text}"
+
+    text = db.execute("select text from abstract where doc_id = ? and node_id = ?", (doc_id, record_id)).fetchone()[0]
+    entity = names.get((doc_id, record_id), record_id)
+    return f"{document_date} | {title} | abstract | {entity}: {text}"
+
+
+def pack(store, pool, budget):
+    scores = {}
+    for record in pool:
+        scores[record] = pool[record]["score"]
+
+    context = []
+    used = 0
+    for record in best_first(pool, scores):
+        text = render(store, record)
+        size = count_tokens(text)
+        if used + size > budget:
+            pool[record]["packed"] = False
+            continue
+        pool[record]["packed"] = True
+        context.append(text)
+        used += size
+    return context, used
+
+# %% [markdown]
+# ## Block 7: the whole path, and its log
+#
+# `retrieve` runs steps 1 to 7 and writes one line to `questions.jsonl`. `keyword`, `vector` and
+# `parent` turn each part off, which is how the arms of an evaluation are run.
+
+# %%
+def rank_in(ranked, record):
+    if record in ranked:
+        return ranked.index(record) + 1
+    return None
+
+
+def retrieve(store, question, doc_filter=None, keyword=True, vector=True, parent=True, budget=BUDGET):
+    row_scores = score_every_row(store, question)
+    keep = rows_in_filter(store, doc_filter, parent)
+
+    vector_ranked = []
+    if vector:
+        vector_ranked = vector_entries(store, row_scores, keep)
+    keyword_ranked = []
+    if keyword:
+        keyword_ranked = keyword_entries(store, question, doc_filter)
+    entries, rrf = fuse(vector_ranked, keyword_ranked)
+
+    pool, eligible = expand(store, row_scores, entries, doc_filter, parent)
+    for record in pool:
+        pool[record]["score"] = record_score(store, row_scores, record) * DISCOUNT ** pool[record]["hops"]
+    context, used = pack(store, pool, budget)
+
+    entry_log = []
+    for record in entries:
+        entry_log.append({"record": list(record), "rank_v": rank_in(vector_ranked, record),
+                          "rank_w": rank_in(keyword_ranked, record), "rrf": round(rrf[record], 5)})
+    pool_log = []
+    for record in pool:
+        item = pool[record]
+        pool_log.append({"record": list(record), "hops": item["hops"], "route": item["route"],
+                         "score": round(item["score"], 4), "packed": item["packed"]})
+    filter_log = None
+    if doc_filter:
+        filter_log = sorted(doc_filter)
+
+    line = {
+        "asked_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "question": question,
+        "filter": filter_log,
+        "arms": {"keyword": keyword, "vector": vector, "parent": parent, "budget": budget},
+        "constants": {"K_ENTRY": K_ENTRY, "K_HOP": K_HOP, "DISCOUNT": DISCOUNT, "RRF_K": RRF_K, "prefix": QUERY_PREFIX},
+        "entries": entry_log,
+        "eligible": eligible,
+        "pool": pool_log,
+        "context": context,
+        "tokens": used,
+    }
+    with open(OUT / "questions.jsonl", "a", encoding="utf-8") as f:
+        f.write(json.dumps(line, ensure_ascii=False) + "\n")
+    return context, line
+
+# %% [markdown]
+# ## Block 8: the reader
+#
+# Step 8: one call to gpt-5.6-luna on the flex tier, retried when the server is busy, its cost
+# written to `calls.jsonl`.
+
+# %%
+READER = "gpt-5.6-luna"
+PRICES = {"flex": (0.10, 0.60), "default": (0.20, 1.20)}
+
+ANSWER_PROMPT = """Answer the question from the records below and nothing else. Every record is dated and names its
 document. If the records do not answer it, say so. Reply with a JSON object: {{"answer": "<a short answer>"}}.
 
 Records:
@@ -220,282 +703,102 @@ Records:
 Question: {question}"""
 
 
-def open_index(store):
-    """What a question reads: the store, the array in memory as float32, and the maps between rows and records."""
-    import numpy
-    db, array = load_sidecar(store)
-    keys, rows = [], {}
-    for row, record, doc_id, record_id in db.execute("select row, record, doc_id, record_id from vec_row order by row"):
-        key = (record, doc_id, record_id)
-        keys.append(key)
-        rows.setdefault(key, []).append(row)
-    parent_docs = {}
-    for doc_id, parent_id in db.execute("select doc_id, parent_id from instance_of"):
-        parent_docs.setdefault(str(parent_id), set()).add(doc_id)
-    docs = {r[0]: {"title": r[1], "source_uri": r[2], "occurred_at": r[3]}
-            for r in db.execute("select doc_id, title, source_uri, occurred_at from document")}
-    names = {(d, n): name for d, n, name in db.execute("select doc_id, node_id, name from node")}
-    return {"db": db, "array": numpy.asarray(array, dtype=numpy.float32), "keys": keys, "rows": rows,
-            "parent_docs": parent_docs, "docs": docs, "names": names}
+def find_key():
+    key = os.environ.get("OPENAI_API_KEY")
+    if key:
+        return key
+    try:
+        from kaggle_secrets import UserSecretsClient
+        return UserSecretsClient().get_secret("OPENAI_API_KEY")
+    except Exception:
+        return None
 
 
-def collection_docs(db, name):
-    """The filter for a collection: its documents' ids."""
-    return {d for (d,) in db.execute("select i.doc_id from document_in i join collection c on c.collection_id = i.collection_id where c.name = ?", (name,))}
+KEY = find_key()
+SPENT = 0.0
 
 
-def row_mask(index, doc_filter, parent_on):
-    """Rows inside the filter; a parent's rows only when the hop is on and a child's document is inside."""
-    import numpy
-    keep = numpy.ones(len(index["keys"]), dtype=bool)
-    for i, (record, doc_id, record_id) in enumerate(index["keys"]):
-        if record == "parent":
-            keep[i] = parent_on and (doc_filter is None or bool(index["parent_docs"].get(record_id, set()) & doc_filter))
-        elif doc_filter is not None:
-            keep[i] = doc_id in doc_filter
-    return keep
-
-
-def own_score(index, scores, key):
-    """A record's score against the question: its best sentence's cosine; 0 for a record with no vector."""
-    rows = index["rows"].get(key)
-    return float(scores[rows].max()) if rows else 0.0
-
-
-def vector_entries(index, scores, mask):
-    """The K_ENTRY entries with the best sentence inside the filter: score descending, then key."""
-    import numpy
-    masked = numpy.where(mask, scores, -numpy.inf)
-    best = {}
-    for row in numpy.argsort(-masked, kind="stable"):
-        score = float(masked[row])
-        if score == -numpy.inf or (len(best) >= K_ENTRY and score < min(best.values())):
-            break                                       # past the K-th score and its ties
-        best.setdefault(index["keys"][row], score)      # the first row seen is the record's best
-    ranked = sorted(best, key=score_then_key(best))
-    return ranked[:K_ENTRY]
-
-
-def score_then_key(scores):
-    """The sort key for entries: score descending, then the entry key ascending."""
-    def key(entry):
-        return (-scores[entry], tuple(str(part) for part in entry))
-    return key
-
-
-def fts_query(question):
-    """The question's words joined by OR; FTS5's own syntax never reaches the engine."""
-    return " OR ".join(f'"{w}"' for w in re.findall(r"\w+", question))
-
-
-def keyword_entries(db, question, doc_filter):
-    """The K_ENTRY records BM25 ranks best inside the filter; bm25() is negative, so ascending is best first."""
-    query = fts_query(question)
-    if not query:
-        return []
-    sql, args = "select record, doc_id, record_id from search where search match ?", [query]
-    if doc_filter is not None:
-        sql += f" and doc_id in ({', '.join('?' * len(doc_filter))})"
-        args += sorted(doc_filter)
-    sql += " order by bm25(search), record, doc_id, record_id limit ?"
-    args.append(K_ENTRY)
-    return [tuple(r) for r in db.execute(sql, args)]
-
-
-def fuse(vector, keyword):
-    """Reciprocal rank fusion: each record scores 1 / (RRF_K + rank) in every arm that lists it."""
-    score = {}
-    for ranked in (vector, keyword):
-        for rank, key in enumerate(ranked, 1):
-            score[key] = score.get(key, 0.0) + 1 / (RRF_K + rank)
-    return sorted(score, key=score_then_key(score)), score
-
-
-def node_records(db, doc_id, node_id):
-    """Every record of one entity: its facts, its cells, its abstract."""
-    keys = [("fact", doc_id, f) for (f,) in db.execute("select fact_id from fact where doc_id = ? and subject = ?", (doc_id, node_id))]
-    keys += [("cell", doc_id, f"{node_id}@{u}") for (u,) in db.execute("select unit_id from cell where doc_id = ? and node_id = ?", (doc_id, node_id))]
-    keys += [("abstract", doc_id, node_id) for _ in db.execute("select 1 from abstract where doc_id = ? and node_id = ?", (doc_id, node_id))]
-    return keys
-
-
-def unit_records(db, doc_id, unit_id):
-    """Every record of a unit and of the units beside it (position plus or minus one)."""
-    position = db.execute("select position from unit where unit_id = ?", (unit_id,)).fetchone()
-    if position is None:
-        return []
-    units = [u for (u,) in db.execute("select unit_id from unit where doc_id = ? and position between ? and ?",
-                                      (doc_id, position[0] - 1, position[0] + 1))]
-    marks = ", ".join("?" * len(units))
-    keys = [("fact", doc_id, f) for (f,) in db.execute(f"select fact_id from fact where doc_id = ? and unit_id in ({marks})", [doc_id, *units])]
-    keys += [("cell", doc_id, f"{n}@{u}") for n, u in db.execute(f"select node_id, unit_id from cell where doc_id = ? and unit_id in ({marks})", [doc_id, *units])]
-    return keys
-
-
-def children_records(db, parent_id, doc_filter, skip=None):
-    """The records of a parent's children inside the filter, one child skipped."""
-    keys = []
-    for d, n in db.execute("select doc_id, node_id from instance_of where parent_id = ?", (parent_id,)):
-        if (d, n) != skip and (doc_filter is None or d in doc_filter):
-            keys += node_records(db, d, n)
-    return keys
-
-
-def edges(index, entry, doc_filter, parent_on):
-    """The neighbours of an entry record, by edge. A parent entry has one edge, to its children."""
-    db = index["db"]
-    record, doc_id, record_id = entry
-    if record == "parent":
-        return {"parent": children_records(db, int(record_id), doc_filter)}
-    if record == "fact":
-        node_id, unit_id = db.execute("select subject, unit_id from fact where doc_id = ? and fact_id = ?", (doc_id, record_id)).fetchone()
-    elif record == "cell":
-        node_id, unit_id = record_id.split("@")
-    else:
-        node_id, unit_id = record_id, None
-    out = {"node": node_records(db, doc_id, node_id), "document": unit_records(db, doc_id, unit_id) if unit_id else []}
-    if parent_on:
-        parent = db.execute("select parent_id from instance_of where doc_id = ? and node_id = ?", (doc_id, node_id)).fetchone()
-        out["parent"] = children_records(db, parent[0], doc_filter, skip=(doc_id, node_id)) if parent else []
-    return out
-
-
-def expand(index, scores, entries, doc_filter, parent_on):
-    """The pool: entries at hop 0, then per entry and edge the K_HOP neighbours with the best own
-    score at hop 1, the first route kept; and per edge how many neighbours were eligible."""
-    pool = {key: {"hops": 0, "route": "entry"} for key in entries if key[0] != "parent"}
-    eligible = []
-    for entry in entries:
-        for edge, keys in edges(index, entry, doc_filter, parent_on).items():
-            ranked = sorted((-own_score(index, scores, k), tuple(str(part) for part in k), k) for k in set(keys) if k != entry)
-            eligible.append({"entry": list(entry), "edge": edge, "eligible": len(ranked)})
-            for _, _, key in ranked[:K_HOP]:
-                pool.setdefault(key, {"hops": 1, "route": [edge, list(entry)]})
-    return pool, eligible
-
-
-def render(index, key):
-    """A record as the reader sees it: date | document | unit | text. One function, shared with the log."""
-    db, docs, names = index["db"], index["docs"], index["names"]
-    record, doc_id, record_id = key
-    doc = docs[doc_id]
-    title = doc_id[:8] if is_identifier(doc["title"], doc["source_uri"]) else doc["title"]
-    if record == "fact":
-        fields = ["doc_id", "fact_id", "subject", "subject_name", "predicate", "object", "object_is_node", "qualifiers", "occurred_at", "direction", "quote", "unit_id"]
-        f = dict(zip(fields, db.execute(f"select {', '.join(fields)} from fact where doc_id = ? and fact_id = ?", (doc_id, record_id)).fetchone()))
-        local = {f["subject"]: names.get((doc_id, f["subject"]), f["subject"]), f["object"]: names.get((doc_id, f["object"]), f["object"])}
-        unit = db.execute("select label, occurred_at from unit where unit_id = ?", (f["unit_id"],)).fetchone() or (None, None)
-        date = f["occurred_at"] or unit[1] or doc["occurred_at"]
-        text = fact_text(f, local) + (f'\n  quote: "{f["quote"]}"' if f["quote"] else "")
-        return f"{date} | {title} | {unit[0] or 'record'} | {text}"
-    if record == "cell":
-        node_id, unit_id = record_id.split("@")
-        text = db.execute("select text from cell where doc_id = ? and node_id = ? and unit_id = ?", (doc_id, node_id, unit_id)).fetchone()[0]
-        unit = db.execute("select label, occurred_at from unit where unit_id = ?", (unit_id,)).fetchone() or (None, None)
-        return f"{unit[1] or doc['occurred_at']} | {title} | {unit[0] or unit_id[:8]} | {names.get((doc_id, node_id), node_id)}: {text}"
-    text = db.execute("select text from abstract where doc_id = ? and node_id = ?", (doc_id, record_id)).fetchone()[0]
-    return f"{doc['occurred_at']} | {title} | abstract | {names.get((doc_id, record_id), record_id)}: {text}"
-
-
-def tokens(text):
-    """The reader's tokenizer when tiktoken is present, else four tokens per three words."""
-    global TOKENIZER
-    if TOKENIZER is None:
+def post(payload):
+    request = urllib.request.Request(
+        "https://api.openai.com/v1/chat/completions",
+        data=json.dumps(payload).encode("utf-8"),
+        headers={"Authorization": "Bearer " + KEY, "Content-Type": "application/json"},
+    )
+    for attempt in range(3):
         try:
-            import tiktoken
-            TOKENIZER = tiktoken.get_encoding("o200k_base")
-        except ImportError:
-            TOKENIZER = False
-    return len(TOKENIZER.encode(text)) if TOKENIZER else len(text.split()) * 4 // 3
+            with urllib.request.urlopen(request, timeout=900) as response:
+                return json.loads(response.read().decode("utf-8"))
+        except urllib.error.HTTPError as error:
+            busy = error.code == 429 or error.code >= 500
+            if not busy or attempt == 2:
+                raise
+            time.sleep(15 * (attempt + 1))
 
 
-def pack(index, pool, budget):
-    """Whole records in score order until the budget is spent; a record that does not fit is cut, not trimmed."""
-    context, used = [], 0
-    for key in sorted(pool, key=score_key(pool)):
-        text = render(index, key)
-        n = tokens(text)
-        if used + n > budget:
-            pool[key]["packed"] = False
-            continue
-        pool[key]["packed"] = True
-        context.append(text)
-        used += n
-    return context, used
+def ask_reader(question, context):
+    global SPENT
+    prompt = ANSWER_PROMPT.format(context="\n".join(context), question=question)
+    payload = {
+        "model": READER,
+        "reasoning_effort": "low",
+        "service_tier": "flex",
+        "response_format": {"type": "json_object"},
+        "messages": [{"role": "user", "content": prompt}],
+    }
+    started = time.time()
+    body = post(payload)
+
+    usage = body.get("usage", {})
+    price_in, price_out = PRICES.get(body.get("service_tier"), PRICES["default"])
+    cost = (usage.get("prompt_tokens", 0) * price_in + usage.get("completion_tokens", 0) * price_out) / 1e6
+    SPENT += cost
+    call = {"question": question, "model": body.get("model"), "tier": body.get("service_tier"),
+            "in": usage.get("prompt_tokens"), "out": usage.get("completion_tokens"),
+            "seconds": round(time.time() - started, 1), "cost": cost}
+    with open(OUT / "calls.jsonl", "a", encoding="utf-8") as f:
+        f.write(json.dumps(call) + "\n")
+
+    try:
+        return json.loads(body["choices"][0]["message"]["content"])["answer"]
+    except (ValueError, KeyError, TypeError):
+        return None
 
 
-def score_key(pool):
-    """The sort key for a pool: score descending, then the record key ascending."""
-    def key(record):
-        return (-pool[record]["score"], tuple(str(part) for part in record))
-    return key
-
-
-def retrieve(index, question, doc_filter=None, keyword=True, vector=True, parent=True, budget=BUDGET):
-    """The context for a question inside a filter, and its log line."""
-    q = embed([QUERY_PREFIX + question])[0]
-    scores = index["array"] @ q
-    mask = row_mask(index, doc_filter, parent)
-    V = vector_entries(index, scores, mask) if vector else []
-    W = keyword_entries(index["db"], question, doc_filter) if keyword else []
-    entries, rrf = fuse(V, W)
-    pool, eligible = expand(index, scores, entries, doc_filter, parent)
-    for key, item in pool.items():
-        item["score"] = own_score(index, scores, key) * DISCOUNT ** item["hops"]
-    context, used = pack(index, pool, budget)
-    line = {"asked_at": now(), "question": question, "filter": sorted(doc_filter) if doc_filter else None,
-            "arms": {"keyword": keyword, "vector": vector, "parent": parent, "budget": budget},
-            "constants": {"K_ENTRY": K_ENTRY, "K_HOP": K_HOP, "DISCOUNT": DISCOUNT, "RRF_K": RRF_K, "prefix": QUERY_PREFIX},
-            "entries": [{"record": list(k), "rank_v": V.index(k) + 1 if k in V else None, "rank_w": W.index(k) + 1 if k in W else None,
-                         "rrf": round(rrf[k], 5)} for k in entries],
-            "eligible": eligible,
-            "pool": [{"record": list(k), "hops": v["hops"], "route": v["route"], "score": round(v["score"], 4), "packed": v["packed"]}
-                     for k, v in pool.items()],
-            "context": context, "tokens": used}
-    with (OUT / "questions.jsonl").open("a", encoding="utf-8") as f:
-        f.write(json.dumps(line, ensure_ascii=False) + "\n")
-    return context, line
-
-
-def answer(question, context):
-    """One call to the reader with the packed context; the reply is logged with the call."""
-    reply = generate(ANSWER.format(context="\n".join(context), question=question), {"answer": str}, "answer",
-                     model=LUNA, effort="low", ctx={"question": question})
-    return reply["answer"] if reply else None
+if KEY:
+    print("reader", READER, "on the flex tier; key present")
+else:
+    print("reader", READER, "; no key: retrieval runs, the reader does not")
 
 # %% [markdown]
-# ## Two questions
+# ## Block 9: two questions
 #
-# The full system (both arms, the parent hop) on a book question inside the Oz series collection,
-# and on the LongMemEval question of history gpt4_2ba83207 inside that history's folder (the
-# benchmark's answer is Thrive Market). For each: the entries with the arm that found them, the
-# packed context, and the reader's answer when a key is present. Every question's full log line
-# goes to `questions.jsonl`.
+# A book question over the three Oz books, and the walkthrough's question over its history.
 
 # %%
-def history_docs(db, question_id):
-    """The filter for a LongMemEval history: the documents under its folder."""
-    prefix = f"chats/longmemeval/{question_id}/"
-    return {d for d, uri in db.execute("select doc_id, source_uri from document") if prefix in uri}
-
-
-def show(index, question, doc_filter, where):
-    """Retrieve, print the entries and the start of the context, and answer when a key is present."""
-    context, line = retrieve(index, question, doc_filter)
-    print(f"\n{question}\n  in {where}: {len(line['entries'])} entries, {len(line['pool'])} in the pool, "
+def show(question, doc_filter, where):
+    context, line = retrieve(store, question, doc_filter)
+    print()
+    print(question)
+    print(f"  in {where}: {len(line['entries'])} entries, {len(line['pool'])} in the pool, "
           f"{len(context)} packed in {line['tokens']} tokens")
+
     for entry in line["entries"][:8]:
         record = tuple(entry["record"])
-        shown = "parent " + record[2] if record[0] == "parent" else render(index, record)[:110]
+        if record[0] == "parent":
+            shown = "parent " + record[2]
+        else:
+            shown = render(store, record)[:110]
         print(f"  entry {record[0]:8} v{entry['rank_v'] or '-'} w{entry['rank_w'] or '-'}  {shown}")
+
     for text in context[:6]:
         print("  |", text[:160].replace("\n", " "))
+
     if KEY:
-        print("  answer:", answer(question, context))
+        print("  answer:", ask_reader(question, context))
 
 
-index = open_index(STORE)
-show(index, "Who is Tip, and what becomes of him?", collection_docs(index["db"], "Oz series"), "the Oz series")
-show(index, "Which grocery store did I spend the most money at in the past month?",
-     history_docs(index["db"], "gpt4_2ba83207"), "history gpt4_2ba83207")
-print(f"\nreader cost ${SPENT:.4f}")
+show("Who is Tip, and what becomes of him?", collection_filter(store, "Oz series"), "the Oz series")
+show("Which grocery store did I spend the most money at in the past month?",
+     history_filter(store, "gpt4_2ba83207"), "history gpt4_2ba83207")
+print()
+print(f"reader cost ${SPENT:.4f}")
