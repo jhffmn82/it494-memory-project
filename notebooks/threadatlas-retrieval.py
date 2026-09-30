@@ -1,11 +1,12 @@
 # %% [markdown]
-# # ThreadAtlas retrieval, draft
+# # ThreadAtlas retrieval
 #
-# The query path of `docs/retrieval.md` over the serving store and nothing else of the build.
-# Parked here on 2026-09-15 when retrieval left the global-layer notebook; not yet shaped into
-# blocks, not yet run as its own kernel. What it reads: `threadatlas.sqlite` and `threadatlas.npy`
-# beside it, both from the one dataset the global-layer notebook writes (ruled 2026-09-15). The helpers
-# below are copied from the global-layer notebook so this file imports nothing from it.
+# The query path over the serving store and nothing else of the build. What it reads:
+# `threadatlas.sqlite` and `threadatlas.npy` beside it, from the public dataset
+# `jhffmn/it494-threadatlas-store` (the global-layer notebook's output of 2026-09-15). The helpers
+# below are copied from the global-layer notebook so this file imports nothing from it. This is the
+# one-hop path (entry scans, rank fusion, one hop along the entity, the unit and the parent, whole
+# records packed); the route, traverse and substantiate design of `docs/retrieval.md` is not yet built.
 
 # %%
 import json
@@ -16,12 +17,24 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
-STORE = Path(os.environ.get("STORE", "data/global/threadatlas.sqlite"))
-OUT = STORE.parent
+KAGGLE_STORE = (Path("/kaggle/input/datasets/jhffmn/it494-threadatlas-store"), Path("/kaggle/input/it494-threadatlas-store"))
+STORE_DIR = next((d for d in (Path(os.environ.get("STORE_DIR", "data/global")), *KAGGLE_STORE) if (d / "threadatlas.sqlite").exists()), Path("data/global"))
+STORE = STORE_DIR / "threadatlas.sqlite"
+OUT = Path("/kaggle/working") if Path("/kaggle/working").exists() else STORE_DIR
 MODEL = "BAAI/bge-small-en-v1.5"
 DIMENSION = 384
 EMBEDDER = None
-LUNA = "gpt-5.6-luna"
+
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+
+for package in ("fastembed", "tiktoken"):     # not on Kaggle's image; fetched once, with Internet on
+    try:
+        __import__(package)
+    except ImportError:
+        import subprocess
+        subprocess.run([sys.executable, "-m", "pip", "install", "-q", package], check=True)
+print(f"store: {STORE}; output: {OUT}")
 
 
 def now():
@@ -65,9 +78,115 @@ def load_sidecar(store):
     return db, array
 
 
+# the model: block 2 of the global-layer notebook, the reader on Luna only
+import http.client
+import threading
+import urllib.error
+import urllib.request
+
+LUNA = "gpt-5.6-luna"                   # the reader
+SERVICE_TIER = "flex"
+PRICE = {"flex": {LUNA: (0.10, 0.60)}, "default": {LUNA: (0.20, 1.20)}}      # $ per million tokens in, out
+SPEND_STOP = float(os.environ.get("SPEND_STOP", "2"))
+CALLS = OUT / "calls.jsonl"
+SPENT = 0.0
+LOG_LOCK = threading.Lock()
+
+KEY = os.environ.get("OPENAI_API_KEY")
+if not KEY:
+    try:
+        from kaggle_secrets import UserSecretsClient
+        KEY = UserSecretsClient().get_secret("OPENAI_API_KEY")
+    except Exception:
+        KEY = None
+
+
+class SpendStop(Exception):
+    pass
+
+
+def log_call(row):
+    global SPENT
+    with LOG_LOCK:                                    # calls run in parallel
+        SPENT += row.get("cost", 0.0)
+        with CALLS.open("a", encoding="utf-8") as f:
+            f.write(json.dumps(row, ensure_ascii=False) + "\n")
+
+
+def post(payload):
+    data = json.dumps(payload).encode("utf-8")
+    request = urllib.request.Request("https://api.openai.com/v1/chat/completions", data=data, method="POST",
+                                     headers={"Authorization": f"Bearer {KEY}", "Content-Type": "application/json"})
+    with urllib.request.urlopen(request, timeout=900) as response:
+        return response.status, response.read().decode("utf-8")
+
+
+def call(payload, model, stage, ctx):
+    """One exchange under the retry policy; the parsed body. The cost is logged here."""
+    if not KEY:
+        raise RuntimeError("no OPENAI_API_KEY in the environment or as a Kaggle secret")
+    if SPENT >= SPEND_STOP:
+        raise SpendStop(f"spending stop: ${SPENT:.2f} of ${SPEND_STOP:.2f}")
+    started = time.time()
+    for attempt in range(3):
+        try:
+            status, text = post(payload)
+        except urllib.error.HTTPError as error:
+            status, text = error.code, error.read().decode("utf-8", errors="replace")
+        except (urllib.error.URLError, TimeoutError, OSError, http.client.HTTPException):
+            if attempt == 2:
+                raise
+            time.sleep(15 * (attempt + 1))
+            continue
+        if status == 429 and "insufficient_quota" in text:
+            raise SpendStop(f"OpenAI quota exhausted: {text[:200]}")
+        if status == 429 or status >= 500:
+            if attempt == 2:
+                raise RuntimeError(f"OpenAI {status}: {text}")
+            time.sleep(15 * (attempt + 1))
+            continue
+        if status != 200:
+            raise RuntimeError(f"OpenAI {status}: {text}")
+        break
+    body = json.loads(text)
+    tier = body.get("service_tier") or SERVICE_TIER
+    price_in, price_out = PRICE.get(tier, PRICE["default"])[model]
+    usage = body.get("usage", {})
+    tokens_in, tokens_out = usage.get("prompt_tokens", 0), usage.get("completion_tokens", 0)
+    log_call({"stage": stage, "model": body.get("model", model), "tier": tier, "in": tokens_in, "out": tokens_out,
+              "seconds": round(time.time() - started, 1), "cost": (tokens_in * price_in + tokens_out * price_out) / 1e6, **ctx})
+    return body
+
+
+def fits(reply, schema):
+    """`schema` maps each required key to its type, or None for any. The first problem, or None."""
+    if not isinstance(reply, dict):
+        return "reply is not an object"
+    for key, kind in schema.items():
+        if key not in reply:
+            return f"missing {key}"
+        if kind is not None and not isinstance(reply[key], kind):
+            return f"{key} is not {kind.__name__}"
+    return None
+
+
 def generate(prompt, schema, stage, model=LUNA, effort="low", ctx=None):
-    """The reader call; the global-layer notebook's block 2 is the shape to copy in when this runs."""
-    raise NotImplementedError("the model block is not in this draft")
+    """The reply as a dict that fits `schema`, or None after one retry with the error appended."""
+    ctx = ctx or {}
+    for attempt in range(2):
+        body = call({"model": model, "reasoning_effort": effort, "service_tier": SERVICE_TIER,
+                     "response_format": {"type": "json_object"}, "messages": [{"role": "user", "content": prompt}]},
+                    model, stage, ctx)
+        try:
+            reply = json.loads(body["choices"][0]["message"]["content"] or "")
+            error = fits(reply, schema)
+        except (ValueError, KeyError, IndexError, TypeError) as e:
+            error = f"{type(e).__name__}: {e}"
+        if error is None:
+            return reply
+        log_call({"stage": stage, "model": model, "schema_miss": error[:200], "cost": 0.0, **ctx})
+        prompt += f"\n\nYour previous reply did not fit the required shape ({error}). Reply again, in exactly the shape asked for."
+    return None
 
 # %% [markdown]
 # ## Retrieval
@@ -345,21 +464,26 @@ def answer(question, context):
     return reply["answer"] if reply else None
 
 # %% [markdown]
-# ## A question over the largest collection
+# ## Two questions
 #
-# The full system (both arms, the parent hop) on one question inside the largest collection;
-# the entries with the arm that found them, the pool by hop, and the packed context. The
-# reader answers when a key is present.
+# The full system (both arms, the parent hop) on a book question inside the Oz series collection,
+# and on the LongMemEval question of history gpt4_2ba83207 inside that history's folder (the
+# benchmark's answer is Thrive Market). For each: the entries with the arm that found them, the
+# packed context, and the reader's answer when a key is present. Every question's full log line
+# goes to `questions.jsonl`.
 
 # %%
-if __name__ == "__main__" and STORE.exists():
-    index = open_index(STORE)
-    collection = index["db"].execute("select name from collection order by (select count(*) from document_in i where i.collection_id = collection.collection_id) desc").fetchone()
-    doc_filter = collection_docs(index["db"], collection[0]) if collection else None
-    question = "Who is Tip, and what becomes of him?"
+def history_docs(db, question_id):
+    """The filter for a LongMemEval history: the documents under its folder."""
+    prefix = f"chats/longmemeval/{question_id}/"
+    return {d for d, uri in db.execute("select doc_id, source_uri from document") if prefix in uri}
+
+
+def show(index, question, doc_filter, where):
+    """Retrieve, print the entries and the start of the context, and answer when a key is present."""
     context, line = retrieve(index, question, doc_filter)
-    print(f"{question}\n  in {collection[0] if collection else 'every document'}: {len(line['entries'])} entries, "
-          f"{len(line['pool'])} in the pool, {len(context)} packed in {line['tokens']} tokens")
+    print(f"\n{question}\n  in {where}: {len(line['entries'])} entries, {len(line['pool'])} in the pool, "
+          f"{len(context)} packed in {line['tokens']} tokens")
     for entry in line["entries"][:8]:
         record = tuple(entry["record"])
         shown = "parent " + record[2] if record[0] == "parent" else render(index, record)[:110]
@@ -368,3 +492,10 @@ if __name__ == "__main__" and STORE.exists():
         print("  |", text[:160].replace("\n", " "))
     if KEY:
         print("  answer:", answer(question, context))
+
+
+index = open_index(STORE)
+show(index, "Who is Tip, and what becomes of him?", collection_docs(index["db"], "Oz series"), "the Oz series")
+show(index, "Which grocery store did I spend the most money at in the past month?",
+     history_docs(index["db"], "gpt4_2ba83207"), "history gpt4_2ba83207")
+print(f"\nreader cost ${SPENT:.4f}")
