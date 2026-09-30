@@ -2,9 +2,11 @@
 # # ThreadAtlas retrieval
 #
 # Given a question and the documents to search, find the stored records that answer it and hand
-# them, whole and dated, to a reader model. This notebook reads the store the global layer built and
-# nothing else: no Step 0, no Step 1, no model call until the reader. The same code runs on a book, a
-# series of books, or one user's chat history; nothing branches on the question or the corpus.
+# them, whole and dated, to a reader model, each fact with the passage of the source it was read
+# from. This notebook reads the store the global layer built, and the documents' text from Step 0
+# by reference: the store keeps a fact's unit and offsets, Step 0 keeps the text they point into.
+# No model call until the reader. The same code runs on a book, a series of books, or one user's
+# chat history; nothing branches on the question or the corpus.
 #
 # ## What comes in
 #
@@ -13,12 +15,16 @@
 # [global-layer notebook](https://www.kaggle.com/code/jhffmn/threadatlas-global-layer) on 2026-09-15.
 # 81 documents, 6,929 facts, 1,826 cells, 891 abstracts, 1,313 parents, 15,739 vectors.
 #
+# The public dataset [ThreadAtlas Step 0](https://www.kaggle.com/datasets/jhffmn/it494-threadatlas-step0):
+# `documents.jsonl` (every document's full text) and `units.jsonl` (each unit's start and end in
+# it). Only the store's 81 documents are read.
+#
 # | table | what retrieval uses it for |
 # |---|---|
 # | `document` | the title and date printed on every record; the filter is a set of `doc_id` |
 # | `unit` | a record's chapter or chat turn, its date, and which units sit beside it |
 # | `node` | the name of the entity a record is about |
-# | `fact`, `cell`, `abstract` | the three kinds of record the reader can be given |
+# | `fact`, `cell`, `abstract` | the three kinds of record the reader can be given; a fact's `unit_id`, `quote_start` and `quote_end` point into the Step 0 text |
 # | `parent`, `instance_of` | the same entity in other documents |
 # | `collection`, `document_in` | a named set of documents, used as a filter |
 # | `vec_row` | which record each row of `threadatlas.npy` belongs to |
@@ -40,6 +46,12 @@
 # reader: finding one only leads to its instances. A record's similarity to the question is the
 # similarity of its **best** sentence, and a record is always packed whole, never cut.
 #
+# A fact goes down to its source: fact, then its unit, then the raw text of that unit in Step 0.
+# The reader gets the fact and the **passage** it was read from. For a chat the passage is the whole
+# turn, since a turn is one unit. For a book or paper, whose units are chapters, it is the paragraph
+# around the quote, inside the unit. A passage longer than 2,000 characters is cut to the 2,000
+# around the quote. When two facts come from one passage, the passage is given once.
+#
 # ## The algorithm
 #
 # ```
@@ -60,7 +72,9 @@
 #
 #     score of a record = its own similarity x 0.8 for each hop
 #     render every record as  date | document | unit | text
+#         a fact also carries its source passage: fact -> unit -> the raw text in Step 0
 #     pack records whole, best score first, until 6,000 tokens are used
+#         a passage already packed is not repeated
 #     reader(question + packed records) -> answer
 # ```
 #
@@ -91,12 +105,13 @@
 #    entity and 100 through the unit.
 # 6. **Scoring.** Every record in the pool is scored on its own similarity to the question, times
 #    0.8 if it was reached by a hop. An entry at 0.60 and a hop record at 0.75 both score 0.60.
-# 7. **Packing.** Each record is rendered with its date, document, unit and text (a fact with its
-#    quote), and records are added whole, best first, until the next one would pass 6,000 tokens.
-#    65 records went in: 31 entries and 34 reached by the hop. The Walmart $120 fact is second, the
-#    Publix $60 fact fourth, and the Thrive Market $150 fact sixteenth. The last record packed scored
-#    0.415.
-# 8. **The reader.** gpt-5.6-luna gets the 65 records and the question and answers in JSON. It is
+# 7. **Packing.** Each record is rendered with its date, document, unit and text. A fact also gets
+#    the turn it came from, read from Step 0 at the fact's unit. Records are added whole, best first,
+#    until the next one would pass 6,000 tokens. 32 records went in: 30 entries and 2 reached by the
+#    hop, 10 of them facts whose turn was already given above. The Walmart $120 fact is second, the
+#    Publix $60 fact fourth, and the Thrive Market $150 fact sixteenth, each with the user's own words.
+#    The last record packed scored 0.51.
+# 8. **The reader.** gpt-5.6-luna gets the 32 records and the question and answers in JSON. It is
 #    told to use the records and nothing else.
 #
 # The Oz question in Block 9 ("Who is Tip, and what becomes of him?", filtered to the three Oz
@@ -112,6 +127,7 @@
 # | `DISCOUNT` | 0.8 | the score multiplier for a record reached by a hop |
 # | `RRF_K` | 60 | the reciprocal rank fusion constant, as Cormack et al. fixed it |
 # | `BUDGET` | 6,000 | tokens of context the reader is given |
+# | `MAX_PASSAGE` | 2,000 | characters of source text given with one fact |
 #
 # None of them has been tuned. They are logged with every question so a run can be repeated.
 #
@@ -153,22 +169,22 @@
 # ## What it does not do yet
 #
 # - The reader is not told the date the question is asked, so "the past month" has no anchor.
-# - Facts read from the same sentence are packed separately, each with the same quote.
 # - The design in `docs/retrieval.md` (route, traverse, substantiate, bundles) is not built; this
 #   is the one-hop version.
 # - No reranker and no tuned constants.
 #
 # ## Running it
 #
-# On Kaggle: attach the `it494-threadatlas-store` dataset, turn Internet on (fastembed fetches the
-# embedding model once), and add an `OPENAI_API_KEY` secret for the reader. Without a key everything
-# runs except the answer. Locally: set `STORE_DIR` to a folder holding the two files and run the
-# script.
+# On Kaggle: attach the `it494-threadatlas-store` and `it494-threadatlas-step0` datasets, turn
+# Internet on (fastembed fetches the embedding model once), and add an `OPENAI_API_KEY` secret for
+# the reader. Without a key everything runs except the answer. Locally: set `STORE_DIR` to a folder
+# holding the store's two files and `STEP0_DIR` to one holding Step 0's, and run the script.
 
 # %% [markdown]
 # ## Block 1: files and settings
 #
-# Where the store is, where the output goes, and the constants the walkthrough names.
+# Where the store and the Step 0 text are, where the output goes, and the constants the walkthrough
+# names.
 
 # %%
 import json
@@ -185,7 +201,7 @@ from pathlib import Path
 
 import numpy as np
 
-VERSION = "threadatlas-retrieval 0.2"
+VERSION = "threadatlas-retrieval 0.3"
 
 try:
     import fastembed
@@ -212,6 +228,19 @@ for folder in places_to_look:
 if STORE_DIR is None:
     raise SystemExit("threadatlas.sqlite not found: attach the it494-threadatlas-store dataset")
 
+places_to_look = [
+    Path(os.environ.get("STEP0_DIR", "data/step0")),
+    Path("/kaggle/input/datasets/jhffmn/it494-threadatlas-step0"),
+    Path("/kaggle/input/it494-threadatlas-step0"),
+]
+STEP0_DIR = None
+for folder in places_to_look:
+    if (folder / "documents.jsonl").exists():
+        STEP0_DIR = folder
+        break
+if STEP0_DIR is None:
+    raise SystemExit("documents.jsonl not found: attach the it494-threadatlas-step0 dataset")
+
 if Path("/kaggle/working").exists():
     OUT = Path("/kaggle/working")
 else:
@@ -226,9 +255,11 @@ DISCOUNT = 0.8
 RRF_K = 60
 BUDGET = int(os.environ.get("BUDGET", "6000"))
 QUERY_PREFIX = os.environ.get("QUERY_PREFIX", "")
+MAX_PASSAGE = 2000
 
 print(VERSION)
 print("store: ", STORE_DIR / "threadatlas.sqlite")
+print("text:  ", STEP0_DIR / "documents.jsonl")
 print("output:", OUT)
 
 # %% [markdown]
@@ -237,7 +268,8 @@ print("output:", OUT)
 # The store and its vectors, checked against each other, and the lookups every question uses:
 # which record each vector row belongs to, which documents each parent reaches, each document's
 # title and date, and each entity's name. Then the two filters: a collection by name, and a
-# LongMemEval history by its folder.
+# LongMemEval history by its folder. Last, the source text: each of the store's documents from
+# Step 0, and the start and end of each of its units.
 
 # %%
 def open_store(folder):
@@ -303,8 +335,36 @@ def history_filter(store, question_id):
     return doc_ids
 
 
+def read_source(store, step0):
+    texts = {}
+    with open(step0 / "documents.jsonl", encoding="utf-8") as f:
+        for line in f:
+            row = json.loads(line)
+            if row["doc_id"] in store["documents"]:
+                texts[row["doc_id"]] = row["text"]
+
+    unit_bounds = {}
+    with open(step0 / "units.jsonl", encoding="utf-8") as f:
+        for line in f:
+            row = json.loads(line)
+            if row["doc_id"] in store["documents"]:
+                unit_bounds[row["unit_id"]] = (row["start"], row["end"])
+
+    missing = 0
+    for doc_id in store["documents"]:
+        if doc_id not in texts:
+            missing += 1
+    if missing > 0:
+        raise SystemExit(f"{missing} documents in the store have no text in Step 0")
+
+    store["texts"] = texts
+    store["unit_bounds"] = unit_bounds
+
+
 store = open_store(STORE_DIR)
-print(len(store["documents"]), "documents,", len(store["record_of_row"]), "vectors")
+read_source(store, STEP0_DIR)
+print(len(store["documents"]), "documents,", len(store["record_of_row"]), "vectors,",
+      len(store["unit_bounds"]), "units of text from Step 0")
 
 # %% [markdown]
 # ## Block 3: scoring the question against every vector
@@ -525,8 +585,9 @@ def expand(store, row_scores, entries, doc_filter, use_parents):
 # %% [markdown]
 # ## Block 6: what the reader sees
 #
-# Steps 6 and 7: each record as one dated line, and the packing to the token budget. A chat's
-# title is its session id, so the first 8 characters of its `doc_id` are shown instead.
+# Steps 6 and 7: each record as one dated line, a fact with its source passage, and the packing to
+# the token budget. A chat's title is its session id, so the first 8 characters of its `doc_id` are
+# shown instead.
 
 # %%
 TOKENIZER = None
@@ -554,6 +615,28 @@ def unit_label_and_date(db, unit_id):
     return found[0], found[1]
 
 
+def source_passage(store, doc_id, unit_id, quote_start, quote_end):
+    text = store["texts"][doc_id]
+    unit_start, unit_end = store["unit_bounds"][unit_id]
+    kind = store["db"].execute("select kind from unit where unit_id = ?", (unit_id,)).fetchone()[0]
+
+    if kind == "user" or kind == "assistant":
+        start = unit_start
+        end = unit_end
+    else:
+        start = text.rfind("\n\n", unit_start, quote_start)
+        if start == -1:
+            start = unit_start
+        end = text.find("\n\n", quote_end, unit_end)
+        if end == -1:
+            end = unit_end
+
+    if end - start > MAX_PASSAGE:
+        start = max(unit_start, quote_start - MAX_PASSAGE // 2)
+        end = min(unit_end, quote_end + MAX_PASSAGE // 2)
+    return start, end, text[start:end].strip()
+
+
 def fact_line(fact, names):
     subject = names.get(fact["subject"], fact["subject"])
     if fact["direction"] == "mentioned" and fact["subject_name"]:
@@ -567,7 +650,7 @@ def fact_line(fact, names):
     return line
 
 
-def render(store, record):
+def render(store, record, shown):
     db = store["db"]
     names = store["entity_names"]
     kind, doc_id, record_id = record
@@ -576,7 +659,7 @@ def render(store, record):
 
     if kind == "fact":
         fields = ["subject", "subject_name", "predicate", "object", "object_is_node",
-                  "qualifiers", "occurred_at", "direction", "quote", "unit_id"]
+                  "qualifiers", "occurred_at", "direction", "quote", "quote_start", "quote_end", "unit_id"]
         values = db.execute("select " + ", ".join(fields) + " from fact where doc_id = ? and fact_id = ?",
                             (doc_id, record_id)).fetchone()
         fact = {}
@@ -590,9 +673,15 @@ def render(store, record):
         label, unit_date = unit_label_and_date(db, fact["unit_id"])
         date = fact["occurred_at"] or unit_date or document_date
         text = fact_line(fact, local_names)
+        passage = None
         if fact["quote"]:
-            text += '\n  quote: "' + fact["quote"] + '"'
-        return f"{date} | {title} | {label or 'record'} | {text}"
+            start, end, words = source_passage(store, doc_id, fact["unit_id"], fact["quote_start"], fact["quote_end"])
+            passage = (doc_id, start, end)
+            if passage in shown:
+                text += "\n  source: the same passage as above"
+            else:
+                text += '\n  source: "' + words + '"'
+        return f"{date} | {title} | {label or 'record'} | {text}", passage
 
     if kind == "cell":
         node_id, unit_id = record_id.split("@")
@@ -600,11 +689,11 @@ def render(store, record):
                           (doc_id, node_id, unit_id)).fetchone()[0]
         label, unit_date = unit_label_and_date(db, unit_id)
         entity = names.get((doc_id, node_id), node_id)
-        return f"{unit_date or document_date} | {title} | {label or unit_id[:8]} | {entity}: {text}"
+        return f"{unit_date or document_date} | {title} | {label or unit_id[:8]} | {entity}: {text}", None
 
     text = db.execute("select text from abstract where doc_id = ? and node_id = ?", (doc_id, record_id)).fetchone()[0]
     entity = names.get((doc_id, record_id), record_id)
-    return f"{document_date} | {title} | abstract | {entity}: {text}"
+    return f"{document_date} | {title} | abstract | {entity}: {text}", None
 
 
 def pack(store, pool, budget):
@@ -614,8 +703,9 @@ def pack(store, pool, budget):
 
     context = []
     used = 0
+    shown = set()
     for record in best_first(pool, scores):
-        text = render(store, record)
+        text, passage = render(store, record, shown)
         size = count_tokens(text)
         if used + size > budget:
             pool[record]["packed"] = False
@@ -623,6 +713,8 @@ def pack(store, pool, budget):
         pool[record]["packed"] = True
         context.append(text)
         used += size
+        if passage is not None:
+            shown.add(passage)
     return context, used
 
 # %% [markdown]
@@ -787,7 +879,7 @@ def show(question, doc_filter, where):
         if record[0] == "parent":
             shown = "parent " + record[2]
         else:
-            shown = render(store, record)[:110]
+            shown = render(store, record, set())[0][:110]
         print(f"  entry {record[0]:8} v{entry['rank_v'] or '-'} w{entry['rank_w'] or '-'}  {shown}")
 
     for text in context[:6]:
