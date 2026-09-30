@@ -49,8 +49,9 @@
 # A fact goes down to its source: fact, then its unit, then the raw text of that unit in Step 0.
 # The reader gets the fact and the **passage** it was read from. For a chat the passage is the whole
 # turn, since a turn is one unit. For a book or paper, whose units are chapters, it is the paragraph
-# around the quote, inside the unit. A passage longer than 2,000 characters is cut to the 2,000
-# around the quote. When two facts come from one passage, the passage is given once.
+# around the quote, inside the unit (a blank line ends a paragraph). A passage longer than 2,000
+# characters is cut to the quote and 1,000 characters on either side. When two facts come from one
+# passage, the passage is given once.
 #
 # ## The algorithm
 #
@@ -85,7 +86,8 @@
 # mentioned three purchases in three different sessions, and the answer needs all three. The numbers
 # below are this notebook's own log for that question.
 #
-# 1. **The filter.** The history is the 53 sessions under `chats/longmemeval/gpt4_2ba83207/`. Every
+# 1. **The filter.** The history is the 53 sessions under `chats/longmemeval/gpt4_2ba83207/`, from
+#    `path_filter`. Every
 #    vector outside those 53 documents is masked out. A parent's vector stays only when one of its
 #    instances is in the filter.
 # 2. **The vector scan.** The question becomes one 384-number vector, and one matrix product gives
@@ -114,9 +116,9 @@
 # 8. **The reader.** gpt-5.6-luna gets the 32 records and the question and answers in JSON. It is
 #    told to use the records and nothing else.
 #
-# The Oz question in Block 9 ("Who is Tip, and what becomes of him?", filtered to the three Oz
-# books) shows the other side: there the parent edge offered 1,972 records, since the Scarecrow, the
-# Tin Woodman and others are one parent across the three books, and 88 of them reached the pool.
+# A book question shows the parent edge at work: "Who is Tip, and what becomes of him?" over the
+# three Oz books has the parent edge offering 1,972 records, since the Scarecrow, the Tin Woodman
+# and others are one parent across the three books, and 88 of them reach the pool.
 #
 # ## The constants
 #
@@ -127,7 +129,7 @@
 # | `DISCOUNT` | 0.8 | the score multiplier for a record reached by a hop |
 # | `RRF_K` | 60 | the reciprocal rank fusion constant, as Cormack et al. fixed it |
 # | `BUDGET` | 6,000 | tokens of context the reader is given |
-# | `MAX_PASSAGE` | 2,000 | characters of source text given with one fact |
+# | `MAX_PASSAGE` | 2,000 | characters of source text given with one fact; a longer passage is cut to the quote and 1,000 either side |
 #
 # None of them has been tuned. They are logged with every question so a run can be repeated.
 #
@@ -267,8 +269,8 @@ print("output:", OUT)
 #
 # The store and its vectors, checked against each other, and the lookups every question uses:
 # which record each vector row belongs to, which documents each parent reaches, each document's
-# title and date, and each entity's name. Then the two filters: a collection by name, and a
-# LongMemEval history by its folder. Last, the source text: each of the store's documents from
+# title and date, and each entity's name. Then the two filters: a collection by name, and the
+# documents under a path, such as one LongMemEval history's folder. Last, the source text: each of the store's documents from
 # Step 0, and the start and end of each of its units.
 
 # %%
@@ -326,11 +328,10 @@ def collection_filter(store, name):
     return doc_ids
 
 
-def history_filter(store, question_id):
-    folder = f"chats/longmemeval/{question_id}/"
+def path_filter(store, path):
     doc_ids = set()
     for doc_id, source_uri in store["db"].execute("select doc_id, source_uri from document"):
-        if folder in source_uri:
+        if path in source_uri:
             doc_ids.add(doc_id)
     return doc_ids
 
@@ -620,16 +621,16 @@ def source_passage(store, doc_id, unit_id, quote_start, quote_end):
     unit_start, unit_end = store["unit_bounds"][unit_id]
     kind = store["db"].execute("select kind from unit where unit_id = ?", (unit_id,)).fetchone()[0]
 
-    if kind == "user" or kind == "assistant":
-        start = unit_start
-        end = unit_end
-    else:
-        start = text.rfind("\n\n", unit_start, quote_start)
-        if start == -1:
-            start = unit_start
-        end = text.find("\n\n", quote_end, unit_end)
-        if end == -1:
-            end = unit_end
+    start = unit_start
+    end = unit_end
+    if kind != "user" and kind != "assistant":
+        for blank_line in ["\n\n", "\r\n\r\n"]:
+            found = text.rfind(blank_line, unit_start, quote_start)
+            if found != -1 and found > start:
+                start = found
+            found = text.find(blank_line, quote_end, unit_end)
+            if found != -1 and found < end:
+                end = found
 
     if end - start > MAX_PASSAGE:
         start = max(unit_start, quote_start - MAX_PASSAGE // 2)
@@ -862,35 +863,32 @@ else:
     print("reader", READER, "; no key: retrieval runs, the reader does not")
 
 # %% [markdown]
-# ## Block 9: two questions
+# ## Block 9: examples
 #
-# A book question over the three Oz books, and the walkthrough's question over its history.
+# Two questions drawn at random (seed 20260930) from the benchmarks' own questions about documents in
+# this store, each followed by the text retrieval returns, as the reader receives it. The first is
+# LongMemEval question e8a79c70 (its answer, from the benchmark: 2-3 eggs), searched over all 71 chat
+# sessions in the store. The second is a GraphRAG-Bench question about the novel Dandy Dick (the
+# benchmark's answer: THE DEAN is also known as Gus).
 
 # %%
-def show(question, doc_filter, where):
+def ask(question, doc_filter):
     context, line = retrieve(store, question, doc_filter)
+    print("QUESTION:", question)
     print()
-    print(question)
-    print(f"  in {where}: {len(line['entries'])} entries, {len(line['pool'])} in the pool, "
-          f"{len(context)} packed in {line['tokens']} tokens")
-
-    for entry in line["entries"][:8]:
-        record = tuple(entry["record"])
-        if record[0] == "parent":
-            shown = "parent " + record[2]
-        else:
-            shown = render(store, record, set())[0][:110]
-        print(f"  entry {record[0]:8} v{entry['rank_v'] or '-'} w{entry['rank_w'] or '-'}  {shown}")
-
-    for text in context[:6]:
-        print("  |", text[:160].replace("\n", " "))
-
+    print("TEXT RETURNED:")
+    print()
+    for text in context:
+        print(text)
+        print()
     if KEY:
-        print("  answer:", ask_reader(question, context))
+        print("ANSWER:", ask_reader(question, context))
 
+# %%
+ask("I was going through our previous conversation about making a classic French omelette, and I wanted "
+    "to confirm - how many eggs did you say we need for the recipe?",
+    path_filter(store, "chats/longmemeval/"))
 
-show("Who is Tip, and what becomes of him?", collection_filter(store, "Oz series"), "the Oz series")
-show("Which grocery store did I spend the most money at in the past month?",
-     history_filter(store, "gpt4_2ba83207"), "history gpt4_2ba83207")
-print()
-print(f"reader cost ${SPENT:.4f}")
+# %%
+ask("What is the connection between THE DEAN and the character Gus in 'Dandy Dick'?",
+    path_filter(store, "graphrag-bench/Novel-40700"))
