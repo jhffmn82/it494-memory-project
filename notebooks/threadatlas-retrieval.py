@@ -55,31 +55,86 @@
 #
 # ## The algorithm
 #
+# Numbers in brackets point to the references below the pseudocode.
+#
 # ```
-# retrieve(question, filter):
-#     q = embed(question)                                   bge-small-en-v1.5, 384 numbers
-#     similarity of q to every vector                       one matrix product
+# INPUT      question   text
+#            filter     a set of documents (a history, a collection, a book), or none
+# CONSTANTS  K_ENTRY = 20   K_HOP = 10   DISCOUNT = 0.8   RRF_K = 60
+#            BUDGET = 6,000 tokens   MAX_PASSAGE = 2,000 characters
 #
-#     vector entries  = the 20 records inside the filter with the most similar best sentence
-#     keyword entries = the 20 records inside the filter BM25 ranks best for the question's words
-#     entries = both lists fused by reciprocal rank: a record scores 1 / (60 + rank) in each list
+# 1. SCORE EVERY VECTOR                                                         [4] [3]
+#    q = embed(question)                         384 numbers, length 1
+#    for each row i of the vector array:
+#        sim[i] = q . v[i]                       cosine, one matrix product
+#    score(record) = the largest sim[i] among the record's rows
+#        a fact has one row; a cell or an abstract has one row per sentence
 #
-#     pool = the entries (hop 0)
-#     for each entry, three edges:
-#         entity    every other record of the same entity in the same document
-#         unit      every record of the same unit and of the units just before and after it
-#         parent    every record of the same entity in the other documents of the filter
-#         add the 10 most similar records of each edge to the pool (hop 1)
+# 2. VECTOR ENTRIES
+#    drop every row whose document is outside the filter
+#    keep a parent's rows only when one of its instances is inside the filter
+#    V = the K_ENTRY records with the highest score        ties broken by record id
 #
-#     score of a record = its own similarity x 0.8 for each hop
-#     render every record as  date | document | unit | text
-#         a fact also carries its source passage: fact -> unit -> the raw text in Step 0
-#     pack records whole, best score first, until 6,000 tokens are used
-#         a passage already packed is not repeated
-#     reader(question + packed records) -> answer
+# 3. KEYWORD ENTRIES                                                            [2]
+#    match = the question's words joined by OR
+#    W = the K_ENTRY records inside the filter that BM25 ranks best for match
+#
+# 4. FUSE THE TWO LISTS                                                         [1]
+#    for each record r in V or W:
+#        rrf(r) = sum, over the lists that hold r, of 1 / (RRF_K + rank of r in that list)
+#    entries = the records ordered by rrf, highest first
+#
+# 5. ONE HOP FROM EVERY ENTRY                                                   [5] [6]
+#    pool = empty
+#    for each entry e that is not a parent:
+#        pool[e] = hop 0
+#    for each entry e, in order:
+#        if e is a parent:
+#            edges = { parent: the records of e's instances inside the filter }
+#        else:
+#            n = the entity e is about
+#            u = the unit e was read from          an abstract has none
+#            edges = { entity: every record of n in e's document
+#                      unit:   every fact and cell of units u-1, u and u+1
+#                      parent: every record of the other instances of n's parent
+#                              inside the filter }
+#        for each edge:
+#            candidates = the edge's records, without e
+#            best = the K_HOP candidates with the highest score(record)
+#            for each record r in best:
+#                if r is not in pool:  pool[r] = hop 1
+#
+# 6. RANK THE POOL                                                              [7]
+#    for each record r in pool:
+#        final(r) = score(r) x DISCOUNT ^ hop(r)
+#
+# 7. RENDER AND PACK                                                            [8] [5]
+#    context = empty    used = 0    shown = empty
+#    for each record r in pool, by final(r), highest first:
+#        text = date | document | unit | the record's own text
+#        if r is a fact with a quote:
+#            passage = source_passage(r)
+#            if passage is in shown:  text = text + "the same passage as above"
+#            else:                    text = text + passage
+#        if used + tokens(text) > BUDGET:
+#            skip r
+#        else:
+#            add text to context;  used = used + tokens(text);  add passage to shown
+#
+#    source_passage(fact):                       fact -> unit -> raw text in Step 0
+#        text = the document's text in Step 0
+#        a, b = the start and end of the fact's unit in text
+#        if the unit is a chat turn:  passage = text[a : b]
+#        else:                        passage = the paragraph around the quote, inside a..b
+#        if passage is longer than MAX_PASSAGE:
+#            passage = the quote and MAX_PASSAGE / 2 characters on either side, inside a..b
+#        return passage
+#
+# 8. ANSWER                                                                     [6]
+#    answer = reader(question, context)          the records and nothing else
 # ```
 #
-# ## A walkthrough: one question, step by step
+# # ## A walkthrough: one question, step by step
 #
 # LongMemEval question gpt4_2ba83207 asks, of one user's chat history: *"Which grocery store did I
 # spend the most money at in the past month?"* The benchmark's answer is Thrive Market. The user
@@ -133,35 +188,42 @@
 #
 # None of them has been tuned. They are logged with every question so a run can be repeated.
 #
-# ## Where it comes from
+# ## References
 #
 # None of the steps is new. Each is a standard technique, and the combination is close to what
 # published graph memory systems already do.
 #
-# - **Two scans fused by rank.** Hybrid lexical and dense retrieval, fused with reciprocal rank
-#   fusion: G. V. Cormack, C. L. A. Clarke and S. Buettcher, "Reciprocal Rank Fusion outperforms
-#   Condorcet and individual Rank Learning Methods", SIGIR 2009, where k = 60 was fixed during a
-#   pilot study. S. Bruch, S. Gai and A. Ingber, "An Analysis of Fusion Functions for Hybrid
-#   Retrieval" (arXiv 2210.11934, 2023), find that a tuned weighted sum of the two scores does
-#   better than RRF.
-# - **A record scored by its best sentence.** MaxP: Z. Dai and J. Callan, "Deeper Text Understanding
-#   for IR with Contextual Neural Language Modeling", SIGIR 2019, which scores a document by its best
-#   passage.
-# - **Embed small, return large.** Sentence-window retrieval, as in LlamaIndex's
-#   `SentenceWindowNodeParser`: the vector is a sentence, the model reads the text around it.
-# - **Enter a graph by similarity, expand to the neighbours, fill a token budget.** Microsoft
-#   GraphRAG's local search (https://microsoft.github.io/graphrag/query/local_search/) enters through
-#   the entities most similar to the query, pulls their relationships and source text, and cuts the
-#   candidates to a fixed context window. LightRAG (Z. Guo et al., arXiv 2410.05779, 2024) adds the
-#   one-hop neighbours of what it retrieves. HippoRAG (B. Jimenez Gutierrez et al., NeurIPS 2024)
-#   spreads from the query's entities by Personalized PageRank instead of a fixed hop.
-# - **The closest match.** Zep (P. Rasmussen et al., "Zep: A Temporal Knowledge Graph Architecture
-#   for Agent Memory", arXiv 2501.13956, 2025) searches by cosine similarity, BM25 and breadth-first
-#   search over n hops, reranks with RRF among others, and gives the model each fact with its date
-#   range. That is this path's shape, and Zep reports on LongMemEval, one of the two benchmarks here.
-# - **A score that shrinks with each hop.** Spreading activation, long used in information
-#   retrieval (F. Crestani, "Application of Spreading Activation Techniques in Information
-#   Retrieval", Artificial Intelligence Review 11, 1997).
+# 1. **Reciprocal rank fusion (step 4).** G. V. Cormack, C. L. A. Clarke and S. Buettcher,
+#    "Reciprocal Rank Fusion outperforms Condorcet and individual Rank Learning Methods", SIGIR 2009.
+#    The formula and k = 60 are theirs. S. Bruch, S. Gai and A. Ingber, "An Analysis of Fusion
+#    Functions for Hybrid Retrieval", arXiv 2210.11934, 2023, find that a tuned weighted sum of the
+#    two scores does better than RRF.
+# 2. **BM25 (step 3).** S. Robertson and H. Zaragoza, "The Probabilistic Relevance Framework: BM25
+#    and Beyond", Foundations and Trends in Information Retrieval 3(4), 2009. Here it is SQLite
+#    FTS5's built-in `bm25()`.
+# 3. **A record scored by its best sentence (step 1).** MaxP: Z. Dai and J. Callan, "Deeper Text
+#    Understanding for IR with Contextual Neural Language Modeling", SIGIR 2019, which scores a
+#    document by its best passage.
+# 4. **The embedding (step 1).** `BAAI/bge-small-en-v1.5`: S. Xiao et al.,
+#    "C-Pack: Packaged Resources To Advance General Chinese Embedding", arXiv 2309.07597, 2023.
+# 5. **Enter a graph by similarity, expand to the neighbours, fill a token budget (steps 5 and 7).**
+#    Microsoft GraphRAG's local search (https://microsoft.github.io/graphrag/query/local_search/)
+#    enters through the entities most similar to the query, pulls their relationships and source
+#    text, and cuts the candidates to a fixed context window. LightRAG (Z. Guo et al., arXiv
+#    2410.05779, 2024) adds the one-hop neighbours of what it retrieves. HippoRAG (B. Jimenez
+#    Gutierrez et al., NeurIPS 2024) spreads from the query's entities by Personalized PageRank
+#    instead of a fixed hop.
+# 6. **The closest match (steps 2 to 5 and 8).** Zep: P. Rasmussen, P. Paliychuk, T. Beauvais, J. Ryan
+#    and D. Chalef, "Zep: A Temporal Knowledge Graph Architecture for Agent Memory", arXiv 2501.13956,
+#    2025. It searches by cosine similarity, BM25 and breadth-first search over n hops, reranks with
+#    RRF among others, and gives the model each fact with its date range. That is this path's shape,
+#    and Zep reports on LongMemEval, one of the two benchmarks here.
+# 7. **A score that shrinks with each hop (step 6).** Spreading activation: F. Crestani, "Application
+#    of Spreading Activation Techniques in Information Retrieval", Artificial Intelligence Review 11,
+#    1997.
+# 8. **Search small, return large (step 7).** Sentence-window retrieval, as in LlamaIndex's
+#    `SentenceWindowNodeParser`: the vector is a sentence, the model reads the text around it. Here
+#    the fact is what is found and its passage of the source is what is read.
 #
 # What ThreadAtlas adds is not the search but what it searches: records that each belong to one
 # document and carry a verbatim quote, and a tree of parents that links the same entity across
@@ -909,3 +971,66 @@ ask("I was going through our previous conversation about making a classic French
 # %%
 ask("What is the connection between THE DEAN and the character Gus in 'Dandy Dick'?",
     path_filter(store, "graphrag-bench/Novel-40700"))
+
+# %% [markdown]
+# ## Block 10: every memory question in the store
+#
+# The 14 LongMemEval questions whose sessions are in this store, each asked through the same path as
+# Block 9 and searched inside its own history's folder. Only the prompt and the model's response are
+# printed; the retrieved text is in `questions.jsonl`.
+#
+# This is a check that the path answers, not a benchmark score: only gpt4_2ba83207 has its whole
+# history here (53 sessions). The other 13 have their answer sessions alone (1 to 3 of about 50), so
+# there is far less to search through than the benchmark gives. The reader is also not told the date
+# a question is asked, which the two temporal questions need.
+#
+# | question | type | the benchmark's answer |
+# |---|---|---|
+# | 06878be2 | preference | Sony-compatible accessories or high-quality photography gear |
+# | 0a995998 | multi-session | 3 |
+# | 0e5e2d1a | assistant | 38 subjects |
+# | 118b2229 | user | 45 minutes each way |
+# | 4c36ccef | assistant | Roscioli |
+# | 6a1eabeb | knowledge update | 25 minutes and 50 seconds |
+# | 6aeb4375 | knowledge update | four |
+# | 7161e7e2 | assistant | 8 am - 4 pm (Day Shift) on Sundays |
+# | 8a2466db | preference | resources tailored to Adobe Premiere Pro and its advanced settings |
+# | e47becba | user | Business Administration |
+# | e8a79c70 | assistant | 2-3 eggs |
+# | gpt4_2ba83207 | multi-session | Thrive Market |
+# | gpt4_59149c77 | temporal | 7 days (8 including the last day) |
+# | gpt4_b5700ca9 | temporal | 4 days |
+
+# %%
+MEMORY_QUESTIONS = [
+    ("06878be2", "Can you suggest some accessories that would complement my current photography setup?"),
+    ("0a995998", "How many items of clothing do I need to pick up or return from a store?"),
+    ("0e5e2d1a", "I wanted to follow up on our previous conversation about binaural beats for anxiety and depression. "
+                 "Can you remind me how many subjects were in the study published in the journal Music and Medicine "
+                 "that found significant reductions in symptoms of depression, anxiety, and stress?"),
+    ("118b2229", "How long is my daily commute to work?"),
+    ("4c36ccef", "Can you remind me of the name of the romantic Italian restaurant in Rome you recommended for dinner?"),
+    ("6a1eabeb", "What was my personal best time in the charity 5K run?"),
+    ("6aeb4375", "How many Korean restaurants have I tried in my city?"),
+    ("7161e7e2", "I'm checking our previous chat about the shift rotation sheet for GM social media agents. "
+                 "Can you remind me what was the rotation for Admon on a Sunday?"),
+    ("8a2466db", "Can you recommend some resources where I can learn more about video editing?"),
+    ("e47becba", "What degree did I graduate with?"),
+    ("e8a79c70", "I was going through our previous conversation about making a classic French omelette, and I wanted "
+                 "to confirm - how many eggs did you say we need for the recipe?"),
+    ("gpt4_2ba83207", "Which grocery store did I spend the most money at in the past month?"),
+    ("gpt4_59149c77", "How many days passed between my visit to the Museum of Modern Art (MoMA) and the "
+                      "'Ancient Civilizations' exhibit at the Metropolitan Museum of Art?"),
+    ("gpt4_b5700ca9", "How many days ago did I attend the Maundy Thursday service at the Episcopal Church?"),
+]
+
+for question_id, question in MEMORY_QUESTIONS:
+    context, line = retrieve(store, question, path_filter(store, "chats/longmemeval/" + question_id + "/"))
+    print(RULE)
+    print("PROMPT:  ", question)
+    if KEY:
+        print("RESPONSE:", ask_reader(question, context))
+    else:
+        print("RESPONSE: no OPENAI_API_KEY in this run, so the model was not asked")
+print(RULE)
+print(f"reader cost ${SPENT:.4f}")
