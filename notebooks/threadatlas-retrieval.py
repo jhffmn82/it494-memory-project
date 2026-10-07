@@ -55,7 +55,7 @@
 #
 # ## The algorithm
 #
-# Numbers in brackets point to the references below the pseudocode.
+# Numbers in brackets point to the references at the end of the notebook.
 #
 # ```
 # INPUT      question   text
@@ -134,7 +134,7 @@
 #    answer = reader(question, context)          the records and nothing else
 # ```
 #
-# # ## A walkthrough: one question, step by step
+# ## A walkthrough: one question, step by step
 #
 # LongMemEval question gpt4_2ba83207 asks, of one user's chat history: *"Which grocery store did I
 # spend the most money at in the past month?"* The benchmark's answer is Thrive Market. The user
@@ -187,48 +187,6 @@
 # | `MAX_PASSAGE` | 2,000 | characters of source text given with one fact; a longer passage is cut to the quote and 1,000 either side |
 #
 # None of them has been tuned. They are logged with every question so a run can be repeated.
-#
-# ## References
-#
-# None of the steps is new. Each is a standard technique, and the combination is close to what
-# published graph memory systems already do.
-#
-# 1. **Reciprocal rank fusion (step 4).** G. V. Cormack, C. L. A. Clarke and S. Buettcher,
-#    "Reciprocal Rank Fusion outperforms Condorcet and individual Rank Learning Methods", SIGIR 2009.
-#    The formula and k = 60 are theirs. S. Bruch, S. Gai and A. Ingber, "An Analysis of Fusion
-#    Functions for Hybrid Retrieval", arXiv 2210.11934, 2023, find that a tuned weighted sum of the
-#    two scores does better than RRF.
-# 2. **BM25 (step 3).** S. Robertson and H. Zaragoza, "The Probabilistic Relevance Framework: BM25
-#    and Beyond", Foundations and Trends in Information Retrieval 3(4), 2009. Here it is SQLite
-#    FTS5's built-in `bm25()`.
-# 3. **A record scored by its best sentence (step 1).** MaxP: Z. Dai and J. Callan, "Deeper Text
-#    Understanding for IR with Contextual Neural Language Modeling", SIGIR 2019, which scores a
-#    document by its best passage.
-# 4. **The embedding (step 1).** `BAAI/bge-small-en-v1.5`: S. Xiao et al.,
-#    "C-Pack: Packaged Resources To Advance General Chinese Embedding", arXiv 2309.07597, 2023.
-# 5. **Enter a graph by similarity, expand to the neighbours, fill a token budget (steps 5 and 7).**
-#    Microsoft GraphRAG's local search (https://microsoft.github.io/graphrag/query/local_search/)
-#    enters through the entities most similar to the query, pulls their relationships and source
-#    text, and cuts the candidates to a fixed context window. LightRAG (Z. Guo et al., arXiv
-#    2410.05779, 2024) adds the one-hop neighbours of what it retrieves. HippoRAG (B. Jimenez
-#    Gutierrez et al., NeurIPS 2024) spreads from the query's entities by Personalized PageRank
-#    instead of a fixed hop.
-# 6. **The closest match (steps 2 to 5 and 8).** Zep: P. Rasmussen, P. Paliychuk, T. Beauvais, J. Ryan
-#    and D. Chalef, "Zep: A Temporal Knowledge Graph Architecture for Agent Memory", arXiv 2501.13956,
-#    2025. It searches by cosine similarity, BM25 and breadth-first search over n hops, reranks with
-#    RRF among others, and gives the model each fact with its date range. That is this path's shape,
-#    and Zep reports on LongMemEval, one of the two benchmarks here.
-# 7. **A score that shrinks with each hop (step 6).** Spreading activation: F. Crestani, "Application
-#    of Spreading Activation Techniques in Information Retrieval", Artificial Intelligence Review 11,
-#    1997.
-# 8. **Search small, return large (step 7).** Sentence-window retrieval, as in LlamaIndex's
-#    `SentenceWindowNodeParser`: the vector is a sentence, the model reads the text around it. Here
-#    the fact is what is found and its passage of the source is what is read.
-#
-# What ThreadAtlas adds is not the search but what it searches: records that each belong to one
-# document and carry a verbatim quote, and a tree of parents that links the same entity across
-# documents without merging them. The parent edge is the one part to measure, by running the same
-# questions with `parent=False`.
 #
 # ## What it does not do yet
 #
@@ -1034,3 +992,46 @@ for question_id, question in MEMORY_QUESTIONS:
         print("RESPONSE: no OPENAI_API_KEY in this run, so the model was not asked")
 print(RULE)
 print(f"reader cost ${SPENT:.4f}")
+
+# %% [markdown]
+# ## References
+#
+# None of the steps is new. Each is a standard technique, and the combination is close to what
+# published graph memory systems already do.
+#
+# 1. **Reciprocal rank fusion (step 4).** G. V. Cormack, C. L. A. Clarke and S. Buettcher,
+#    "Reciprocal Rank Fusion outperforms Condorcet and individual Rank Learning Methods", SIGIR 2009.
+#    The formula and k = 60 are theirs. S. Bruch, S. Gai and A. Ingber, "An Analysis of Fusion
+#    Functions for Hybrid Retrieval", arXiv 2210.11934, 2023, find that a tuned weighted sum of the
+#    two scores does better than RRF.
+# 2. **BM25 (step 3).** S. Robertson and H. Zaragoza, "The Probabilistic Relevance Framework: BM25
+#    and Beyond", Foundations and Trends in Information Retrieval 3(4), 2009. Here it is SQLite
+#    FTS5's built-in `bm25()`.
+# 3. **A record scored by its best sentence (step 1).** MaxP: Z. Dai and J. Callan, "Deeper Text
+#    Understanding for IR with Contextual Neural Language Modeling", SIGIR 2019, which scores a
+#    document by its best passage.
+# 4. **The embedding (step 1).** `BAAI/bge-small-en-v1.5`: S. Xiao et al.,
+#    "C-Pack: Packaged Resources To Advance General Chinese Embedding", arXiv 2309.07597, 2023.
+# 5. **Enter a graph by similarity, expand to the neighbours, fill a token budget (steps 5 and 7).**
+#    Microsoft GraphRAG's local search (https://microsoft.github.io/graphrag/query/local_search/)
+#    enters through the entities most similar to the query, pulls their relationships and source
+#    text, and cuts the candidates to a fixed context window. LightRAG (Z. Guo et al., arXiv
+#    2410.05779, 2024) adds the one-hop neighbours of what it retrieves. HippoRAG (B. Jimenez
+#    Gutierrez et al., NeurIPS 2024) spreads from the query's entities by Personalized PageRank
+#    instead of a fixed hop.
+# 6. **The closest match (steps 2 to 5 and 8).** Zep: P. Rasmussen, P. Paliychuk, T. Beauvais, J. Ryan
+#    and D. Chalef, "Zep: A Temporal Knowledge Graph Architecture for Agent Memory", arXiv 2501.13956,
+#    2025. It searches by cosine similarity, BM25 and breadth-first search over n hops, reranks with
+#    RRF among others, and gives the model each fact with its date range. That is this path's shape,
+#    and Zep reports on LongMemEval, one of the two benchmarks here.
+# 7. **A score that shrinks with each hop (step 6).** Spreading activation: F. Crestani, "Application
+#    of Spreading Activation Techniques in Information Retrieval", Artificial Intelligence Review 11,
+#    1997.
+# 8. **Search small, return large (step 7).** Sentence-window retrieval, as in LlamaIndex's
+#    `SentenceWindowNodeParser`: the vector is a sentence, the model reads the text around it. Here
+#    the fact is what is found and its passage of the source is what is read.
+#
+# What ThreadAtlas adds is not the search but what it searches: records that each belong to one
+# document and carry a verbatim quote, and a tree of parents that links the same entity across
+# documents without merging them. The parent edge is the one part to measure, by running the same
+# questions with `parent=False`.
