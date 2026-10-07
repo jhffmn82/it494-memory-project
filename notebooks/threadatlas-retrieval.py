@@ -64,7 +64,7 @@
 #            filter     a set of documents (a history, a collection, a book), or none
 #            asked on   the date the question is asked, when known
 # CONSTANTS  K_ENTRY = 20   K_HOP = 10   DISCOUNT = 0.8   RRF_K = 60
-#            BUDGET = 6,000 tokens   MAX_PASSAGE = 2,000 characters
+#            BUDGET = 12,000 tokens   MAX_PASSAGE = 2,000 characters
 #
 # 1. SCORE EVERY VECTOR                                                         [4] [3]
 #    q = embed(question)                         384 numbers, length 1
@@ -185,11 +185,13 @@
 # 7. **Bundling and packing.** With no cells, every record here is a bundle of its own. Each is
 #    rendered with its date, document, unit and text, a fact with the user's turn it came from, read
 #    from Step 0 at the fact's unit. Bundles are added whole, best first, until the next one would
-#    pass 6,000 tokens: 32 went in, 9 of them facts whose turn was already given above. The Walmart
-#    $120 fact is second, the Publix $60 fact fourth, and the Thrive Market $150 fact sixteenth, each
-#    with the user's own words. The last one packed scored 0.50.
-# 8. **The reader.** gpt-5.6-luna gets the 32 bundles, the date the question is asked (2023/05/30),
-#    and the question, and answers in JSON. It is told to use the records and nothing else.
+#    pass 12,000 tokens. Here all 56 fit, in 9,066 tokens, 15 of them facts whose turn was already
+#    given above. The Walmart $120 fact is second, the Publix $60 fact fourth, and the Thrive Market
+#    $150 fact sixteenth, each with the user's own words.
+# 8. **The reader.** gpt-5.6-luna gets the 56 bundles, the date the question is asked (2023/05/30),
+#    and the question, and answers in JSON. It is told to use the records and nothing else, that a
+#    later record is the current one when two disagree, and to fit any advice to what the records
+#    say about the user. On its first run it answered Thrive Market.
 #
 # A book uses the rest of the structure. On Block 9's Dandy Dick question the entries are cells,
 # facts and abstracts; from them the hop reaches 9 cells from their facts, 9 abstracts, 5 cells just
@@ -204,24 +206,87 @@
 # | `K_HOP` | 10 | records taken from each edge of each entry, the most similar first |
 # | `DISCOUNT` | 0.8 | the score multiplier for a record reached by a hop |
 # | `RRF_K` | 60 | the reciprocal rank fusion constant, as Cormack et al. fixed it |
-# | `BUDGET` | 6,000 | tokens of context the reader is given |
+# | `BUDGET` | 12,000 | tokens of context the reader is given |
 # | `MAX_PASSAGE` | 2,000 | characters of source text given with one fact; a longer passage is cut to the quote and 1,000 either side |
 #
-# None of them has been tuned. They are logged with every question so a run can be repeated.
+# `BUDGET` was raised from 6,000 after the first run with the reader (Block 10): on one question
+# the long turns given as source passages filled 6,000 tokens and two of the three facts the answer
+# needs were cut. The others have not been tuned. All are logged with every question so a run can be
+# repeated.
 #
 # ## What it does not do yet
 #
 # - Adjudicated claims are not pulled: the store gives them no vector to score and the design no
 #   bundle to pack them in.
-# - No constant is tuned. Tuning needs a harness that scores answers, which is the next build.
+# - Only the budget has been adjusted, on the 14 tuning questions. Tuning the rest needs a harness
+#   that scores answers, which is the next build.
 # - By ruling, not this fall: a model reranker, query rewriting, a multi-hop agent, PageRank.
 #
 # ## Running it
 #
 # On Kaggle: attach the `it494-threadatlas-store` and `it494-threadatlas-step0` datasets, turn
 # Internet on (fastembed fetches the embedding model once), and add an `OPENAI_API_KEY` secret for
-# the reader. Without a key everything runs except the answer. Locally: set `STORE_DIR` to a folder
+# the reader. Block 0 says at once whether the key and the connection work. Without a key
+# everything runs except the answer. Locally: set `STORE_DIR` to a folder
 # holding the store's two files and `STEP0_DIR` to one holding Step 0's, and run the script.
+
+# %% [markdown]
+# ## Block 0: the key and the connection
+#
+# Run this first. It looks for `OPENAI_API_KEY` (the environment, then the Kaggle secret of that
+# name) and makes one tiny call to the reader model. It prints one of three things: the key works;
+# there is no key, in which case retrieval still runs and the reader does not; or the key or the
+# connection failed, with OpenAI's own message, and the run stops here.
+
+# %%
+import json
+import os
+import urllib.error
+import urllib.request
+
+READER = "gpt-5.6-luna"
+
+
+def find_key():
+    key = os.environ.get("OPENAI_API_KEY")
+    if key:
+        return key
+    try:
+        from kaggle_secrets import UserSecretsClient
+        return UserSecretsClient().get_secret("OPENAI_API_KEY")
+    except Exception:
+        return None
+
+
+KEY = find_key()
+
+if not KEY:
+    print("NO KEY: OPENAI_API_KEY is not in the environment or attached as a Kaggle secret.")
+    print("Retrieval will run. The reader will not answer.")
+    print("On Kaggle: Add-ons, Secrets, tick OPENAI_API_KEY, then Save Version, Save & Run All.")
+else:
+    payload = {
+        "model": READER,
+        "reasoning_effort": "low",
+        "response_format": {"type": "json_object"},
+        "messages": [{"role": "user", "content": 'Reply with the JSON object {"ok": true}.'}],
+    }
+    request = urllib.request.Request(
+        "https://api.openai.com/v1/chat/completions",
+        data=json.dumps(payload).encode("utf-8"),
+        headers={"Authorization": "Bearer " + KEY, "Content-Type": "application/json"},
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=120) as response:
+            body = json.loads(response.read().decode("utf-8"))
+        print("KEY FOUND, CONNECTION WORKS:", body["model"], "replied", body["choices"][0]["message"]["content"])
+    except urllib.error.HTTPError as error:
+        print("KEY FOUND, BUT OPENAI REFUSED THE CALL: HTTP", error.code)
+        print(error.read().decode("utf-8", errors="replace")[:500])
+        raise SystemExit("fix the key or the account, then run again")
+    except urllib.error.URLError as error:
+        print("KEY FOUND, BUT NO CONNECTION TO OPENAI:", error.reason)
+        raise SystemExit("turn Internet on in the notebook's settings, then run again")
 
 # %% [markdown]
 # ## Block 1: files and settings
@@ -244,7 +309,7 @@ from pathlib import Path
 
 import numpy as np
 
-VERSION = "threadatlas-retrieval 0.4"
+VERSION = "threadatlas-retrieval 0.5"
 
 try:
     import fastembed
@@ -296,7 +361,7 @@ K_ENTRY = 20
 K_HOP = 10
 DISCOUNT = 0.8
 RRF_K = 60
-BUDGET = int(os.environ.get("BUDGET", "6000"))
+BUDGET = int(os.environ.get("BUDGET", "12000"))
 QUERY_PREFIX = os.environ.get("QUERY_PREFIX", "")
 MAX_PASSAGE = 2000
 
@@ -908,16 +973,21 @@ def retrieve(store, question, doc_filter=None, keyword=True, vector=True, parent
 # %% [markdown]
 # ## Block 8: the reader
 #
-# Step 8: one call to gpt-5.6-luna on the flex tier, retried when the server is busy, its cost
-# written to `calls.jsonl`. When the date a question is asked is known, the reader is told it, so
-# that "last week" or "the past month" has something to count from.
+# Step 8: one call to gpt-5.6-luna on the flex tier, with the key Block 0 found, retried when the
+# server is busy, its cost written to `calls.jsonl`. When the date a question is asked is known,
+# the reader is told it, so that "last week" or "the past month" has something to count from. Two
+# sentences of the prompt
+# come from the first run of Block 10: a later record is current when two disagree (it had answered
+# with an older personal best), and advice is to fit the user's details (it had declined to
+# recommend anything, since no record is itself a recommendation).
 
 # %%
-READER = "gpt-5.6-luna"
 PRICES = {"flex": (0.10, 0.60), "default": (0.20, 1.20)}
 
 ANSWER_PROMPT = """Answer the question from the records below and nothing else. Every record is dated and names its
-document. If the records do not answer it, say so. Reply with a JSON object: {{"answer": "<a short answer>"}}.
+document. If the records do not answer it, say so. When records disagree, the one with the later date is
+current. When the question asks for advice or a recommendation, give one that fits what the records say about
+the user. Reply with a JSON object: {{"answer": "<a short answer>"}}.
 
 Records:
 {context}
@@ -925,18 +995,6 @@ Records:
 Question: {question}"""
 
 
-def find_key():
-    key = os.environ.get("OPENAI_API_KEY")
-    if key:
-        return key
-    try:
-        from kaggle_secrets import UserSecretsClient
-        return UserSecretsClient().get_secret("OPENAI_API_KEY")
-    except Exception:
-        return None
-
-
-KEY = find_key()
 SPENT = 0.0
 
 
@@ -1054,7 +1112,9 @@ ask("What is the connection between THE DEAN and the character Gus in 'Dandy Dic
 #
 # This is a check that the path answers, not a benchmark score: only gpt4_2ba83207 has its whole
 # history here (53 sessions). The other 13 have their answer sessions alone (1 to 3 of about 50), so
-# there is far less to search through than the benchmark gives.
+# there is far less to search through than the benchmark gives. These 14 are the tuning questions:
+# the first run with the reader (0.4, 2026-10-07) matched the benchmark on 11, and the three misses
+# (06878be2, 0a995998, 6a1eabeb) led to the budget and the two prompt sentences of 0.5.
 #
 # | question | type | the benchmark's answer |
 # |---|---|---|
