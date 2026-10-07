@@ -188,10 +188,10 @@
 #    pass 12,000 tokens. Here all 56 fit, in 9,066 tokens, 15 of them facts whose turn was already
 #    given above. The Walmart $120 fact is second, the Publix $60 fact fourth, and the Thrive Market
 #    $150 fact sixteenth, each with the user's own words.
-# 8. **The reader.** gpt-5.6-luna gets the 56 bundles, the date the question is asked (2023/05/30),
+# 8. **The reader.** gpt-4o-mini gets the 56 bundles, the date the question is asked (2023/05/30),
 #    and the question, and answers in JSON. It is told to use the records and nothing else, that a
 #    later record is the current one when two disagree, and to fit any advice to what the records
-#    say about the user. On its first run it answered Thrive Market.
+#    say about the user.
 #
 # A book uses the rest of the structure. On Block 9's Dandy Dick question the entries are cells,
 # facts and abstracts; from them the hop reaches 9 cells from their facts, 9 abstracts, 5 cells just
@@ -244,7 +244,7 @@ import os
 import urllib.error
 import urllib.request
 
-READER = "gpt-5.6-luna"
+READER = "gpt-4o-mini"
 
 
 def find_key():
@@ -267,7 +267,7 @@ if not KEY:
 else:
     payload = {
         "model": READER,
-        "reasoning_effort": "low",
+        "temperature": 0,
         "response_format": {"type": "json_object"},
         "messages": [{"role": "user", "content": 'Reply with the JSON object {"ok": true}.'}],
     }
@@ -309,7 +309,7 @@ from pathlib import Path
 
 import numpy as np
 
-VERSION = "threadatlas-retrieval 0.5"
+VERSION = "threadatlas-retrieval 0.6"
 
 try:
     import fastembed
@@ -973,8 +973,11 @@ def retrieve(store, question, doc_filter=None, keyword=True, vector=True, parent
 # %% [markdown]
 # ## Block 8: the reader
 #
-# Step 8: one call to gpt-5.6-luna on the flex tier, with the key Block 0 found, retried when the
-# server is busy, its cost written to `calls.jsonl`. When the date a question is asked is known,
+# Step 8: one call to the reader, gpt-4o-mini at temperature 0, with the key Block 0 found, retried
+# when the server is busy; the answer and the call's cost are written to `calls.jsonl`. The reader
+# is gpt-4o-mini because the published results these benchmarks are compared with were answered by
+# it (Zep on LongMemEval, the GraphRAG-Bench baselines); gpt-4o is the benchmark's judge, not the
+# reader. `READER` in Block 0 is the one place it is set. When the date a question is asked is known,
 # the reader is told it, so that "last week" or "the past month" has something to count from. Two
 # sentences of the prompt
 # come from the first run of Block 10: a later record is current when two disagree (it had answered
@@ -982,7 +985,7 @@ def retrieve(store, question, doc_filter=None, keyword=True, vector=True, parent
 # recommend anything, since no record is itself a recommendation).
 
 # %%
-PRICES = {"flex": (0.10, 0.60), "default": (0.20, 1.20)}
+PRICES = {"gpt-4o-mini": (0.15, 0.60), "gpt-4o": (2.50, 10.00)}      # $ per million tokens in, out
 
 ANSWER_PROMPT = """Answer the question from the records below and nothing else. Every record is dated and names its
 document. If the records do not answer it, say so. When records disagree, the one with the later date is
@@ -1023,32 +1026,32 @@ def ask_reader(question, context, asked_on=None):
     prompt = ANSWER_PROMPT.format(context="\n".join(context), today=today, question=question)
     payload = {
         "model": READER,
-        "reasoning_effort": "low",
-        "service_tier": "flex",
+        "temperature": 0,
         "response_format": {"type": "json_object"},
         "messages": [{"role": "user", "content": prompt}],
     }
     started = time.time()
     body = post(payload)
 
+    try:
+        answer = json.loads(body["choices"][0]["message"]["content"])["answer"]
+    except (ValueError, KeyError, TypeError):
+        answer = None
+
     usage = body.get("usage", {})
-    price_in, price_out = PRICES.get(body.get("service_tier"), PRICES["default"])
+    price_in, price_out = PRICES[READER]
     cost = (usage.get("prompt_tokens", 0) * price_in + usage.get("completion_tokens", 0) * price_out) / 1e6
     SPENT += cost
-    call = {"question": question, "asked_on": asked_on, "model": body.get("model"), "tier": body.get("service_tier"),
+    call = {"question": question, "asked_on": asked_on, "answer": answer, "model": body.get("model"),
             "in": usage.get("prompt_tokens"), "out": usage.get("completion_tokens"),
             "seconds": round(time.time() - started, 1), "cost": cost}
     with open(OUT / "calls.jsonl", "a", encoding="utf-8") as f:
-        f.write(json.dumps(call) + "\n")
-
-    try:
-        return json.loads(body["choices"][0]["message"]["content"])["answer"]
-    except (ValueError, KeyError, TypeError):
-        return None
+        f.write(json.dumps(call, ensure_ascii=False) + "\n")
+    return answer
 
 
 if KEY:
-    print("reader", READER, "on the flex tier; key present")
+    print("reader", READER, "at temperature 0; key present")
 else:
     print("reader", READER, "; no key: retrieval runs, the reader does not")
 
@@ -1112,9 +1115,12 @@ ask("What is the connection between THE DEAN and the character Gus in 'Dandy Dic
 #
 # This is a check that the path answers, not a benchmark score: only gpt4_2ba83207 has its whole
 # history here (53 sessions). The other 13 have their answer sessions alone (1 to 3 of about 50), so
-# there is far less to search through than the benchmark gives. These 14 are the tuning questions:
-# the first run with the reader (0.4, 2026-10-07) matched the benchmark on 11, and the three misses
-# (06878be2, 0a995998, 6a1eabeb) led to the budget and the two prompt sentences of 0.5.
+# there is far less to search through than the benchmark gives. These 14 are the tuning questions.
+# Two runs on 2026-10-07 answered with gpt-5.6-luna at low effort, and each matched the benchmark on
+# 11. In 0.4 the misses were 06878be2, 0a995998 and 6a1eabeb, which led to the budget and the two
+# prompt sentences of 0.5. In 0.5 they were 0a995998, 6a1eabeb and gpt4_2ba83207, all three with
+# the evidence in the packed text. 0.6 moves the reader to gpt-4o-mini, the published baselines'
+# model.
 #
 # | question | type | the benchmark's answer |
 # |---|---|---|
