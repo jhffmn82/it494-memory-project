@@ -50,8 +50,8 @@
 # The reader gets the fact and the **passage** it was read from. For a chat the passage is the whole
 # turn, since a turn is one unit. For a book or paper, whose units are chapters, it is the paragraph
 # around the quote, inside the unit (a blank line ends a paragraph). A passage longer than 2,000
-# characters is cut to the quote and 1,000 characters on either side. When two facts come from one
-# passage, the passage is given once.
+# characters is cut to the quote and 1,000 characters on either side. Facts read from one passage
+# are packed together with it, so a fact is never apart from the words it came from.
 #
 # ## The algorithm
 #
@@ -124,22 +124,23 @@
 #
 # 7. BUNDLE, RENDER AND PACK                                                    [8] [5]
 #    bundles = for each cell in pool:      the cell, then the pool's facts of the same
-#                                          entity in the same unit, in source order
+#                                          entity in the same unit
 #              for each abstract in pool:  the abstract alone
-#              for each fact in pool whose cell is not in pool:  the fact alone
-#    a bundle's score is the final score of its first record
+#              the facts in pool whose cell is not in pool, grouped by source passage:
+#                                          one bundle per passage, headed by its best fact
+#    a bundle's score is the final score of its head record
 #
-#    context = empty    used = 0    shown = empty
+#    context = empty    used = 0    tags = empty
 #    for each bundle b, by score, highest first:
-#        text = date | document | unit | the first record's text
-#        for each fact f in b with a quote:
-#            passage = source_passage(f)
-#            if passage is in shown:  text = text + "the same passage as above"
-#            else:                    text = text + passage
+#        text = date | document | unit | the cell's or the abstract's text, when it has one
+#        for each passage among b's facts, in source order:
+#            text = text + every fact of b read from that passage, one per line
+#            if the passage is in tags:  text = text + "see [Pn] above"
+#            else:                       text = text + "[Pn]" + the passage, n the next number
 #        if used + tokens(text) > BUDGET:
 #            skip b                              a bundle is packed whole or not at all
 #        else:
-#            add text to context;  used = used + tokens(text);  add b's passages to shown
+#            add text to context;  used = used + tokens(text);  add b's new passages to tags
 #
 #    source_passage(fact):                       fact -> unit -> raw text in Step 0
 #        text = the document's text in Step 0
@@ -151,7 +152,7 @@
 #        return passage
 #
 # 8. ANSWER                                                                     [6]
-#    answer = reader(question, context, asked on)     the records and nothing else
+#    answer = reader(question, context, asked on)
 # ```
 #
 # ## A walkthrough: one question, step by step
@@ -182,16 +183,17 @@
 #    entries, 12 abstracts and 10 facts.
 # 6. **Scoring.** Every record in the pool is scored on its own similarity to the question, times
 #    0.8 if it was reached by a hop. An entry at 0.60 and a hop record at 0.75 both score 0.60.
-# 7. **Bundling and packing.** With no cells, every record here is a bundle of its own. Each is
-#    rendered with its date, document, unit and text, a fact with the user's turn it came from, read
-#    from Step 0 at the fact's unit. Bundles are added whole, best first, until the next one would
-#    pass 12,000 tokens. Here all 56 fit, in 9,066 tokens, 15 of them facts whose turn was already
-#    given above. The Walmart $120 fact is second, the Publix $60 fact fourth, and the Thrive Market
-#    $150 fact sixteenth, each with the user's own words.
-# 8. **The reader.** gpt-4o-mini gets the 56 bundles, the date the question is asked (2023/05/30),
-#    and the question, and answers in JSON. It is told to use the records and nothing else, that a
-#    later record is the current one when two disagree, and to fit any advice to what the records
-#    say about the user.
+# 7. **Bundling and packing.** With no cells, the facts are grouped by the turn they were read
+#    from: one bundle per turn, the turn's facts listed and then the turn itself, read from Step 0
+#    at the facts' unit. The 42 facts and 14 abstracts make 41 bundles, added whole, best first,
+#    until the next would pass 12,000 tokens; here all fit, in 8,433 tokens. The first bundle is the
+#    Walmart turn with its three facts (went grocery shopping at Walmart, spent $120, used a 10% off
+#    coupon). The Publix turn is third. The Thrive Market turn is twelfth, and holds *placed an
+#    online order with Thrive Market* and *spent $150* together over the user's own sentence.
+# 8. **The reader.** gpt-4o-mini gets the 41 bundles, the date the question is asked (2023/05/30),
+#    and the question, and answers in JSON. It is told that a later record is the current one when
+#    two disagree, to say so when a fact asked for is not in the records, and to build any advice on
+#    what the records say about the user.
 #
 # A book uses the rest of the structure. On Block 9's Dandy Dick question the entries are cells,
 # facts and abstracts; from them the hop reaches 9 cells from their facts, 9 abstracts, 5 cells just
@@ -309,7 +311,7 @@ from pathlib import Path
 
 import numpy as np
 
-VERSION = "threadatlas-retrieval 0.6"
+VERSION = "threadatlas-retrieval 0.7"
 
 try:
     import fastembed
@@ -730,9 +732,10 @@ def expand(store, row_scores, entries, doc_filter, use_parents):
 # ## Block 6: bundles, and what the reader sees
 #
 # Steps 6 and 7. The pool is grouped into bundles: a cell with the pool's facts of the same entity in
-# the same unit, an abstract alone, a fact alone when its cell is not in the pool. A bundle is one
-# dated block of text, each fact with the passage of the source it was read from, and bundles are
-# packed whole to the token budget. A chat's title is its session id, so the first 8 characters of
+# the same unit; an abstract alone; and the facts whose cell is not in the pool, one bundle for each
+# passage of the source they were read from. A bundle is one dated block of text: its facts, then the
+# passage. A passage wanted a second time is not repeated; it carries a number, `[P3]`, and the later
+# bundle points to it. Bundles are packed whole to the token budget. A chat's title is its session id, so the first 8 characters of
 # its `doc_id` are shown instead.
 
 # %%
@@ -808,14 +811,11 @@ def fact_line(store, doc_id, fact):
     return line
 
 
-def source_line(store, doc_id, fact, shown, indent):
+def passage_of(store, doc_id, fact):
     if not fact["quote"]:
-        return "", None
+        return None, None
     start, end, words = source_passage(store, doc_id, fact["unit_id"], fact["quote_start"], fact["quote_end"])
-    passage = (doc_id, start, end)
-    if passage in shown:
-        return "\n" + indent + "source: the same passage as above", passage
-    return "\n" + indent + 'source: "' + words + '"', passage
+    return (doc_id, start, end), words
 
 
 def make_bundles(store, pool):
@@ -830,61 +830,99 @@ def make_bundles(store, pool):
         if record[0] != "fact":
             bundles[record] = []
 
+    # a fact goes under its cell when the cell is in the pool; the other facts are grouped by passage
+    groups = {}
     for record in pool:
-        if record[0] == "fact":
-            fact = read_fact(store, record[1], record[2])
-            cell = cell_of.get((record[1], fact["subject"], fact["unit_id"]))
-            if cell is None:
-                bundles[record] = []
-            else:
-                bundles[cell].append((fact["quote_start"] or 0, record[2], record))
+        if record[0] != "fact":
+            continue
+        fact = read_fact(store, record[1], record[2])
+        place = (fact["quote_start"] or 0, record[2], record)
+        cell = cell_of.get((record[1], fact["subject"], fact["unit_id"]))
+        if cell is not None:
+            bundles[cell].append(place)
+            continue
+        passage, words = passage_of(store, record[1], fact)
+        if passage is None:
+            passage = record
+        if passage not in groups:
+            groups[passage] = []
+        groups[passage].append(place)
+
+    # a group is headed by its best-scoring fact
+    for passage in groups:
+        scores = {}
+        for place in groups[passage]:
+            scores[place[2]] = pool[place[2]]["score"]
+        head = best_first(scores, scores)[0]
+        bundles[head] = groups[passage]
 
     for head in bundles:
         bundles[head].sort()
         facts = []
-        for item in bundles[head]:
-            facts.append(item[2])
+        for place in bundles[head]:
+            facts.append(place[2])
         bundles[head] = facts
     return bundles
 
 
-def render(store, head, facts, shown):
+def fact_lines(store, doc_id, facts, tags, indent):
+    by_passage = {}
+    order = []
+    texts = {}
+    for record in facts:
+        fact = read_fact(store, doc_id, record[2])
+        passage, words = passage_of(store, doc_id, fact)
+        if passage is None:
+            passage = record
+        else:
+            texts[passage] = words
+        if passage not in by_passage:
+            by_passage[passage] = []
+            order.append(passage)
+        by_passage[passage].append(fact_line(store, doc_id, fact))
+
+    block = ""
+    new = []
+    for passage in order:
+        for line in by_passage[passage]:
+            block += "\n" + indent + "- " + line
+        if passage not in texts:
+            continue
+        if passage in tags:
+            block += "\n" + indent + "  source: see [P" + str(tags[passage]) + "] above"
+        else:
+            new.append(passage)
+            number = len(tags) + len(new)
+            block += "\n" + indent + "  source [P" + str(number) + ']: "' + texts[passage] + '"'
+    return block, new
+
+
+def render(store, head, facts, tags):
     db = store["db"]
     names = store["entity_names"]
     kind, doc_id, record_id = head
     title = document_title(store, doc_id)
     document_date = store["documents"][doc_id]["occurred_at"]
-    passages = []
-    seen = set(shown)
+
+    if kind == "abstract":
+        text = db.execute("select text from abstract where doc_id = ? and node_id = ?", (doc_id, record_id)).fetchone()[0]
+        entity = names.get((doc_id, record_id), record_id)
+        return f"{document_date} | {title} | abstract | {entity}: {text}", []
 
     if kind == "fact":
         fact = read_fact(store, doc_id, record_id)
         label, unit_date = unit_label_and_date(db, fact["unit_id"])
         date = fact["occurred_at"] or unit_date or document_date
-        source, passage = source_line(store, doc_id, fact, seen, "  ")
-        if passage is not None:
-            passages.append(passage)
-        return f"{date} | {title} | {label or 'record'} | {fact_line(store, doc_id, fact)}" + source, passages
-
-    if kind == "abstract":
-        text = db.execute("select text from abstract where doc_id = ? and node_id = ?", (doc_id, record_id)).fetchone()[0]
-        entity = names.get((doc_id, record_id), record_id)
-        return f"{document_date} | {title} | abstract | {entity}: {text}", passages
+        lines, new = fact_lines(store, doc_id, facts, tags, "  ")
+        return f"{date} | {title} | {label or 'record'}" + lines, new
 
     node_id, unit_id = record_id.split("@")
     text = db.execute("select text from cell where doc_id = ? and node_id = ? and unit_id = ?",
                       (doc_id, node_id, unit_id)).fetchone()[0]
     label, unit_date = unit_label_and_date(db, unit_id)
     entity = names.get((doc_id, node_id), node_id)
-    block = f"{unit_date or document_date} | {title} | {label or unit_id[:8]} | {entity}: {text}"
-    for record in facts:
-        fact = read_fact(store, doc_id, record[2])
-        source, passage = source_line(store, doc_id, fact, seen, "    ")
-        block += "\n  - " + fact_line(store, doc_id, fact) + source
-        if passage is not None:
-            passages.append(passage)
-            seen.add(passage)
-    return block, passages
+    lines, new = fact_lines(store, doc_id, facts, tags, "  ")
+    return f"{unit_date or document_date} | {title} | {label or unit_id[:8]} | {entity}: {text}" + lines, new
 
 
 def pack(store, pool, budget):
@@ -895,20 +933,22 @@ def pack(store, pool, budget):
 
     context = []
     used = 0
-    shown = set()
+    tags = {}
     for head in best_first(bundles, scores):
-        text, passages = render(store, head, bundles[head], shown)
+        text, new = render(store, head, bundles[head], tags)
         size = count_tokens(text)
         packed = used + size <= budget
-        for record in [head] + bundles[head]:
+        pool[head]["bundle"] = list(head)
+        pool[head]["packed"] = packed
+        for record in bundles[head]:
             pool[record]["bundle"] = list(head)
             pool[record]["packed"] = packed
         if not packed:
             continue
         context.append(text)
         used += size
-        for passage in passages:
-            shown.add(passage)
+        for passage in new:
+            tags[passage] = len(tags) + 1
     return context, used
 
 # %% [markdown]
@@ -980,17 +1020,19 @@ def retrieve(store, question, doc_filter=None, keyword=True, vector=True, parent
 # reader. `READER` in Block 0 is the one place it is set. When the date a question is asked is known,
 # the reader is told it, so that "last week" or "the past month" has something to count from. Two
 # sentences of the prompt
-# come from the first run of Block 10: a later record is current when two disagree (it had answered
-# with an older personal best), and advice is to fit the user's details (it had declined to
-# recommend anything, since no record is itself a recommendation).
+# come from the first runs of Block 10: a later record is current when two disagree (it had
+# answered with an older personal best), and advice is to be built on the user's details (told to
+# answer from the records and nothing else, it had declined to recommend anything, since no record
+# is itself a recommendation; 0.7 separates the two cases, a fact asked for and advice asked for).
 
 # %%
 PRICES = {"gpt-4o-mini": (0.15, 0.60), "gpt-4o": (2.50, 10.00)}      # $ per million tokens in, out
 
-ANSWER_PROMPT = """Answer the question from the records below and nothing else. Every record is dated and names its
-document. If the records do not answer it, say so. When records disagree, the one with the later date is
-current. When the question asks for advice or a recommendation, give one that fits what the records say about
-the user. Reply with a JSON object: {{"answer": "<a short answer>"}}.
+ANSWER_PROMPT = """Answer the question from the records below. Every record is dated and names its document; a
+"source" is the passage of the document its facts were read from. When records disagree, the one with the
+later date is current. If the question asks for a fact and the records do not state it, say so. If it asks
+for advice or a recommendation, give one, built on what the records say about the user: what they own, use
+and prefer. Reply with a JSON object: {{"answer": "<a short answer>"}}.
 
 Records:
 {context}
@@ -1119,8 +1161,11 @@ ask("What is the connection between THE DEAN and the character Gus in 'Dandy Dic
 # Two runs on 2026-10-07 answered with gpt-5.6-luna at low effort, and each matched the benchmark on
 # 11. In 0.4 the misses were 06878be2, 0a995998 and 6a1eabeb, which led to the budget and the two
 # prompt sentences of 0.5. In 0.5 they were 0a995998, 6a1eabeb and gpt4_2ba83207, all three with
-# the evidence in the packed text. 0.6 moves the reader to gpt-4o-mini, the published baselines'
-# model.
+# the evidence in the packed text. 0.6 moved the reader to gpt-4o-mini, the published baselines'
+# model, and its first run (2026-10-08) again matched 11: 6a1eabeb right, 06878be2, 0a995998 and
+# gpt4_2ba83207 wrong. In that run the $150 the grocery answer turns on stood in a fact that did
+# not name its store, pointing at "the same passage as above"; 0.7 packs a passage's facts together
+# with it.
 #
 # | question | type | the benchmark's answer |
 # |---|---|---|
