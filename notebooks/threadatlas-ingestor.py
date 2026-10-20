@@ -144,7 +144,7 @@ from datetime import datetime, timezone
 from contextlib import redirect_stdout
 from pathlib import Path
 
-INGESTOR = "threadatlas-ingestor 1.8"
+INGESTOR = "threadatlas-ingestor 1.9"
 KAGGLE_EXPORTS = (Path("/kaggle/input/datasets/jhffmn/it494-threadatlas-step0"), Path("/kaggle/input/it494-threadatlas-step0"))
 LOCAL_EXPORT = Path("data/export")
 KAGGLE_OUT, LOCAL_OUT = Path("/kaggle/working/packages"), Path("data/packages")
@@ -286,11 +286,11 @@ import urllib.error
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor
 
-LUNA = "gpt-5.6-luna"                      # derive, a chat's reading and salience, support checks, corrections
+LUNA = "gpt-6-luna"                      # derive, a chat's reading and salience, support checks, corrections
 TERRA = "gpt-5.6-terra"                    # judge, folds, adjudication
 SERVICE_TIER = "flex"                      # the same models at half price, slower, sometimes refused (tried 09-11)
-PRICE = {"flex": {LUNA: (0.10, 0.60), TERRA: (1.00, 6.00)},       # $ per million tokens in, out,
-         "default": {LUNA: (0.20, 1.20), TERRA: (2.00, 12.00)}}   # by the tier that served the call
+PRICE = {"flex": {LUNA: (0.05, 0.25), TERRA: (1.00, 6.00)},       # $ per million tokens in, out,
+         "default": {LUNA: (0.10, 0.50), TERRA: (2.00, 12.00)}}   # by the tier that served the call
 SPEND_STOP = float(os.environ.get("SPEND_STOP", "25"))     # a run block's budget, counted from start_block
 BLOCK_START = 0.0                                          # what had been spent when the block began
 WORKERS = int(os.environ.get("WORKERS", "4"))

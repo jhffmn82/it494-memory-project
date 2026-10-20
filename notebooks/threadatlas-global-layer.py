@@ -132,7 +132,7 @@ import time
 from datetime import datetime, timezone
 from pathlib import Path
 
-VERSION = "threadatlas-global-layer 0.1"
+VERSION = "threadatlas-global-layer 0.2"
 KAGGLE_STEP1 = (Path("/kaggle/input/datasets/jhffmn/it494-threadatlas-step1"), Path("/kaggle/input/it494-threadatlas-step1"))
 KAGGLE_EXPORT = (Path("/kaggle/input/datasets/jhffmn/it494-threadatlas-step0"), Path("/kaggle/input/it494-threadatlas-step0"))
 KAGGLE_OUT, LOCAL_OUT = Path("/kaggle/working"), Path("data/global")
@@ -207,11 +207,11 @@ import threading
 import urllib.error
 import urllib.request
 
-LUNA = "gpt-5.6-luna"                   # the parent writer, and the judge when a chat is on either side
+LUNA = "gpt-6-luna"                     # the parent writer, and the judge when a chat is on either side
 TERRA = "gpt-5.6-terra"                 # the judge for pairs of book and paper children
 SERVICE_TIER = "flex"
-PRICE = {"flex": {LUNA: (0.10, 0.60), TERRA: (1.00, 6.00)},          # $ per million tokens in, out
-         "default": {LUNA: (0.20, 1.20), TERRA: (2.00, 12.00)}}
+PRICE = {"flex": {LUNA: (0.05, 0.25), TERRA: (1.00, 6.00)},          # $ per million tokens in, out
+         "default": {LUNA: (0.10, 0.50), TERRA: (2.00, 12.00)}}
 CALLS = OUT / "calls.jsonl"
 SPENT = 0.0
 LOG_LOCK = threading.Lock()

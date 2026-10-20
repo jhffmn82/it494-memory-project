@@ -358,11 +358,11 @@ import time
 import requests
 from kaggle_secrets import UserSecretsClient
 
-MODEL = "gpt-5.6-luna"
+MODEL = "gpt-6-luna"
 RETRY = "gpt-5.6-terra"
 RETRY_MAX_TOKENS = 80_000     # Terra is ten times Luna's price: only a document under this many tokens gets it
-PRICE = {"flex": {"gpt-5.6-luna": (0.10, 0.60), "gpt-5.6-terra": (1.00, 6.00)},        # $ per M tokens in, out,
-         "default": {"gpt-5.6-luna": (0.20, 1.20), "gpt-5.6-terra": (2.00, 12.00)}}    # by the tier that served the call
+PRICE = {"flex": {"gpt-6-luna": (0.05, 0.25), "gpt-5.6-terra": (1.00, 6.00)},        # $ per M tokens in, out,
+         "default": {"gpt-6-luna": (0.10, 0.50), "gpt-5.6-terra": (2.00, 12.00)}}    # by the tier that served the call
 SEARCH_FEE = 0.01                                                        # dollars per web search: $10 per 1,000
 SPEND_STOP = 25.00                                                       # dollars; the run halts past this
 try:
