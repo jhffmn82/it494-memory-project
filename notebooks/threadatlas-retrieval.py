@@ -311,7 +311,7 @@ from pathlib import Path
 
 import numpy as np
 
-VERSION = "threadatlas-retrieval 0.7"
+VERSION = "threadatlas-retrieval 0.8"
 
 try:
     import fastembed
@@ -507,6 +507,9 @@ def embed(texts):
 def score_every_row(store, question):
     question_vector = embed([QUERY_PREFIX + question])[0]
     return store["vectors"] @ question_vector
+
+
+embed(["load the model before any question is timed"])
 
 
 def record_score(store, row_scores, record):
@@ -965,6 +968,7 @@ def rank_in(ranked, record):
 
 
 def retrieve(store, question, doc_filter=None, keyword=True, vector=True, parent=True, budget=BUDGET):
+    started = time.time()
     row_scores = score_every_row(store, question)
     keep = rows_in_filter(store, doc_filter, parent)
 
@@ -1005,6 +1009,7 @@ def retrieve(store, question, doc_filter=None, keyword=True, vector=True, parent
         "pool": pool_log,
         "context": context,
         "tokens": used,
+        "seconds": round(time.time() - started, 3),
     }
     with open(OUT / "questions.jsonl", "a", encoding="utf-8") as f:
         f.write(json.dumps(line, ensure_ascii=False) + "\n")
@@ -1014,7 +1019,11 @@ def retrieve(store, question, doc_filter=None, keyword=True, vector=True, parent
 # ## Block 8: the reader
 #
 # Step 8: one call to the reader, gpt-4o-mini at temperature 0, with the key Block 0 found, retried
-# when the server is busy; the answer and the call's cost are written to `calls.jsonl`. The reader
+# when the server is busy; the answer and the call's cost are written to `calls.jsonl`. Then the
+# judge: LongMemEval's own, its prompts copied word for word from the benchmark's evaluator
+# (`src/evaluation/evaluate_qa.py`), one prompt per question type, on `gpt-4o-2024-08-06` at
+# temperature 0. A reply containing "yes" means correct. This is how Zep's published accuracy was
+# scored. The reader
 # is gpt-4o-mini because the published results these benchmarks are compared with were answered by
 # it (Zep on LongMemEval, the GraphRAG-Bench baselines); gpt-4o is the benchmark's judge, not the
 # reader. `READER` in Block 0 is the one place it is set. When the date a question is asked is known,
@@ -1026,7 +1035,7 @@ def retrieve(store, question, doc_filter=None, keyword=True, vector=True, parent
 # is itself a recommendation; 0.7 separates the two cases, a fact asked for and advice asked for).
 
 # %%
-PRICES = {"gpt-4o-mini": (0.15, 0.60), "gpt-4o": (2.50, 10.00)}      # $ per million tokens in, out
+PRICES = {"gpt-4o-mini": (0.15, 0.60), "gpt-4o-2024-08-06": (2.50, 10.00)}      # $ per million tokens in, out
 
 ANSWER_PROMPT = """Answer the question from the records below. Every record is dated and names its document; a
 "source" is the passage of the document its facts were read from. When records disagree, the one with the
@@ -1084,16 +1093,54 @@ def ask_reader(question, context, asked_on=None):
     price_in, price_out = PRICES[READER]
     cost = (usage.get("prompt_tokens", 0) * price_in + usage.get("completion_tokens", 0) * price_out) / 1e6
     SPENT += cost
-    call = {"question": question, "asked_on": asked_on, "answer": answer, "model": body.get("model"),
+    call = {"stage": "reader", "question": question, "asked_on": asked_on, "answer": answer, "model": body.get("model"),
             "in": usage.get("prompt_tokens"), "out": usage.get("completion_tokens"),
             "seconds": round(time.time() - started, 1), "cost": cost}
     with open(OUT / "calls.jsonl", "a", encoding="utf-8") as f:
         f.write(json.dumps(call, ensure_ascii=False) + "\n")
-    return answer
+    return answer, call["seconds"]
+
+
+# LongMemEval's own judge: the prompts of src/evaluation/evaluate_qa.py in the benchmark's repository,
+# word for word, on the model it names, at temperature 0 with 10 tokens; a reply containing "yes" is correct
+JUDGE = "gpt-4o-2024-08-06"
+
+CHECK_PLAIN = "I will give you a question, a correct answer, and a response from a model. Please answer yes if the response contains the correct answer. Otherwise, answer no. If the response is equivalent to the correct answer or contains all the intermediate steps to get the correct answer, you should also answer yes. If the response only contains a subset of the information required by the answer, answer no. \n\nQuestion: {}\n\nCorrect Answer: {}\n\nModel Response: {}\n\nIs the model response correct? Answer yes or no only."
+CHECK_TEMPORAL = "I will give you a question, a correct answer, and a response from a model. Please answer yes if the response contains the correct answer. Otherwise, answer no. If the response is equivalent to the correct answer or contains all the intermediate steps to get the correct answer, you should also answer yes. If the response only contains a subset of the information required by the answer, answer no. In addition, do not penalize off-by-one errors for the number of days. If the question asks for the number of days/weeks/months, etc., and the model makes off-by-one errors (e.g., predicting 19 days when the answer is 18), the model's response is still correct. \n\nQuestion: {}\n\nCorrect Answer: {}\n\nModel Response: {}\n\nIs the model response correct? Answer yes or no only."
+CHECK_UPDATE = "I will give you a question, a correct answer, and a response from a model. Please answer yes if the response contains the correct answer. Otherwise, answer no. If the response contains some previous information along with an updated answer, the response should be considered as correct as long as the updated answer is the required answer.\n\nQuestion: {}\n\nCorrect Answer: {}\n\nModel Response: {}\n\nIs the model response correct? Answer yes or no only."
+CHECK_PREFERENCE = "I will give you a question, a rubric for desired personalized response, and a response from a model. Please answer yes if the response satisfies the desired response. Otherwise, answer no. The model does not need to reflect all the points in the rubric. The response is correct as long as it recalls and utilizes the user's personal information correctly.\n\nQuestion: {}\n\nRubric: {}\n\nModel Response: {}\n\nIs the model response correct? Answer yes or no only."
+
+CHECKS = {
+    "single-session-user": CHECK_PLAIN,
+    "single-session-assistant": CHECK_PLAIN,
+    "multi-session": CHECK_PLAIN,
+    "temporal-reasoning": CHECK_TEMPORAL,
+    "knowledge-update": CHECK_UPDATE,
+    "single-session-preference": CHECK_PREFERENCE,
+}
+
+
+def judge(question_type, question, correct_answer, response):
+    global SPENT
+    prompt = CHECKS[question_type].format(question, correct_answer, response)
+    payload = {"model": JUDGE, "temperature": 0, "max_tokens": 10,
+               "messages": [{"role": "user", "content": prompt}]}
+    body = post(payload)
+    reply = body["choices"][0]["message"]["content"].strip()
+
+    usage = body.get("usage", {})
+    price_in, price_out = PRICES[JUDGE]
+    cost = (usage.get("prompt_tokens", 0) * price_in + usage.get("completion_tokens", 0) * price_out) / 1e6
+    SPENT += cost
+    call = {"stage": "judge", "question": question, "reply": reply, "model": body.get("model"),
+            "in": usage.get("prompt_tokens"), "out": usage.get("completion_tokens"), "cost": cost}
+    with open(OUT / "calls.jsonl", "a", encoding="utf-8") as f:
+        f.write(json.dumps(call, ensure_ascii=False) + "\n")
+    return "yes" in reply.lower()
 
 
 if KEY:
-    print("reader", READER, "at temperature 0; key present")
+    print("reader", READER, "at temperature 0, judge", JUDGE, "; key present")
 else:
     print("reader", READER, "; no key: retrieval runs, the reader does not")
 
@@ -1133,7 +1180,8 @@ def ask(question, doc_filter, asked_on=None):
 
     heading(f"3. MODEL RESPONSE ({READER})")
     if KEY:
-        print(ask_reader(question, context, asked_on))
+        answer, seconds = ask_reader(question, context, asked_on)
+        print(answer)
     else:
         print("no OPENAI_API_KEY in this run, so the model was not asked")
     print()
@@ -1148,90 +1196,180 @@ ask("What is the connection between THE DEAN and the character Gus in 'Dandy Dic
     path_filter(store, "graphrag-bench/Novel-40700"))
 
 # %% [markdown]
-# ## Block 10: every memory question in the store
+# ## Block 10: every memory question in the store, judged
 #
 # The 14 LongMemEval questions whose sessions are in this store, each asked through the same path as
-# Block 9, searched inside its own history's folder, and asked on the date the benchmark gives for
-# it. Only the prompt and the model's response are printed; the retrieved text is in
-# `questions.jsonl`.
+# Block 9, searched inside its own history's folder, asked on the date the benchmark gives for it,
+# and scored by the benchmark's own judge. Printed for each: the prompt, the response and the
+# verdict. Then the three numbers Zep reports for LongMemEval (its Table 2): accuracy, latency and
+# the context given to the reader. Latency here is retrieval plus the reader's call, measured inside
+# Kaggle; Zep's was measured from a laptop to its service, network included.
 #
-# This is a check that the path answers, not a benchmark score: only gpt4_2ba83207 has its whole
-# history here (53 sessions). The other 13 have their answer sessions alone (1 to 3 of about 50), so
-# there is far less to search through than the benchmark gives. These 14 are the tuning questions.
-# Two runs on 2026-10-07 answered with gpt-5.6-luna at low effort, and each matched the benchmark on
-# 11. In 0.4 the misses were 06878be2, 0a995998 and 6a1eabeb, which led to the budget and the two
-# prompt sentences of 0.5. In 0.5 they were 0a995998, 6a1eabeb and gpt4_2ba83207, all three with
-# the evidence in the packed text. 0.6 moved the reader to gpt-4o-mini, the published baselines'
-# model, and its first run (2026-10-08) again matched 11: 6a1eabeb right, 06878be2, 0a995998 and
-# gpt4_2ba83207 wrong. In that run the $150 the grocery answer turns on stood in a fact that did
-# not name its store, pointing at "the same passage as above"; 0.7 packs a passage's facts together
-# with it.
-#
-# | question | type | the benchmark's answer |
-# |---|---|---|
-# | 06878be2 | preference | Sony-compatible accessories or high-quality photography gear |
-# | 0a995998 | multi-session | 3 |
-# | 0e5e2d1a | assistant | 38 subjects |
-# | 118b2229 | user | 45 minutes each way |
-# | 4c36ccef | assistant | Roscioli |
-# | 6a1eabeb | knowledge update | 25 minutes and 50 seconds |
-# | 6aeb4375 | knowledge update | four |
-# | 7161e7e2 | assistant | 8 am - 4 pm (Day Shift) on Sundays |
-# | 8a2466db | preference | resources tailored to Adobe Premiere Pro and its advanced settings |
-# | e47becba | user | Business Administration |
-# | e8a79c70 | assistant | 2-3 eggs |
-# | gpt4_2ba83207 | multi-session | Thrive Market |
-# | gpt4_59149c77 | temporal | 7 days (8 including the last day) |
-# | gpt4_b5700ca9 | temporal | 4 days |
+# This is a check, not a benchmark score: these are the 14 tuning questions, and only gpt4_2ba83207
+# has its whole history here (53 sessions); the other 13 have their answer sessions alone (1 to 3 of
+# about 50). Runs on 2026-10-07 and 10-08 (gpt-5.6-luna, then gpt-4o-mini) each matched the
+# benchmark on 11 by hand; 0.7 on gpt-4o-mini matched 12, the misses both multi-session.
 
 # %%
 MEMORY_QUESTIONS = [
-    ("06878be2", "2023/05/30 (Tue) 16:40",
-     "Can you suggest some accessories that would complement my current photography setup?"),
-    ("0a995998", "2023/02/15 (Wed) 23:50",
-     "How many items of clothing do I need to pick up or return from a store?"),
-    ("0e5e2d1a", "2023/05/30 (Tue) 18:13",
-     "I wanted to follow up on our previous conversation about binaural beats for anxiety and depression. "
-     "Can you remind me how many subjects were in the study published in the journal Music and Medicine "
-     "that found significant reductions in symptoms of depression, anxiety, and stress?"),
-    ("118b2229", "2023/05/30 (Tue) 20:36",
-     "How long is my daily commute to work?"),
-    ("4c36ccef", "2023/05/30 (Tue) 23:29",
-     "Can you remind me of the name of the romantic Italian restaurant in Rome you recommended for dinner?"),
-    ("6a1eabeb", "2023/06/25 (Sun) 13:22",
-     "What was my personal best time in the charity 5K run?"),
-    ("6aeb4375", "2023/10/22 (Sun) 15:38",
-     "How many Korean restaurants have I tried in my city?"),
-    ("7161e7e2", "2023/05/30 (Tue) 20:16",
-     "I'm checking our previous chat about the shift rotation sheet for GM social media agents. "
-     "Can you remind me what was the rotation for Admon on a Sunday?"),
-    ("8a2466db", "2023/05/30 (Tue) 22:03",
-     "Can you recommend some resources where I can learn more about video editing?"),
-    ("e47becba", "2023/05/30 (Tue) 23:40",
-     "What degree did I graduate with?"),
-    ("e8a79c70", "2023/05/30 (Tue) 08:29",
-     "I was going through our previous conversation about making a classic French omelette, and I wanted "
-     "to confirm - how many eggs did you say we need for the recipe?"),
-    ("gpt4_2ba83207", "2023/05/30 (Tue) 22:59",
-     "Which grocery store did I spend the most money at in the past month?"),
-    ("gpt4_59149c77", "2023/02/01 (Wed) 10:20",
-     "How many days passed between my visit to the Museum of Modern Art (MoMA) and the "
-     "'Ancient Civilizations' exhibit at the Metropolitan Museum of Art?"),
-    ("gpt4_b5700ca9", "2023/04/10 (Mon) 10:28",
-     "How many days ago did I attend the Maundy Thursday service at the Episcopal Church?"),
+    ("06878be2", "single-session-preference", "2023/05/30 (Tue) 16:40",
+     "Can you suggest some accessories that would complement my current photography setup?",
+     "The user would prefer suggestions of Sony-compatible accessories or high-quality photography gear that can enhance their photography experience. They may not prefer suggestions of other brands' equipment or low-quality gear."),
+    ("0a995998", "multi-session", "2023/02/15 (Wed) 23:50",
+     "How many items of clothing do I need to pick up or return from a store?",
+     "3"),
+    ("0e5e2d1a", "single-session-assistant", "2023/05/30 (Tue) 18:13",
+     "I wanted to follow up on our previous conversation about binaural beats for anxiety and depression. Can you remind me how many subjects were in the study published in the journal Music and Medicine that found significant reductions in symptoms of depression, anxiety, and stress?",
+     "38 subjects"),
+    ("118b2229", "single-session-user", "2023/05/30 (Tue) 20:36",
+     "How long is my daily commute to work?",
+     "45 minutes each way"),
+    ("4c36ccef", "single-session-assistant", "2023/05/30 (Tue) 23:29",
+     "Can you remind me of the name of the romantic Italian restaurant in Rome you recommended for dinner?",
+     "Roscioli"),
+    ("6a1eabeb", "knowledge-update", "2023/06/25 (Sun) 13:22",
+     "What was my personal best time in the charity 5K run?",
+     "25 minutes and 50 seconds (or 25:50)"),
+    ("6aeb4375", "knowledge-update", "2023/10/22 (Sun) 15:38",
+     "How many Korean restaurants have I tried in my city?",
+     "four"),
+    ("7161e7e2", "single-session-assistant", "2023/05/30 (Tue) 20:16",
+     "I'm checking our previous chat about the shift rotation sheet for GM social media agents. Can you remind me what was the rotation for Admon on a Sunday?",
+     "Admon was assigned to the 8 am - 4 pm (Day Shift) on Sundays."),
+    ("8a2466db", "single-session-preference", "2023/05/30 (Tue) 22:03",
+     "Can you recommend some resources where I can learn more about video editing?",
+     "The user would prefer responses that suggest resources specifically tailored to Adobe Premiere Pro, especially those that delve into its advanced settings. They might not prefer general video editing resources or resources related to other video editing software."),
+    ("e47becba", "single-session-user", "2023/05/30 (Tue) 23:40",
+     "What degree did I graduate with?",
+     "Business Administration"),
+    ("e8a79c70", "single-session-assistant", "2023/05/30 (Tue) 08:29",
+     "I was going through our previous conversation about making a classic French omelette, and I wanted to confirm - how many eggs did you say we need for the recipe?",
+     "2-3 eggs"),
+    ("gpt4_2ba83207", "multi-session", "2023/05/30 (Tue) 22:59",
+     "Which grocery store did I spend the most money at in the past month?",
+     "Thrive Market"),
+    ("gpt4_59149c77", "temporal-reasoning", "2023/02/01 (Wed) 10:20",
+     "How many days passed between my visit to the Museum of Modern Art (MoMA) and the 'Ancient Civilizations' exhibit at the Metropolitan Museum of Art?",
+     "7 days. 8 days (including the last day) is also acceptable."),
+    ("gpt4_b5700ca9", "temporal-reasoning", "2023/04/10 (Mon) 10:28",
+     "How many days ago did I attend the Maundy Thursday service at the Episcopal Church?",
+     "4 days."),
 ]
 
-for question_id, asked_on, question in MEMORY_QUESTIONS:
-    context, line = retrieve(store, question, path_filter(store, "chats/longmemeval/" + question_id + "/"))
-    print(RULE)
-    print("PROMPT:   asked on", asked_on)
-    print("         ", question)
-    if KEY:
-        print("RESPONSE:", ask_reader(question, context, asked_on))
+
+def run_questions(budget, show):
+    results = []
+    for question_id, question_type, asked_on, question, correct_answer in MEMORY_QUESTIONS:
+        doc_filter = path_filter(store, "chats/longmemeval/" + question_id + "/")
+        context, line = retrieve(store, question, doc_filter, budget=budget)
+
+        result = {"question_id": question_id, "type": question_type, "budget": budget,
+                  "tokens": line["tokens"], "retrieve_seconds": line["seconds"],
+                  "reader_seconds": None, "response": None, "correct": None}
+        if KEY:
+            response, seconds = ask_reader(question, context, asked_on)
+            result["response"] = response
+            result["reader_seconds"] = seconds
+            result["correct"] = judge(question_type, question, correct_answer, response)
+        results.append(result)
+
+        if show:
+            print(RULE)
+            print("PROMPT:   asked on", asked_on)
+            print("         ", question)
+            if KEY:
+                print("RESPONSE:", result["response"])
+                verdict = "wrong"
+                if result["correct"]:
+                    verdict = "correct"
+                print("JUDGE:   ", verdict)
+            else:
+                print("RESPONSE: no OPENAI_API_KEY in this run, so the model was not asked")
+
+    with open(OUT / "results.jsonl", "a", encoding="utf-8") as f:
+        for result in results:
+            f.write(json.dumps(result, ensure_ascii=False) + "\n")
+    return results
+
+
+def middle_and_spread(values):
+    values = sorted(values)
+    n = len(values)
+    if n % 2 == 1:
+        median = values[n // 2]
     else:
-        print("RESPONSE: no OPENAI_API_KEY in this run, so the model was not asked")
+        median = (values[n // 2 - 1] + values[n // 2]) / 2
+    quarter = values[n // 4]
+    three_quarters = values[(3 * n) // 4]
+    return median, three_quarters - quarter
+
+
+def summary(results):
+    tokens = []
+    seconds = []
+    correct = 0
+    judged = 0
+    for result in results:
+        tokens.append(result["tokens"])
+        total = result["retrieve_seconds"]
+        if result["reader_seconds"] is not None:
+            total += result["reader_seconds"]
+        seconds.append(total)
+        if result["correct"] is not None:
+            judged += 1
+            if result["correct"]:
+                correct += 1
+
+    median_seconds, spread = middle_and_spread(seconds)
+    line = {"budget": results[0]["budget"], "questions": len(results),
+            "correct": correct, "judged": judged,
+            "mean_tokens": round(sum(tokens) / len(tokens)),
+            "median_seconds": round(median_seconds, 2), "seconds_iqr": round(spread, 2)}
+    return line
+
+
+def print_by_type(results):
+    totals = {}
+    rights = {}
+    for result in results:
+        totals[result["type"]] = totals.get(result["type"], 0) + 1
+        if result["correct"]:
+            rights[result["type"]] = rights.get(result["type"], 0) + 1
+    for question_type in sorted(totals):
+        print(f"  {question_type:28} {rights.get(question_type, 0)} of {totals[question_type]}")
+
+
+RESULTS = {}
+RESULTS[BUDGET] = run_questions(BUDGET, show=True)
 print(RULE)
-print(f"reader cost ${SPENT:.4f}")
+line = summary(RESULTS[BUDGET])
+if KEY:
+    print(f"ACCURACY {line['correct']} of {line['judged']} (LongMemEval's judge, {JUDGE})")
+    print_by_type(RESULTS[BUDGET])
+print(f"CONTEXT  {line['mean_tokens']} tokens on average")
+print(f"LATENCY  median {line['median_seconds']} s, IQR {line['seconds_iqr']} s (retrieval plus the reader)")
+
+# %% [markdown]
+# ## Block 11: accuracy against the size of the context
+#
+# The same 14 questions at three budgets: 2,000 tokens (near Zep's 1,600), 6,000 and 12,000 (the
+# default, from Block 10). Each row is accuracy by the benchmark's judge, the context the reader
+# was given on average, and the median latency with its spread, the three columns of Zep's Table 2.
+# Zep's own row, gpt-4o-mini: 63.8% over 500 questions, 1.6k tokens, 3.20 s (IQR 1.31 s).
+
+# %%
+for budget in [2000, 6000]:
+    RESULTS[budget] = run_questions(budget, show=False)
+
+print(f"{'budget':>8} {'correct':>9} {'context':>9} {'median s':>9} {'IQR s':>7}")
+for budget in [2000, 6000, BUDGET]:
+    line = summary(RESULTS[budget])
+    shown = "-"
+    if KEY:
+        shown = str(line["correct"]) + "/" + str(line["judged"])
+    print(f"{budget:>8} {shown:>9} {line['mean_tokens']:>9} {line['median_seconds']:>9} {line['seconds_iqr']:>7}")
+print()
+print(f"reader and judge cost ${SPENT:.4f}")
 
 # %% [markdown]
 # ## References
