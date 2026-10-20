@@ -371,6 +371,16 @@ except Exception:                        # a 400 here means the secret is not at
     KEY = None
     print("OPENAI_API_KEY is not attached to this notebook: Add-ons > Secrets, tick Attach; Settings > Internet on")
 calls = []
+CALLS_LOG = Path("/kaggle/working/calls.jsonl")
+calls_lock = threading.Lock()
+
+
+def keep(call):
+    """A call kept in memory for the spending stop, and written to calls.jsonl with its document."""
+    calls.append(call)
+    with calls_lock:
+        with CALLS_LOG.open("a", encoding="utf-8") as f:
+            f.write(json.dumps(call, ensure_ascii=False) + "\n")
 
 
 class TooLong(Exception):
@@ -413,9 +423,9 @@ def post(url, payload, model, prompt_chars, flex=True):
                               json={**payload, "service_tier": "flex"} if flex else payload)
         except (requests.Timeout, requests.ConnectionError):
             # the server may have finished and billed the request: count the input as spent
-            calls.append({"model": model, "in": prompt_chars // 4, "out": 0, "seconds": round(time.time() - t0, 1),
-                          "bill": BILL.get(threading.get_ident()), "timeout": True,
-                          "cost": prompt_chars // 4 * PRICE["default"][model][0] / 1e6})
+            keep({"model": model, "in": prompt_chars // 4, "out": 0, "seconds": round(time.time() - t0, 1),
+                  "bill": BILL.get(threading.get_ident()), "timeout": True,
+                  "cost": prompt_chars // 4 * PRICE["default"][model][0] / 1e6})
             if attempt == 2:
                 raise
             time.sleep(15 * (attempt + 1))
@@ -438,9 +448,9 @@ def post(url, payload, model, prompt_chars, flex=True):
 def log_call(body, model, tokens_in, tokens_out, seconds, searches=0):
     """The call's cost at the price of the tier that served it, plus its web searches."""
     p_in, p_out = PRICE.get(body.get("service_tier"), PRICE["default"])[model]
-    calls.append({"model": model, "tier": body.get("service_tier"), "in": tokens_in, "out": tokens_out, "searches": searches,
-                  "seconds": seconds, "bill": BILL.get(threading.get_ident()),
-                  "cost": (tokens_in * p_in + tokens_out * p_out) / 1e6 + searches * SEARCH_FEE})
+    keep({"model": model, "tier": body.get("service_tier"), "in": tokens_in, "out": tokens_out, "searches": searches,
+          "seconds": seconds, "bill": BILL.get(threading.get_ident()),
+          "cost": (tokens_in * p_in + tokens_out * p_out) / 1e6 + searches * SEARCH_FEE})
 
 
 def generate(prompt, model=MODEL, effort="low"):
@@ -1247,7 +1257,7 @@ LOG = Path("/kaggle/working/splits.log")
 # this in step with the code: 1.1 and 1.2 both shipped under the 1.0 label, so running the
 # older notebook after a newer one could not tell the work had been done and asked the whole
 # corpus again.
-LOADER = "threadatlas-extractor 1.8"
+LOADER = "threadatlas-extractor 1.9"
 REDO_ALL = False                        # True also re-asks clean records an older loader wrote
 
 
@@ -1533,6 +1543,22 @@ with ThreadPoolExecutor(max_workers=32) as pool:
 for f in files.values():
     f.close()
 receipt["body_share"] = round(receipt["chars_by_kind"].get("body", 0) / max(1, receipt["read_chars"]), 4)
+
+receipt["calls"] = 0
+receipt["tokens_in"] = 0
+receipt["tokens_out"] = 0
+receipt["searches"] = 0
+if CALLS_LOG.exists():
+    with CALLS_LOG.open(encoding="utf-8") as source, (OUT / "calls.jsonl").open("w", encoding="utf-8") as copy:
+        for line in source:
+            if not line.strip():
+                continue
+            copy.write(line)
+            call = json.loads(line)
+            receipt["calls"] += 1
+            receipt["tokens_in"] += call.get("in", 0)
+            receipt["tokens_out"] += call.get("out", 0)
+            receipt["searches"] += call.get("searches", 0)
 (OUT / "receipt.json").write_text(json.dumps(receipt, indent=2, ensure_ascii=False), encoding="utf-8")
 print(f"documents {receipt['documents']}  units {receipt['units']}  pieces {receipt['pieces']}  by kind {receipt['by_kind']}")
 print(f"pointers: mismatch {receipt['mismatch']}  recovered {receipt['recovered']}"
@@ -1547,6 +1573,7 @@ print(f"flagged {len(receipt['flagged'])} {receipt['flags_by_kind']}  unknown au
       f"  over-cap units {receipt['over_cap_read']} read + {receipt['over_cap_chat']} chat"
       f"  short units {receipt['short_read']} read + {receipt['short_chat']} chat"
       f"  model cost ${receipt['cost']:.2f}")
+print(f"model calls {receipt['calls']:,}: {receipt['tokens_in']:,} tokens in, {receipt['tokens_out']:,} out, {receipt['searches']} web searches")
 for entry in receipt["flagged"]:
     if "longmemeval/" not in entry["source_uri"]:
         print(f"    {entry['source_uri']}: {entry['flags']}")
