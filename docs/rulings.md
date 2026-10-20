@@ -79,6 +79,7 @@ here on 2026-09-13); its status. A new ruling is a new line, never an edit of an
 | 09-10 | The output schema must carry Gemini, Grok, Claude and OpenAI chats: a conversation with a title, a time and an author, each unit with its own time. The placement record and a `tool` piece kind were PROPOSED and never ruled. | chat-rulings.md:49-52 | stands as a requirement; the proposed records are open |
 | 09-08 | Review rulings 4 (the set node) and 6 (a controlled predicate list at Step 2) were asked for and never ruled. | log/2026-09-08/review.md | open |
 | 09-13 | LongMemEval is unpacked into one folder per history; a session used by several histories is a separate document in each, dated as that history dates it; nothing from the test itself is written. | chat; code (extractor 1.8, block 0) | stands |
+| 10-20 | A session placed in several histories stays a separate document in each, with that history's dates, and every copy is ingested in full. Ingesting the text once and re-dating the copies was weighed for cost (about $24 of the chat ingest) and rejected: the pipeline is kept simple. | chat | stands |
 | 09-13 | Each chat turn carries its own timestamp; empty sessions and empty turns are skipped and counted. | code (extractor 1.8) | stands |
 
 ## Step 1: reading a document
