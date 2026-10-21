@@ -418,6 +418,10 @@ def call(url, payload, model, stage, ctx, prompt_chars):
                 raise
             time.sleep(15 * (attempt + 1))
             continue
+        if status == 429 and "flex_unavailable" in text and payload.get("service_tier") == "flex":
+            payload = dict(payload)
+            payload["service_tier"] = "default"          # flex has no room for this call: send it on the standard tier
+            continue
         if status == 429 and "insufficient_quota" in text:
             raise SpendStop(f"OpenAI quota exhausted: {text[:200]}")
         if status == 429 or status >= 500:
