@@ -592,6 +592,8 @@ def normalised(text):
         if i in skip:
             continue
         ch = REPLACEMENTS.get(ch, ch)
+        if ch == "-":                       # hyphens are left out on both sides, so a compound the PDF broke at its hyphen still matches
+            continue
         if ch.isspace():
             if not in_space:
                 out.append(" ")
